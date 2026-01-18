@@ -144,10 +144,10 @@ class NET_Tick : public CNetMessage
 	NET_Tick() 
 	{ 
 		m_bReliable = false; 
-#if PROTOCOL_VERSION > 10
+//#if PROTOCOL_VERSION > 10
 		m_flHostFrameTime				= 0;
 		m_flHostFrameTimeStdDeviation	= 0;
-#endif
+//#endif
 	};
 
 	NET_Tick( int tick, float host_frametime, float host_frametime_stddeviation ) 
@@ -165,10 +165,10 @@ class NET_Tick : public CNetMessage
 	
 public:
 	int			m_nTick; 
-#if PROTOCOL_VERSION > 10
+//#if PROTOCOL_VERSION > 10
 	float		m_flHostFrameTime;
 	float		m_flHostFrameTimeStdDeviation;
-#endif
+//#endif
 };
 
 class NET_SignonState : public CNetMessage

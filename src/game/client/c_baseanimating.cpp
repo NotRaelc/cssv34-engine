@@ -2450,7 +2450,7 @@ void C_BaseAnimating::ThreadedBoneSetup()
 bool C_BaseAnimating::SetupBones( matrix3x4_t *pBoneToWorldOut, int nMaxBones, int boneMask, float currentTime )
 {
 	VPROF_BUDGET( "C_BaseAnimating::SetupBones", VPROF_BUDGETGROUP_CLIENT_ANIMATION );
-
+	/*
 	if ( !IsBoneAccessAllowed() )
 	{
 		static float lastWarning = 0.0f;
@@ -2462,6 +2462,9 @@ bool C_BaseAnimating::SetupBones( matrix3x4_t *pBoneToWorldOut, int nMaxBones, i
 			lastWarning = gpGlobals->realtime;
 		}
 	}
+	*/
+	if (!IsBoneAccessAllowed())
+		PushAllowBoneAccess(true, true, 0);
 
 	//boneMask = BONE_USED_BY_ANYTHING; // HACK HACK - this is a temp fix until we have accessors for bones to find out where problems are.
 	

@@ -14,8 +14,7 @@
 #include "dialogmenu.h"
 #include "basepanel.h"
 #include "vgui_controls\ImagePanel.h"
-#include "iachievementmgr.h"			// for iachievement abstract class in CAchievementItem
-#include "achievementsdialog.h"			// for helper functions used by both pc and xbox achievements
+#include "basedialog.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -529,146 +528,6 @@ void COptionsItem::SetOptionFocusPrev()
 
 
 //-----------------------------------------------------------------------
-// CAchievementItem
-//
-// Menu item used to present an achievement - including image, title,
-// description, points and unlock date. Clicking the item opens another
-// dialog with additional information about the achievement.
-//-----------------------------------------------------------------------
-CAchievementItem::CAchievementItem( CDialogMenu *pParent, const wchar_t *pName, const wchar_t *pDesc, uint points, bool bUnlocked, IAchievement* pSourceAchievement ) 
-	: BaseClass( pParent, "", "" )
-{
-	// Title and description were returned as results of a system query,
-	// and are therefore already localized.
-	m_pTitle->SetText( pName );
-
-	if ( IsX360() )
-	{
-		wchar_t buf[120];
-
-		// Get the screen size
-		int wide, tall;
-		vgui::surface()->GetScreenSize(wide, tall);
-
-		unsigned int iWrapLen;
-
-		if ( tall <= 480 )
-		{
-			iWrapLen = 50;
-		}
-		else
-		{
-			iWrapLen = 65;
-		}
-
-		// let's do some wrapping on this label
-		wcsncpy( buf, pDesc, sizeof(buf) / sizeof( wchar_t ) );
-
-		if ( wcslen(buf) > iWrapLen )
-		{
-			int iPos = iWrapLen;
-
-			while ( iPos > 0 && buf[iPos] != L' ' )
-			{
-				iPos--;
-			}
-
-			if ( iPos > 0 && buf[iPos] == L' ' )
-			{
-				buf[iPos] = L'\n';
-			}				
-		}
-
-		m_pDescription->SetText( buf );
-	}
-	else
-	{
-		m_pDescription->SetText( pDesc );
-	}
-
-	m_pSourceAchievement = pSourceAchievement;
-
-	m_pPercentageBarBackground = SETUP_PANEL( new vgui::ImagePanel( this, "PercentageBarBackground" ) );
-	m_pPercentageBar = SETUP_PANEL( new vgui::ImagePanel( this, "PercentageBar" ) );
-	m_pPercentageText = SETUP_PANEL( new vgui::Label( this, "PercentageText", "" ) );
-
-	// Set the status icons
-	m_pLockedIcon = SETUP_PANEL( new vgui::ImagePanel( this, "lockedicon" ) );
-	m_pUnlockedIcon = SETUP_PANEL( new vgui::ImagePanel( this, "unlockedicon" ) );
-
-	// Gamerscore number
-	if ( IsX360() )
-	{
-		wchar_t *wzFormat = g_pVGuiLocalize->Find( "#GameUI_Achievement_Points" );	// "%s1G"
-		wchar_t wzPoints[10];
-		_itow_s( points, wzPoints, ARRAYSIZE( wzPoints ), 10 );
-		wchar_t wzPointsLayout[10];
-		g_pVGuiLocalize->ConstructString( wzPointsLayout, sizeof( wzPointsLayout ), wzFormat, 1, wzPoints );
-		m_pPoints = new vgui::Label( this, "Points", wzPointsLayout );
-	}
-
-	// Achievement image
-	m_pImage = new vgui::ImagePanel( this, "icon" );
-}
-
-CAchievementItem::~CAchievementItem()
-{
-	delete m_pImage;
-	delete m_pPoints;
-	delete m_pLockedIcon;
-	delete m_pUnlockedIcon;
-	delete m_pPercentageBarBackground;
-	delete m_pPercentageBar;
-	delete m_pPercentageText;
-}
-
-void CAchievementItem::PerformLayout()
-{
-	BaseClass::PerformLayout();
-
-	int x, y;
-
- 	m_pPoints->SizeToContents();
-	m_pPoints->GetPos( x, y );
- 	x = GetWide() - m_pPoints->GetWide() - m_nRightMargin;
- 	m_pPoints->SetPos( x, y );
-
-}
-
-void CAchievementItem::ApplySchemeSettings( vgui::IScheme *pScheme )
-{
-	BaseClass::ApplySchemeSettings( pScheme );
-
-	KeyValues*pKeys = BasePanel()->GetConsoleControlSettings()->FindKey( "AchievementItem.res" );	
-	ApplySettings( pKeys );
-
-	m_pImage->SetBgColor( Color( 32, 32, 32, 255 ) );
-	m_pImage->SetFgColor( Color( 32, 32, 32, 255 ) );
-	m_pImage->SetPaintBackgroundEnabled( true );
-
-	m_pPoints->SetFgColor( pScheme->GetColor( "MatchmakingMenuItemDescriptionColor", Color( 64, 64, 64, 255 ) ) );
-
-	// Set icon image
-	LoadAchievementIcon( m_pImage, m_pSourceAchievement );
-
-	// Percentage completion bar (for progressive achievements)
-	UpdateProgressBar( this, m_pSourceAchievement, m_clrProgressBar );
-
-	if ( m_pSourceAchievement && m_pSourceAchievement->IsAchieved() )
-	{
-		m_pLockedIcon->SetVisible( false );
-		m_pUnlockedIcon->SetVisible ( true );
-		m_pImage->SetVisible( true );
-	}
-	else
-	{
-		m_pLockedIcon->SetVisible( true );
-		m_pUnlockedIcon->SetVisible( false );
-		m_pImage->SetVisible( false );
-	}
-}
-
-//-----------------------------------------------------------------------
 // CSectionedItem
 //
 // Menu item used to display some number of data entries, which are arranged
@@ -836,11 +695,6 @@ CBrowserItem *CDialogMenu::AddBrowserItem( const char *pHost, const char *pPlaye
 COptionsItem *CDialogMenu::AddOptionsItem( const char *pLabel )
 {
 	return (COptionsItem*)AddItemInternal( new COptionsItem( this, pLabel ) );
-}
-
-CAchievementItem *CDialogMenu::AddAchievementItem( const wchar_t *pName, const wchar_t *pDesc, uint points, bool bUnlocked, IAchievement* pSourceAchievement  )
-{
-	return (CAchievementItem*)AddItemInternal( new CAchievementItem( this, pName, pDesc, points, bUnlocked, pSourceAchievement ) );
 }
 
 CSectionedItem *CDialogMenu::AddSectionedItem( const char **ppEntries, int ct )
@@ -1436,7 +1290,7 @@ int CDialogMenu::GetColumnAlignment( int idx )
 //-----------------------------------------------------------------------
 // Return the specified column font
 //-----------------------------------------------------------------------
-HFont CDialogMenu::GetColumnFont( int idx )
+unsigned long CDialogMenu::GetColumnFont( int idx )
 {
 	return m_Columns[idx].hFont;
 }

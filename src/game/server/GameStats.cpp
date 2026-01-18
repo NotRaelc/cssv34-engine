@@ -147,7 +147,7 @@ void CBaseGameStats::StatsLog( char const *fmt, ... )
 
 	// Prepend the time.
 	time_t aclock;
-	time( &aclock );
+	_time64( &aclock ); // time() is under vcr hook so we will use time64
 
 	struct tm *newtime = localtime( &aclock );
 

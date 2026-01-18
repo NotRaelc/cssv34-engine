@@ -152,8 +152,8 @@ void SeedRandomNumberGenerator( bool random_invariant )
 
 static void PR_CheckEmptyString (const char *s)
 {
-	if (s[0] <= ' ')
-		Host_Error ("Bad string: %s", s);
+	//if (s[0] <= ' ')
+	//	Host_Error ("Bad string: %s", s);
 }
 
 // Average a list a vertices to find an approximate "center"

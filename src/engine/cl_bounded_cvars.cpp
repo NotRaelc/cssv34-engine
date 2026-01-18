@@ -45,7 +45,7 @@ public:
 	CBoundedCvar_Rate() :
 	  ConVar_ServerBounded( 
 		  "rate", 
-		  "10000", 
+		  "30000", 
 		  FCVAR_USERINFO, 
 		  "Max bytes/sec the host can receive data", 
 		  CL_RateCvarChanged )
@@ -80,7 +80,7 @@ public:
 	CBoundedCvar_CmdRate() :
 	  ConVar_ServerBounded( 
 		  "cl_cmdrate", 
-		  "30", 
+		  "40", 
 		  FCVAR_ARCHIVE | FCVAR_USERINFO, 
 		  "Max number of command packets sent to server per second", true, MIN_CMD_RATE, true, MAX_CMD_RATE )
 	{
@@ -127,7 +127,7 @@ public:
 	CBoundedCvar_UpdateRate() :
 	  ConVar_ServerBounded( 
 		  "cl_updaterate",
-		  "20", 
+		  "60", 
 		  FCVAR_ARCHIVE | FCVAR_USERINFO, 
 		  "Number of packets per second of updates you are requesting from the server" )
 	{

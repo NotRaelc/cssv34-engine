@@ -39,7 +39,7 @@
 #include "materialsystem/imaterialsystem.h"
 #include "engine/imatchmaking.h"
 #include "ixboxsystem.h"
-#include "iachievementmgr.h"
+
 #include "IGameUIFuncs.h"
 #include <IEngineVGUI.h>
 #include "steam/steam_api.h"
@@ -80,7 +80,6 @@ IXboxSystem* xboxsystem = NULL;		// 360 only
 vgui::ISurface* enginesurfacefuncs = NULL;
 IVEngineClient* engine = NULL;
 IEngineSound* enginesound = NULL;
-IAchievementMgr* achievementmgr = NULL;
 
 static CBasePanel* staticPanel = NULL;
 
@@ -334,8 +333,6 @@ void CGameUI::BonusMapNumMedals(int piNumMedals[3])
 void CGameUI::Connect(CreateInterfaceFn gameFactory)
 {
 	g_pGameClientExports = (IGameClientExports*)gameFactory(GAMECLIENTEXPORTS_INTERFACE_VERSION, NULL);
-
-	achievementmgr = engine->GetAchievementMgr();
 
 	if (!g_pGameClientExports)
 	{

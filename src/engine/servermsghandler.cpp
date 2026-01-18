@@ -379,7 +379,7 @@ bool CClientState::ProcessClassInfo( SVC_ClassInfo *msg )
 	
 	if ( !RecvTable_CreateDecoders( serverGameDLL->GetStandardSendProxies() ) ) // create receive table decoders
 	{
-		Host_EndGame( true, "CL_ParseClassInfo_EndClasses: CreateDecoders failed.\n" );
+		Host_EndGame(true, "CL_ParseClassInfo_EndClasses: CreateDecoders failed.\n");
 		return false;
 	}
 

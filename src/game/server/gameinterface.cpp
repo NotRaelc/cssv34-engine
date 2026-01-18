@@ -568,6 +568,8 @@ bool CServerGameDLL::DLLInit( CreateInterfaceFn appSystemFactory,
 	// cache the globals
 	gpGlobals = pGlobals;
 
+	Warning("gameeventmanager ptr: %p\n", gameeventmanager);
+
 	g_pSharedChangeInfo = engine->GetSharedEdictChangeInfo();
 	
 	MathLib_Init( 2.2f, 2.2f, 0.0f, 2.0f );
@@ -710,17 +712,12 @@ void CServerGameDLL::DLLShutdown( void )
 
 
 //-----------------------------------------------------------------------------
-// Purpose: See shareddefs.h for redefining this.  Don't even think about it, though, for HL2.  Or you will pay.  ywb 9/22/03
+// Purpose: 
 // Output : float
 //-----------------------------------------------------------------------------
 float CServerGameDLL::GetTickInterval( void ) const
 {
-	float tickinterval = DEFAULT_TICK_INTERVAL;
-
-#if defined( CSTRIKE_DLL )
-	// in CS reduce tickrate/sec by defualt
-	tickinterval *= 2;
-#endif
+	float tickinterval = DEFAULT_TICK_INTERVAL; // 66 tickrate
 
 // Ignoring this for now, server ops are abusing it
 //#if !defined( TF_DLL )
@@ -728,7 +725,7 @@ float CServerGameDLL::GetTickInterval( void ) const
 	if ( CommandLine()->CheckParm( "-tickrate" ) )
 	{
 		float tickrate = CommandLine()->ParmValue( "-tickrate", 0 );
-		if ( tickrate > 10 )
+		if ( tickrate > 20 ) // minimal tickrate is 20
 			tickinterval = 1.0f / tickrate;
 	}
 //#endif
@@ -743,6 +740,12 @@ bool CServerGameDLL::GameInit( void )
 	engine->ServerCommand( "exec game.cfg\n" );
 	engine->ServerExecute( );
 	CBaseEntity::sm_bAccurateTriggerBboxChecks = true;
+
+	Warning("gameeventmanager ptr: %p\n", gameeventmanager);
+	if (!gameeventmanager) {
+		gameeventmanager = (IGameEventManager2*)Sys_GetFactory("engine.dll")(INTERFACEVERSION_GAMEEVENTSMANAGER2, NULL);
+		Warning("gameeventmanager was reloaded since it was NULL\n");
+	}
 
 	IGameEvent *event = gameeventmanager->CreateEvent( "game_init" );
 	if ( event )

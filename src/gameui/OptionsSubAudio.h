@@ -51,8 +51,6 @@ private:
 	bool						   m_bRequireRestart;
    
    vgui::ComboBox				*m_pSpokenLanguageCombo;
-   MESSAGE_FUNC( OpenThirdPartySoundCreditsDialog, "OpenThirdPartySoundCreditsDialog" );
-   vgui::DHANDLE<class COptionsSubAudioThirdPartyCreditsDlg> m_OptionsSubAudioThirdPartyCreditsDlg;
    ELanguage         m_nCurrentAudioLanguage;
    static char             *m_pchUpdatedAudioLanguage;
 };

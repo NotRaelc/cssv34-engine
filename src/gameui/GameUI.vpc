@@ -178,8 +178,8 @@ $Project "GameUI"
 
 	$Folder	"Matchmaking"
 	{
-		$File	"matchmaking\achievementsdialog.cpp"
-		$File	"matchmaking\achievementsdialog.h"
+		//$File	"matchmaking\achievementsdialog.cpp"
+		//$File	"matchmaking\achievementsdialog.h"
 		$File	"matchmaking\basedialog.cpp"
 		$File	"matchmaking\basedialog.h"
 		$File	"matchmaking\dialogmenu.cpp"

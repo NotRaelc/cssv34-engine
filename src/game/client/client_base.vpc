@@ -135,6 +135,7 @@ $Project
 		$File	"c_hairball.cpp"
 		$File	"c_info_overlay_accessor.cpp"
 		$File	"c_lightglow.cpp"
+		//$File	"c_lights.cpp"
 		$File	"C_MaterialModifyControl.cpp"
 		$File	"c_particle_system.cpp"
 		$File	"c_physbox.cpp"

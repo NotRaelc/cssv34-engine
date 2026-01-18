@@ -229,8 +229,6 @@ public:
 	void OnOpenOptionsDialog_Xbox();
 	void OnOpenLoadCommentaryDialog();
 	void OpenLoadSingleplayerCommentaryDialog();
-	void OnOpenAchievementsDialog();
-	void OnOpenAchievementsDialog_Xbox();
 	void OnOpenControllerDialog();
 
 	// Xbox 360
@@ -359,7 +357,6 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hPlayerListDialog;
 	vgui::DHANDLE<vgui::Frame> m_hBenchmarkDialog;
 	vgui::DHANDLE<vgui::Frame> m_hLoadCommentaryDialog;
-	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
 
 	// Xbox 360
 	vgui::DHANDLE<vgui::Frame> m_hMatchmakingBasePanel;

@@ -59,6 +59,7 @@ void CGameConsole::Initialize()
 	// set the console to taking up most of the right-half of the screen
 	int swide, stall;
 	vgui::surface()->GetScreenSize(swide, stall);
+
 	int offset = vgui::scheme()->GetProportionalScaledValue(16);
 
 	m_pConsole->SetBounds(

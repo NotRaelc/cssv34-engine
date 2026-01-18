@@ -914,6 +914,7 @@ void BuildGroup::LoadControlSettings(const char *controlResourceName, const char
 
 	// save off the resource name
 	delete [] m_pResourceName;
+	if (!controlResourceName) return;
 	m_pResourceName = new char[strlen(controlResourceName) + 1];
 	strcpy(m_pResourceName, controlResourceName);
 

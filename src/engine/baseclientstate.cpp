@@ -474,9 +474,10 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 #ifndef NO_STEAM
 	if ( !SteamUser() )
 	{
-		COM_ExplainDisconnection( true, "The server requires that you be running Steam.\n" );
-		Disconnect();
-		return false;
+		//COM_ExplainDisconnection( true, "The server requires that you be running Steam.\n" );
+		//Disconnect();
+		//return false;
+		Msg("Non-Steam connection: unGSSteamID %llu\n", unGSSteamID);
 	}
 
 	// Size looks bogus
@@ -497,7 +498,8 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 #ifndef SWDS
 	// now append the steam3 cookie
 	char steam3Cookie[ STEAM_KEYSIZE ];
-	int steam3CookieLen = Steam3Client().InitiateConnection( steam3Cookie, sizeof(steam3Cookie), checkAdr.GetIP(), checkAdr.GetPort(), unGSSteamID, bGSSecure, (void *)encryptionKey, keySize );
+	//int steam3CookieLen = Steam3Client().InitiateConnection( steam3Cookie, sizeof(steam3Cookie), checkAdr.GetIP(), checkAdr.GetPort(), unGSSteamID, bGSSecure, (void *)encryptionKey, keySize );
+	int steam3CookieLen = STEAM_KEYSIZE - 512;
 	msg.WriteShort( steam3CookieLen );
 	if ( steam3CookieLen > 0 )
 		msg.WriteBytes( steam3Cookie, steam3CookieLen );
@@ -510,17 +512,6 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 
 void CBaseClientState::Connect(const char* adr)
 {
-#if !defined( NO_STEAM )
-	// Get our name from steam. Needs to be done before connecting
-	// because we won't have triggered a check by changing our name.
-	IConVar *pVar = g_pCVar->FindVar( "name" );
-	if ( pVar )
-	{
-		SetNameToSteamIDName( pVar );
-	}
-#endif
-
-
 	Q_strncpy( m_szRetryAddress, adr, sizeof(m_szRetryAddress) );
 
 	// For the check for resend timer to fire a connection / getchallenge request.

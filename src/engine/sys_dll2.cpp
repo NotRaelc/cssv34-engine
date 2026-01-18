@@ -95,6 +95,7 @@ const SteamInfVersionInfo_t& GetSteamInfIDVersionInfo()
 //-----------------------------------------------------------------------------
 // Forward declarations
 //-----------------------------------------------------------------------------
+void InitEngineInfo();
 void Host_GetHostInfo(float *fps, int *nActive, int *nMaxPlayers, char *pszMap, int maxlen );
 const char *Key_BindingForKey( int keynum );
 void COM_ShutdownFileSystem( void );
@@ -278,20 +279,6 @@ static eSteamInfoInit Sys_TryInitSteamInfo(void* pvAPI, SteamInfVersionInfo_t& V
 			fclose(fh);
 		}
 	}
-	// Short Version numbers
-	int ShortV[2];
-	
-	ShortV[0] = VerInfo.ServerVersion - 10000;
-	ShortV[1] = VerInfo.ClientVersion - 10000;
-	if (ShortV[0] >= 0)
-		VerInfo.ShortVersions[0] = ShortV[0];
-	else
-		VerInfo.ShortVersions[0] = ShortV[0] + 9000;
-	if (ShortV[1] >= 0)
-		VerInfo.ShortVersions[1] = ShortV[1];
-	else
-		VerInfo.ShortVersions[1] = ShortV[1] + 9000;
-
 
 #endif // !_X360
 	return initState;

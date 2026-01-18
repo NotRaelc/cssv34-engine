@@ -62,10 +62,8 @@ using namespace vgui;
 #include "inputsystem/iinputsystem.h"
 #include "ixboxsystem.h"
 #include "matchmaking/matchmakingbasepanel.h"
-#include "matchmaking/achievementsdialog.h"
 #include "OptionsSubAudio.h"
 #include "hl2orange.spa.h"
-#include "iachievementmgr.h"
 #if defined( _X360 )
 #include "xbox/xbox_launch.h"
 #else
@@ -1641,12 +1639,6 @@ void CBasePanel::OnGameUIActivated()
 		{
 			RunMenuCommand( "OpenMatchmakingBasePanel" );
  		}
-
-		if ( m_hAchievementsDialog.Get() )
-		{
-			// Achievement dialog refreshes it's data if the player looks at the pause menu
-			m_hAchievementsDialog->OnCommand( "OnGameUIActivated" );
-		}
 	}
 	else // not the pause menu, update presence
 	{
@@ -1756,37 +1748,6 @@ void CBasePanel::RunMenuCommand(const char *command)
 	else if ( !Q_stricmp( command, "OpenMatchmakingBasePanel" ) )
 	{
 		OnOpenMatchmakingBasePanel();
-	}
-	else if ( !Q_stricmp( command, "OpenAchievementsDialog" ) )
-	{
-		if ( IsPC() )
-		{
-#ifndef NO_STEAM
-			if ( !SteamUser() || !SteamUser()->BLoggedOn() )
-			{
-				vgui::MessageBox *pMessageBox = new vgui::MessageBox("#GameUI_Achievements_SteamRequired_Title", "#GameUI_Achievements_SteamRequired_Message");
-				pMessageBox->DoModal();
-				return;
-			}
-			OnOpenAchievementsDialog();
-#else
-			return;
-#endif
-		}
-		else
-		{
-			OnOpenAchievementsDialog_Xbox();
-		}
-	}
-	else if ( !Q_stricmp( command, "AchievementsDialogClosing" ) )
-	{
-		if ( IsX360() )
-		{
-			if ( m_hAchievementsDialog.Get() )
-			{
-				m_hAchievementsDialog->Close();
-			}
-		}
 	}
 	else if ( !Q_stricmp( command, "Quit" ) )
 	{
@@ -2901,26 +2862,6 @@ void CBasePanel::OpenLoadSingleplayerCommentaryDialog()
 	m_hNewGameDialog->Activate();
 }
 
-void CBasePanel::OnOpenAchievementsDialog()
-{
-	if (!m_hAchievementsDialog.Get())
-	{
-		m_hAchievementsDialog = new CAchievementsDialog( this );
-		PositionDialog(m_hAchievementsDialog);
-	}
-	m_hAchievementsDialog->Activate();
-}
-
-void CBasePanel::OnOpenAchievementsDialog_Xbox()
-{
-	if (!m_hAchievementsDialog.Get())
-	{
-		m_hAchievementsDialog = new CAchievementsDialog_XBox( this );
-		PositionDialog(m_hAchievementsDialog);
-	}
-	m_hAchievementsDialog->Activate();
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -3265,13 +3206,6 @@ void CBasePanel::OnGameUIHidden()
 	if ( m_hOptionsDialog.Get() )
 	{
 		PostMessage( m_hOptionsDialog.Get(), new KeyValues( "GameUIHidden" ) );
-	}
-
-	// HACKISH: Force this dialog closed so it gets data updates upon reopening.
-	vgui::Frame* pAchievementsFrame = m_hAchievementsDialog.Get();
-	if ( pAchievementsFrame )
-	{
-		pAchievementsFrame->Close();
 	}
 }
 
@@ -4359,9 +4293,6 @@ void CBasePanel::CloseBaseDialogs( void )
 	if ( m_hNewGameDialog.Get() )
 		m_hNewGameDialog->Close();
 
-	if ( m_hAchievementsDialog.Get() )
-		m_hAchievementsDialog->Close();
-	
 	if ( m_hBonusMapsDialog.Get() )
 		m_hBonusMapsDialog->Close();
 	

@@ -88,6 +88,9 @@ CUtlStreamBuffer::CUtlStreamBuffer( const char *pFileName, const char *pPath, in
 
 void CUtlStreamBuffer::Close()
 {
+	if (!g_pFullFileSystem)
+		return;
+
 	if ( !IsReadOnly() )
 	{
 		// Write the final bytes

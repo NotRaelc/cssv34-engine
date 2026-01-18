@@ -3,7 +3,6 @@
 // Purpose: 
 //
 //=============================================================================//
-
 #include "tier0/vprof.h"
 #include "server.h"
 #include "host_cmd.h"
@@ -858,13 +857,19 @@ CON_COMMAND( disconnect, "Disconnect game from server." )
 }
 
 
-
-
 CON_COMMAND( version, "Print version info string." )
 {
 	SteamInfVersionInfo_t info = GetSteamInfIDVersionInfo();
-	ConMsg("Protocol version %i [v%i/v%i]\nExe version %s (%s)\n", PROTOCOL_VERSION, info.ShortVersions[0], info.ShortVersions[1], info.szVersionString, info.szProductString);
+	ConMsg("Protocol version %i\nExe version %s (%s)\n", PROTOCOL_VERSION, info.szVersionString, info.szProductString);
 	ConMsg("Exe build: " __TIME__ " " __DATE__ " (%i) (%i)\n", build_number(), info.AppID);
+
+	Color clr1(34, 255, 0, 255);
+	Color clr2(229, 255, 0, 255);
+	ConColorMsg(clr1, "----developer: ");
+	ConColorMsg(clr2, "RuSHeRR\n");
+	ConColorMsg(clr1, "----developer-url: ");
+	ConColorMsg(clr2, "https://github.com/rusherr-c\n");
+
 }
 
 

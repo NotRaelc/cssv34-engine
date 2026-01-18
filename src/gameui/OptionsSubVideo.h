@@ -62,9 +62,7 @@ private:
 	vgui::DHANDLE<class CGammaDialog> m_hGammaDialog;
 
 	bool m_bRequireRestart;
-   MESSAGE_FUNC( OpenThirdPartyVideoCreditsDialog, "OpenThirdPartyVideoCreditsDialog" );
    vgui::URLButton   *m_pThirdPartyCredits;
-   vgui::DHANDLE<class COptionsSubVideoThirdPartyCreditsDlg> m_OptionsSubVideoThirdPartyCreditsDlg;
 };
 
 

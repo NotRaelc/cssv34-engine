@@ -191,7 +191,6 @@ void CCSClientScoreBoardDialog::InitPlayerList( SectionedListPanel *pPlayerList,
 	}
 
 	// Avatars are always displayed at 32x32 regardless of resolution
-	pPlayerList->AddColumnToSection( 0, "avatar", "", SectionedListPanel::COLUMN_IMAGE | SectionedListPanel::COLUMN_CENTER, m_iAvatarWidth );
 	pPlayerList->AddColumnToSection( 0, "name", "", 0, m_iNameWidth );
 	pPlayerList->AddColumnToSection( 0, "class", "" , 0, m_iClassWidth );
 	pPlayerList->AddColumnToSection( 0, "frags", "", SectionedListPanel::COLUMN_RIGHT, m_iScoreWidth );
@@ -445,8 +444,6 @@ bool CCSClientScoreBoardDialog::GetPlayerScoreInfo( int playerIndex, KeyValues *
 	kv->SetInt( "frags", g_PR->GetPlayerScore( playerIndex ) );
 	kv->SetInt( "deaths", g_PR->GetDeaths( playerIndex ) );
 	kv->SetString( "class", "" );
-
-	UpdatePlayerAvatar( playerIndex, kv );
 	
 	if ( g_PR->GetPing( playerIndex ) < 1 )
 	{

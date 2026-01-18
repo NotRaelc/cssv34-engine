@@ -58,7 +58,7 @@ COptionsSubAudio::COptionsSubAudio(vgui::Panel *parent) : PropertyPage(parent, N
 	m_pSpeakerSetupCombo->AddItem( "#GameUI_5Speakers", new KeyValues("SpeakerSetup", "speakers", 5) );
 	m_pSpeakerSetupCombo->AddItem( "#GameUI_7Speakers", new KeyValues("SpeakerSetup", "speakers", 7) );
 
-   m_pSpokenLanguageCombo = new ComboBox (this, "AudioSpokenLanguage", 6, false );
+	m_pSpokenLanguageCombo = new ComboBox (this, "AudioSpokenLanguage", 6, false );
 
 	LoadControlSettings("Resource\\OptionsSubAudio.res");
 }
@@ -327,10 +327,6 @@ void COptionsSubAudio::OnCommand( const char *command )
 			RunTestSpeakers();
 		}
 	}
-   else if ( !stricmp( command, "ShowThirdPartyAudioCredits" ) )
-   {
-      OpenThirdPartySoundCreditsDialog();
-   }
 
 	BaseClass::OnCommand( command );
 }
@@ -341,57 +337,4 @@ void COptionsSubAudio::OnCommand( const char *command )
 void COptionsSubAudio::RunTestSpeakers()
 {
 	engine->ClientCmd_Unrestricted( "disconnect\nwait\nwait\nsv_lan 1\nsetmaster enable\nmaxplayers 1\n\nhostname \"Speaker Test\"\nprogress_enable\nmap test_speakers\n" );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: third-party audio credits dialog
-//-----------------------------------------------------------------------------
-class COptionsSubAudioThirdPartyCreditsDlg : public vgui::Frame
-{
-   DECLARE_CLASS_SIMPLE( COptionsSubAudioThirdPartyCreditsDlg, vgui::Frame );
-public:
-   COptionsSubAudioThirdPartyCreditsDlg( vgui::VPANEL hParent ) : BaseClass( NULL, NULL )
-   {
-      // parent is ignored, since we want look like we're steal focus from the parent (we'll become modal below)
-
-      SetTitle("#GameUI_ThirdPartyAudio_Title", true);
-      SetSize( 500, 200 );
-      LoadControlSettings( "resource/OptionsSubAudioThirdPartyDlg.res" );
-      MoveToCenterOfScreen();
-      SetSizeable( false );
-      SetDeleteSelfOnClose( true );
-   }
-
-   virtual void Activate()
-   {
-      BaseClass::Activate();
-
-      input()->SetAppModalSurface(GetVPanel());
-   }
-
-   void OnKeyCodeTyped(KeyCode code)
-   {
-      // force ourselves to be closed if the escape key it pressed
-      if (code == KEY_ESCAPE)
-      {
-         Close();
-      }
-      else
-      {
-         BaseClass::OnKeyCodeTyped(code);
-      }
-   }
-};
-
-
-//-----------------------------------------------------------------------------
-// Purpose: Open third party audio credits dialog
-//-----------------------------------------------------------------------------
-void COptionsSubAudio::OpenThirdPartySoundCreditsDialog()
-{
-   if (!m_OptionsSubAudioThirdPartyCreditsDlg.Get())
-   {
-      m_OptionsSubAudioThirdPartyCreditsDlg = new COptionsSubAudioThirdPartyCreditsDlg(GetVParent());
-   }
-   m_OptionsSubAudioThirdPartyCreditsDlg->Activate();
 }

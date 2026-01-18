@@ -151,7 +151,7 @@ $Configuration
 
 	$Linker
 	{
-		$AdditionalDependencies			"$BASE dinput8.lib winmm.lib wsock32.lib ws2_32.lib wininet.lib vfw32.lib Rpcrt4.lib" [$WIN32]
+		$AdditionalDependencies			"$BASE dinput8.lib winmm.lib wsock32.lib ws2_32.lib wininet.lib winhttp.lib vfw32.lib Rpcrt4.lib" [$WIN32]
 		$AdditionalLibraryDirectories	"$BASE;$SRCDIR\lib\common\vc7;$SRCDIR\dx9sdk\lib" [$WIN32]
 	}
 }
