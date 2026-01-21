@@ -23,8 +23,7 @@ Features:<br>
 * CVAR culling disabled.
 * DirectX SDK from Summer 2004 (doesn't require d3dx9_**.dll)
 * vaudio_minimp3 from TF2 leak
-* Deleted valve_avi & bink
-* Added video_services
+* Deleted bink video
 
 # Troubleshooting compiling
 Having problems building the project? Make sure you have the following:<br>
