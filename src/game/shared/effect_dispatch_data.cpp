@@ -83,12 +83,12 @@
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 #else
-		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[0] ), -1, SPROP_COORD_MP_INTEGRAL ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[1] ), -1, SPROP_COORD_MP_INTEGRAL ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[2] ), -1, SPROP_COORD_MP_INTEGRAL ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vStart[0] ), -1, SPROP_COORD_MP_INTEGRAL ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), -1, SPROP_COORD_MP_INTEGRAL ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), -1, SPROP_COORD_MP_INTEGRAL ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[0] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[1] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[2] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vStart[0] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), -1, SPROP_COORD ),
 #endif
 		SendPropQAngles( SENDINFO_NOCHECK( m_vAngles ), 7 ),
 

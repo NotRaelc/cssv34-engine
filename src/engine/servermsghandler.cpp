@@ -241,7 +241,7 @@ bool CClientState::ProcessTick( NET_Tick *msg )
 {
 	int tick = msg->m_nTick;
 
-	m_NetChannel->SetRemoteFramerate( msg->m_flHostFrameTime, msg->m_flHostFrameTimeStdDeviation );
+	//m_NetChannel->SetRemoteFramerate( msg->m_flHostFrameTime, msg->m_flHostFrameTimeStdDeviation );
 
 	m_ClockDriftMgr.SetServerTick( tick );
 

@@ -200,8 +200,8 @@ static inline void SV_PackEntity(
 					const SendProp *pProp = pSendTable->m_pPrecalc->GetProp( deltaProps[iDeltaProp] );
 					// If a field changed, but it changed because it encoded against tickcount, 
 					//   then it's just like the entity changed the underlying field, not an error, that is.
-					if ( pProp->GetFlags() & SPROP_ENCODED_AGAINST_TICKCOUNT )
-						continue;
+					//if ( pProp->GetFlags() & SPROP_ENCODED_AGAINST_TICKCOUNT )
+					//	continue;
 
 					Msg( "Entity %d (class '%s') reported ENTITY_CHANGE_NONE but '%s' changed.\n", 
 						edictIdx,

@@ -460,9 +460,6 @@ CNetChan::CNetChan()
 	m_bUseCompression = false;
 	m_nQueuedPackets = 0;
 
-	m_flRemoteFrameTime = 0;
-	m_flRemoteFrameTimeStdDeviation = 0;
-
 	FlowReset();
 }
 
@@ -515,7 +512,7 @@ void CNetChan::Setup(int sock, netadr_t *adr, const char * name, INetChannelHand
 
 	SetMaxBufferSize( false, NET_MAX_DATAGRAM_PAYLOAD );
 
-	SetMaxBufferSize( false, NET_MAX_DATAGRAM_PAYLOAD, true ); //Set up voice buffer
+	//SetMaxBufferSize( false, NET_MAX_DATAGRAM_PAYLOAD ); //Set up voice buffer
 
 	SetMaxBufferSize( true, NET_MAX_PAYLOAD );
 
@@ -648,7 +645,7 @@ void CNetChan::SetTimeout(float seconds)
 	}
 }
 
-void CNetChan::SetMaxBufferSize(bool bReliable, int nBytes, bool bVoice )
+void CNetChan::SetMaxBufferSize(bool bReliable, int nBytes)
 {
 	// force min/max sizes 4-96kB
 	nBytes = clamp( nBytes, NET_MAX_DATAGRAM_PAYLOAD, NET_MAX_PAYLOAD );
@@ -661,11 +658,11 @@ void CNetChan::SetMaxBufferSize(bool bReliable, int nBytes, bool bVoice )
 		stream = &m_StreamReliable;
 		buffer = &m_ReliableDataBuffer;
 	}
-	else if ( bVoice == true )
-	{
-		stream = &m_StreamVoice;
-		buffer = &m_VoiceDataBuffer;
-	}
+	//else if ( bVoice == true )
+	//{
+	//	stream = &m_StreamVoice;
+	//	buffer = &m_VoiceDataBuffer;
+	//}
 	else
 	{
 		stream = &m_StreamUnreliable;
@@ -817,7 +814,7 @@ void CNetChan::FlowNewPacket(int flow, int seqnr, int acknr, int nChoked, int nD
 		pframe->size = nSize;
 		pframe->valid = true;
 		pframe->avg_latency = GetAvgLatency( FLOW_OUTGOING );
-		pframe->m_flInterpolationAmount = m_flInterpolationAmount;
+		pframe->m_flInterpolationAmount = 0.0f;
 	}
 	else
 	{
@@ -1538,15 +1535,6 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	if ( vcr_verbose.GetInt() && datagram && datagram->GetNumBytesWritten() > 0 )
 		VCRGenericValueVerify( "datagram", datagram->GetBasePointer(), datagram->GetNumBytesWritten()-1 );
 #endif
-	
-	// Make sure for the client that the max routable payload size is up to date
-	if ( m_Socket == NS_CLIENT )
-	{
-		if ( net_maxroutable.GetInt() != GetMaxRoutablePayloadSize() )
-		{
-			SetMaxRoutablePayloadSize( net_maxroutable.GetInt() );
-		}
-	}
 
 	// first increase out sequence number
 	
@@ -2106,7 +2094,7 @@ int CNetChan::ProcessPacketHeader( netpacket_t * packet )
 		// Checksum applies to rest of packet
 		Assert( !( packet->message.GetNumBitsRead() % 8 ) );
 		int nOffset = packet->message.GetNumBitsRead() >> 3;
-		int nCheckSumBytes = packet->message.TotalBytesAvailable() - nOffset;
+		int nCheckSumBytes = packet->message.m_nDataBytes - nOffset;
 	
 		const void *pvData = packet->message.GetBasePointer() + nOffset;
 		unsigned short usDataCheckSum = BufferToShortChecksum( pvData, nCheckSumBytes );
@@ -2346,17 +2334,7 @@ void CNetChan::ProcessPacket( netpacket_t * packet, bool bHasHeader )
 #endif
 }
 
-int CNetChan::GetNumBitsWritten( bool bReliable )
-{
-	bf_write *pStream = &m_StreamUnreliable;
-	if ( bReliable )
-	{
-		pStream = &m_StreamReliable;
-	}
-	return pStream->GetNumBitsWritten();
-}
-
-bool CNetChan::SendNetMsg( INetMessage &msg, bool bForceReliable, bool bVoice )
+bool CNetChan::SendNetMsg( INetMessage &msg, bool bForceReliable )
 {
 	if ( remote_address.GetType() == NA_NULL )
 		return true;
@@ -2368,9 +2346,10 @@ bool CNetChan::SendNetMsg( INetMessage &msg, bool bForceReliable, bool bVoice )
 		pStream = &m_StreamReliable;
 	}
 
-	if ( bVoice )
+	// How would i know man?
+	//if ( bVoice )
 	{
-		pStream = &m_StreamVoice;
+		//pStream = &m_StreamVoice;
 	}
 
 	if ( vcr_verbose.GetInt() )
@@ -2795,19 +2774,6 @@ void CNetChan::GetPacketResponseLatency( int flow, int frame_number, int *pnLate
 	}
 }
 
-void CNetChan::GetRemoteFramerate( float *pflFrameTime, float *pflRemoteFrameTimeStdDeviation ) const
-{
-	if ( pflFrameTime )
-	{
-		*pflFrameTime = m_flRemoteFrameTime;
-	}
-	if ( pflRemoteFrameTimeStdDeviation )
-	{
-		*pflRemoteFrameTimeStdDeviation = m_flRemoteFrameTimeStdDeviation;
-	}
-}
-
-
 float CNetChan::GetLatency( int flow ) const
 {
 	return m_DataFlow[flow].latency;
@@ -2916,33 +2882,6 @@ void CNetChan::DecrementQueuedPackets()
 bool CNetChan::HasQueuedPackets() const
 {
 	return m_nQueuedPackets > 0;
-}
-
-void CNetChan::SetInterpolationAmount( float flInterpolationAmount )
-{
-	m_flInterpolationAmount = flInterpolationAmount;
-}
-
-void CNetChan::SetRemoteFramerate( float flFrameTime, float flFrameTimeStdDeviation )
-{
-	m_flRemoteFrameTime = flFrameTime;
-	m_flRemoteFrameTimeStdDeviation = flFrameTimeStdDeviation;
-}
-
-// Max # of payload bytes before we must split/fragment the packet
-void CNetChan::SetMaxRoutablePayloadSize( int nSplitSize )
-{
-	if ( m_nMaxRoutablePayloadSize != nSplitSize )
-	{
-		DevMsg( "Setting max routable payload size from %d to %d for %s\n",
-			m_nMaxRoutablePayloadSize, nSplitSize, GetName() );
-	}
-	m_nMaxRoutablePayloadSize = nSplitSize;
-}
-
-int CNetChan::GetMaxRoutablePayloadSize()
-{
-	return m_nMaxRoutablePayloadSize;
 }
 
 int CNetChan::IncrementSplitPacketSequence()

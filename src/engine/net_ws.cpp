@@ -2298,7 +2298,7 @@ int NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const uns
 	int nMaxRoutable = MAX_ROUTABLE_PAYLOAD;
 	if ( chan )
 	{
-		nMaxRoutable = clamp( chan->GetMaxRoutablePayloadSize(), MIN_USER_MAXROUTABLE_SIZE, min( sv_maxroutable.GetInt(), MAX_USER_MAXROUTABLE_SIZE ) );
+		nMaxRoutable = clamp(MAX_ROUTABLE_PAYLOAD, MIN_USER_MAXROUTABLE_SIZE, min( sv_maxroutable.GetInt(), MAX_USER_MAXROUTABLE_SIZE ) );
 	}
 
 	if ( length <= nMaxRoutable && 

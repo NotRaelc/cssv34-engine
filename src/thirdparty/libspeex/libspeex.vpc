@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+//	LIBSPEEX.VPC
+//
+//	Project Script
+//-----------------------------------------------------------------------------
+
+$macro SRCDIR		"..\.."
+$macro OUTLIBDIR	"$LIBCOMMON"
+
+$include "$SRCDIR\vpc_scripts\source_lib_base.vpc"
+
+$Project "libspeex"
+{
+	$Folder	"Source Files"
+	{
+		$File 	"libspeex\bits.c"
+		$File 	"libspeex\cb_search.c"
+		$File 	"libspeex\exc_10_16_table.c"
+		$File 	"libspeex\exc_10_32_table.c"
+		$File 	"libspeex\exc_20_32_table.c"
+		$File 	"libspeex\exc_5_256_table.c"
+		$File 	"libspeex\exc_5_64_table.c"
+		$File 	"libspeex\exc_8_128_table.c"
+		$File 	"libspeex\filters.c"
+		$File 	"libspeex\gain_table.c"
+		$File 	"libspeex\gain_table_lbr.c"
+		$File 	"libspeex\hexc_10_32_table.c"
+		$File 	"libspeex\hexc_table.c"
+		$File 	"libspeex\high_lsp_tables.c"
+		$File 	"libspeex\lpc.c"
+		$File 	"libspeex\lsp.c"
+		$File 	"libspeex\lsp_tables_nb.c"
+		$File 	"libspeex\ltp.c"
+		$File 	"libspeex\math_approx.c"
+		$File 	"libspeex\misc.c"
+		$File 	"libspeex\modes.c"
+		$File 	"libspeex\nb_celp.c"
+		$File 	"libspeex\quant_lsp.c"
+		$File 	"libspeex\sb_celp.c"
+		$File 	"libspeex\speex_callbacks.c"
+		$File 	"libspeex\speex_header.c"
+		$File 	"libspeex\stereo.c"
+		$File 	"libspeex\testenc.c"
+		$File 	"libspeex\testenc_uwb.c"
+		$File 	"libspeex\testenc_wb.c"
+		$File 	"libspeex\vbr.c"
+		$File 	"libspeex\vq.c"
+	}
+
+	$Folder	"Header Files"
+	{
+		$File 	"libspeex\cb_search.h"
+		$File 	"libspeex\filters.h"
+		$File 	"libspeex\filters_sse.h"
+		$File 	"libspeex\lpc.h"
+		$File 	"libspeex\lsp.h"
+		$File 	"libspeex\ltp.h"
+		$File 	"libspeex\ltp_sse.h"
+		$File 	"libspeex\math_approx.h"
+		$File 	"libspeex\misc.h"
+		$File 	"libspeex\modes.h"
+		$File 	"libspeex\nb_celp.h"
+		$File 	"libspeex\quant_lsp.h"
+		$File 	"libspeex\sb_celp.h"
+		$File 	"libspeex\speex.h"
+		$File 	"libspeex\speex_bits.h"
+		$File 	"libspeex\speex_callbacks.h"
+		$File 	"libspeex\speex_header.h"
+		$File 	"libspeex\speex_stereo.h"
+		$File 	"libspeex\stack_alloc.h"
+		$File 	"libspeex\vbr.h"
+		$File 	"libspeex\vq.h"
+	}
+}

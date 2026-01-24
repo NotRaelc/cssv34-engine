@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <direct.h>
-#elif _LINUX
+#elif POSIX
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -24,11 +24,12 @@
 #include <unistd.h>
 #define MAX_PATH PATH_MAX
 #endif
+#include "basetypes.h"
 
 #ifdef _WIN32
 typedef int (*DedicatedMain_t)( HINSTANCE hInstance, HINSTANCE hPrevInstance, 
 							  LPSTR lpCmdLine, int nCmdShow );
-#elif _LINUX
+#elif POSIX
 typedef int (*DedicatedMain_t)( int argc, char *argv[] );
 
 #endif
@@ -58,7 +59,7 @@ static char *GetBaseDir( const char *pszBuffer )
 	j = strlen( basedir );
 	if (j > 0)
 	{
-		if ( ( basedir[ j-1 ] == '\\' ) || 
+		if ( ( basedir[ j-1 ] == '\\' ) ||
 			 ( basedir[ j-1 ] == '/' ) )
 		{
 			basedir[ j-1 ] = 0;
@@ -87,13 +88,14 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	char* pRootDir = GetBaseDir( moduleName );
 
 #ifdef _DEBUG
-	int len = 
+	int len =
 #endif
-	_snprintf( szBuffer, sizeof( szBuffer ) - 1, "PATH=%s\\;%s", pRootDir, pPath );
+	_snprintf( szBuffer, sizeof( szBuffer ) - 1, "PATH=%s\\bin\\;%s", pRootDir, pPath );
+	szBuffer[ ARRAYSIZE(szBuffer) - 1 ] = 0;
 	assert( len < 4096 );
 	_putenv( szBuffer );
 
-	HINSTANCE launcher = LoadLibrary("dedicated.dll"); // STEAM OK ... filesystem not mounted yet
+	HINSTANCE launcher = LoadLibrary("bin\\dedicated.dll"); // STEAM OK ... filesystem not mounted yet
 	if (!launcher)
 	{
 		char *pszError;
@@ -101,6 +103,7 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 		char szBuf[1024];
 		_snprintf(szBuf, sizeof( szBuf ) - 1, "Failed to load the launcher DLL:\n\n%s", pszError);
+		szBuf[ ARRAYSIZE(szBuf) - 1 ] = 0;
 		MessageBox( 0, szBuf, "Launcher Error", MB_OK );
 
 		LocalFree(pszError);
@@ -111,9 +114,77 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 	return main( hInstance, hPrevInstance, lpCmdLine, nCmdShow );
 }
 
-#elif _LINUX
-#define stringize(a) #a
-#define dedicated_binary(a,b,c) a stringize(b) c 
+#elif POSIX
+
+#if defined( LINUX )
+
+#include <fcntl.h>
+
+static bool IsDebuggerPresent( int time )
+{
+	// Need to get around the __wrap_open() stuff. Just find the open symbol
+	// directly and use it...
+	typedef int (open_func_t)( const char *pathname, int flags, mode_t mode );
+	open_func_t *open_func = (open_func_t *)dlsym( RTLD_NEXT, "open" );
+
+	if ( open_func )
+	{
+		for ( int i = 0; i < time; i++ )
+		{
+			int tracerpid = -1;
+
+			int fd = (*open_func)( "/proc/self/status", O_RDONLY, S_IRUSR );
+			if (fd >= 0)
+			{
+				char buf[ 4096 ];
+				static const char tracerpid_str[] = "TracerPid:";
+
+				const int len = read( fd, buf, sizeof(buf) - 1 );
+				if ( len > 0 )
+				{
+					buf[ len ] = 0;
+
+					const char *str = strstr( buf, tracerpid_str );
+					tracerpid = str ? atoi( str + sizeof( tracerpid_str ) ) : -1;
+				}
+
+				close( fd );
+			}
+
+			if ( tracerpid > 0 )
+				return true;
+
+			sleep( 1 );
+		}
+	}
+
+	return false;
+}
+
+static void WaitForDebuggerConnect( int argc, char *argv[], int time )
+{
+	for ( int i = 1; i < argc; i++ )
+	{
+		if ( strstr( argv[i], "-wait_for_debugger" ) )
+		{
+			printf( "\nArg -wait_for_debugger found.\nWaiting %dsec for debugger...\n", time );
+			printf( "  pid = %d\n", getpid() );
+
+			if ( IsDebuggerPresent( time ) )
+				printf("Debugger connected...\n\n");
+
+			break;
+		}
+	}
+}
+
+#else
+
+static void WaitForDebuggerConnect( int argc, char *argv[], int time )
+{
+}
+
+#endif // !LINUX
 
 int main( int argc, char *argv[] )
 {
@@ -125,31 +196,37 @@ int main( int argc, char *argv[] )
 	{
 		printf( "getcwd failed (%s)", strerror(errno));
 	}
-	
+
 	snprintf( szBuffer, sizeof( szBuffer ) - 1, "LD_LIBRARY_PATH=%s/bin:%s", cwd, pPath );
 	int ret = putenv( szBuffer );
 	if ( ret )	
 	{
 		printf( "%s\n", strerror(errno) );
 	}
-	void *tier0 = dlopen( "tier0_i486.so", RTLD_NOW );
-	void *vstdlib = dlopen( "vstdlib_i486.so", RTLD_NOW );
+	void *tier0 = dlopen( "libtier0" DLL_EXT_STRING, RTLD_NOW );
+	void *vstdlib = dlopen( "libvstdlib" DLL_EXT_STRING, RTLD_NOW );
 
-	const char *pBinaryName = dedicated_binary( "bin/dedicated_", i486, ".so" );
+	const char *pBinaryName = "bin/dedicated" DLL_EXT_STRING;
+
 	void *dedicated = dlopen( pBinaryName, RTLD_NOW );
+	if ( !dedicated )
+		dedicated = dlopen( "bin/libdedicated" DLL_EXT_STRING, RTLD_NOW );
+
 	if ( !dedicated )
 	{
 		printf( "Failed to open %s (%s)\n", pBinaryName, dlerror());
 		return -1;
 	}
-	DedicatedMain_t main = (DedicatedMain_t)dlsym( dedicated, "DedicatedMain" );
-	if ( !main )
+	DedicatedMain_t dedicated_main = (DedicatedMain_t)dlsym( dedicated, "DedicatedMain" );
+	if ( !dedicated_main )
 	{
 		printf( "Failed to find dedicated server entry point (%s)\n", dlerror() );
 		return -1;
 	}
-		
-	ret = main( argc,argv );
+
+	WaitForDebuggerConnect( argc, argv, 30 );
+
+	ret = dedicated_main( argc,argv );
 	dlclose( dedicated );
 	dlclose( vstdlib );
 	dlclose( tier0 );

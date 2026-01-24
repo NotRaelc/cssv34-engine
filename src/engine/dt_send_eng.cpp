@@ -873,11 +873,12 @@ static void SendTable_Validate( CSendTablePrecalc *pPrecalc )
 	for ( int i = 0; i < pPrecalc->GetNumProps(); ++i )
 	{
 		const SendProp *pProp = pPrecalc->GetProp( i );
-		if ( pProp->GetFlags() & SPROP_ENCODED_AGAINST_TICKCOUNT )
-		{
-			pTable->SetHasPropsEncodedAgainstTickcount( true );
-			break;
-		}
+		// we dont have SPROP_ENCODED
+		//if (pProp->GetFlags())
+		//{
+			//pTable->SetHasPropsEncodedAgainstTickcount( true );
+			//break;
+		//}
 	}
 }
 

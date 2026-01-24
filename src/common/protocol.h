@@ -22,7 +22,7 @@ enum UpdateType
 
 	DeltaEnt,		// There is a delta for this entity.
 	PreserveEnt,	// Entity stays alive but no delta ( could be LOD, or just unchanged )
-	
+
 	Finished,		// finished parsing entities successfully
 	Failed,			// parsing error occured while reading entities
 };
@@ -30,10 +30,10 @@ enum UpdateType
 // Flags for delta encoding header
 enum
 {
-	FHDR_ZERO			= 0x0000,
-	FHDR_LEAVEPVS		= 0x0001,
-	FHDR_DELETE			= 0x0002,
-	FHDR_ENTERPVS		= 0x0004,
+	FHDR_ZERO = 0x0000,
+	FHDR_LEAVEPVS = 0x0001,
+	FHDR_DELETE = 0x0002,
+	FHDR_ENTERPVS = 0x0004,
 };
 
 

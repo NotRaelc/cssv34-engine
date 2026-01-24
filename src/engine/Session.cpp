@@ -6,7 +6,6 @@
 
 #include "Session.h"
 #include "strtools.h"
-#include "matchmaking.h"
 #include "utllinkedlist.h"
 #include "tslist.h"
 #include "hl2orange.spa.h"
@@ -102,7 +101,7 @@ void CSession::SetProperty( const uint nPropertyId, const uint cbValue, const vo
 void CSession::SendNotification( SESSION_NOTIFY notification )
 {
 	Assert( m_pParent );
-	m_pParent->SessionNotification( notification );
+	//m_pParent->SessionNotification( notification );
 }
 
 //-----------------------------------------------------------------------------

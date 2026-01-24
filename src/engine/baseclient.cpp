@@ -125,13 +125,14 @@ bool CBaseClient::SendNetMsg(INetMessage &msg, bool bForceReliable)
 		return true;
 	}
 
-	int nStartBit = m_NetChannel->GetNumBitsWritten( msg.IsReliable() || bForceReliable );
+	// delete ts
+	//int nStartBit = m_NetChannel->GetNumBitsWritten( msg.IsReliable() || bForceReliable );
 	bool bret = m_NetChannel->SendNetMsg( msg, bForceReliable );
-	if ( IsTracing() )
-	{
-		int nBits = m_NetChannel->GetNumBitsWritten( msg.IsReliable() || bForceReliable ) - nStartBit;
-		TraceNetworkMsg( nBits, "NetMessage %s", msg.GetName() );
-	}
+	//if ( IsTracing() )
+	//{
+		//int nBits = m_NetChannel->GetNumBitsWritten( msg.IsReliable() || bForceReliable ) - nStartBit;
+		//TraceNetworkMsg( nBits, "NetMessage %s", msg.GetName() );
+	//}
 	return bret;
 }
 
@@ -667,7 +668,7 @@ void CBaseClient::ConnectionStart(INetChannel *chan)
 
 bool CBaseClient::ProcessTick( NET_Tick *msg )
 {
-	m_NetChannel->SetRemoteFramerate( msg->m_flHostFrameTime, msg->m_flHostFrameTimeStdDeviation );
+	//m_NetChannel->SetRemoteFramerate( msg->m_flHostFrameTime, msg->m_flHostFrameTimeStdDeviation );
 	return UpdateAcknowledgedFramecount( msg->m_nTick );
 }
 
@@ -1363,8 +1364,8 @@ void CBaseClient::SetSteamID( const CSteamID &inputSteamID )
 
 void CBaseClient::SetMaxRoutablePayloadSize( int nMaxRoutablePayloadSize )
 {
-	if ( m_NetChannel )
-	{
-		m_NetChannel->SetMaxRoutablePayloadSize( nMaxRoutablePayloadSize );
-	}
+	//if ( m_NetChannel )
+	//{
+		//m_NetChannel->SetMaxRoutablePayloadSize( nMaxRoutablePayloadSize );	
+	//}
 }

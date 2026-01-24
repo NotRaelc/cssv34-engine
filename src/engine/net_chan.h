@@ -20,6 +20,7 @@
 #include "utlbuffer.h"
 #include "const.h"
 #include "inetchannel.h"
+#undef time
 
 // How fast to converge flow estimates
 #define FLOW_AVG ( 3.0 / 4.0 )
@@ -90,7 +91,7 @@ private: // netchan structurs
 		bool			valid;			// false if dropped, lost, flushed
 		int				choked;			// number of previously chocked packets
 		int				dropped;
-		float			m_flInterpolationAmount;
+		float			m_flInterpolationAmount; // FIXME: i dont sure that cssv34 actually needs this
 		unsigned short	msggroups[INetChannelInfo::TOTAL];	// received bytes for each message group
 	} netframe_t;
 
@@ -143,7 +144,7 @@ public:	// INetChannelInfo interface
 	bool		GetStreamProgress( int flow, int *received, int *total ) const;
 	float		GetCommandInterpolationAmount( int flow, int frame_number ) const;
 	void		GetPacketResponseLatency( int flow, int frame_number, int *pnLatencyMsecs, int *pnChoke ) const;
-	void		GetRemoteFramerate( float *pflFrameTime, float *pflFrameTimeStdDeviation ) const;
+	//void		GetRemoteFramerate( float *pflFrameTime, float *pflFrameTimeStdDeviation ) const;
 	float		GetTimeoutSeconds() const;
 
 public:	// INetChannel interface
@@ -166,7 +167,7 @@ public:	// INetChannel interface
 
 	void		SetCompressionMode( bool bUseCompression );
 	void		SetFileTransmissionMode(bool bBackgroundMode);
-	bool		SendNetMsg( INetMessage &msg, bool bForceReliable = false, bool bVoice = false ); // send a net message
+	bool		SendNetMsg( INetMessage &msg, bool bForceReliable = false); // send a net message
 	bool		SendData(bf_write &msg, bool bReliable = true); // send a chunk of data
 	bool		SendFile(const char *filename, unsigned int transferID); // transmit a local file
 	void		SetChoked( void ); // choke a packet
@@ -189,14 +190,7 @@ public:	// INetChannel interface
 	bool		IsOverflowed( void ) const;
 	bool		IsTimedOut( void ) const;
 	bool		HasPendingReliableData( void );
-	void		SetMaxBufferSize(bool bReliable, int nBytes, bool bVoice = false );
-	virtual int		GetNumBitsWritten( bool bReliable );
-	virtual void	SetInterpolationAmount( float flInterpolationAmount );
-	virtual void	SetRemoteFramerate( float flFrameTime, float flFrameTimeStdDeviation );
-
-	// Max # of payload bytes before we must split/fragment the packet
-	virtual void	SetMaxRoutablePayloadSize( int nSplitSize );
-	virtual int	GetMaxRoutablePayloadSize();
+	void		SetMaxBufferSize(bool bReliable, int nBytes);
 
 	int			IncrementSplitPacketSequence();
 public:
@@ -219,7 +213,7 @@ private:
 	bool	SendReliableViaStream( dataFragments_t *data);
 	bool	SendReliableAcknowledge( int seqnr );
 	int		ProcessPacketHeader( netpacket_t *packet );
-	void	AcknowledgeSubChannel(int seqnr, int list );
+	//void	AcknowledgeSubChannel(int seqnr, int list );
 
 	bool	CreateFragmentsFromBuffer( bf_write *buffer, int stream );
 	bool	CreateFragmentsFromFile( const char *filename, int stream, unsigned int transferID );
@@ -229,7 +223,7 @@ private:
 
 	bool	SendSubChannelData( bf_write &buf );
 	bool	ReadSubChannelData( bf_read &buf, int stream );
-	void	AcknowledgeSeqNr( int seqnr );
+	//void	AcknowledgeSeqNr( int seqnr );
 	void	CheckWaitingList(int nList);
 	bool	CheckReceivingList(int nList);
 	void	RemoveHeadInWaitingList( int nList );
@@ -328,9 +322,9 @@ public:
 	IDemoRecorder				*m_DemoRecorder;			// if != NULL points to a recording/playback demo object
 	int							m_nQueuedPackets;
 
-	float						m_flInterpolationAmount;
-	float						m_flRemoteFrameTime;
-	float						m_flRemoteFrameTimeStdDeviation;
+	//float						m_flInterpolationAmount;
+	//float						m_flRemoteFrameTime;
+	//float						m_flRemoteFrameTimeStdDeviation;
 	int							m_nMaxRoutablePayloadSize;
 
 	int							m_nSplitPacketSequence;

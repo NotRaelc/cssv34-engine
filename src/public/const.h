@@ -292,8 +292,8 @@ enum
 // Rendering constants
 // if this is changed, update common/MaterialSystem/Sprite.cpp
 enum RenderMode_t
-{	
-	kRenderNormal,			// src
+{
+	kRenderNormal = 0,		// src
 	kRenderTransColor,		// c*a+dest*(1-a)
 	kRenderTransTexture,	// src*a+dest*(1-a)
 	kRenderGlow,			// src*a+dest -- No Z buffer checks -- Fixed size in screen space

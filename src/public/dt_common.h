@@ -20,9 +20,9 @@
 
 // Max number of properties in a datatable and its children.
 #define MAX_DATATABLES		1024	// must be a power of 2.
-#define MAX_DATATABLE_PROPS	4096
+#define MAX_DATATABLE_PROPS	1024
 
-#define MAX_ARRAY_ELEMENTS	2048		// a network array should have more that 1024 elements
+#define MAX_ARRAY_ELEMENTS	256		// a network array should have more that 128 elements
 
 #define HIGH_DEFAULT		-121121.121121f
 
@@ -71,17 +71,8 @@
 										// In this case, it can get rid of this SendPropDataTable altogether and spare the
 										// trouble of walking the hierarchy more than necessary.
 
-#define SPROP_COORD_MP					(1<<13) // Like SPROP_COORD, but special handling for multiplayer games
-#define SPROP_COORD_MP_LOWPRECISION 	(1<<14) // Like SPROP_COORD, but special handling for multiplayer games where the fractional component only gets a 3 bits instead of 5
-#define SPROP_COORD_MP_INTEGRAL			(1<<15) // SPROP_COORD_MP, but coordinates are rounded to integral boundaries
-#define SPROP_NUMFLAGBITS_NETWORKED		16
+#define SPROP_NUMFLAGBITS		13
 
-// This is server side only, it's used to mark properties whose SendProxy_* functions encode against gpGlobals->tickcount (the only ones that currently do this are
-//  m_flAnimTime and m_flSimulationTime.  MODs shouldn't need to mess with this probably
-#define SPROP_ENCODED_AGAINST_TICKCOUNT	(1<<16)
-
-// See SPROP_NUMFLAGBITS_NETWORKED for the ones which are networked
-#define SPROP_NUMFLAGBITS				17
 
 // Used by the SendProp and RecvProp functions to disable debug checks on type sizes.
 #define SIZEOF_IGNORE		-1

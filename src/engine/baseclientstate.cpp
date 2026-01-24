@@ -805,7 +805,7 @@ bool CBaseClientState::ProcessTick( NET_Tick *msg )
 {
 	VPROF( "ProcessTick" );
 
-	m_NetChannel->SetRemoteFramerate( msg->m_flHostFrameTime, msg->m_flHostFrameTimeStdDeviation );
+	//m_NetChannel->SetRemoteFramerate( msg->m_flHostFrameTime, msg->m_flHostFrameTimeStdDeviation );
 
 	// Note: CClientState separates the client and server clock states and drifts
 	// the client's clock to match the server's, but right here, we keep the two clocks in sync.
@@ -980,7 +980,7 @@ bool CBaseClientState::ProcessServerInfo( SVC_ServerInfo *msg )
 
 #ifndef SWDS
 	if ( !sv.IsActive() && 
-		!( m_NetChannel->IsLoopback() || m_NetChannel->IsNull() ) )
+		!( m_NetChannel->IsLoopback() /* || m_NetChannel->IsNull()*/))
 	{
 		// reset server enforced cvars
 		g_pCVar->RevertFlaggedConVars( FCVAR_REPLICATED );	

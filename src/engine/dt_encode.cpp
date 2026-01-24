@@ -29,21 +29,6 @@ static inline bool EncodeSpecialFloat( const SendProp *pProp, float fVal, bf_wri
 		pOut->WriteBitCoord( fVal );
 		return true;
 	}
-	else if ( flags & SPROP_COORD_MP )
-	{
-		pOut->WriteBitCoordMP( fVal, false, false );
-		return true;
-	}
-	else if ( flags & SPROP_COORD_MP_LOWPRECISION )
-	{
-		pOut->WriteBitCoordMP( fVal, false, true );
-		return true;
-	}
-	else if ( flags & SPROP_COORD_MP_INTEGRAL )
-	{
-		pOut->WriteBitCoordMP( fVal, true, false );
-		return true;
-	}
 	else if ( flags & SPROP_NOSCALE )
 	{
 		pOut->WriteBitFloat( fVal );
@@ -106,21 +91,6 @@ static inline bool DecodeSpecialFloat( SendProp const *pProp, bf_read *pIn, floa
 	if ( flags & SPROP_COORD )
 	{
 		fVal = pIn->ReadBitCoord();
-		return true;
-	}
-	else if ( flags & SPROP_COORD_MP )
-	{
-		fVal = pIn->ReadBitCoordMP( false, false );
-		return true;
-	}
-	else if ( flags & SPROP_COORD_MP_LOWPRECISION )
-	{
-		fVal = pIn->ReadBitCoordMP( false, true );
-		return true;
-	}
-	else if ( flags & SPROP_COORD_MP_INTEGRAL )
-	{
-		fVal = pIn->ReadBitCoordMP( true, false );
 		return true;
 	}
 	else if ( flags & SPROP_NOSCALE )
@@ -352,18 +322,6 @@ int	Float_CompareDeltas( const SendProp *pProp, bf_read *p1, bf_read *p2 )
 	{
 		return p1->ReadBitCoord() != p2->ReadBitCoord();
 	}
-	else if ( pProp->GetFlags() & SPROP_COORD_MP )
-	{
-		return p1->ReadBitCoordMP( false, false ) != p2->ReadBitCoordMP( false, false );
-	}
-	else if ( pProp->GetFlags() & SPROP_COORD_MP_LOWPRECISION )
-	{
-		return p1->ReadBitCoordMP( false, true ) != p2->ReadBitCoordMP( false, true );
-	}
-	else if ( pProp->GetFlags() & SPROP_COORD_MP_INTEGRAL )
-	{
-		return p1->ReadBitCoordMP( true, false ) != p2->ReadBitCoordMP( true, false );
-	}
 	else if ( pProp->GetFlags() & SPROP_NOSCALE )
 	{
 		return p1->ReadUBitLong( 32 ) != p2->ReadUBitLong( 32 );
@@ -427,18 +385,6 @@ void Float_SkipProp( const SendProp *pProp, bf_read *pIn )
 
 			pIn->SeekRelative( seekDist );
 		}
-	}
-	else if ( pProp->GetFlags() & SPROP_COORD_MP )
-	{
-		pIn->ReadBitCoordMP( false, false );
-	}
-	else if ( pProp->GetFlags() & SPROP_COORD_MP_LOWPRECISION )
-	{
-		pIn->ReadBitCoordMP( false, true );
-	}
-	else if ( pProp->GetFlags() & SPROP_COORD_MP_INTEGRAL )
-	{
-		pIn->ReadBitCoordMP( true, false );
 	}
 	else if(pProp->GetFlags() & SPROP_NOSCALE)
 	{

@@ -403,16 +403,10 @@ bool RecvTable_CreateDecoders( const CStandardSendProxies *pSendProxies )
 {
 	SETUP_VISIT();
 
-	auto _e = [](const char* msg) -> bool {
-		Warning("%s failed in RecvTable_CreateDecoders\n", msg);
-		return false;
-		};
-
 	// First, now that we've supposedly received all the SendTables that we need,
 	// set their datatable child pointers.
-	if (!SetupClientSendTableHierarchy())
-		return _e("SetupClientSendTableHierarchy");
-
+	if ( !SetupClientSendTableHierarchy() )
+		return false;
 
 	FOR_EACH_LL( g_RecvDecoders, i )
 	{
@@ -422,18 +416,18 @@ bool RecvTable_CreateDecoders( const CStandardSendProxies *pSendProxies )
 		// It should already have been linked to its ClientSendTable.
 		Assert( pDecoder->m_pClientSendTable );
 		if ( !pDecoder->m_pClientSendTable )
-			return _e("pDecoder->m_pClientSendTable");
+			return false;
 
 
 		// For each decoder, precalculate the SendTable's flat property list.
 		if ( !pDecoder->m_Precalc.SetupFlatPropertyArray() )
-			return _e("pDecoder->m_Precalc.SetupFlatPropertyArray()");
+			return false;
 
 		CUtlRBTree< MatchingProp_t, unsigned short >	PropLookup( 0, 0, MatchingProp_t::LessFunc );
 
 		// Now match RecvProp with SendProps.
 		if ( !MatchRecvPropsToSendProps_R( PropLookup, pDecoder->GetSendTable()->m_pNetTableName, pDecoder->GetSendTable(), pDecoder->GetRecvTable() ) )
-			return _e("MatchRecvPropsToSendProps_R");
+			return false;
 	
 		// Now fill out the matching RecvProp array.
 		CSendTablePrecalc *pPrecalc = &pDecoder->m_Precalc;

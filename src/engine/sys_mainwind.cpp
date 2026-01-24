@@ -40,7 +40,6 @@
 #include "inputsystem/ButtonCode.h"
 #include "unicode/unicode.h"
 #include "gameui/igameui.h"
-#include "matchmaking.h"
 #include "sv_main.h"
 
 #if defined( _X360 )

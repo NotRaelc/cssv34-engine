@@ -860,9 +860,14 @@ $Project "soundtest"
 	"unittests\soundtest\soundtest.vpc" [$WIN32]
 }
 
-$Project "speex"
+$Project "vaudio_speex"
 {
-	"engine\voice_codecs\speex\speex.vpc" [$WIN32]
+	"engine\voice_codecs\speex\vaudio_speex.vpc" [$WIN32]
+}
+
+$Project "libspeex"
+{
+	"thirdparty\libspeex\libspeex.vpc"
 }
 
 //$Project "splitskybox"

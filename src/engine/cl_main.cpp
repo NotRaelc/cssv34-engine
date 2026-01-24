@@ -1813,7 +1813,7 @@ void CL_Move(float accumulated_extra_samples, bool bFinalTick )
 		np.color[ 1 ] = 0.2;
 		np.color[ 2 ] = 0.2;
 		
-		float flTimeOut = cl.m_NetChannel->GetTimeoutSeconds();
+		float flTimeOut = 30.0f;
 		Assert( flTimeOut != -1.0f );
 		float flRemainingTime = flTimeOut - cl.m_NetChannel->GetTimeSinceLastReceived();
 		Con_NXPrintf( &np, "WARNING:  Connection Problem" );
@@ -1870,7 +1870,7 @@ void CL_LatchInterpolationAmount()
 	{
 		flInterp = clamp( dt / flClientInterpolationAmount, 0.0f, 3.0f );
 	}
-	cl.m_NetChannel->SetInterpolationAmount( flInterp );
+	//cl.m_NetChannel->SetInterpolationAmount( flInterp );
 }
 
 //-----------------------------------------------------------------------------

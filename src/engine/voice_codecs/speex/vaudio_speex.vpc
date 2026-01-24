@@ -13,12 +13,8 @@ $Configuration
 {
 	$Compiler
 	{
-		$AdditionalIncludeDirectories		"$BASE,..\frame_encoder,..\..\..\public,..\..\..\public\tier1,..\..,..\..\..\common,.\source\libspeex,..\..\audio\public"
+		$AdditionalIncludeDirectories		"$BASE,..\frame_encoder,..\..\..\public,..\..\..\public\tier1,..\..,..\..\..\common,.\source\libspeex,..\..\audio\public;..\..\..\thirparty\libspeex\libspeex"
 		$PreprocessorDefinitions			"$BASE;SPEEX_EXPORTS"
-	}
-	$Linker
-	{
-			$SystemLibraries                                                        "iconv" [$OSXALL]
 	}
 }
 
@@ -40,19 +36,7 @@ $Project "vaudio_speex"
 
 	$Folder	"Link Libraries"
 	{
-		$File "source\win32\libspeex\Release\libspeex.lib" [$WIN32&&!$VS2015]
-		$Lib "$LIBCOMMON/libspeex" [$POSIX]
+		$Lib "$LIBCOMMON/libspeex"
 	}
 
-	$Folder "Link Libraries" [$VS2015]
-	{
-		$File "$SRCDIR\engine\voice_codecs\speex\source\win32\libspeex\2015\release\libspeex.lib" [$WIN32]
-		{
-			$Configuration "Debug" 	{ $ExcludedFromBuild "Yes" }
-		}
-		$File "$SRCDIR\engine\voice_codecs\speex\source\win32\libspeex\2015\debug\libspeex.lib" [$WIN32]
-		{
-			$Configuration "Release" { $ExcludedFromBuild "Yes" }
-		}
-	}
 }

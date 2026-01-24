@@ -28,7 +28,6 @@
 #include <vstdlib/random.h>
 #include "sys_dll.h"
 #include "datacache/idatacache.h"
-#include "matchmaking.h"
 #include "tier1/KeyValues.h"
 #ifdef _WIN32
 #include "vgui_baseui_interface.h"
@@ -90,7 +89,7 @@ void COM_ExplainDisconnection( bool bPrint, char *fmt, ... )
 {
 	if ( IsX360() )
 	{
-		g_pMatchmaking->SessionNotification( SESSION_NOTIFY_LOST_SERVER );
+		//g_pMatchmaking->SessionNotification( SESSION_NOTIFY_LOST_SERVER );
 	}
 	else
 	{
@@ -121,7 +120,7 @@ void COM_ExtendedExplainDisconnection( bool bPrint, char *fmt, ... )
 {
 	if ( IsX360() )
 	{
-		g_pMatchmaking->SessionNotification( SESSION_NOTIFY_LOST_SERVER );
+		//g_pMatchmaking->SessionNotification( SESSION_NOTIFY_LOST_SERVER );
 	}
 	else
 	{
