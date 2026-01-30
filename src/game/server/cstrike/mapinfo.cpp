@@ -10,12 +10,6 @@
 
 LINK_ENTITY_TO_CLASS( info_map_parameters, CMapInfo );
 
-BEGIN_DATADESC( CMapInfo )
-
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "FireWinCondition", InputFireWinCondition ),
-
-END_DATADESC()
-
 CMapInfo *g_pMapInfo = NULL;
 
 
@@ -59,7 +53,7 @@ bool CMapInfo::KeyValue( const char *szKeyName, const char *szValue )
 		return true;
 	}
 	
-	return BaseClass::KeyValue( szKeyName, szValue );
+	return false;
 }
 
 
@@ -68,9 +62,4 @@ void CMapInfo::Spawn( void )
 	SetMoveType( MOVETYPE_NONE );
 	SetSolid( SOLID_NONE );
 	AddEffects( EF_NODRAW );
-}
-
-void CMapInfo::InputFireWinCondition(inputdata_t &inputdata )
-{
-	CSGameRules()->TerminateRound( 5, inputdata.value.Int() );
 }

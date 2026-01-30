@@ -22,7 +22,6 @@ class CHudNumericDisplay : public vgui::Panel
 
 public:
 	CHudNumericDisplay(vgui::Panel *parent, const char *name);
-	virtual ~CHudNumericDisplay() {}
 
 	void SetDisplayValue(int value);
 	void SetSecondaryValue(int value);
@@ -30,10 +29,6 @@ public:
 	void SetShouldDisplaySecondaryValue(bool state);
 	void SetLabelText(const wchar_t *text);
 	void SetIndent(bool state);
-	void SetIsTime(bool state);
-
-	bool ShouldDisplayValue( void ) { return m_bDisplayValue; }
-	bool ShouldDisplaySecondaryValue( void ) { return m_bDisplaySecondaryValue; }
 
 	virtual void Reset();
 
@@ -44,14 +39,13 @@ protected:
 
 	virtual void PaintNumbers(vgui::HFont font, int xpos, int ypos, int value);
 
-protected:
+private:
 
 	int m_iValue;
 	int m_iSecondaryValue;
 	wchar_t m_LabelText[32];
 	bool m_bDisplayValue, m_bDisplaySecondaryValue;
 	bool m_bIndent;
-	bool m_bIsTime;
 
 	CPanelAnimationVar( float, m_flBlur, "Blur", "0" );
 	CPanelAnimationVar( Color, m_TextColor, "TextColor", "FgColor" );

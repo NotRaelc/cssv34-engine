@@ -14,8 +14,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define VIEWER_PADDING	80.0f
-
 class C_FuncAreaPortalWindow : public C_BaseEntity
 {
 public:
@@ -128,8 +126,9 @@ float C_FuncAreaPortalWindow::GetDistanceBlend()
 	{
 		flDist *= local->GetFOVDistanceAdjustFactor();
 	}
-	
-	return RemapValClamped( flDist, m_flFadeStartDist, m_flFadeDist, m_flTranslucencyLimit, 1 );
+	float flAlpha = RemapVal( flDist, m_flFadeStartDist, m_flFadeDist, m_flTranslucencyLimit, 1 );
+	flAlpha = clamp( flAlpha, m_flTranslucencyLimit, 1 );
+	return flAlpha;
 }
 
 bool C_FuncAreaPortalWindow::ShouldReceiveProjectedTextures( int flags )

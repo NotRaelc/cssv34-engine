@@ -44,13 +44,11 @@ public:
 	m_flWeight( 0.0f ),
 	m_hTarget(),
 	m_bIsMoving( false ),
-	m_bHasArrived( false ),
 	m_flInitialYaw( 0.0f ),
 	m_flTargetYaw( 0.0f ),
 	m_flFacingYaw( 0.0f ),
 	m_nType( 0 ),
-	m_flNext( 0.0f ),
-	m_bClientSide( false )
+	m_flNext( 0.0f )
 	{
 	}
 
@@ -88,9 +86,6 @@ public:
 	// generic AI events
 	int						m_nType;
 	float					m_flNext;
-
-	// is this event only client side?
-	bool					m_bClientSide; 
 
 	void					InitWeight( CBaseFlex *pActor );
 	float					UpdateWeight( CBaseFlex *pActor );

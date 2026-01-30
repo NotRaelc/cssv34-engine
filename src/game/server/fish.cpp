@@ -1,17 +1,16 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//===========================================================================//
+//=============================================================================//
 // fish.cpp
 // Simple fish behavior
 // Author: Michael S. Booth, April 2005
 
 #include "cbase.h"
 #include "fish.h"
-#include "saverestore_utlvector.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -25,20 +24,7 @@ LINK_ENTITY_TO_CLASS( fish, CFish );
 
 //-----------------------------------------------------------------------------------------------------
 BEGIN_DATADESC( CFish )
-	DEFINE_FIELD( m_pool, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_id, FIELD_INTEGER ),
-	DEFINE_FIELD( m_angle, FIELD_FLOAT ),
-	DEFINE_FIELD( m_angleChange, FIELD_FLOAT ),
-	DEFINE_FIELD( m_forward, FIELD_VECTOR ),
-	DEFINE_FIELD( m_perp, FIELD_VECTOR ),
-	DEFINE_FIELD( m_poolOrigin, FIELD_POSITION_VECTOR ),
-	DEFINE_FIELD( m_waterLevel, FIELD_FLOAT ),
-	DEFINE_FIELD( m_speed, FIELD_FLOAT ),
-	DEFINE_FIELD( m_desiredSpeed, FIELD_FLOAT ),
-	DEFINE_FIELD( m_calmSpeed, FIELD_FLOAT ),
-	DEFINE_FIELD( m_panicSpeed, FIELD_FLOAT ),
-	DEFINE_FIELD( m_avoidRange, FIELD_FLOAT ),
-	DEFINE_FIELD( m_turnClockwise, FIELD_BOOLEAN ),
+
 END_DATADESC()
 
 
@@ -533,13 +519,6 @@ LINK_ENTITY_TO_CLASS( func_fish_pool, CFishPool );
 
 BEGIN_DATADESC( CFishPool )
 
-	DEFINE_FIELD( m_fishCount, FIELD_INTEGER ),
-	DEFINE_FIELD( m_maxRange, FIELD_FLOAT ),
-	DEFINE_FIELD( m_swimDepth, FIELD_FLOAT ),
-	DEFINE_FIELD( m_waterLevel, FIELD_FLOAT ),
-	DEFINE_FIELD( m_isDormant, FIELD_BOOLEAN ),
-	DEFINE_UTLVECTOR( m_fishes, FIELD_EHANDLE ),
-
 	DEFINE_THINKFUNC( Update ),
 
 END_DATADESC()
@@ -555,14 +534,22 @@ CFishPool::CFishPool( void )
 
 	m_visTimer.Start( 0.5f );
 
-	ListenForGameEvent( "player_shoot" );
-	ListenForGameEvent( "player_footstep" );
-	ListenForGameEvent( "weapon_fire" );
-	ListenForGameEvent( "hegrenade_detonate" );
-	ListenForGameEvent( "flashbang_detonate" );
-	ListenForGameEvent( "smokegrenade_detonate" );
-	ListenForGameEvent( "bomb_exploded" );
+	gameeventmanager->AddListener( this, "player_shoot", true );
+	gameeventmanager->AddListener( this, "player_footstep", true );
+	gameeventmanager->AddListener( this, "weapon_fire", true );
+	gameeventmanager->AddListener( this, "hegrenade_detonate", true );
+	gameeventmanager->AddListener( this, "flashbang_detonate", true );
+	gameeventmanager->AddListener( this, "smokegrenade_detonate", true );
+	gameeventmanager->AddListener( this, "bomb_exploded", true );
 }
+
+
+//-------------------------------------------------------------------------------------------------------------
+CFishPool::~CFishPool()
+{
+	gameeventmanager->RemoveListener( this );
+}
+
 
 //-------------------------------------------------------------------------------------------------------------
 /**
@@ -585,9 +572,7 @@ void CFishPool::Spawn()
 
 		if (fish)
 		{
-			CHandle<CFish> hFish;
-			hFish.Set( fish );
-			m_fishes.AddToTail( hFish );
+			m_fishes.AddToTail( fish );
 		}
 	}
 }

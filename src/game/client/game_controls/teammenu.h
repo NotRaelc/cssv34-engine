@@ -76,8 +76,8 @@ protected:
 	vgui::RichText *m_pMapInfo;
 	vgui::HTML *m_pMapInfoHTML;
 //	int m_iNumTeams;
-	ButtonCode_t m_iJumpKey;
-	ButtonCode_t m_iScoreBoardKey;
+	int m_iJumpKey;
+	int m_iScoreBoardKey;
 
 	char m_szMapName[ MAX_PATH ];
 };

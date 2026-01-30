@@ -32,7 +32,6 @@ void RecvProxyArrayLength_PlayerArray( void *pStruct, int objectID, int currentA
 IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_Team, DT_Team, CTeam)
 	RecvPropInt( RECVINFO(m_iTeamNum)),
 	RecvPropInt( RECVINFO(m_iScore)),
-	RecvPropInt( RECVINFO(m_iRoundsWon) ),
 	RecvPropString( RECVINFO(m_szTeamname)),
 	
 	RecvPropArray2( 
@@ -43,16 +42,6 @@ IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_Team, DT_Team, CTeam)
 		"player_array"
 		)
 END_RECV_TABLE()
-
-BEGIN_PREDICTION_DATA( C_Team )
-	DEFINE_PRED_ARRAY( m_szTeamname, FIELD_CHARACTER, MAX_TEAM_NAME_LENGTH, FTYPEDESC_PRIVATE ),
-	DEFINE_PRED_FIELD( m_iScore, FIELD_INTEGER, FTYPEDESC_PRIVATE ),
-	DEFINE_PRED_FIELD( m_iRoundsWon, FIELD_INTEGER, FTYPEDESC_PRIVATE ),
-	DEFINE_PRED_FIELD( m_iDeaths, FIELD_INTEGER, FTYPEDESC_PRIVATE ),
-	DEFINE_PRED_FIELD( m_iPing, FIELD_INTEGER, FTYPEDESC_PRIVATE ),
-	DEFINE_PRED_FIELD( m_iPacketloss, FIELD_INTEGER, FTYPEDESC_PRIVATE ),
-	DEFINE_PRED_FIELD( m_iTeamNum, FIELD_INTEGER, FTYPEDESC_PRIVATE ),
-END_PREDICTION_DATA();
 
 // Global list of client side team entities
 CUtlVector< C_Team * > g_Teams;
@@ -66,7 +55,6 @@ CUtlVector< C_Team * > g_Teams;
 C_Team::C_Team()
 {
 	m_iScore = 0;
-	m_iRoundsWon = 0;
 	memset( m_szTeamname, 0, sizeof(m_szTeamname) );
 
 	m_iDeaths = 0;
@@ -106,7 +94,7 @@ C_BasePlayer* C_Team::GetPlayer( int idx )
 }
 
 
-int C_Team::GetTeamNumber() const
+int C_Team::GetTeamNumber()
 {
 	return m_iTeamNum;
 }
@@ -245,12 +233,4 @@ bool ArePlayersOnSameTeam( int iPlayerIndex1, int iPlayerIndex2 )
 	}
 
 	return false;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Get the number of team managers
-//-----------------------------------------------------------------------------
-int GetNumberOfTeams( void )
-{
-	return g_Teams.Size();
 }

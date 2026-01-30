@@ -9,7 +9,6 @@
 #include "collisionproperty.h"
 #include "igamesystem.h"
 #include "utlvector.h"
-#include "tier0/threadtools.h"
 
 #ifdef CLIENT_DLL
 
@@ -44,9 +43,7 @@ public:
 	virtual void LevelShutdownPostEntity();
 
 	// Members of IPartitionQueryCallback
-	virtual void OnPreQuery_V1()	{ Assert( 0 ); }
-	virtual void OnPreQuery( SpatialPartitionListMask_t listMask );
-	virtual void OnPostQuery( SpatialPartitionListMask_t listMask );
+	virtual void OnPreQuery();
 
 	void AddEntity( CBaseEntity *pEntity );
 	
@@ -55,7 +52,6 @@ public:
 
 private:
 	CUtlVector< CBaseHandle > m_DirtyEntities;
-	CThreadFastMutex m_mutex;
 };
 
 
@@ -63,22 +59,6 @@ private:
 // Singleton instance
 //-----------------------------------------------------------------------------
 static CDirtySpatialPartitionEntityList s_DirtyKDTree( "CDirtySpatialPartitionEntityList" );
-
-
-//-----------------------------------------------------------------------------
-// Force spatial partition updates (to avoid threading problems caused by lazy update)
-//-----------------------------------------------------------------------------
-void UpdateDirtySpatialPartitionEntities()
-{
-	SpatialPartitionListMask_t listMask;
-#ifdef CLIENT_DLL
-	listMask = PARTITION_CLIENT_GAME_EDICTS;
-#else
-	listMask = PARTITION_SERVER_GAME_EDICTS;
-#endif
-	s_DirtyKDTree.OnPreQuery( listMask );
-	s_DirtyKDTree.OnPostQuery( listMask );
-}
 
 
 //-----------------------------------------------------------------------------
@@ -117,7 +97,6 @@ void CDirtySpatialPartitionEntityList::Shutdown()
 //-----------------------------------------------------------------------------
 void CDirtySpatialPartitionEntityList::AddEntity( CBaseEntity *pEntity )
 {
-	AUTO_LOCK( m_mutex );
 	m_DirtyEntities.AddToTail( pEntity->GetRefEHandle() );
 }
 
@@ -134,25 +113,13 @@ void CDirtySpatialPartitionEntityList::LevelShutdownPostEntity()
 //-----------------------------------------------------------------------------
 // Makes sure all entries in the KD tree are in the correct position
 //-----------------------------------------------------------------------------
-void CDirtySpatialPartitionEntityList::OnPreQuery( SpatialPartitionListMask_t listMask )
+void CDirtySpatialPartitionEntityList::OnPreQuery()
 {
 #ifdef CLIENT_DLL
-	if ( !( listMask & PARTITION_CLIENT_GAME_EDICTS ) )
-		return;
-
 	// FIXME: This should really be an assertion... feh!
 	if ( !C_BaseEntity::IsAbsRecomputationsEnabled() )
-	{
-		m_mutex.Lock();
-		return;
-	}
-
-#else
-	if ( !( listMask & PARTITION_SERVER_GAME_EDICTS ) )
 		return;
 #endif
-
-	m_mutex.Lock();
 
 	CUtlVector< CBaseHandle > vecStillDirty;
 
@@ -194,21 +161,6 @@ void CDirtySpatialPartitionEntityList::OnPreQuery( SpatialPartitionListMask_t li
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Makes sure all entries in the KD tree are in the correct position
-//-----------------------------------------------------------------------------
-void CDirtySpatialPartitionEntityList::OnPostQuery( SpatialPartitionListMask_t listMask )
-{
-#ifdef CLIENT_DLL
-	if ( !( listMask & PARTITION_CLIENT_GAME_EDICTS ) )
-		return;
-#else
-	if ( !( listMask & PARTITION_SERVER_GAME_EDICTS ) )
-		return;
-#endif
-
-	m_mutex.Unlock();
-}
 
 
 //-----------------------------------------------------------------------------
@@ -397,19 +349,11 @@ int CCollisionProperty::GetCollisionGroup() const
 }
 
 
-bool CCollisionProperty::ShouldTouchTrigger( int triggerSolidFlags ) const
+bool CCollisionProperty::ShouldTouchTriggers() const
 {
-	// debris only touches certain triggers
-	if ( GetCollisionGroup() == COLLISION_GROUP_DEBRIS )
-	{
-		if ( triggerSolidFlags & FSOLID_TRIGGER_TOUCH_DEBRIS )
-			return true;
-
-		return false;
-	}
-
 	// triggers don't touch other triggers (might be solid to other ents as well as trigger)
-	if ( IsSolidFlagSet( FSOLID_TRIGGER ) )
+	// debris never touches triggers
+	if ( IsSolidFlagSet(FSOLID_TRIGGER) || GetCollisionGroup() == COLLISION_GROUP_DEBRIS )
 		return false;
 
 	return true;
@@ -871,7 +815,7 @@ void CCollisionProperty::ComputeVPhysicsSurroundingBox( Vector *pVecWorldMins, V
 	{
 		if ( pPhysicsObject->GetCollide() )
 		{
-			physcollision->CollideGetAABB( pVecWorldMins, pVecWorldMaxs, 
+			physcollision->CollideGetAABB( *pVecWorldMins, *pVecWorldMaxs, 
 				pPhysicsObject->GetCollide(), GetCollisionOrigin(), GetCollisionAngles() );
 			bSetBounds = true;
 		}
@@ -1101,13 +1045,11 @@ void CCollisionProperty::SetSurroundingBoundsType( SurroundingBoundsType_t type,
 //-----------------------------------------------------------------------------
 void CCollisionProperty::MarkSurroundingBoundsDirty()
 {
-	GetOuter()->AddEFlags( EFL_DIRTY_SURROUNDING_COLLISION_BOUNDS );
+	GetOuter()->AddEFlags( EFL_DIRTY_SURROUNDING_COLLISION_BOUNDS | EFL_DIRTY_PVS_INFORMATION );
 	MarkPartitionHandleDirty();
 
 #ifdef CLIENT_DLL
 	g_pClientShadowMgr->MarkRenderToTextureShadowDirty( GetOuter()->GetShadowHandle() );
-#else
-	GetOuter()->NetworkProp()->MarkPVSInformationDirty();
 #endif
 }
 

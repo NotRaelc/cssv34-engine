@@ -76,8 +76,8 @@ CON_COMMAND( buyequip, "Show equipment buy menu" )
 			
 			wchar_t buffer[128];
 			wchar_t buytime[16];
-			g_pVGuiLocalize->ConvertANSIToUnicode( strBuyTime, buytime, sizeof(buytime) );
-			g_pVGuiLocalize->ConstructString( buffer, sizeof(buffer), g_pVGuiLocalize->Find("#Cstrike_TitlesTXT_Cant_buy"), 1, buytime );
+			vgui::localize()->ConvertANSIToUnicode( strBuyTime, buytime, sizeof(buytime) );
+			vgui::localize()->ConstructString( buffer, sizeof(buffer), vgui::localize()->Find("#Cstrike_TitlesTXT_Cant_buy"), 1, buytime );
 			internalCenterPrint->Print( buffer );
 		}
 		else
@@ -114,8 +114,8 @@ CON_COMMAND( buymenu, "Show main buy menu" )
 
 			wchar_t buffer[128];
 			wchar_t buytime[16];
-			g_pVGuiLocalize->ConvertANSIToUnicode( strBuyTime, buytime, sizeof(buytime) );
-			g_pVGuiLocalize->ConstructString( buffer, sizeof(buffer), g_pVGuiLocalize->Find("#Cstrike_TitlesTXT_Cant_buy"), 1, buytime );
+			vgui::localize()->ConvertANSIToUnicode( strBuyTime, buytime, sizeof(buytime) );
+			vgui::localize()->ConstructString( buffer, sizeof(buffer), vgui::localize()->Find("#Cstrike_TitlesTXT_Cant_buy"), 1, buytime );
 			internalCenterPrint->Print( buffer );
 		}
 		else
@@ -142,13 +142,13 @@ CON_COMMAND( chooseteam, "Choose a new team" )
 	}
 }
 
-CON_COMMAND_F( spec_help, "Show spectator help screen", FCVAR_CLIENTCMD_CAN_EXECUTE)
+CON_COMMAND( spec_help, "Show spectator help screen" )
 {
 	if ( gViewPortInterface )
 		gViewPortInterface->ShowPanel( PANEL_INFO, true );
 }
 
-CON_COMMAND_F( spec_menu, "Activates spectator menu", FCVAR_CLIENTCMD_CAN_EXECUTE)
+CON_COMMAND( spec_menu, "Activates spectator menu" )
 {
 	bool bShowIt = true;
 
@@ -157,16 +157,16 @@ CON_COMMAND_F( spec_menu, "Activates spectator menu", FCVAR_CLIENTCMD_CAN_EXECUT
 	if ( pPlayer && !pPlayer->IsObserver() )
 		return;
 
-	if ( args.ArgC() == 2 )
+	if ( engine->Cmd_Argc() == 2 )
 	{
-		 bShowIt = atoi( args[ 1 ] ) == 1;
+		 bShowIt = atoi( engine->Cmd_Argv( 1 ) ) == 1;
 	}
 	
 	if ( gViewPortInterface )
 		gViewPortInterface->ShowPanel( PANEL_SPECMENU, bShowIt );
 }
 
-CON_COMMAND_F( togglescores, "Toggles score panel", FCVAR_CLIENTCMD_CAN_EXECUTE)
+CON_COMMAND( togglescores, "Toggles score panel" )
 {
 	if ( !gViewPortInterface )
 		return;

@@ -738,7 +738,7 @@ $Project "SDKLauncher"
 
 $Project "steam_api"
 {
-	"thirdparty\StubSteamAPI\steam_api.vpc" [$WIN32||$LINUX]
+	"steam_api\steam_api.vpc"
 }
 
 $Project "ServerBrowser"

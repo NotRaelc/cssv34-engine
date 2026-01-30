@@ -53,7 +53,6 @@ public:
 	int		m_nAttachmentIndex;
 	short	m_nSurfaceProp;
 
-	// Some TF2 specific things
 	int		m_nMaterial;
 	int		m_nDamageType;
 	int		m_nHitBox;
@@ -111,10 +110,5 @@ private:
 
 #define MAX_EFFECT_DISPATCH_STRING_BITS	10
 #define MAX_EFFECT_DISPATCH_STRINGS		( 1 << MAX_EFFECT_DISPATCH_STRING_BITS )
-
-#ifdef CLIENT_DLL
-bool SuppressingParticleEffects();
-void SuppressParticleEffects( bool bSuppress );
-#endif
 
 #endif // EFFECT_DISPATCH_DATA_H

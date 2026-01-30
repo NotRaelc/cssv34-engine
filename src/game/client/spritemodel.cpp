@@ -11,7 +11,6 @@
 #include "materialsystem/imaterial.h"
 #include "materialsystem/imaterialvar.h"
 #include "c_sprite.h"
-#include "tier1/callqueue.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -214,7 +213,6 @@ static void AdjustSubRect(CEngineSprite *pSprite, int frame, float *pfLeft, floa
 // Purpose: 
 //-----------------------------------------------------------------------------
 static unsigned int spriteOriginCache = 0;
-static unsigned int spriteOrientationCache = 0;
 bool CEngineSprite::Init( const char *pName )
 {
 	m_hAVIMaterial = AVIMATERIAL_INVALID;
@@ -222,7 +220,6 @@ bool CEngineSprite::Init( const char *pName )
 
 	const char *pExt = Q_GetFileExtension( pName );
 	bool bIsAVI = pExt && !Q_stricmp( pExt, "avi" );
-	//bool bIsBIK = pExt && !Q_stricmp( pExt, "bik" );
 	if ( bIsAVI )
 	{
 		m_hAVIMaterial = avi->CreateAVIMaterial( pName, pName, "GAME" );
@@ -246,8 +243,7 @@ bool CEngineSprite::Init( const char *pName )
 
 	m_material->IncrementReferenceCount();
 
-	IMaterialVar *orientationVar = m_material->FindVarFast( "$spriteorientation", &spriteOrientationCache );
-	m_orientation = orientationVar ? orientationVar->GetIntValue() : C_SpriteRenderer::SPR_VP_PARALLEL_UPRIGHT;
+	m_orientation = GetOrientation();
 
 	IMaterialVar *originVar = m_material->FindVarFast( "$spriteorigin", &spriteOriginCache );
 	Vector origin, originVarValue;
@@ -298,6 +294,7 @@ bool CEngineSprite::IsAVI()
 {
 	return ( m_hAVIMaterial != AVIMATERIAL_INVALID );
 }
+
 
 //-----------------------------------------------------------------------------
 // Returns the texture coordinate range	used to draw the sprite
@@ -357,11 +354,7 @@ void CEngineSprite::SetAdditive( bool additive )
 static unsigned int frameCache = 0;
 void CEngineSprite::SetFrame( float frame )
 {
-	if ( IsAVI() )
-	{
-		avi->SetFrame( m_hAVIMaterial, frame );
-	}
-	else
+	if ( !IsAVI() )
 	{
 		IMaterialVar* pFrameVar = m_material->FindVarFast( "$frame", &frameCache );
 		if (pFrameVar)
@@ -370,6 +363,8 @@ void CEngineSprite::SetFrame( float frame )
 		}
 		return;
 	}
+
+	avi->SetFrame( m_hAVIMaterial, frame );
 }
 
 
@@ -379,13 +374,6 @@ void CEngineSprite::SetFrame( float frame )
 static unsigned int spriteRenderModeCache = 0;
 void CEngineSprite::SetRenderMode( int renderMode )
 {
-	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
-	if ( pRenderContext->GetCallQueue() ) 
-	{
-		pRenderContext->GetCallQueue()->QueueCall( this, &CEngineSprite::SetRenderMode, renderMode );
-		return;
-	}
-
 	IMaterialVar* pRenderModeVar = m_material->FindVarFast( "$spriteRenderMode", &spriteRenderModeCache );
 	if (pRenderModeVar)
 	{
@@ -401,11 +389,19 @@ void CEngineSprite::SetRenderMode( int renderMode )
 // Purpose: 
 // Output : int
 //-----------------------------------------------------------------------------
+static unsigned int spriteOrientationCache = 0;
 int CEngineSprite::GetOrientation( void )
 {
-	return m_orientation;
+	IMaterialVar *orientationVar = m_material->FindVarFast( "$spriteorientation", &spriteOrientationCache );
+	if( orientationVar )
+	{
+		return orientationVar->GetIntValue();
+	}
+	else
+	{
+		return C_SpriteRenderer::SPR_VP_PARALLEL_UPRIGHT;
+	}
 }
-
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -456,8 +452,7 @@ void CEngineSprite::DrawFrameOfSize( int frame, int x, int y, int iWidth, int iH
 
 	SetFrame( frame );
 
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, GetMaterial() );
+	IMesh* pMesh = materials->GetDynamicMesh( true, NULL, NULL, GetMaterial() );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );

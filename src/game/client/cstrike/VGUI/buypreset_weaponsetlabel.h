@@ -103,14 +103,6 @@ public:
 		m_image->SetColor( col );
 	}
 
-	virtual bool Evict() { return false; }
-
-	virtual int GetNumFrames() { return 0; }
-	virtual void SetFrame(int nFrame) {}
-	virtual unsigned long GetID() { return 0ul; }
-
-	virtual void SetRotation(int iRotation) {}
-
 private:
 	vgui::IImage *m_image;
 	int m_wide, m_tall;

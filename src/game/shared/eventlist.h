@@ -66,22 +66,6 @@ typedef enum
 	AE_NPC_HURT_INTERACTION_PARTNER,
 	AE_NPC_SET_INTERACTION_CANTDIE,
 
-	AE_SV_DUSTTRAIL,
-
-	AE_CL_CREATE_PARTICLE_EFFECT,
-
-	AE_RAGDOLL,
-
-	AE_CL_ENABLE_BODYGROUP,
-	AE_CL_DISABLE_BODYGROUP,
-	AE_CL_BODYGROUP_SET_VALUE,
-
-	AE_WPN_PRIMARYATTACK,	// Used by weapons that want their primary attack to occur during an attack anim (i.e. grenade throwing)
-	AE_WPN_INCREMENTAMMO,
-
-	AE_WPN_HIDE,		// Used to hide player weapons
-	AE_WPN_UNHIDE,		// Used to unhide player weapons
-
 	LAST_SHARED_ANIMEVENT,
 } Animevent;
 

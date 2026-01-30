@@ -13,7 +13,7 @@
 #endif
 
 #include "vstdlib/random.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 #include "utlvector.h"
 #include "networkvar.h"
 

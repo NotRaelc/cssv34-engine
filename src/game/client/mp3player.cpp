@@ -6,7 +6,7 @@
 
 #include "cbase.h"
 
-#if 1
+#if 0
 #include "mp3player.h"
 #include "KeyValues.h"
 #include "FileSystem.h"
@@ -56,7 +56,7 @@ vgui::Panel *GetSDKRootPanel();
 #define DB_FILENAME			"resource/mp3player_db.txt"
 #define MP3_SETTINGS_FILE	"resource/mp3settings.txt"
 
-#define MP3_DEFAULT_MP3DIR ".\\my music"
+#define MP3_DEFAULT_MP3DIR "c:\\my music"
 
 CMP3Player *GetMP3Player()
 {
@@ -196,7 +196,7 @@ public:
 		KeyValues *kv = new KeyValues( "LI" );
 		kv->SetString( "File", songInfo->shortname.String() );
 		char fn[ 512 ];
-		if ( g_pFullFileSystem->String( songInfo->filename, fn, sizeof( fn ) ) )
+		if ( vgui::filesystem()->String( songInfo->filename, fn, sizeof( fn ) ) )
 		{
 			char artist[ 256 ];
 			char album[ 256 ];
@@ -347,7 +347,7 @@ public:
 		KeyValues *kv = new KeyValues( "LI" );
 		kv->SetString( "File", songInfo->shortname.String() );
 		char fn[ 512 ];
-		if ( g_pFullFileSystem->String( songInfo->filename, fn, sizeof( fn ) ) )
+		if ( vgui::filesystem()->String( songInfo->filename, fn, sizeof( fn ) ) )
 		{
 			char artist[ 256 ];
 			char album[ 256 ];
@@ -720,7 +720,7 @@ CMP3Player::CMP3Player( VPANEL parent, char const *panelName ) :
 	g_pPlayer = this;
 
 	// Get strings...
-	g_pVGuiLocalize->AddFile( "resource/mp3player_%language%.txt" );
+	vgui::localize()->AddFile( vgui::filesystem(), "resource/mp3player_%language%.txt" );
 	SetParent( parent );
 
 	SetMoveable( true );
@@ -821,7 +821,7 @@ void CMP3Player::RemoveTempSounds()
 	char path[ 512 ];
 	Q_strncpy( path, "sound/_mp3/*.mp3", sizeof( path ) );
 
-	char const *fn = g_pFullFileSystem->FindFirstEx( path, "MOD", &fh );
+	char const *fn = vgui::filesystem()->FindFirstEx( path, "MOD", &fh );
 	if ( fn )
 	{
 		do
@@ -835,15 +835,15 @@ void CMP3Player::RemoveTempSounds()
 				{
 					char killname[ 512 ];
 					Q_snprintf( killname, sizeof( killname ), "sound/_mp3/%s", fn );
-					g_pFullFileSystem->RemoveFile( killname, "MOD" );
+					vgui::filesystem()->RemoveFile( killname, "MOD" );
 				}
 			}
 
-			fn = g_pFullFileSystem->FindNext( fh );
+			fn = vgui::filesystem()->FindNext( fh );
 
 		} while ( fn );
 
-		g_pFullFileSystem->FindClose( fh );
+		vgui::filesystem()->FindClose( fh );
 	}
 }
 
@@ -921,9 +921,9 @@ void CMP3Player::OnRefresh()
 		else
 		{
 			// Add to search path
-			g_pFullFileSystem->AddSearchPath( sd->m_Root.String(), "MP3" );
+			vgui::filesystem()->AddSearchPath( sd->m_Root.String(), "MP3" );
 			// Don't pollute regular searches...
-			g_pFullFileSystem->MarkPathIDByRequestOnly( "MP3", true );
+			vgui::filesystem()->MarkPathIDByRequestOnly( "MP3", true );
 
 			m_nFilesAdded = 0;
 			RecursiveFindMP3Files( sd, "", "MP3" );
@@ -933,7 +933,7 @@ void CMP3Player::OnRefresh()
 	for ( i = 0; i < pcount; ++i )
 	{
 		char fn[ 512 ];
-		if ( g_pFullFileSystem->String( m_PlayListFiles[ i ], fn, sizeof( fn ) ) )
+		if ( vgui::filesystem()->String( m_PlayListFiles[ i ], fn, sizeof( fn ) ) )
 		{
 			// Find index for song
 			int songIndex = FindSong( fn );
@@ -1123,14 +1123,14 @@ void CMP3Player::RecursiveFindMP3Files( SoundDirectory_t *root, char const *curr
 
 	Q_FixSlashes( path );
 
-	char const *fn = g_pFullFileSystem->FindFirstEx( path, pathID, &fh );
+	char const *fn = vgui::filesystem()->FindFirstEx( path, pathID, &fh );
 	if ( fn )
 	{
 		do
 		{
 			if ( fn[0] != '.' && Q_strnicmp( fn, "_mp3", 4 ) )
 			{
-				if ( g_pFullFileSystem->FindIsDirectory( fh ) )
+				if ( vgui::filesystem()->FindIsDirectory( fh ) )
 				{
 					char nextdir[ 512 ];
 					if ( current[ 0 ] )
@@ -1176,11 +1176,11 @@ void CMP3Player::RecursiveFindMP3Files( SoundDirectory_t *root, char const *curr
 				}
 			}
 
-			fn = g_pFullFileSystem->FindNext( fh );
+			fn = vgui::filesystem()->FindNext( fh );
 
 		} while ( fn );
 
-		g_pFullFileSystem->FindClose( fh );
+		vgui::filesystem()->FindClose( fh );
 	}
 }
 
@@ -1188,7 +1188,7 @@ int CMP3Player::FindSong( char const *relative )
 {
 	Assert( !Q_stristr( relative, "/" ) );
 
-	FileNameHandle_t handle = g_pFullFileSystem->FindOrAddFileName( relative );
+	FileNameHandle_t handle = vgui::filesystem()->FindOrAddFileName( relative );
 	int c = m_Files.Count();
 	for ( int i = 0 ; i < c ; ++i )
 	{
@@ -1216,7 +1216,7 @@ int CMP3Player::AddSong( char const *relative, int dirnum )
 
 		Assert( !Q_stristr( relative, "/" ) );
 
-		mp3.filename = g_pFullFileSystem->FindOrAddFileName( relative );
+		mp3.filename = vgui::filesystem()->FindOrAddFileName( relative );
 
 		char shortname[ 256 ];
 		Q_FileBase( relative, shortname, sizeof( shortname ) );
@@ -1324,7 +1324,7 @@ void CMP3Player::GetLocalCopyOfSong( const MP3File_t &mp3, char *outsong, size_t
 {
 	outsong[ 0 ] = 0;
 	char fn[ 512 ];
-	if ( !g_pFullFileSystem->String( mp3.filename, fn, sizeof( fn ) ) )
+	if ( !vgui::filesystem()->String( mp3.filename, fn, sizeof( fn ) ) )
 	{
 		return;
 	}
@@ -1350,7 +1350,7 @@ void CMP3Player::GetLocalCopyOfSong( const MP3File_t &mp3, char *outsong, size_t
 
 	Q_FixSlashes( hexfilename );
 
-	if ( g_pFullFileSystem->FileExists( hexfilename, "MOD" ) )
+	if ( vgui::filesystem()->FileExists( hexfilename, "MOD" ) )
 	{
 		Q_snprintf( outsong, outlen, "_mp3/%s.mp3", hexname );
 	}
@@ -1359,7 +1359,7 @@ void CMP3Player::GetLocalCopyOfSong( const MP3File_t &mp3, char *outsong, size_t
 		// Make a local copy
 		char mp3_temp_path[ 512 ];
 		Q_snprintf( mp3_temp_path, sizeof( mp3_temp_path ), "sound/_mp3" );
-		g_pFullFileSystem->CreateDirHierarchy( mp3_temp_path, "MOD" );
+		vgui::filesystem()->CreateDirHierarchy( mp3_temp_path, "MOD" );
 
 		char destpath[ 512 ];
 		Q_snprintf( destpath, sizeof( destpath ), "%s/%s", engine->GetGameDirectory(), hexfilename );
@@ -1403,13 +1403,13 @@ void CMP3Player::PlaySong( int songIndex, float skipTime /*= 0.0f */ )
 		}
 
 		Assert( !Q_stristr( soundname, "/" ) );
-		song.playbackfilename = g_pFullFileSystem->FindOrAddFileName( soundname );
+		song.playbackfilename = vgui::filesystem()->FindOrAddFileName( soundname );
 
 
 	}
 	else
 	{
-		if ( !g_pFullFileSystem->String( song.playbackfilename, soundname, sizeof( soundname ) ) )
+		if ( !vgui::filesystem()->String( song.playbackfilename, soundname, sizeof( soundname ) ) )
 		{
 			return;
 		}
@@ -1722,9 +1722,9 @@ SoundDirectory_t *CMP3Player::AddSoundDirectory( char const *fullpath, bool recu
 		sdi = m_SoundDirectories.AddToTail( sounddir );
 
 		// Add to search path
-		g_pFullFileSystem->AddSearchPath( fullpath, "MP3" );
+		vgui::filesystem()->AddSearchPath( fullpath, "MP3" );
 		// Don't pollute regular searches...
-		g_pFullFileSystem->MarkPathIDByRequestOnly( "MP3", true );
+		vgui::filesystem()->MarkPathIDByRequestOnly( "MP3", true );
 
 		// Now enumerate all .mp3 files in subfolders of this
 		if ( recurse )
@@ -1855,7 +1855,7 @@ void CMP3Player::RestoreSongs( KeyValues *songs )
 		file.dirnum = subdir;
 		file.flags = flags;
 		file.shortname = shortname;
-		file.filename = g_pFullFileSystem->FindOrAddFileName( filename );
+		file.filename = vgui::filesystem()->FindOrAddFileName( filename );
 		m_Files.AddToTail( file );
 	}
 }
@@ -1890,7 +1890,7 @@ void CMP3Player::RestoreDirectory( KeyValues *dir, SoundDirectory_t *sd )
 					if ( songIndex >= 0 && songIndex < m_Files.Count() )
 					{
 						char fn[ 512 ];
-						if ( g_pFullFileSystem->String( m_Files[ songIndex ].filename, fn, sizeof( fn ) ) )
+						if ( vgui::filesystem()->String( m_Files[ songIndex ].filename, fn, sizeof( fn ) ) )
 						{
 							AddFileToDirectoryTree( sd, fn );
 						}
@@ -1927,7 +1927,7 @@ bool CMP3Player::RestoreDb( char const *filename )
 {
 	KeyValues *kv = new KeyValues( "db" );
 	Assert( kv );
-	if ( !kv->LoadFromFile( g_pFullFileSystem, filename, "MOD" ) )
+	if ( !kv->LoadFromFile( vgui::filesystem(), filename, "MOD" ) )
 	{
 		Warning( "Unable to load '%s'\n", filename );
 		return false;
@@ -1982,7 +1982,7 @@ void CMP3Player::SaveDbFile( int level, CUtlBuffer& buf, MP3File_t *file, int fi
 
 	bpr( level + 1, buf, "short \"%s\"\n", file->shortname.String() );
 	char fn[ 512 ];
-	if ( g_pFullFileSystem->String( file->filename, fn, sizeof( fn ) ) )
+	if ( vgui::filesystem()->String( file->filename, fn, sizeof( fn ) ) )
 	{
 		bpr( level + 1, buf, "filename \"%s\"\n", fn );
 	}
@@ -2081,11 +2081,11 @@ void CMP3Player::SaveDb( char const *filename )
 
 	bpr( 0, buf, "}\n" );
 
-	FileHandle_t fh = g_pFullFileSystem->Open( filename, "wb" );
+	FileHandle_t fh = vgui::filesystem()->Open( filename, "wb" );
 	if ( FILESYSTEM_INVALID_HANDLE != fh )
 	{
-		g_pFullFileSystem->Write( buf.Base(), buf.TellPut(), fh );
-		g_pFullFileSystem->Close( fh );
+		vgui::filesystem()->Write( buf.Base(), buf.TellPut(), fh );
+		vgui::filesystem()->Close( fh );
 		m_bDirty = false;
 	}
 	else
@@ -2120,7 +2120,7 @@ void CMP3Player::LoadPlayList( char const *filename )
 {
 	KeyValues *kv = new KeyValues( "playlist" );
 	Assert( kv );
-	if ( !kv->LoadFromFile( g_pFullFileSystem, filename, "MOD" ) )
+	if ( !kv->LoadFromFile( vgui::filesystem(), filename, "MOD" ) )
 	{
 		Warning( "Unable to load '%s'\n", MP3_SETTINGS_FILE );
 		return;
@@ -2199,7 +2199,7 @@ void CMP3Player::LoadPlayList( char const *filename )
 
 void CMP3Player::SavePlayList( char const *filename )
 {
-	FileHandle_t fh = g_pFullFileSystem->Open( filename, "wb" );
+	FileHandle_t fh = vgui::filesystem()->Open( filename, "wb" );
 	if ( FILESYSTEM_INVALID_HANDLE != fh )
 	{
 		m_PlayListFileName = filename;
@@ -2215,7 +2215,7 @@ void CMP3Player::SavePlayList( char const *filename )
 		{
 			MP3File_t& song = m_Files[ m_PlayList[ i ] ];
 			char fn[ 512 ];
-			if ( g_pFullFileSystem->String( song.filename, fn, sizeof( fn ) ) )
+			if ( vgui::filesystem()->String( song.filename, fn, sizeof( fn ) ) )
 			{
 				char dirname[ 512 ];
 				dirname[0]=0;
@@ -2242,7 +2242,7 @@ void CMP3Player::SavePlayList( char const *filename )
 
 		bpr( 0, buf, "}\n" );
 
-		g_pFullFileSystem->Close( fh );
+		vgui::filesystem()->Close( fh );
 
 		SetMostRecentPlayList( filename );
 	}
@@ -2258,7 +2258,7 @@ void CMP3Player::LoadSettings()
 {
 	KeyValues *kv = new KeyValues( "settings" );
 	Assert( kv );
-	if ( !kv->LoadFromFile( g_pFullFileSystem, MP3_SETTINGS_FILE, "MOD" ) )
+	if ( !kv->LoadFromFile( vgui::filesystem(), MP3_SETTINGS_FILE, "MOD" ) )
 	{
 		Warning( "Unable to load '%s'\n", MP3_SETTINGS_FILE );
 		return;
@@ -2375,7 +2375,7 @@ void CMP3Player::SaveSettings()
 
 	m_bSettingsDirty = false;
 
-	FileHandle_t fh = g_pFullFileSystem->Open( MP3_SETTINGS_FILE, "wb" );
+	FileHandle_t fh = vgui::filesystem()->Open( MP3_SETTINGS_FILE, "wb" );
 	if ( FILESYSTEM_INVALID_HANDLE != fh )
 	{
 		CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
@@ -2410,8 +2410,8 @@ void CMP3Player::SaveSettings()
 
 		bpr( 0, buf, "}\n" );
 
-		g_pFullFileSystem->Write( buf.Base(), buf.TellPut(), fh );
-		g_pFullFileSystem->Close( fh );
+		vgui::filesystem()->Write( buf.Base(), buf.TellPut(), fh );
+		vgui::filesystem()->Close( fh );
 	}
 }
 

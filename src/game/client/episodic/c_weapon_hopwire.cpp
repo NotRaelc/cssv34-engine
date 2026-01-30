@@ -64,7 +64,7 @@ bool C_HopwireExplosion::SetupEmitters( void )
 	// Setup the basic core emitter
 	if ( m_pSimpleEmitter.IsValid() == false )
 	{
-		m_pSimpleEmitter = CSimpleEmitter::Create( "hopwireplatform" );
+		m_pSimpleEmitter = CSimpleEmitter::Create( "hopwirecore" );
 
 		if ( m_pSimpleEmitter.IsValid() == false )
 			return false;
@@ -106,7 +106,7 @@ void C_HopwireExplosion::AddParticles( void )
 
 		offset = GetRenderOrigin() + RandomVector( -256.0f, 256.0f );
 
-		sParticle = (SimpleParticle *) m_pAttractorEmitter->AddParticle( sizeof(SimpleParticle), g_Mat_Fleck_Cement[0], offset );
+		sParticle = (SimpleParticle *) m_pAttractorEmitter->AddParticle( sizeof(SimpleParticle), m_pAttractorEmitter->GetPMaterial( "effects/fleck_cement1" ), offset );
 
 		if ( sParticle == NULL )
 			return;
@@ -175,6 +175,10 @@ void C_HopwireExplosion::AddParticles( void )
 		vecDustColor.y = 0.3f;
 		vecDustColor.z = 0.25f;
 
+		PMaterialHandle	hMaterial[2];
+		hMaterial[0] = m_pSimpleEmitter->GetPMaterial("particle/particle_smokegrenade");
+		hMaterial[1] = m_pSimpleEmitter->GetPMaterial("particle/particle_noisesphere");
+
 		Vector	color;
 
 		int	numRingSprites = 8;
@@ -200,7 +204,7 @@ void C_HopwireExplosion::AddParticles( void )
 
 			offset = ( RandomVector( -4.0f, 4.0f ) + tr.endpos ) + ( forward * 512.0f );
 
-			sParticle = (SimpleParticle *) m_pSimpleEmitter->AddParticle( sizeof(SimpleParticle), g_Mat_DustPuff[random->RandomInt(0,1)], offset );
+			sParticle = (SimpleParticle *) m_pSimpleEmitter->AddParticle( sizeof(SimpleParticle), hMaterial[random->RandomInt(0,1)], offset );
 
 			if ( sParticle != NULL )
 			{
@@ -260,8 +264,7 @@ int C_HopwireExplosion::DrawModel( int flags )
 {
 	AddParticles();
 
-	CMatRenderContextPtr pRenderContext( materials );
-	pRenderContext->Flush();
+	materials->Flush();
 	UpdateRefractTexture();
 
 	IMaterial *pMat = materials->FindMaterial( "effects/strider_pinch_dudv", TEXTURE_GROUP_CLIENT_EFFECTS );
@@ -272,7 +275,7 @@ int C_HopwireExplosion::DrawModel( int flags )
 	IMaterialVar *pVar = pMat->FindVar( "$refractamount", NULL );
 	pVar->SetFloatValue( refract );
 
-	pRenderContext->Bind( pMat, (IClientRenderable*)this );
+	materials->Bind( pMat, (IClientRenderable*)this );
 	
 	float sin1 = sinf( gpGlobals->curtime * 10 );
 	float sin2 = sinf( gpGlobals->curtime );

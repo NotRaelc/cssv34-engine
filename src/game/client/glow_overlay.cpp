@@ -103,13 +103,6 @@ CGlowOverlay::CGlowOverlay()
 		m_Sprites[i].m_flVertSize	= 1.0f;
 		m_Sprites[i].m_pMaterial	= NULL;
 	}
-
-#ifdef PORTAL
-	for( int i = 0; i != MAX_PORTAL_RECURSIVE_VIEWS; ++i )
-	{
-		m_skyObstructionScaleBackups[i] = 1.0f;
-	}
-#endif
 }
 
 
@@ -158,7 +151,10 @@ void CGlowOverlay::UpdateSkyGlowObstruction( float zFar, bool bCacheFullSceneSta
 
 	if ( PixelVisibility_IsAvailable() )
 	{
-		// Trace a ray at the object. 
+		// Trace a ray at the object.
+		trace_t trace;
+		UTIL_TraceLine( CurrentViewOrigin(), CurrentViewOrigin() + (m_vDirection*MAX_TRACE_LENGTH), 
+			CONTENTS_SOLID, NULL, COLLISION_GROUP_NONE, &trace );
 		Vector pos = CurrentViewOrigin() + m_vDirection * zFar * 0.999f;
 
 		// UNDONE: Can probably do only the pixelvis query in this case if you can figure out where
@@ -367,8 +363,6 @@ void CGlowOverlay::Draw( bool bCacheFullSceneState )
 	
 	bool bWireframe = ShouldDrawInWireFrameMode() || (r_drawsprites.GetInt() == 2);
 	
-	CMatRenderContextPtr pRenderContext( materials );
-
 	for( int iSprite=0; iSprite < m_nSprites; iSprite++ )
 	{
 		CGlowSprite *pSprite = &m_Sprites[iSprite];
@@ -406,7 +400,7 @@ void CGlowOverlay::Draw( bool bCacheFullSceneState )
 		}
 
 		// Draw the sprite.
-		IMesh *pMesh = pRenderContext->GetDynamicMesh( false, 0, 0, m_Sprites[iSprite].m_pMaterial );
+		IMesh *pMesh = materials->GetDynamicMesh( false, 0, 0, m_Sprites[iSprite].m_pMaterial );
 
 		CMeshBuilder builder;
 		builder.Begin( pMesh, MATERIAL_QUADS, 1 );
@@ -442,10 +436,10 @@ void CGlowOverlay::Draw( bool bCacheFullSceneState )
 		if( bWireframe )
 		{
 			IMaterial *pWireframeMaterial = materials->FindMaterial( "debug/debugwireframevertexcolor", TEXTURE_GROUP_OTHER );
-			pRenderContext->Bind( pWireframeMaterial );
+			materials->Bind( pWireframeMaterial );
 			
 			// Draw the sprite.
-			IMesh *pMesh = pRenderContext->GetDynamicMesh( false, 0, 0, pWireframeMaterial );
+			IMesh *pMesh = materials->GetDynamicMesh( false, 0, 0, pWireframeMaterial );
 			
 			CMeshBuilder builder;
 			builder.Begin( pMesh, MATERIAL_QUADS, 1 );
@@ -498,10 +492,6 @@ void CGlowOverlay::DrawOverlays( bool bCacheFullSceneState )
 {
 	VPROF("CGlowOverlay::DrawOverlays()");
 
-	CMatRenderContextPtr pRenderContext( materials );
-
-	bool bClippingEnabled = pRenderContext->EnableClipping( true );
-
 	unsigned short iNext;
 	for( unsigned short i=g_GlowOverlaySystem.m_GlowOverlays.Head(); i != g_GlowOverlaySystem.m_GlowOverlays.InvalidIndex(); i = iNext )
 	{
@@ -513,7 +503,6 @@ void CGlowOverlay::DrawOverlays( bool bCacheFullSceneState )
 
 		if( pOverlay->Update() )
 		{
-			pRenderContext->EnableClipping( ((pOverlay->m_bInSky) ? (false):(bClippingEnabled)) ); //disable clipping in skybox, restore clipping to pre-existing state when not in skybox (it may be off as well)
 			pOverlay->Draw( bCacheFullSceneState );
 		}
 		else
@@ -521,8 +510,6 @@ void CGlowOverlay::DrawOverlays( bool bCacheFullSceneState )
 			delete pOverlay;
 		}
 	}
-
-	pRenderContext->EnableClipping( bClippingEnabled ); //restore clipping to original state
 }
 
 void CGlowOverlay::UpdateSkyOverlays( float zFar, bool bCacheFullSceneState )
@@ -539,41 +526,3 @@ void CGlowOverlay::UpdateSkyOverlays( float zFar, bool bCacheFullSceneState )
 		pOverlay->UpdateSkyGlowObstruction( zFar, bCacheFullSceneState );
 	}
 }
-
-
-
-
-#ifdef PORTAL
-
-void CGlowOverlay::BackupSkyOverlayData( int iBackupToSlot )
-{
-	unsigned short iNext;
-	for( unsigned short i=g_GlowOverlaySystem.m_GlowOverlays.Head(); i != g_GlowOverlaySystem.m_GlowOverlays.InvalidIndex(); i = iNext )
-	{
-		iNext = g_GlowOverlaySystem.m_GlowOverlays.Next( i );
-		CGlowOverlay *pOverlay = g_GlowOverlaySystem.m_GlowOverlays[i];
-
-		if( !pOverlay->m_bActivated || !pOverlay->m_bDirectional || !pOverlay->m_bInSky )
-			continue;
-
-		pOverlay->m_skyObstructionScaleBackups[iBackupToSlot] = pOverlay->m_skyObstructionScale;
-	}
-}
-
-void CGlowOverlay::RestoreSkyOverlayData( int iRestoreFromSlot )
-{
-	unsigned short iNext;
-	for( unsigned short i=g_GlowOverlaySystem.m_GlowOverlays.Head(); i != g_GlowOverlaySystem.m_GlowOverlays.InvalidIndex(); i = iNext )
-	{
-		iNext = g_GlowOverlaySystem.m_GlowOverlays.Next( i );
-		CGlowOverlay *pOverlay = g_GlowOverlaySystem.m_GlowOverlays[i];
-
-		if( !pOverlay->m_bActivated || !pOverlay->m_bDirectional || !pOverlay->m_bInSky )
-			continue;
-
-		pOverlay->m_skyObstructionScale = pOverlay->m_skyObstructionScaleBackups[iRestoreFromSlot];
-	}
-}
-
-#endif //#ifdef PORTAL
-

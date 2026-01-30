@@ -10,7 +10,7 @@
 #include "igamesystem.h"
 #include "ilagcompensationmanager.h"
 #include "inetchannelinfo.h"
-#include "utllinkedlist.h"
+#include "utlfixedlinkedlist.h"
 #include "BaseAnimatingOverlay.h"
 #include "tier0/vprof.h"
 
@@ -30,12 +30,12 @@
 // Allow 4 units of error ( about 1 / 8 bbox width )
 #define LAG_COMPENSATION_ERROR_EPS_SQR ( 4.0f * 4.0f )
 
-ConVar sv_unlag( "sv_unlag", "1", FCVAR_DEVELOPMENTONLY, "Enables player lag compensation" );
-ConVar sv_maxunlag( "sv_maxunlag", "1.0", FCVAR_DEVELOPMENTONLY, "Maximum lag compensation in seconds", true, 0.0f, true, 1.0f );
-ConVar sv_lagflushbonecache( "sv_lagflushbonecache", "1", FCVAR_DEVELOPMENTONLY, "Flushes entity bone cache on lag compensation" );
+ConVar sv_unlag( "sv_unlag", "1", 0, "Enables player lag compensation" );
+ConVar sv_maxunlag( "sv_maxunlag", "1.0", 0, "Maximum lag compensation in seconds", true, 0.0f, true, 1.0f );
+ConVar sv_lagflushbonecache( "sv_lagflushbonecache", "1", 0, "Flushes entity bone cache on lag compensation" );
 ConVar sv_showlagcompensation( "sv_showlagcompensation", "0", FCVAR_CHEAT, "Show lag compensated hitboxes whenever a player is lag compensated." );
 
-ConVar sv_unlag_fixstuck( "sv_unlag_fixstuck", "0", FCVAR_DEVELOPMENTONLY, "Disallow backtracking a player for lag compensation if it will cause them to become stuck" );
+ConVar sv_unlag_fixstuck( "sv_unlag_fixstuck", "0", 0, "Disallow backtracking a player for lag compensation if it will cause them to become stuck" );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -120,7 +120,7 @@ public:
 // If it can't get there, leave the player where he is.
 // 
 
-ConVar sv_unlag_debug( "sv_unlag_debug", "0", FCVAR_GAMEDLL | FCVAR_DEVELOPMENTONLY );
+ConVar sv_unlag_debug( "sv_unlag_debug", "0", FCVAR_GAMEDLL );
 
 float g_flFractionScale = 0.95;
 static void RestorePlayerTo( CBasePlayer *pPlayer, const Vector &vWantedPos )
@@ -128,7 +128,7 @@ static void RestorePlayerTo( CBasePlayer *pPlayer, const Vector &vWantedPos )
 	// Try to move to the wanted position from our current position.
 	trace_t tr;
 	VPROF_BUDGET( "RestorePlayerTo", "CLagCompensationManager" );
-	UTIL_TraceEntity( pPlayer, vWantedPos, vWantedPos, MASK_PLAYERSOLID, pPlayer, COLLISION_GROUP_PLAYER_MOVEMENT, &tr );
+	UTIL_TraceEntity( pPlayer, vWantedPos, vWantedPos, MASK_PLAYERSOLID, &tr );
 	if ( tr.startsolid || tr.allsolid )
 	{
 		if ( sv_unlag_debug.GetBool() )
@@ -137,7 +137,7 @@ static void RestorePlayerTo( CBasePlayer *pPlayer, const Vector &vWantedPos )
 					pPlayer->GetPlayerName(), vWantedPos.x, vWantedPos.y, vWantedPos.z );
 		}
 
-		UTIL_TraceEntity( pPlayer, pPlayer->GetLocalOrigin(), vWantedPos, MASK_PLAYERSOLID, pPlayer, COLLISION_GROUP_PLAYER_MOVEMENT, &tr );
+		UTIL_TraceEntity( pPlayer, pPlayer->GetLocalOrigin(), vWantedPos, MASK_PLAYERSOLID, &tr );
 		if ( tr.startsolid || tr.allsolid )
 		{
 			// In this case, the guy got stuck back wherever we lag compensated him to. Nasty.

@@ -15,7 +15,6 @@
 class CChoreoChannel;
 class CChoreoScene;
 class CUtlBuffer;
-class IChoreoStringPool;
 
 //-----------------------------------------------------------------------------
 // Purpose: The actor is the atomic element of a scene
@@ -33,8 +32,8 @@ public:
 	CChoreoActor&	operator = ( const CChoreoActor& src );
 
 	// Serialization
-	void			SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool );
-	bool			RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool );
+	void			SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene );
+	bool			RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene );
 
 	// Accessors
 	void			SetName( const char *name );

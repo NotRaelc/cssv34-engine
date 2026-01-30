@@ -60,7 +60,7 @@ public:
 
 	CSDKPlayerAnimState();
 
-	virtual void DoAnimationEvent( PlayerAnimEvent_t event, int nData );
+	virtual void DoAnimationEvent( PlayerAnimEvent_t event );
 	virtual bool IsThrowingGrenade();
 	virtual int CalcAimLayerSequence( float *flCycle, float *flAimSequenceWeight, bool bForceIdle );
 	virtual void ClearAnimationState();
@@ -165,7 +165,7 @@ void CSDKPlayerAnimState::ClearAnimationState()
 }
 
 
-void CSDKPlayerAnimState::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
+void CSDKPlayerAnimState::DoAnimationEvent( PlayerAnimEvent_t event )
 {
 	Assert( event != PLAYERANIMEVENT_THROW_GRENADE );
 

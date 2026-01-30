@@ -11,24 +11,23 @@
 #pragma once
 #endif
 
-#include <vgui_controls/EditablePanel.h>
+#include <vgui_controls/Frame.h>
 #include <game/client/iviewport.h>
-#include "gameeventlistener.h"
+#include "GameEventListener.h"
 
 #define TYPE_NOTEAM			0	// NOTEAM must be zero :)
 #define TYPE_TEAM			1	// a section for a single team	
-#define TYPE_PLAYERS		2
-#define TYPE_SPECTATORS		3	// a section for a spectator group
-#define TYPE_BLANK			4
+#define TYPE_SPECTATORS		2	// a section for a spectator group
+#define TYPE_BLANK			3
 
 
 //-----------------------------------------------------------------------------
 // Purpose: Game ScoreBoard
 //-----------------------------------------------------------------------------
-class CClientScoreBoardDialog : public vgui::EditablePanel, public IViewPortPanel, public CGameEventListener
+class CClientScoreBoardDialog : public vgui::Frame, public IViewPortPanel, public CGameEventListener
 {
 private:
-	DECLARE_CLASS_SIMPLE( CClientScoreBoardDialog, vgui::EditablePanel );
+	DECLARE_CLASS_SIMPLE( CClientScoreBoardDialog, vgui::Frame );
 
 protected:
 // column widths at 640
@@ -37,7 +36,7 @@ protected:
 
 public:
 	CClientScoreBoardDialog( IViewPort *pViewPort );
-	~CClientScoreBoardDialog();
+	virtual ~CClientScoreBoardDialog();
 
 	virtual const char *GetName( void ) { return PANEL_SCOREBOARD; }
 	virtual void SetData(KeyValues *data) {};
@@ -47,8 +46,6 @@ public:
 	virtual bool HasInputElements( void ) { return true; }
 	virtual void ShowPanel( bool bShow );
 
-	//virtual bool ShowAvatars() { return IsPC(); }
-
 	// both vgui::Frame and IViewPortPanel define these, so explicitly define them here as passthroughs to vgui
 	vgui::VPANEL GetVPanel( void ) { return BaseClass::GetVPanel(); }
   	virtual bool IsVisible() { return BaseClass::IsVisible(); }
@@ -56,28 +53,22 @@ public:
  	
 	// IGameEventListener interface:
 	virtual void FireGameEvent( IGameEvent *event);
-
-	//virtual void UpdatePlayerAvatar( int playerIndex, KeyValues *kv );
 			
-protected:
-	MESSAGE_FUNC_INT( OnPollHideCode, "PollHideCode", code );
 
+protected:
 	// functions to override
 	virtual bool GetPlayerScoreInfo(int playerIndex, KeyValues *outPlayerInfo);
 	virtual void InitScoreboardSections();
 	virtual void UpdateTeamInfo();
 	virtual void UpdatePlayerInfo();
-	virtual void OnThink();
+	
 	virtual void AddHeader(); // add the start header of the scoreboard
 	virtual void AddSection(int teamType, int teamNumber); // add a new section header for a team
-	virtual int GetAdditionalHeight() { return 0; }
 
 	// sorts players within a section
 	static bool StaticPlayerSortFunc(vgui::SectionedListPanel *list, int itemID1, int itemID2);
 
 	virtual void ApplySchemeSettings(vgui::IScheme *pScheme);
-
-	virtual void PostApplySchemeSettings( vgui::IScheme *pScheme );
 
 	// finds the player in the scoreboard
 	int FindItemIDForPlayerIndex(int playerIndex);
@@ -90,24 +81,15 @@ protected:
 	int s_VoiceImage[5];
 	int TrackerImage;
 	int	m_HLTVSpectators;
-	float m_fNextUpdateTime;
+	float		m_fNextUpdateTime;
 
 	void MoveLabelToFront(const char *textEntryName);
-	void MoveToCenterOfScreen();
-
-	vgui::ImageList				*m_pImageList;
-
-	CPanelAnimationVarAliasType( int, m_iNameWidth, "name_width", "136", "proportional_int" );
-	CPanelAnimationVarAliasType( int, m_iClassWidth, "class_width", "35", "proportional_int" );
-	CPanelAnimationVarAliasType( int, m_iScoreWidth, "score_width", "35", "proportional_int" );
-	CPanelAnimationVarAliasType( int, m_iDeathWidth, "death_width", "35", "proportional_int" );
-	CPanelAnimationVarAliasType( int, m_iPingWidth, "ping_width", "23", "proportional_int" );
 
 private:
 	int			m_iPlayerIndexSymbol;
 	int			m_iDesiredHeight;
 	IViewPort	*m_pViewPort;
-	ButtonCode_t m_nCloseKey;
+
 
 
 	// methods

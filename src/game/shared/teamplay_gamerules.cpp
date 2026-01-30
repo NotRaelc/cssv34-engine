@@ -5,38 +5,31 @@
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
-#include "KeyValues.h"
+#include "player.h"
 #include "gamerules.h"
 #include "teamplay_gamerules.h"
-
-#ifdef CLIENT_DLL
-	#include "c_baseplayer.h"
-	#include "c_team.h"
-#else
-	#include "player.h"
-	#include "game.h"
-	#include "gamevars_shared.h"
-	#include "team.h"
-#endif
+#include "game.h"
+#include "gamevars_shared.h"
+#include "team.h"
+#include "KeyValues.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#ifdef GAME_DLL
 static char team_names[MAX_TEAMS][MAX_TEAMNAME_LENGTH];
 static int team_scores[MAX_TEAMS];
 static int num_teams = 0;
 
 extern bool		g_fGameOver;
 
+
 REGISTER_GAMERULES_CLASS( CTeamplayRules );
+
 
 CTeamplayRules::CTeamplayRules()
 {
 	m_DisableDeathMessages = false;
 	m_DisableDeathPenalty = false;
-	m_bSwitchTeams = false;
-	m_bScrambleTeams = false;
 
 	memset( team_names, 0, sizeof(team_names) );
 	memset( team_scores, 0, sizeof(team_scores) );
@@ -104,17 +97,17 @@ void CTeamplayRules::Think ( void )
 // the user has typed a command which is unrecognized by everything else;
 // this check to see if the gamerules knows anything about the command
 //=========================================================
-bool CTeamplayRules::ClientCommand( CBaseEntity *pEdict, const CCommand &args )
+bool CTeamplayRules::ClientCommand( const char *pcmd, CBaseEntity *pEdict )
 {
-	if( BaseClass::ClientCommand( pEdict, args ) )
+	if( BaseClass::ClientCommand(pcmd, pEdict) )
 		return true;
 	
-	if ( FStrEq( args[0], "menuselect" ) )
+	if ( FStrEq( pcmd, "menuselect" ) )
 	{
-		if ( args.ArgC() < 2 )
+		if ( engine->Cmd_Argc() < 2 )
 			return true;
 
-		//int slot = atoi( args[1] );
+		//int slot = atoi( engine->Cmd_Argv(1) );
 
 		// select the item from the current menu
 
@@ -287,6 +280,13 @@ void CTeamplayRules::ClientSettingsChanged( CBasePlayer *pPlayer )
 		}
 		
 		pPlayer->SetPlayerName( pszName );
+	}
+	
+	const char *pszHH = engine->GetClientConVarValue( pPlayer->entindex(), "hap_HasDevice" );
+	if( pszHH )
+	{
+		int iHH = atoi( pszHH );
+		pPlayer->SetHaptics( iHH != 0 );
 	}
 }
 
@@ -513,7 +513,7 @@ void CTeamplayRules::RecountTeams( void )
 	// make a copy because strtok is destructive
 	Q_strncpy( teamlist, m_szTeamList, sizeof(teamlist) );
 	pName = teamlist;
-	pName = strtok( pName, ";" );
+	pName = strtok( pName, "," );
 	while ( pName != NULL && *pName )
 	{
 		if ( GetTeamIndex( pName ) < 0 )
@@ -521,7 +521,7 @@ void CTeamplayRules::RecountTeams( void )
 			Q_strncpy( team_names[num_teams], pName, sizeof(team_names[num_teams]));
 			num_teams++;
 		}
-		pName = strtok( NULL, ";" );
+		pName = strtok( NULL, "," );
 	}
 
 	if ( num_teams < 2 )
@@ -563,4 +563,11 @@ void CTeamplayRules::RecountTeams( void )
 		}
 	}
 }
-#endif // GAME_DLL
+
+const char *CTeamplayRules::GetGameDescription( void ) 
+{
+	if ( teamplay.GetBool() )
+		return "Teamplay"; 
+	
+	return "Deathmatch"; 
+}

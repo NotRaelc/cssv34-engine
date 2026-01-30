@@ -42,7 +42,6 @@ public:
 	virtual ~CCamoMaterialProxy();
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind(C_BaseEntity *pC_BaseEntity );
-	virtual IMaterial *GetMaterial();
 
 	// Procedurally generates the camo texture...
 	void GenerateCamoTexture( ITexture* pTexture, IVTFTexture *pVTFTexture );
@@ -572,11 +571,6 @@ void CCamoMaterialProxy::GenerateRandomPointsInNormalizedCube( void )
 		m_pointsInNormalizedBox[i][1] = random->RandomFloat( m_SubBoundingBoxMin[1], m_SubBoundingBoxMax[1] );
 		m_pointsInNormalizedBox[i][2] = random->RandomFloat( m_SubBoundingBoxMin[2], m_SubBoundingBoxMax[2] );
 	}
-}
-
-IMaterial *CCamoMaterialProxy::GetMaterial()
-{
-	return m_pMaterial;
 }
 
 EXPOSE_INTERFACE( CCamoMaterialProxy, IMaterialProxy, "Camo" IMATERIAL_PROXY_INTERFACE_VERSION );

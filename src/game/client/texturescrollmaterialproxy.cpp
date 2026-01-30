@@ -9,15 +9,11 @@
 #include "materialsystem/IMaterial.h"
 #include "materialsystem/IMaterialVar.h"
 #include <KeyValues.h>
-#include "mathlib/VMatrix.h"
+#include "VMatrix.h"
 #include "functionproxy.h"
-#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-
-// forward declarations
-void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 // $textureScrollVar
 // $textureScrollRate
@@ -30,18 +26,24 @@ public:
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pC_BaseEntity );
 	virtual void Release( void ) { delete this; }
-	virtual IMaterial *GetMaterial();
-
 private:
 	IMaterialVar *m_pTextureScrollVar;
 	CFloatInput m_TextureScrollRate;
 	CFloatInput m_TextureScrollAngle;
 	CFloatInput m_TextureScale;
+
+#ifdef _XBOX
+	bool m_bWaterShader;
+#endif
 };
 
 CTextureScrollMaterialProxy::CTextureScrollMaterialProxy()
 {
 	m_pTextureScrollVar = NULL;
+
+#ifdef _XBOX
+	m_bWaterShader = false;
+#endif
 }
 
 CTextureScrollMaterialProxy::~CTextureScrollMaterialProxy()
@@ -64,6 +66,13 @@ bool CTextureScrollMaterialProxy::Init( IMaterial *pMaterial, KeyValues *pKeyVal
 	m_TextureScrollAngle.Init( pMaterial, pKeyValues, "textureScrollAngle", 0.0f );
 	m_TextureScale.Init( pMaterial, pKeyValues, "textureScale", 1.0f );
 
+#ifdef _XBOX
+	const char *pShaderName = pMaterial->GetShaderName();
+	m_bWaterShader = !Q_stricmp( pShaderName, "water" ) ||
+		!Q_stricmp( pShaderName, "water_dx80" ) ||	!Q_stricmp( pShaderName, "water_dudv" ) ||
+		!Q_stricmp( pShaderName, "water_firstpass" ) ||	!Q_stricmp( pShaderName, "water_secondpass" );
+#endif
+
 	return true;
 }
 
@@ -80,6 +89,14 @@ void CTextureScrollMaterialProxy::OnBind( void *pC_BaseEntity )
 	rate		= m_TextureScrollRate.GetFloat();
 	angle		= m_TextureScrollAngle.GetFloat();
 	scale		= m_TextureScale.GetFloat();
+
+#ifdef _XBOX
+	// Hack for water
+	if ( m_bWaterShader )
+	{
+		scale = 0.5f;
+	}
+#endif
 
 	float sOffset, tOffset;
 	
@@ -112,16 +129,6 @@ void CTextureScrollMaterialProxy::OnBind( void *pC_BaseEntity )
 	{
 		m_pTextureScrollVar->SetVecValue( sOffset, tOffset, 0.0f );
 	}
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
-}
-
-IMaterial *CTextureScrollMaterialProxy::GetMaterial()
-{
-	return m_pTextureScrollVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CTextureScrollMaterialProxy, IMaterialProxy, "TextureScroll" IMATERIAL_PROXY_INTERFACE_VERSION );

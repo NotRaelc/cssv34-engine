@@ -24,7 +24,7 @@
 #include "ivideomode.h"
 #include "lightcache.h"
 #include "toolframework/itoolframework.h"
-#include "matchmaking.h"
+//#include "matchmaking.h"
 #include "datacache/idatacache.h"
 #include "sys_dll.h"
 
@@ -126,8 +126,6 @@ void SCR_EndLoadingPlaque( void )
 			EngineVGui()->ShowErrorMessage();
 		}
 	}
-
-	g_pMatchmaking->OnLevelLoadingFinished();
 
 	scr_disabled_for_loading = false;
 	scr_drawloading = false;

@@ -481,7 +481,7 @@ void CHudLocation::OnTick()
 	{
 		pszLocation = pPlayer->GetLastKnownPlaceName();
 	}
-	SetText( g_pVGuiLocalize->Find( pszLocation ) );
+	SetText( vgui::localize()->Find( pszLocation ) );
 
 	// We have two different locations based on the Overview mode.
 	// So we just position ourselves below, and center our text in their width.

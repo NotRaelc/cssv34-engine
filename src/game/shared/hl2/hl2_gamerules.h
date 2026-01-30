@@ -33,18 +33,13 @@ class CHalfLife2 : public CSingleplayRules
 public:
 	DECLARE_CLASS( CHalfLife2, CSingleplayRules );
 
-	// Damage Query Overrides.
-	virtual bool			Damage_IsTimeBased( int iDmgType );
-	// TEMP:
-	virtual int				Damage_GetTimeBased( void );
-	
+
 	virtual bool			ShouldCollide( int collisionGroup0, int collisionGroup1 );
 	virtual bool			ShouldUseRobustRadiusDamage(CBaseEntity *pEntity);
 #ifndef CLIENT_DLL
 	virtual bool			ShouldAutoAim( CBasePlayer *pPlayer, edict_t *target );
 	virtual float			GetAutoAimScale( CBasePlayer *pPlayer );
 	virtual float			GetAmmoQuantityScale( int iAmmoIndex );
-	virtual void			LevelInitPreEntity();
 #endif
 
 private:
@@ -64,7 +59,7 @@ private:
 
 	virtual void			Think( void );
 
-	virtual bool			ClientCommand( CBaseEntity *pEdict, const CCommand &args );
+	virtual bool			ClientCommand( const char *pcmd, CBaseEntity *pEdict );
 	virtual void			PlayerSpawn( CBasePlayer *pPlayer );
 
 	virtual void			InitDefaultAIRelationships( void );
@@ -76,6 +71,7 @@ private:
 	virtual float			GetAmmoDamage( CBaseEntity *pAttacker, CBaseEntity *pVictim, int nAmmoType );
 
 	virtual bool			ShouldBurningPropsEmitLight();
+	
 public:
 
 	bool AllowDamage( CBaseEntity *pVictim, const CTakeDamageInfo &info );

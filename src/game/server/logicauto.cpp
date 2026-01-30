@@ -10,7 +10,7 @@
 #include "entityinput.h"
 #include "entityoutput.h"
 #include "eventqueue.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "globalstate.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -42,8 +42,6 @@ private:
 	COutputEvent m_OnLoadGame;
 	COutputEvent m_OnMapTransition;
 	COutputEvent m_OnBackgroundMap;
-	COutputEvent m_OnMultiNewMap;
-	COutputEvent m_OnMultiNewRound;
 
 	string_t m_globalstate;
 };
@@ -61,8 +59,6 @@ BEGIN_DATADESC( CLogicAuto )
 	DEFINE_OUTPUT(m_OnLoadGame, "OnLoadGame"),
 	DEFINE_OUTPUT(m_OnMapTransition, "OnMapTransition"),
 	DEFINE_OUTPUT(m_OnBackgroundMap, "OnBackgroundMap"),
-	DEFINE_OUTPUT(m_OnMultiNewMap, "OnMultiNewMap" ),
-	DEFINE_OUTPUT(m_OnMultiNewRound, "OnMultiNewRound" ),
 
 END_DATADESC()
 
@@ -104,19 +100,6 @@ void CLogicAuto::Think(void)
 		}
 
 		m_OnMapSpawn.FireOutput(NULL, this);
-
-		if ( g_pGameRules->IsMultiplayer() )
-		{
-			// In multiplayer, fire the new map / round events.
-			if ( g_pGameRules->InRoundRestart() )
-			{
-				m_OnMultiNewRound.FireOutput(NULL, this);
-			}
-			else
-			{
-				m_OnMultiNewMap.FireOutput(NULL, this);
-			}
-		}
 
 		if (m_spawnflags & SF_AUTO_FIREONCE)
 		{

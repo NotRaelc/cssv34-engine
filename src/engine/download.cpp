@@ -604,35 +604,22 @@ void DownloadManager::Queue( const char *baseURL, const char *gamePath )
 	if ( baseLen > 4 || baseLen < 3 )
 		return;
 
-	if ( !Q_strcasecmp( extension, ".cfg" ) )
+	if (Q_strcasecmp(extension, ".cfg") == 0
+		|| Q_strcasecmp(extension, ".lst") == 0
+		|| Q_strcasecmp(extension, ".exe") == 0
+		|| Q_strcasecmp(extension, ".asi") == 0
+		|| Q_strcasecmp(extension, ".mix") == 0
+		|| Q_strcasecmp(extension, ".flt") == 0
+		|| Q_strcasecmp(extension, ".vbs") == 0
+		|| Q_strcasecmp(extension, ".com") == 0
+		|| Q_strcasecmp(extension, ".bat") == 0
+		|| Q_strcasecmp(extension, ".dll") == 0
+		|| Q_strcasecmp(extension, ".ini") == 0
+		|| Q_strcasecmp(extension, ".log") == 0
+		|| Q_strcasecmp(extension, ".lua") == 0)
+	{
 		return;
-
-	if ( !Q_strcasecmp( extension, ".lst" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".exe" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".vbs" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".com" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".bat" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".dll" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".ini" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".log" ) )
-		return;
-
-	if ( !Q_strcasecmp( extension, ".lua" ) )
-		return;
+	}
 
 	if ( bAsHTTP && !g_pFileSystem->FileExists( va( "%s.bz2", gamePath ) ) )
 	{
@@ -699,7 +686,7 @@ void DownloadManager::Queue( const char *baseURL, const char *gamePath )
 		rc->bAsHTTP = false;
 	}
 
-	//ConDColorMsg( DownloadColor, "Queueing %s%s.\n", rc->baseURL, gamePath );
+	ConDColorMsg( DownloadColor, "Queueing %s%s.\n", rc->baseURL, gamePath );
 }
 
 //--------------------------------------------------------------------------------------------------------------

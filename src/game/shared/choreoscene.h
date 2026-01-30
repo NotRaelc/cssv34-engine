@@ -18,8 +18,6 @@ class IChoreoEventCallback;
 class CEventRelativeTag;
 class CUtlBuffer;
 class CFlexAnimationTrack;
-class ISceneTokenProcessor;
-class IChoreoStringPool;
 
 #include "tier1/utlvector.h"
 #include "tier1/utldict.h"
@@ -27,15 +25,14 @@ class IChoreoStringPool;
 #include "expressionsample.h"
 #include "choreoevent.h"
 
+class ISceneTokenProcessor;
+
 #define DEFAULT_SCENE_FPS	60
 #define MIN_SCENE_FPS		10
 #define MAX_SCENE_FPS		240
 
-#define SCENE_BINARY_TAG		MAKEID( 'b', 'v', 'c', 'd' )
-#define SCENE_BINARY_VERSION	0x04
-
 //-----------------------------------------------------------------------------
-// Purpose: Container for choreographed scene of events for actors
+// Purpose: Container for chereographed scene of events for actors
 //-----------------------------------------------------------------------------
 class CChoreoScene : public ICurveDataAccessor
 {
@@ -47,20 +44,16 @@ public:
 	// Assignment
 	CChoreoScene&	operator=(const CChoreoScene& src );
 
-	// ICurveDataAccessor methods
-	virtual float	GetDuration() { return FindStopTime(); };
+// ICurveDataAccessor methods
 	virtual bool	CurveHasEndTime();
+	virtual int		CurveGetSampleCount();
+	virtual CExpressionSample *CurveGetBoundedSample( int idx, bool& bClamped );
 	virtual int		GetDefaultCurveType();
+	// Serialization
+	bool			SaveBinary( char const *pszBinaryFileName, char const *pPathID, unsigned int nTextVersionCRC );
 
-	// Binary serialization
-	bool			SaveBinary( char const *pszBinaryFileName, char const *pPathID, unsigned int nTextVersionCRC, IChoreoStringPool *pStringPool );
-	void			SaveToBinaryBuffer( CUtlBuffer& buf, unsigned int nTextVersionCRC, IChoreoStringPool *pStringPool );
-	bool			RestoreFromBinaryBuffer( CUtlBuffer& buf, char const *filename, IChoreoStringPool *pStringPool );
-	static bool		GetCRCFromBinaryBuffer( CUtlBuffer& buf, unsigned int& crc );
-
-	// We do some things differently while restoring from a save.
-	inline void		SetRestoring( bool bRestoring );
-	inline bool		IsRestoring();
+	bool			RestoreFromBuffer( CUtlBuffer& buf, char const *filename );
+	static bool		GetCRCFromBuffer( CUtlBuffer& buf, unsigned int& crc );
 
 	enum
 	{
@@ -71,7 +64,7 @@ public:
 	void			SetEventCallbackInterface( IChoreoEventCallback *callback );
 
 	// Loading
-	bool			ParseFromBuffer( char const *pFilename, ISceneTokenProcessor *tokenizer );
+	bool			ParseFromBuffer( char const *filenae, ISceneTokenProcessor *tokenizer );
 	void			SetPrintFunc( void ( *pfn )( const char *fmt, ... ) );
 
 	// Saving
@@ -82,10 +75,10 @@ public:
 	// Merges two .vcd's together, returns true if any data was merged
 	bool			Merge( CChoreoScene *other );
 
-	static void		FileSaveFlexAnimationTrack( CUtlBuffer& buf, int level, CFlexAnimationTrack *track, int nDefaultCurveType );
+	static void		FileSaveFlexAnimationTrack( CUtlBuffer& buf, int level, CFlexAnimationTrack *track );
 	static void		FileSaveFlexAnimations( CUtlBuffer& buf, int level, CChoreoEvent *e );
 	static void		FileSaveRamp( CUtlBuffer& buf, int level, CChoreoEvent *e );
-	void			FileSaveSceneRamp( CUtlBuffer& buf, int level );
+	static void		FileSaveSceneRamp( CUtlBuffer& buf, int level, CChoreoScene *scene );
 	static void		FileSaveScaleSettings( CUtlBuffer& buf, int level, CChoreoScene *scene );
 
 	static void		ParseFlexAnimations( ISceneTokenProcessor *tokenizer, CChoreoEvent *e, bool removeold = true );
@@ -93,7 +86,7 @@ public:
 	static void		ParseSceneRamp( ISceneTokenProcessor *tokenizer, CChoreoScene *scene );
 	static void		ParseScaleSettings( ISceneTokenProcessor *tokenizer, CChoreoScene *scene );
 	static void		ParseEdgeInfo( ISceneTokenProcessor *tokenizer, EdgeInfo_t *edgeinfo );
-
+ 
 	// Debugging
 	void			SceneMsg( const char *pFormat, ... );
 	void			Print( void );
@@ -183,18 +176,30 @@ public:
 
 	float			SnapTime( float t );
 
-	int				GetSceneRampCount( void ) { return m_SceneRamp.GetCount(); };
-	CExpressionSample *GetSceneRamp( int index ) { return m_SceneRamp.Get( index ); };
-	CExpressionSample *AddSceneRamp( float time, float value, bool selected ) { return m_SceneRamp.Add( time, value, selected ); };
-	void			DeleteSceneRamp( int index ) { m_SceneRamp.Delete( index ); };
-	void			ClearSceneRamp( void ) { m_SceneRamp.Clear(); };
-	void			ResortSceneRamp( void ) { m_SceneRamp.Resort( this ); };
+	int				GetSceneRampCount( void );
+	CExpressionSample *GetSceneRamp( int index );
+	CExpressionSample *AddSceneRamp( float time, float value, bool selected );
+	void			DeleteSceneRamp( int index );
+	void			ClearSceneRamp( void );
+	void			ResortSceneRamp( void );
+	// remove any samples after endtime
+	void			RemoveOutOfRangeSceneRampSamples( void );
 
-	CCurveData		*GetSceneRamp( void ) { return &m_SceneRamp; };
+	EdgeInfo_t			*GetSceneRampEdgeInfo( int idx );
 
+	void				SceneRampSetEdgeInfo( bool leftEdge, int curveType, float zero );
+	void				SceneRampGetEdgeInfo( bool leftEdge, int& curveType, float& zero ) const;
+	void				SceneRampSetEdgeActive( bool leftEdge, bool state );
+	bool				SceneRampIsEdgeActive( bool leftEdge ) const;
+	int					SceneRampGetEdgeCurveType( bool leftEdge ) const;
+	float				SceneRampGetEdgeZeroValue( bool leftEdge ) const;
+
+	// Puts in dummy start/end samples to spline to zero ( or 0.5 for
+	//  left/right data) at the origins
+	CExpressionSample	*GetBoundedSceneRamp( int number, bool& bClamped );
 
 	// Global intensity for scene
-	float			GetSceneRampIntensity( float time ) { return m_SceneRamp.GetIntensity( this, time ); }
+	float			GetSceneRampIntensity( float time );
 
 	int				GetTimeZoom( char const *tool );
 	void			SetTimeZoom( char const *tool, int tz );
@@ -208,7 +213,6 @@ public:
 	char const		*GetFilename() const;
 	void			SetFileName( char const *fn );
 
-	bool			GetPlayingSoundName( char *pchBuff, int iBuffLength );
 	bool			HasUnplayedSpeech();
 	bool			HasFlexAnimation();
 	void			SetBackground( bool bIsBackground );
@@ -219,14 +223,16 @@ public:
 	bool			HasEventsOfType( CChoreoEvent::EVENTTYPE type ) const;
 	void			RemoveEventsExceptTypes( int* typeList, int count );
 
-	void IgnorePhonemes( bool bIgnore );
-	bool ShouldIgnorePhonemes() const;
-
 	// This is set by the engine to signify that we're not modifying the data and 
 	//  therefore we can precompute the end time
 	static	bool	s_bEditingDisabled; 
 
 private:
+
+	void			SaveToBuffer( CUtlBuffer& buf, unsigned int nTextVersionCRC );
+
+	void			SaveSceneRampToBuffer( CUtlBuffer& buf );
+	bool			ParseSceneRampFromBuffer( CUtlBuffer& buf );
 
 	// Simulation stuff
 	enum
@@ -278,7 +284,6 @@ private:
 	   
 	void			ParseFPS( void );
 	void			ParseSnap( void );
-	void			ParseIgnorePhonemes( void );
 
 	// Map file for retrieving named objects
 	void			ParseMapname( void );
@@ -291,9 +296,7 @@ private:
 	void			PrintActor( int level, CChoreoActor *a );
 
 	// File I/O
-public:
 	static void		FilePrintf( CUtlBuffer& buf, int level, const char *fmt, ... );
-private:
 	void			FileSaveEvent( CUtlBuffer& buf, int level, CChoreoEvent *e );
 	void			FileSaveChannel( CUtlBuffer& buf, int level, CChoreoChannel *c );
 	void			FileSaveActor( CUtlBuffer& buf, int level, CChoreoActor *a );
@@ -352,9 +355,13 @@ private:
 
 	char			m_szMapname[ MAX_MAPNAME ];
 
+	bool			m_bSubScene;
+	bool			m_bUseFrameSnap;
 	int				m_nSceneFPS;
 
-	CCurveData		m_SceneRamp;
+	// Global scene ramp/envelope
+	CUtlVector< CExpressionSample > m_SceneRamp;
+	EdgeInfo_t		m_SceneRampEdgeInfo[ 2 ];
 
 	CUtlDict< int, int >	m_TimeZoomLookup;
 	char			m_szFileName[ MAX_SCENE_FILENAME ];
@@ -363,34 +370,10 @@ private:
 
 	// tag to suppress vcd when others are playing
 	bool			m_bIsBackground : 1;
-	bool			m_bIgnorePhonemes : 1;
-	bool			m_bSubScene : 1;
-	bool			m_bUseFrameSnap : 1;
-	bool			m_bRestoring : 1;
 
 	int				m_nLastPauseEvent;
 	// This only gets updated if it's loaded from a buffer which means we're not in an editor
 	float			m_flPrecomputedStopTime;
-};
-
-
-bool CChoreoScene::IsRestoring()
-{
-	return m_bRestoring;
-}
-
-
-void CChoreoScene::SetRestoring( bool bRestoring )
-{
-	m_bRestoring = bRestoring;
-}
-
-
-abstract_class IChoreoStringPool
-{
-public:
-	virtual short	FindOrAddString( const char *pString ) = 0;
-	virtual bool	GetString( short stringId, char *buff, int buffSize ) = 0; 	
 };
 
 CChoreoScene *ChoreoLoadScene( 
@@ -398,7 +381,5 @@ CChoreoScene *ChoreoLoadScene(
 	IChoreoEventCallback *callback, 
 	ISceneTokenProcessor *tokenizer,
 	void ( *pfn ) ( const char *fmt, ... ) );
-
-bool IsBufferBinaryVCD( char *pBuffer, int bufferSize );
 
 #endif // CHOREOSCENE_H

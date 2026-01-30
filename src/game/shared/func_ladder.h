@@ -74,7 +74,6 @@ public:
 public:
 
 	void FindNearbyDismountPoints( const Vector& origin, float radius, CUtlVector< CInfoLadderDismountHandle >& list );
-	const char *GetSurfacePropName();
 
 private:
 
@@ -95,7 +94,6 @@ private:
 	CNetworkVar( bool,	m_bFakeLadder );
 
 #if defined( GAME_DLL )
-	string_t	m_surfacePropName;
 	//-----------------------------------------------------
 	//	Outputs
 	//-----------------------------------------------------
@@ -110,7 +108,5 @@ inline bool CFuncLadder::IsEnabled() const
 {
 	return !m_bDisabled;
 }
-
-const char *FuncLadder_GetSurfaceprops(CBaseEntity *pLadderEntity);
 
 #endif // FUNC_LADDER_H

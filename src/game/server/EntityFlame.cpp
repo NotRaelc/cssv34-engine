@@ -25,8 +25,6 @@ BEGIN_DATADESC( CEntityFlame )
 	DEFINE_FIELD( m_flSize, FIELD_FLOAT ),
 	DEFINE_FIELD( m_hEntAttached, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_bUseHitboxes, FIELD_BOOLEAN ),
-	DEFINE_FIELD( m_iNumHitboxFires, FIELD_INTEGER ),
-	DEFINE_FIELD( m_flHitboxFireScale, FIELD_FLOAT ),
 	// DEFINE_FIELD( m_bPlayingSound, FIELD_BOOLEAN ),
 	
 	DEFINE_FUNCTION( FlameThink ),
@@ -37,7 +35,10 @@ END_DATADESC()
 
 
 IMPLEMENT_SERVERCLASS_ST( CEntityFlame, DT_EntityFlame )
+	SendPropFloat( SENDINFO( m_flSize ), 16, SPROP_NOSCALE ),
 	SendPropEHandle( SENDINFO( m_hEntAttached ) ),
+	SendPropInt( SENDINFO( m_bUseHitboxes), 1, SPROP_UNSIGNED ),
+	SendPropTime( SENDINFO(m_flLifetime) )
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( entityflame, CEntityFlame );
@@ -49,11 +50,9 @@ PRECACHE_REGISTER(entityflame);
 //-----------------------------------------------------------------------------
 CEntityFlame::CEntityFlame( void )
 {
-	m_flSize			= 0.0f;
-	m_iNumHitboxFires	= 10;
-	m_flHitboxFireScale	= 1.0f;
-	m_flLifetime		= 0.0f;
-	m_bPlayingSound		= false;
+	m_flSize		= 0.0f;
+	m_flLifetime	= 0.0f;
+	m_bPlayingSound = false;
 }
 
 void CEntityFlame::UpdateOnRemove()
@@ -193,46 +192,10 @@ void CEntityFlame::SetUseHitboxes( bool use )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : iNumHitBoxFires - 
-//-----------------------------------------------------------------------------
-void CEntityFlame::SetNumHitboxFires( int iNumHitboxFires )
-{
-	m_iNumHitboxFires = iNumHitboxFires;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : flHitboxFireScale - 
-//-----------------------------------------------------------------------------
-void CEntityFlame::SetHitboxFireScale( float flHitboxFireScale )
-{
-	m_flHitboxFireScale = flHitboxFireScale;
-}
-
-float CEntityFlame::GetRemainingLife( void )
-{
-	return m_flLifetime - gpGlobals->curtime;
-}
-
-int CEntityFlame::GetNumHitboxFires( void )
-{
-	return m_iNumHitboxFires;
-}
-
-float CEntityFlame::GetHitboxFireScale( void )
-{
-	return m_flHitboxFireScale;
-}
-
-//-----------------------------------------------------------------------------
 // Purpose: Burn targets around us
 //-----------------------------------------------------------------------------
 void CEntityFlame::FlameThink( void )
 {
-	// Assure that this function will be ticked again even if we early-out in the if below.
-	SetNextThink( gpGlobals->curtime + FLAME_DAMAGE_INTERVAL );
-
 	if ( m_hEntAttached )
 	{
 		if ( m_hEntAttached->GetFlags() & FL_TRANSRAGDOLL )
@@ -322,6 +285,7 @@ void CEntityFlame::FlameThink( void )
 
 	FireSystem_AddHeatInRadius( GetAbsOrigin(), m_flSize/2, 2.0f );
 
+	SetNextThink( gpGlobals->curtime + FLAME_DAMAGE_INTERVAL );
 }  
 
 

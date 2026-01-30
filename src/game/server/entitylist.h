@@ -63,7 +63,6 @@ abstract_class IEntityFindFilter
 {
 public:
 	virtual bool ShouldFindEntity( CBaseEntity *pEntity ) = 0;
-	virtual CBaseEntity *GetFilterResult( void ) = 0;
 };
 
 //-----------------------------------------------------------------------------
@@ -159,7 +158,7 @@ public:
 	CBaseEntity *FindEntityClassNearestFacing( const Vector &origin, const Vector &facing, float threshold, char *classname);
 	CBaseEntity *FindEntityByNetname( CBaseEntity *pStartEntity, const char *szModelName );
 
-	CBaseEntity *FindEntityProcedural( const char *szName, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pActivator = NULL, CBaseEntity *pCaller = NULL );
+	CBaseEntity *FindEntityProcedural( const char *szName, CBaseEntity *pActivator = NULL, CBaseEntity *pSearchingEntity = NULL, CBaseEntity *pCaller = NULL );
 	
 	CGlobalEntityList();
 
@@ -362,5 +361,6 @@ void AimTarget_ForceRepopulateList();
 void SimThink_EntityChanged( CBaseEntity *pEntity );
 int SimThink_ListCount();
 int SimThink_ListCopy( CBaseEntity *pList[], int listMax );
+void SimThink_SortThinkList();
 
 #endif // ENTITYLIST_H

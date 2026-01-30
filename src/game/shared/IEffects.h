@@ -13,7 +13,7 @@
 #endif
 
 #include "basetypes.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 #include "interface.h"
 #include "ipredictionsystem.h"
 

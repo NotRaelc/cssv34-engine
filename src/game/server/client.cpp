@@ -27,22 +27,11 @@
 #include "ndebugoverlay.h"
 #include "engine/IEngineSound.h"
 #include <ctype.h>
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "te_effect_dispatch.h"
 #include "globals.h"
 #include "nav_mesh.h"
 #include "team.h"
-#include "datacache/imdlcache.h"
-#include "basemultiplayerplayer.h"
-#include "voice_gamemgr.h"
-
-#ifdef TF_DLL
-#include "tf_player.h"
-#endif
-
-#ifdef HL2_DLL
-#include "weapon_physcannon.h"
-#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -52,17 +41,22 @@ extern int giPrecacheGrunt;
 // For not just using one big ai net
 extern CBaseEntity*	FindPickerEntity( CBasePlayer* pPlayer );
 
-extern bool IsInCommentaryMode( void );
-
 ConVar  *sv_cheats = NULL;
+/*
+============
+ClientKill
 
-void ClientKill( edict_t *pEdict, const Vector &vecForce, bool bExplode = false )
+Player entered the suicide command
+
+============
+*/
+void ClientKill( edict_t *pEdict )
 {
-	CBasePlayer *pPlayer = static_cast<CBasePlayer*>( GetContainingEntity( pEdict ) );
-	pPlayer->CommitSuicide( vecForce, bExplode );
+	CBasePlayer *pl = (CBasePlayer*) GetContainingEntity( pEdict );
+	pl->CommitSuicide();
 }
 
-char * CheckChatText( CBasePlayer *pPlayer, char *text )
+char * CheckChatText( char *text )
 {
 	char *p = text;
 
@@ -84,8 +78,6 @@ char * CheckChatText( CBasePlayer *pPlayer, char *text )
 	if ( length > 127 )
 		text[127] = 0;
 
-	GameRules()->CheckChatText( pPlayer, p );
-
 	return p;
 }
 
@@ -95,7 +87,7 @@ char * CheckChatText( CBasePlayer *pPlayer, char *text )
 // or as
 // blah blah blah
 //
-void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
+void Host_Say( edict_t *pEdict, bool teamonly )
 {
 	CBasePlayer *client;
 	int		j;
@@ -104,18 +96,18 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 	char    szTemp[256];
 	const char *cpSay = "say";
 	const char *cpSayTeam = "say_team";
-	const char *pcmd = args[0];
+	const char *pcmd = engine->Cmd_Argv(0);
 	bool bSenderDead = false;
 
 	// We can get a raw string now, without the "say " prepended
-	if ( args.ArgC() == 0 )
+	if ( engine->Cmd_Argc() == 0 )
 		return;
 
 	if ( !stricmp( pcmd, cpSay) || !stricmp( pcmd, cpSayTeam ) )
 	{
-		if ( args.ArgC() >= 2 )
+		if ( engine->Cmd_Argc() >= 2 )
 		{
-			p = (char *)args.ArgS();
+			p = (char *)engine->Cmd_Args();
 		}
 		else
 		{
@@ -125,9 +117,9 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 	}
 	else  // Raw text, need to prepend argv[0]
 	{
-		if ( args.ArgC() >= 2 )
+		if ( engine->Cmd_Argc() >= 2 )
 		{
-			Q_snprintf( szTemp,sizeof(szTemp), "%s %s", ( char * )pcmd, (char *)args.ArgS() );
+			Q_snprintf( szTemp,sizeof(szTemp), "%s %s", ( char * )pcmd, (char *)engine->Cmd_Args() );
 		}
 		else
 		{
@@ -137,21 +129,19 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 		p = szTemp;
 	}
 
-	CBasePlayer *pPlayer = NULL;
-	if ( pEdict )
-	{
-		pPlayer = ((CBasePlayer *)CBaseEntity::Instance( pEdict ));
-		Assert( pPlayer );
-
-		// make sure the text has valid content
-		p = CheckChatText( pPlayer, p );
-	}
+	// make sure the text has valid content
+	p = CheckChatText( p );
 
 	if ( !p )
 		return;
 
+	CBasePlayer *pPlayer = NULL;
 	if ( pEdict )
 	{
+		pPlayer = ((CBasePlayer *)CBaseEntity::Instance( pEdict ));
+
+		Assert( pPlayer );
+
 		if ( !pPlayer->CanSpeak() )
 			return;
 
@@ -202,7 +192,7 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 
 	Q_strncat( text, p, sizeof( text ), COPY_ALL_CHARACTERS );
 	Q_strncat( text, "\n", sizeof( text ), COPY_ALL_CHARACTERS );
- 
+
 	// loop through all players
 	// Start with the first player.
 	// This may return the world in single player if the client types something between levels or during spawn
@@ -211,7 +201,7 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 	client = NULL;
 	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
 	{
-		client = ToBaseMultiplayerPlayer( UTIL_PlayerByIndex( i ) );
+		client = UTIL_PlayerByIndex( i );
 		if ( !client || !client->edict() )
 			continue;
 		
@@ -224,10 +214,7 @@ void Host_Say( edict_t *pEdict, const CCommand &args, bool teamonly )
 		if ( teamonly && g_pGameRules->PlayerCanHearChat( client, pPlayer ) != GR_TEAMMATE )
 			continue;
 
-		if ( pPlayer && !client->CanHearAndReadChatFrom( pPlayer ) )
-			continue;
-
-		if ( pPlayer && GetVoiceGameMgr() && GetVoiceGameMgr()->IsPlayerIgnoringPlayer( pPlayer->entindex(), i ) )
+		if ( !client->CanHearChatFrom( pPlayer ) )
 			continue;
 
 		CSingleUserRecipientFilter user( client );
@@ -310,7 +297,6 @@ void ClientPrecache( void )
 	CBaseEntity::PrecacheModel( "sprites/purpleglow1.vmt" );	
 	CBaseEntity::PrecacheModel( "sprites/purplelaser1.vmt" );	
 	
-	CBaseEntity::PrecacheScriptSound( "Hud.Hint" );
 	CBaseEntity::PrecacheScriptSound( "Player.FallDamage" );
 	CBaseEntity::PrecacheScriptSound( "Player.Swim" );
 
@@ -385,7 +371,7 @@ CON_COMMAND_F( cast_hull, "Tests hull collision detection", FCVAR_CHEAT )
 //			Without a name, returns the entity under the player's crosshair.
 //			With a name it finds entities via name/classname/index
 //-----------------------------------------------------------------------------
-CBaseEntity *GetNextCommandEntity( CBasePlayer *pPlayer, const char *name, CBaseEntity *ent )
+CBaseEntity *GetNextCommandEntity( CBasePlayer *pPlayer, char *name, CBaseEntity *ent )
 {
 	if ( !pPlayer )
 		return NULL;
@@ -428,8 +414,10 @@ CBaseEntity *GetNextCommandEntity( CBasePlayer *pPlayer, const char *name, CBase
 //-----------------------------------------------------------------------------
 // Purpose: called each time a player uses a "cmd" command
 // Input  : pPlayer - the player who issued the command
+//			Use engine->Cmd_Argv,  engine->Cmd_Argv, and engine->Cmd_Argc to get 
+//			pointers the character string command.
 //-----------------------------------------------------------------------------
-void SetDebugBits( CBasePlayer* pPlayer, const char *name, int bit )
+void SetDebugBits( CBasePlayer* pPlayer, char *name, int bit )
 {
 	if ( !pPlayer )
 		return;
@@ -438,20 +426,9 @@ void SetDebugBits( CBasePlayer* pPlayer, const char *name, int bit )
 	while ( (pEntity = GetNextCommandEntity( pPlayer, name, pEntity )) != NULL )
 	{
 		if (pEntity->m_debugOverlays & bit)
-		{
 			pEntity->m_debugOverlays &= ~bit;
-		}
 		else
-		{
 			pEntity->m_debugOverlays |= bit;
-
-#ifdef AI_MONITOR_FOR_OSCILLATION
-			if( pEntity->IsNPC() )
-			{
-				pEntity->MyNPCPointer()->m_ScheduleHistory.RemoveAll();
-			}
-#endif//AI_MONITOR_FOR_OSCILLATION
-		}
 	}
 }
 
@@ -479,7 +456,7 @@ void KillTargets( const char *pKillTargetName )
 //------------------------------------------------------------------------------
 // Purpose:
 //------------------------------------------------------------------------------
-void ConsoleKillTarget( CBasePlayer *pPlayer, const char *name )
+void ConsoleKillTarget( CBasePlayer *pPlayer, char *name)
 {
 	// If no name was given use the picker
 	if (FStrEq(name,"")) 
@@ -525,12 +502,6 @@ void CPointClientCommand::InputCommand( inputdata_t& inputdata )
 		if ( player )
 		{
 			pClient = player->edict();
-		}
-
-		if ( IsInCommentaryMode() && !pClient )
-		{
-			// Commentary is stuffing a command in. We'll pretend it came from the first player.
-			pClient = engine->PEntityOfEntIndex( 1 );
 		}
 	}
 
@@ -580,17 +551,17 @@ LINK_ENTITY_TO_CLASS( point_servercommand, CPointServerCommand );
 // Input   :
 // Output  :
 //------------------------------------------------------------------------------
-void CC_DrawLine( const CCommand &args )
+void CC_DrawLine( void )
 {
 	Vector startPos;
 	Vector endPos;
 
-	startPos.x = atof(args[1]);
-	startPos.y = atof(args[2]);
-	startPos.z = atof(args[3]);
-	endPos.x = atof(args[4]);
-	endPos.y = atof(args[5]);
-	endPos.z = atof(args[6]);
+	startPos.x = atof(engine->Cmd_Argv(1));
+	startPos.y = atof(engine->Cmd_Argv(2));
+	startPos.z = atof(engine->Cmd_Argv(3));
+	endPos.x = atof(engine->Cmd_Argv(4));
+	endPos.y = atof(engine->Cmd_Argv(5));
+	endPos.z = atof(engine->Cmd_Argv(6));
 
 	UTIL_AddDebugLine(startPos,endPos,true,true);
 }
@@ -601,13 +572,13 @@ static ConCommand drawline("drawline", CC_DrawLine, "Draws line between two 3D P
 // Input   :
 // Output  :
 //------------------------------------------------------------------------------
-void CC_DrawCross( const CCommand &args )
+void CC_DrawCross( void )
 {
 	Vector vPosition;
 
-	vPosition.x = atof(args[1]);
-	vPosition.y = atof(args[2]);
-	vPosition.z = atof(args[3]);
+	vPosition.x = atof(engine->Cmd_Argv(1));
+	vPosition.y = atof(engine->Cmd_Argv(2));
+	vPosition.z = atof(engine->Cmd_Argv(3));
 
 	// Offset since min and max z in not about center
 	Vector mins = Vector(-5,-5,-5);
@@ -633,99 +604,45 @@ static ConCommand drawcross("drawcross", CC_DrawCross, "Draws a cross at the giv
 
 
 //------------------------------------------------------------------------------
-// helper function for kill and explode
 //------------------------------------------------------------------------------
-void kill_helper( const CCommand &args, bool bExplode )
-{
-	if ( args.ArgC() > 1 && sv_cheats->GetBool() )
-	{
-		// Find the matching netname
-		for ( int i = 1; i <= gpGlobals->maxClients; i++ )
-		{
-			CBasePlayer *pPlayer = ToBasePlayer( UTIL_PlayerByIndex(i) );
-			if ( pPlayer )
-			{
-				if ( Q_strstr( pPlayer->GetPlayerName(), args[1] ) )
-				{
-					pPlayer->CommitSuicide( bExplode );
-				}
-			}
-		}
-	}
-	else
-	{
-		CBasePlayer *pPlayer = UTIL_GetCommandClient();
-		if ( pPlayer )
-		{
-			pPlayer->CommitSuicide( bExplode );
-		}
-	}
-}
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-CON_COMMAND( kill, "Kills the player with generic damage" )
-{
-	kill_helper( args, false );
-}
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-CON_COMMAND( explode, "Kills the player with explosive damage" )
-{
-	kill_helper( args, true );
-}
-
-//------------------------------------------------------------------------------
-// helper function for killvector and explodevector
-//------------------------------------------------------------------------------
-void killvector_helper( const CCommand &args, bool bExplode )
+void CC_Player_Kill( void )
 {
 	CBasePlayer *pPlayer = UTIL_GetCommandClient();
-	if ( pPlayer && args.ArgC() == 5 )
+	if (pPlayer)
 	{
-		// Find the matching netname.
-		for ( int iClient = 1; iClient <= gpGlobals->maxClients; iClient++ )
+#ifdef _DEBUG
+		if ( engine->Cmd_Argc() > 1	)
+#else
+		if ( engine->Cmd_Argc() > 1 && !g_pGameRules->IsMultiplayer() )
+#endif
 		{
-			CBasePlayer *pPlayer = ToBasePlayer( UTIL_PlayerByIndex( iClient ) );
-			if ( pPlayer )
+			// Find the matching netname
+			for ( int i = 1; i <= gpGlobals->maxClients; i++ )
 			{
-				if ( Q_strstr( pPlayer->GetPlayerName(), args[1] ) )
+				CBasePlayer *pPlayer = ToBasePlayer( UTIL_PlayerByIndex(i) );
+				if ( pPlayer )
 				{
-					// Build world-space force vector.
-					Vector vecForce;
-					vecForce.x = atof( args[2] );
-					vecForce.y = atof( args[3] );
-					vecForce.z = atof( args[4] );
-
-					ClientKill( pPlayer->edict(), vecForce, bExplode );
+					if ( Q_strstr( pPlayer->GetPlayerName(), engine->Cmd_Argv(1)) )
+					{
+						ClientKill( pPlayer->edict() );
+					}
 				}
 			}
 		}
+		else
+		{
+			ClientKill( pPlayer->edict() );
+		}
 	}
 }
+static ConCommand kill("kill", CC_Player_Kill, "kills the player");
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-CON_COMMAND_F( killvector, "Kills a player applying force. Usage: killvector <player> <x value> <y value> <z value>", FCVAR_CHEAT )
-{
-	killvector_helper( args, false );
-}
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-CON_COMMAND_F( explodevector, "Kills a player applying an explosive force. Usage: explodevector <player> <x value> <y value> <z value>", FCVAR_CHEAT )
-{
-	killvector_helper( args, false );
-}
-
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-CON_COMMAND_F( buddha, "Toggle.  Player takes damage but won't die. (Shows red cross when health is zero)", FCVAR_CHEAT )
+void CC_Player_Buddha( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
-	if ( pPlayer )
+	if (pPlayer)
 	{
 		if (pPlayer->m_debugOverlays & OVERLAY_BUDDHA_MODE)
 		{
@@ -739,60 +656,64 @@ CON_COMMAND_F( buddha, "Toggle.  Player takes damage but won't die. (Shows red c
 		}
 	}
 }
-
+static ConCommand buddha("buddha", CC_Player_Buddha, "Toggle.  Player takes damage but won't die. (Shows red cross when health is zero)", FCVAR_CHEAT);
 
 #define TALK_INTERVAL 0.66 // min time between say commands from a client
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-CON_COMMAND( say, "Display player message" )
+void CC_Player_Say( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
-	if ( pPlayer )
+	if (pPlayer )
 	{
 		if (( pPlayer->LastTimePlayerTalked() + TALK_INTERVAL ) < gpGlobals->curtime) 
 		{
-			Host_Say( pPlayer->edict(), args, 0 );
+			Host_Say( pPlayer->edict(), 0 );
 			pPlayer->NotePlayerTalked();
 		}
 	}
+#ifdef BUGFIXED
+	else if ( UTIL_GetCommandClientIndex() == 0 )
+#else
 	else
+#endif
 	{
-		Host_Say( NULL, args, 0 );
+		Host_Say( NULL, 0 );
 	}
 }
-
+static ConCommand say("say", CC_Player_Say, "Display player message");
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-CON_COMMAND( say_team, "Display player message to team" )
+void CC_Player_SayTeam( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
 	if (pPlayer)
 	{
 		if (( pPlayer->LastTimePlayerTalked() + TALK_INTERVAL ) < gpGlobals->curtime) 
 		{
-			Host_Say( pPlayer->edict(), args, 1 );
+			Host_Say( pPlayer->edict(), 1 );
 			pPlayer->NotePlayerTalked();
 		}
 	}
 }
-
+static ConCommand say_team("say_team", CC_Player_SayTeam, "Display player message to team");
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-CON_COMMAND( give, "Give item to player.\n\tArguments: <item_name>" )
+void CC_Player_Give( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
 	if ( pPlayer 
 		&& (gpGlobals->maxClients == 1 || sv_cheats->GetBool()) 
-		&& args.ArgC() >= 2 )
+		&& engine->Cmd_Argc() >= 2 )
 	{
 		char item_to_give[ 256 ];
-		Q_strncpy( item_to_give, args[1], sizeof( item_to_give ) );
+		Q_strncpy( item_to_give, engine->Cmd_Argv(1), sizeof( item_to_give ) );
 		Q_strlower( item_to_give );
 
 		// Dirty hack to avoid suit playing it's pickup sound
-		if ( !Q_stricmp( item_to_give, "item_suit" ) )
+		if ( !stricmp( item_to_give, "item_suit" ) )
 		{
 			pPlayer->EquipSuit( false );
 			return;
@@ -802,19 +723,20 @@ CON_COMMAND( give, "Give item to player.\n\tArguments: <item_name>" )
 		pPlayer->GiveNamedItem( STRING(iszItem) );
 	}
 }
-
+static ConCommand give("give", CC_Player_Give, "Give item to player.\n\tArguments: <item_name>");
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-CON_COMMAND( fov, "Change players FOV" )
+void CC_Player_FOV( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() );
 	if ( pPlayer && sv_cheats->GetBool() )
 	{
-		if ( args.ArgC() > 1 )
+		if ( engine->Cmd_Argc() > 1)
 		{
-			int nFOV = atoi( args[1] );
-			pPlayer->SetDefaultFOV( nFOV );
+			int FOV = atoi( engine->Cmd_Argv(1) );
+
+			pPlayer->SetDefaultFOV( FOV );
 		}
 		else
 		{
@@ -822,20 +744,20 @@ CON_COMMAND( fov, "Change players FOV" )
 		}
 	}
 }
-
+static ConCommand fov("fov", CC_Player_FOV, "Change players FOV");
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-void CC_Player_SetModel( const CCommand &args )
+void CC_Player_SetModel( void )
 {
 	if ( gpGlobals->deathmatch )
 		return;
 
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() );
-	if ( pPlayer && args.ArgC() == 2)
+	if ( pPlayer && engine->Cmd_Argc() == 2)
 	{
 		static char szName[256];
-		Q_snprintf( szName, sizeof( szName ), "models/%s.mdl", args[1] );
+		Q_snprintf( szName, sizeof( szName ), "models/%s.mdl", engine->Cmd_Argv(1) );
 		pPlayer->SetModel( szName );
 		UTIL_SetSize(pPlayer, VEC_HULL_MIN, VEC_HULL_MAX);
 	}
@@ -845,13 +767,13 @@ static ConCommand setmodel("setmodel", CC_Player_SetModel, "Changes's player's m
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CC_Player_TestDispatchEffect( const CCommand &args )
+void CC_Player_TestDispatchEffect( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() );
 	if ( !pPlayer)
 		return;
 	
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2 )
 	{
 		Msg(" Usage: test_dispatcheffect <effect name> <distance away> <flags> <magnitude> <scale>\n " );
 		Msg("		 defaults are: <distance 1024> <flags 0> <magnitude 0> <scale 0>\n" );
@@ -860,30 +782,30 @@ void CC_Player_TestDispatchEffect( const CCommand &args )
 
 	// Optional distance
 	float flDistance = 1024;
-	if ( args.ArgC() >= 3 )
+	if ( engine->Cmd_Argc() >= 3 )
 	{
-		flDistance = atoi( args[ 2 ] );
+		flDistance = atoi( engine->Cmd_Argv( 2 ) );
 	}
 
 	// Optional flags
 	float flags = 0;
-	if ( args.ArgC() >= 4 )
+	if ( engine->Cmd_Argc() >= 4 )
 	{
-		flags = atoi( args[ 3 ] );
+		flags = atoi( engine->Cmd_Argv( 3 ) );
 	}
 
 	// Optional magnitude
 	float magnitude = 0;
-	if ( args.ArgC() >= 5 )
+	if ( engine->Cmd_Argc() >= 5 )
 	{
-		magnitude = atof( args[ 4 ] );
+		magnitude = atof( engine->Cmd_Argv( 4 ) );
 	}
 
 	// Optional scale
 	float scale = 0;
-	if ( args.ArgC() >= 6 )
+	if ( engine->Cmd_Argc() >= 6 )
 	{
-		scale = atof( args[ 5 ] );
+		scale = atof( engine->Cmd_Argv( 5 ) );
 	}
 
 	Vector vecForward;
@@ -915,12 +837,11 @@ void CC_Player_TestDispatchEffect( const CCommand &args )
 	data.m_fFlags = flags;
 	data.m_flMagnitude = magnitude;
 	data.m_flScale = scale;
-	DispatchEffect( (char *)args[1], data );
+	DispatchEffect( (char *)engine->Cmd_Argv(1), data );
 }
 
 static ConCommand test_dispatcheffect("test_dispatcheffect", CC_Player_TestDispatchEffect, "Test a clientside dispatch effect.\n\tUsage: test_dispatcheffect <effect name> <distance away> <flags> <magnitude> <scale>\n\tDefaults are: <distance 1024> <flags 0> <magnitude 0> <scale 0>\n", FCVAR_CHEAT);
 
-#ifdef HL2_DLL
 //-----------------------------------------------------------------------------
 // Purpose: Quickly switch to the physics cannon, or back to previous item
 //-----------------------------------------------------------------------------
@@ -941,7 +862,6 @@ void CC_Player_PhysSwap( void )
 
 			if ( !Q_stricmp( strWeaponName, "weapon_physcannon" ) )
 			{
-				PhysCannonForceDrop( pWeapon, NULL );
 				pPlayer->SelectLastItem();
 			}
 			else
@@ -952,7 +872,6 @@ void CC_Player_PhysSwap( void )
 	}
 }
 static ConCommand physswap("phys_swap", CC_Player_PhysSwap, "Automatically swaps the current weapon for the physcannon and back again." );
-#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Quickly switch to the bug bait, or back to previous item
@@ -983,16 +902,16 @@ void CC_Player_BugBaitSwap( void )
 		}
 	}
 }
-static ConCommand bugswap("bug_swap", CC_Player_BugBaitSwap, "Automatically swaps the current weapon for the bug bait and back again." );
+static ConCommand bugswap("bug_swap", CC_Player_BugBaitSwap, "Automatically swaps the current weapon for the bug bait and back again.", FCVAR_CHEAT );
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-void CC_Player_Use( const CCommand &args )
+void CC_Player_Use( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
 	if ( pPlayer)
 	{
-		pPlayer->SelectItem((char *)args[1]);
+		pPlayer->SelectItem((char *)engine->Cmd_Argv(1));
 	}
 }
 static ConCommand use("use", CC_Player_Use, "Use a particular weapon\t\nArguments: <weapon_name>");
@@ -1035,15 +954,6 @@ static int FindPassableSpace( CBasePlayer *pPlayer, const Vector& direction, flo
 //------------------------------------------------------------------------------
 // Noclip
 //------------------------------------------------------------------------------
-static void EnableNoClip( CBasePlayer *pPlayer )
-{
-	// Disengage from hierarchy
-	pPlayer->SetParent( NULL );
-	pPlayer->SetMoveType( MOVETYPE_NOCLIP );
-	ClientPrint( pPlayer, HUD_PRINTCONSOLE, "noclip ON\n");
-	pPlayer->AddEFlags( EFL_NOCLIP_ACTIVE );
-}
-
 void CC_Player_NoClip( void )
 {
 	if ( !sv_cheats->GetBool() )
@@ -1058,7 +968,11 @@ void CC_Player_NoClip( void )
 
 	if (pPlayer->GetMoveType() != MOVETYPE_NOCLIP)
 	{
-		EnableNoClip( pPlayer );
+		// Disengage from hierarchy
+		pPlayer->SetParent( NULL );
+		pPlayer->SetMoveType( MOVETYPE_NOCLIP );
+		ClientPrint( pPlayer, HUD_PRINTCONSOLE, "noclip ON\n");
+		pPlayer->AddEFlags( EFL_NOCLIP_ACTIVE );
 		return;
 	}
 
@@ -1127,9 +1041,9 @@ static ConCommand god("god", CC_God_f, "Toggle. Player becomes invulnerable.", F
 
 
 //------------------------------------------------------------------------------
-// Sets client position
+// Sets client to godmode
 //------------------------------------------------------------------------------
-CON_COMMAND_F( setpos, "Move player to specified origin (must have sv_cheats).", FCVAR_CHEAT )
+void CC_setpos_f (void)
 {
 	if ( !sv_cheats->GetBool() )
 		return;
@@ -1138,7 +1052,7 @@ CON_COMMAND_F( setpos, "Move player to specified origin (must have sv_cheats).",
 	if ( !pPlayer )
 		return;
 
-	if ( args.ArgC() < 3 )
+	if ( engine->Cmd_Argc() < 3 )
 	{
 		ClientPrint( pPlayer, HUD_PRINTCONSOLE, "Usage:  setpos x y <z optional>\n");
 		return;
@@ -1147,9 +1061,9 @@ CON_COMMAND_F( setpos, "Move player to specified origin (must have sv_cheats).",
 	Vector oldorigin = pPlayer->GetAbsOrigin();
 
 	Vector newpos;
-	newpos.x = atof( args[1] );
-	newpos.y = atof( args[2] );
-	newpos.z = args.ArgC() == 4 ? atof( args[3] ) : oldorigin.z;
+	newpos.x = atof( engine->Cmd_Argv(1) );
+	newpos.y = atof( engine->Cmd_Argv(2) );
+	newpos.z = engine->Cmd_Argc() == 4 ? atof( engine->Cmd_Argv(3) ) : oldorigin.z;
 
 	pPlayer->SetAbsOrigin( newpos );
 
@@ -1159,11 +1073,12 @@ CON_COMMAND_F( setpos, "Move player to specified origin (must have sv_cheats).",
 	}
 }
 
+static ConCommand setpos("setpos", CC_setpos_f, "Move player to specified origin (must have sv_cheats).", FCVAR_CHEAT );
 
 //------------------------------------------------------------------------------
-// Sets client angle
+// Sets client to godmode
 //------------------------------------------------------------------------------
-void CC_setang_f (const CCommand &args)
+void CC_setang_f (void)
 {
 	if ( !sv_cheats->GetBool() )
 		return;
@@ -1172,7 +1087,7 @@ void CC_setang_f (const CCommand &args)
 	if ( !pPlayer )
 		return;
 
-	if ( args.ArgC() < 3 )
+	if ( engine->Cmd_Argc() < 3 )
 	{
 		ClientPrint( pPlayer, HUD_PRINTCONSOLE, "Usage:  setang pitch yaw <roll optional>\n");
 		return;
@@ -1181,83 +1096,14 @@ void CC_setang_f (const CCommand &args)
 	QAngle oldang = pPlayer->GetAbsAngles();
 
 	QAngle newang;
-	newang.x = atof( args[1] );
-	newang.y = atof( args[2] );
-	newang.z = args.ArgC() == 4 ? atof( args[3] ) : oldang.z;
+	newang.x = atof( engine->Cmd_Argv(1) );
+	newang.y = atof( engine->Cmd_Argv(2) );
+	newang.z = engine->Cmd_Argc() == 4 ? atof( engine->Cmd_Argv(3) ) : oldang.z;
 
 	pPlayer->SnapEyeAngles( newang );
 }
 
 static ConCommand setang("setang", CC_setang_f, "Snap player eyes to specified pitch yaw <roll:optional> (must have sv_cheats).", FCVAR_CHEAT );
-
-
-//------------------------------------------------------------------------------
-// Move position
-//------------------------------------------------------------------------------
-CON_COMMAND_F( setpos_exact, "Move player to an exact specified origin (must have sv_cheats).", FCVAR_CHEAT )
-{
-	if ( !sv_cheats->GetBool() )
-		return;
-
-	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
-	if ( !pPlayer )
-		return;
-
-	if ( args.ArgC() < 3 )
-	{
-		ClientPrint( pPlayer, HUD_PRINTCONSOLE, "Usage:  setpos_exact x y <z optional>\n");
-		return;
-	}
-
-	Vector oldorigin = pPlayer->GetAbsOrigin();
-
-	Vector newpos;
-	newpos.x = atof( args[1] );
-	newpos.y = atof( args[2] );
-	newpos.z = args.ArgC() == 4 ? atof( args[3] ) : oldorigin.z;
-
-	pPlayer->Teleport( &newpos, NULL, NULL );
-
-	if ( !TestEntityPosition( pPlayer ) )
-	{
-		if ( pPlayer->GetMoveType() != MOVETYPE_NOCLIP )
-		{
-			EnableNoClip( pPlayer );
-			return;
-		}
-	}
-}
-
-CON_COMMAND_F( setang_exact, "Snap player eyes and orientation to specified pitch yaw <roll:optional> (must have sv_cheats).", FCVAR_CHEAT )
-{
-	if ( !sv_cheats->GetBool() )
-		return;
-
-	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() ); 
-	if ( !pPlayer )
-		return;
-
-	if ( args.ArgC() < 3 )
-	{
-		ClientPrint( pPlayer, HUD_PRINTCONSOLE, "Usage:  setang_exact pitch yaw <roll optional>\n");
-		return;
-	}
-
-	QAngle oldang = pPlayer->GetAbsAngles();
-
-	QAngle newang;
-	newang.x = atof( args[1] );
-	newang.y = atof( args[2] );
-	newang.z = args.ArgC() == 4 ? atof( args[3] ) : oldang.z;
-
-	pPlayer->Teleport( NULL, &newang, NULL );
-	pPlayer->SnapEyeAngles( newang );
-
-#ifdef TF_DLL
-	static_cast<CTFPlayer*>( pPlayer )->DoAnimationEvent( PLAYERANIMEVENT_SNAP_YAW );
-#endif
-}
-
 
 //------------------------------------------------------------------------------
 // Sets client to notarget mode.
@@ -1286,7 +1132,7 @@ ConCommand notarget("notarget", CC_Notarget_f, "Toggle. Player becomes hidden to
 //------------------------------------------------------------------------------
 // Damage the client the specified amount
 //------------------------------------------------------------------------------
-void CC_HurtMe_f(const CCommand &args)
+void CC_HurtMe_f(void)
 {
 	if ( !sv_cheats->GetBool() )
 		return;
@@ -1296,9 +1142,9 @@ void CC_HurtMe_f(const CCommand &args)
 		return;
 
 	int iDamage = 10;
-	if ( args.ArgC() >= 2 )
+	if ( engine->Cmd_Argc() >= 2 )
 	{
-		iDamage = atoi( args[ 1 ] );
+		iDamage = atoi( engine->Cmd_Argv( 1 ) );
 	}
 
 	pPlayer->TakeDamage( CTakeDamageInfo( pPlayer, pPlayer, iDamage, DMG_GENERIC ) );
@@ -1372,11 +1218,16 @@ static int DescribeGroundList( CBaseEntity *ent )
 	return c - 1;
 }
 
-void CC_GroundList_f(const CCommand &args)
+void CC_GroundList_f(void)
 {
-	if ( args.ArgC() == 2 )
+#ifdef BUGFIXED
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+#endif
+	
+	if ( engine->Cmd_Argc() == 2 )
 	{
-		int idx = atoi( args[1] );
+		int idx = atoi( engine->Cmd_Argv(1) );
 
 		CBaseEntity *ground = CBaseEntity::Instance( idx );
 		if ( ground )
@@ -1405,16 +1256,16 @@ static ConCommand groundlist("groundlist", CC_GroundList_f, "Display ground enti
 //-----------------------------------------------------------------------------
 // Purpose: called each time a player uses a "cmd" command
 // Input  : *pEdict - the player who issued the command
+//			Use engine->Cmd_Argv,  engine->Cmd_Argv, and engine->Cmd_Argc to get 
+//			pointers the character string command.
 //-----------------------------------------------------------------------------
-void ClientCommand( CBasePlayer *pPlayer, const CCommand &args )
+void ClientCommand( CBasePlayer *pPlayer )
 {
-	const char *pCmd = args[0];
+	const char *pcmd = engine->Cmd_Argv(0);
 
 	// Is the client spawned yet?
 	if ( !pPlayer )
 		return;
-
-	MDLCACHE_CRITICAL_SECTION();
 
 	/*
 	const char *pstr;
@@ -1422,9 +1273,9 @@ void ClientCommand( CBasePlayer *pPlayer, const CCommand &args )
 	if (((pstr = strstr(pcmd, "weapon_")) != NULL)  && (pstr == pcmd))
 	{
 		// Subtype may be specified
-		if ( args.ArgC() == 2 )
+		if ( engine->Cmd_Argc() == 2 )
 		{
-			pPlayer->SelectItem( pcmd, atoi( args[1] ) );
+			pPlayer->SelectItem( pcmd, atoi( engine->Cmd_Argv( 1 ) ) );
 		}
 		else
 		{
@@ -1433,27 +1284,27 @@ void ClientCommand( CBasePlayer *pPlayer, const CCommand &args )
 	}
 	*/
 	
-	if ( FStrEq( pCmd, "killtarget" ) )
+	if ( FStrEq( pcmd, "killtarget" ) )
 	{
 		if ( g_pDeveloper->GetBool() && sv_cheats->GetBool() && UTIL_IsCommandIssuedByServerAdmin() )
 		{
-			ConsoleKillTarget( pPlayer, args[1] );
+			ConsoleKillTarget(pPlayer, engine->Cmd_Argv(1));
 		}
 	}
-	else if ( FStrEq( pCmd, "demorestart" ) ) 
+	else if ( FStrEq( pcmd, "demorestart" ) ) 
 	{
 		pPlayer->ForceClientDllUpdate(); 
 	}
-	else if ( FStrEq( pCmd, "fade" ) )
+	else if ( FStrEq( pcmd, "fade" ) )
 	{
 		color32 black = {32,63,100,200};
 		UTIL_ScreenFade( pPlayer, black, 3, 3, FFADE_OUT  );
 	} 
-	else if ( FStrEq( pCmd, "te" ) )
+	else if ( FStrEq( pcmd, "te" ) )
 	{
 		if ( sv_cheats->GetBool() && UTIL_IsCommandIssuedByServerAdmin() )
 		{
-			if ( FStrEq( args[1], "stop" ) )
+			if ( FStrEq( engine->Cmd_Argv(1), "stop" ) )
 			{
 				// Destroy it
 				//
@@ -1467,22 +1318,22 @@ void ClientCommand( CBasePlayer *pPlayer, const CCommand &args )
 			}
 			else
 			{
-				CTempEntTester::Create( pPlayer->WorldSpaceCenter(), pPlayer->EyeAngles(), args[1], args[2] );
+				CTempEntTester::Create( pPlayer->WorldSpaceCenter(), pPlayer->EyeAngles(), engine->Cmd_Argv(1), engine->Cmd_Argv(2) );
 			}
 		}
 	}
 	else 
 	{
-		if ( !g_pGameRules->ClientCommand( pPlayer, args ) )
+		if (!g_pGameRules->ClientCommand( pcmd, pPlayer ))
 		{
-			if ( Q_strlen( pCmd ) > 128 )
+			if ( Q_strlen(pcmd) > 128 )
 			{
 				ClientPrint( pPlayer, HUD_PRINTCONSOLE, "Console command too long.\n" );
 			}
 			else
 			{
 				// tell the user they entered an unknown command
-				ClientPrint( pPlayer, HUD_PRINTCONSOLE, UTIL_VarArgs( "Unknown command: %s\n", pCmd ) );
+				ClientPrint( pPlayer, HUD_PRINTCONSOLE, UTIL_VarArgs( "Unknown command: %s\n", pcmd ) );
 			}
 		}
 	}

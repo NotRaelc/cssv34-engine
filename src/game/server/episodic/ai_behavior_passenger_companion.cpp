@@ -16,21 +16,20 @@
 #include "npc_playercompanion.h"
 #include "ai_route.h"
 #include "saverestore_utlvector.h"
-#include "cplane.h"
-#include "util_shared.h"
-#include "sceneentity.h"
 
-bool SphereWithinPlayerFOV( CBasePlayer *pPlayer, const Vector &vecCenter, float flRadius );
+#define	TLK_PASSENGER_WARN_COLLISION	"TLK_PASSENGER_WARN_COLLISION"
+#define	TLK_PASSENGER_IMPACT			"TLK_PASSENGER_IMPACT"
+#define	TLK_PASSENGER_OVERTURNED		"TLK_PASSENGER_OVERTURNED"
+#define	TLK_PASSENGER_REQUEST_UPRIGHT	"TLK_PASSENGER_REQUEST_UPRIGHT"
 
 #define	PASSENGER_NEAR_VEHICLE_THRESHOLD	64.0f
 
 #define MIN_OVERTURNED_DURATION			1.0f // seconds
-#define MIN_FAILED_EXIT_ATTEMPTS		4
+#define MIN_FAILED_EXIT_ATTEMPTS		2
 #define MIN_OVERTURNED_WARN_DURATION	4.0f // seconds
 
-ConVar passenger_collision_response_threshold( "passenger_collision_response_threshold", "250.0" );
-ConVar passenger_debug_entry( "passenger_debug_entry", "0" );
-ConVar passenger_use_leaning("passenger_use_leaning", "1" );
+ConVar passenger_impact_response_threshold( "passenger_impact_response_threshold", "-500.0" );
+ConVar passenger_collision_response_threshold( "passenger_collision_response_threshold", "500.0" );
 extern ConVar passenger_debug_transition;
 
 // Custom activities
@@ -42,17 +41,10 @@ Activity ACT_PASSENGER_IMPACT_WEAPON;
 Activity ACT_PASSENGER_POINT;
 Activity ACT_PASSENGER_POINT_BEHIND;
 Activity ACT_PASSENGER_IDLE_READY;
-Activity ACT_PASSENGER_GESTURE_JOSTLE_LARGE;
-Activity ACT_PASSENGER_GESTURE_JOSTLE_SMALL;
-Activity ACT_PASSENGER_GESTURE_JOSTLE_LARGE_STIMULATED;
-Activity ACT_PASSENGER_GESTURE_JOSTLE_SMALL_STIMULATED;
-Activity ACT_PASSENGER_COWER_IN;
-Activity ACT_PASSENGER_COWER_LOOP;
-Activity ACT_PASSENGER_COWER_OUT;
-Activity ACT_PASSENGER_IDLE_FIDGET;
 
 BEGIN_DATADESC( CAI_PassengerBehaviorCompanion )
 
+	DEFINE_EMBEDDED( m_vehicleState ),
 	DEFINE_EMBEDDED( m_VehicleMonitor ),
 
 	DEFINE_UTLVECTOR( m_FailedEntryPositions, FIELD_EMBEDDED ),
@@ -61,14 +53,6 @@ BEGIN_DATADESC( CAI_PassengerBehaviorCompanion )
 	DEFINE_FIELD( m_flUnseenDuration, FIELD_FLOAT ),
 	DEFINE_FIELD( m_nExitAttempts, FIELD_INTEGER ),
 	DEFINE_FIELD( m_flNextOverturnWarning, FIELD_TIME ),
-	DEFINE_FIELD( m_flEnterBeginTime, FIELD_TIME ),
-	DEFINE_FIELD( m_hCompanion, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_flNextJostleTime, FIELD_TIME ),
-	DEFINE_FIELD( m_nVisibleEnemies, FIELD_INTEGER ),
-	DEFINE_FIELD( m_flLastLateralLean, FIELD_FLOAT ),
-	DEFINE_FIELD( m_flEntraceUpdateTime, FIELD_TIME ),
-	DEFINE_FIELD( m_flNextEnterAttempt, FIELD_TIME ),
-	DEFINE_FIELD( m_flNextFidgetTime, FIELD_TIME ),
 
 END_DATADESC();
 
@@ -83,72 +67,69 @@ CAI_PassengerBehaviorCompanion::CAI_PassengerBehaviorCompanion( void ) :
 m_flUnseenDuration( 0.0f ),
 m_flNextOverturnWarning( 0.0f ),
 m_flOverturnedDuration( 0.0f ), 
-m_nExitAttempts( 0 ),
-m_flNextEnterAttempt( 0.0f ),
-m_flLastLateralLean( 0.0f ),
-m_flNextJostleTime( 0.0f )
+m_nExitAttempts( 0 )
 {
 	memset( &m_vehicleState, 0, sizeof( m_vehicleState ) );
 	m_VehicleMonitor.ClearMark();
 }
 
-void CAI_PassengerBehaviorCompanion::Enable( CPropJeepEpisodic *pVehicle, bool bImmediateEnter /*= false*/ )
-{
-	BaseClass::Enable( pVehicle );
-
-	// Store this up for quick reference later on
-	m_hCompanion = dynamic_cast<CNPC_PlayerCompanion *>(GetOuter());
-
-	// See if we want to sit in the vehicle immediately
-	if ( bImmediateEnter )
-	{
-		// Find the seat and sit in it
-		if ( ReserveEntryPoint( VEHICLE_SEAT_ANY ) )
-		{
-			// Attach
-			AttachToVehicle();
-
-			// This will slam us into the right position and clean up
-			FinishEnterVehicle();
-			GetOuter()->AddEffects( EF_NOINTERP );
-
-			// Start our schedule immediately
-			ClearSchedule( "Immediate entry to vehicle" );
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Set up the shot regulator based on the equipped weapon
-//-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorCompanion::OnUpdateShotRegulator( void )
-{
-	if ( GetVehicleSpeed() > 250 )
-	{
-		// Default values
-		GetOuter()->GetShotRegulator()->SetBurstInterval( 0.1f, 0.5f );
-		GetOuter()->GetShotRegulator()->SetBurstShotCountRange( 1, 4 );
-		GetOuter()->GetShotRegulator()->SetRestInterval( 0.25f, 1.0f );
-	}
-	else
-	{
-		BaseClass::OnUpdateShotRegulator();
-	}
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
-// Output : Returns true on success, false on failure.
+// Input  : activity - 
+// Output : int
 //-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::IsValidEnemy( CBaseEntity *pEntity )
+Activity CAI_PassengerBehaviorCompanion::NPC_TranslateActivity( Activity activity )
 {
-	// The target must be much closer in the vehicle 
-	float flDistSqr = ( pEntity->GetAbsOrigin() - GetAbsOrigin() ).LengthSqr();
-	if ( flDistSqr > Square( (40*12) ) && pEntity->Classify() != CLASS_BULLSEYE )
-		return false;
+	Activity newActivity = BaseClass::NPC_TranslateActivity( activity );
 
-	// Determine if the target is going to move past us?
-	return BaseClass::IsValidEnemy( pEntity );
+	// Handle animations from inside the vehicle
+	if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
+	{
+		// Make sure idles are always vehicle idles
+		if ( newActivity == ACT_IDLE )
+		{
+			newActivity = (Activity) ACT_PASSENGER_IDLE;
+		}
+
+		// Alter idle depending on the vehicle's state
+		if ( newActivity == ACT_PASSENGER_IDLE )
+		{
+			// Always play the overturned animation
+			if ( m_vehicleState.m_bWasOverturned )
+				return ACT_PASSENGER_OVERTURNED;
+
+			// If we have an enemy and a gun, aim
+			if ( GetEnemy() != NULL && HasCondition( COND_SEE_ENEMY ) && GetOuter()->GetActiveWeapon() )
+				return ACT_PASSENGER_IDLE_AIM;
+
+			CNPC_PlayerCompanion *pCompanion = dynamic_cast<CNPC_PlayerCompanion *>(GetOuter());
+			if ( pCompanion != NULL && pCompanion->GetReadinessLevel() >= AIRL_STIMULATED )
+				return ACT_PASSENGER_IDLE_READY;
+
+		}
+
+		// Override reloads
+		if ( newActivity == ACT_RELOAD )
+			return ACT_PASSENGER_RELOAD;
+
+		// Override range attacks
+		if ( newActivity == ACT_RANGE_ATTACK1 )
+			return (Activity) ACT_PASSENGER_RANGE_ATTACK1;
+
+		// FIXME: Translation is never called for scripted events
+		// Do special logic in points
+		/*
+		if ( newActivity == ACT_PASSENGER_POINT )
+		{
+			// See if this is behind us
+			float curYaw = GetOuter()->GetPoseParameter( "aim_yaw" );
+			if ( fabs( curYaw ) > 180.0f )
+				return ACT_PASSENGER_POINT_BEHIND;
+		}
+		*/
+	}
+
+	return newActivity;
 }
 
 //-----------------------------------------------------------------------------
@@ -184,30 +165,17 @@ void CAI_PassengerBehaviorCompanion::GatherVehicleCollisionConditions( const Vec
 
 		// Use a smaller bounding box to make it detect mostly head-on impacts
 		Vector	mins, maxs;
-		mins.Init( -24, -24, 32 );
-		maxs.Init(  24,  24, 64 );
+		mins.Init( -16, -16, 32 );
+		maxs.Init(  16,  16, 64 );
 
-		float dt = 0.6f;  // Seconds
+		// Look 3/4 a second into the future
+		float dt = 0.75f;
 		float distance = localVelocity.y * dt;
 
-		// Find our angular velocity as a vector
-		Vector vecAngularVelocity;
-		vecAngularVelocity.z = 0.0f;
-		SinCos( DEG2RAD( m_vehicleState.m_vecLastAngles.z * dt ), &vecAngularVelocity.y, &vecAngularVelocity.x );
-		
-		Vector vecOffset;
-		VectorRotate( vecAngularVelocity, m_hVehicle->GetAbsAngles() + QAngle( 0, 90, 0 ), vecOffset );
-
-		vForward += vecOffset;
-		VectorNormalize( vForward );
-
 		// Trace ahead of us to see what's there
-		CTraceFilterNoNPCsOrPlayer filter( m_hVehicle, COLLISION_GROUP_NONE ); // We don't care about NPCs or the player (certainly if they're in the vehicle!)
-
 		trace_t	tr;
-		UTIL_TraceHull( m_hVehicle->GetAbsOrigin(), m_hVehicle->GetAbsOrigin() + ( vForward * distance ), mins, maxs, MASK_SOLID, &filter, &tr );
-		
-		bool bWarnCollision = true;
+		UTIL_TraceHull( m_hVehicle->GetAbsOrigin(), m_hVehicle->GetAbsOrigin() + ( vForward * distance ), mins, maxs, MASK_SOLID_BRUSHONLY, m_hVehicle, COLLISION_GROUP_NONE, &tr );
+
 		if ( tr.DidHit() )
 		{
 			// We need to see how "head-on" to the surface we are
@@ -216,147 +184,16 @@ void CAI_PassengerBehaviorCompanion::GatherVehicleCollisionConditions( const Vec
 			// Don't warn over grazing blows or slopes
 			if ( impactDot < -0.9f && tr.plane.normal.z < 0.75f )
 			{
-				// Make sure this is a worthwhile thing to warn about
-				if ( tr.m_pEnt )
+				// Only warn if it's not too soon to do it again
+				if ( m_vehicleState.m_flNextWarningTime < gpGlobals->curtime )
 				{
-					// If it's physical and moveable, then ignore it because we'll probably smash or move it
-					IPhysicsObject *pObject = tr.m_pEnt->VPhysicsGetObject();
-					if ( pObject && pObject->IsMoveable() )
-					{
-						bWarnCollision = false;
-					}
-				}
-
-				// Note that we should say something to the player about it
-				if ( bWarnCollision )
-				{
-					SetCondition( COND_PASSENGER_WARN_COLLISION );
+					// TODO: Turn this into a condition so that we can interrupt other schedules
+					GetOuter()->GetExpresser()->Speak( TLK_PASSENGER_WARN_COLLISION );
+					m_vehicleState.m_flNextWarningTime = gpGlobals->curtime + 5.0f;
 				}
 			}
 		}
 	}
-
-	if ( passenger_use_leaning.GetBool() )
-	{
-		// Calculate how our body is leaning
-		CalculateBodyLean();
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Speak various lines about the state of the vehicle
-//-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorCompanion::SpeakVehicleConditions( void )
-{
-	Assert( m_hVehicle != NULL );
-	if (  m_hVehicle == NULL )
-		return;
-
-	// Speak if we just hit something
-	if ( HasCondition( COND_PASSENGER_HARD_IMPACT ) )
-	{
-		SpeakIfAllowed( TLK_PASSENGER_IMPACT );
-	}
-
-	// Speak if we're overturned
-	if ( HasCondition( COND_PASSENGER_OVERTURNED ) )
-	{
-		SpeakIfAllowed(	TLK_PASSENGER_OVERTURNED );
-	}
-
-	// Speak if we're about to hit something
-	if ( HasCondition( COND_PASSENGER_WARN_COLLISION ) )
-	{
-		// Make Alyx look at the impending impact 
-		Vector vecForward;
-		m_hVehicle->GetVectors( &vecForward, NULL, NULL );
-		Vector vecLookPos = m_hVehicle->WorldSpaceCenter() + ( vecForward * 64.0f );
-		GetOuter()->AddLookTarget( vecLookPos, 1.0f, 1.0f );
-
-		SpeakIfAllowed( TLK_PASSENGER_WARN_COLLISION );
-		ClearCondition( COND_PASSENGER_WARN_COLLISION );
-	}
-
-	// Speak if the player is driving like a madman
-	if ( HasCondition( COND_PASSENGER_ERRATIC_DRIVING ) )
-	{
-		SpeakIfAllowed( TLK_PASSENGER_ERRATIC_DRIVING );
-	}
-
-	// The vehicle has come to a halt
-	if ( HasCondition( COND_PASSENGER_VEHICLE_STOPPED ) )
-	{
-		float flDist = ( WorldSpaceCenter() - m_hVehicle->WorldSpaceCenter() ).Length();
-		CFmtStrN<128> modifiers( "vehicle_distance:%f", flDist );
-		SpeakIfAllowed( TLK_PASSENGER_VEHICLE_STOPPED, modifiers );
-	}
-
-	// The vehicle has started to move
-	if ( HasCondition( COND_PASSENGER_VEHICLE_STARTED ) )
-	{
-		float flDist = ( WorldSpaceCenter() - m_hVehicle->WorldSpaceCenter() ).Length();
-		CFmtStrN<128> modifiers( "vehicle_distance:%f", flDist );
-		SpeakIfAllowed( TLK_PASSENGER_VEHICLE_STARTED, modifiers );
-	}
-
-	// Player got in
-	if ( HasCondition( COND_PASSENGER_PLAYER_EXITED_VEHICLE ) )
-	{
-		CPropJeepEpisodic *pJalopy = dynamic_cast<CPropJeepEpisodic*>(m_hVehicle.Get());
-		if( pJalopy != NULL && pJalopy->NumRadarContacts() > 0 )
-		{
-			SpeakIfAllowed( TLK_PASSENGER_PLAYER_EXITED, "radar_has_targets" );
-		}
-		else
-		{
-			SpeakIfAllowed( TLK_PASSENGER_PLAYER_EXITED );
-		}
-	}
-
-	// Player got out
-	if ( HasCondition( COND_PASSENGER_PLAYER_ENTERED_VEHICLE ) )
-	{
-		SpeakIfAllowed( TLK_PASSENGER_PLAYER_ENTERED );
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Whether or not we should jostle at this moment
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::CanPlayJostle( bool bLargeJostle )
-{
-	// We've been told to suppress the jostle
-	if ( m_flNextJostleTime > gpGlobals->curtime )
-		return false;
-
-	// Can't do this if we're at a high readiness level
-	if ( m_hCompanion && m_hCompanion->ShouldBeAiming() )
-		return false;
-
-	// Can't do this when we're upside-down
-	if ( HasCondition( COND_PASSENGER_OVERTURNED ) )
-		return false;
-
-	// Allow our normal impact code to handle this one instead
-	if ( HasCondition( COND_PASSENGER_HARD_IMPACT ) || IsCurSchedule( SCHED_PASSENGER_IMPACT ) )
-		return false;
-
-	if ( bLargeJostle )
-	{
-		// Don't bother under certain circumstances
-		if ( IsCurSchedule( SCHED_PASSENGER_COWER ) || 
-			 IsCurSchedule( SCHED_PASSENGER_FIDGET ) )
-			return false;
-	}
-	else
-	{
-		// Don't interrupt a larger gesture
-		if ( GetOuter()->IsPlayingGesture( ACT_PASSENGER_GESTURE_JOSTLE_LARGE ) || GetOuter()->IsPlayingGesture( ACT_PASSENGER_GESTURE_JOSTLE_LARGE_STIMULATED ) )
-			return false;
-	}
-
-	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -364,14 +201,76 @@ bool CAI_PassengerBehaviorCompanion::CanPlayJostle( bool bLargeJostle )
 //-----------------------------------------------------------------------------
 void CAI_PassengerBehaviorCompanion::GatherVehicleStateConditions( void )
 {
-	// Gather the base class
-	BaseClass::GatherVehicleStateConditions();
+	if ( m_hVehicle == NULL )
+		return;
+
+	// Get the vehicle's boost state
+	if ( m_hVehicle->m_nBoostTimeLeft < 100.0f )
+	{
+		if ( m_vehicleState.m_bWasBoosting == false )
+		{
+			m_vehicleState.m_bWasBoosting = true;
+		}
+	}
+	else
+	{
+		m_vehicleState.m_bWasBoosting = false;
+	}
+
+	Vector	localVelocity;
+	GetLocalVehicleVelocity( &localVelocity );
+
+	// Get our speed
+	float flSpeedSqr = localVelocity.LengthSqr();
+
+	// See if we've crossed over the threshold between movement and... stillness
+	if ( m_vehicleState.m_flLastSpeed > STOPPED_VELOCITY_THRESHOLD_SQR && flSpeedSqr < STOPPED_VELOCITY_THRESHOLD_SQR )
+	{
+		SetCondition( COND_VEHICLE_STOPPED );
+	}
+	else
+	{
+		ClearCondition( COND_VEHICLE_STOPPED );
+	}
+
+	// Store off the speed
+	m_vehicleState.m_flLastSpeed = flSpeedSqr;
+
+	// Find our delta velocity from the last frame
+	Vector	deltaVelocity = ( localVelocity - m_vehicleState.m_vecLastLocalVelocity );
+	m_vehicleState.m_vecLastLocalVelocity = localVelocity;
+
+	// Detect a sudden stop
+	if ( deltaVelocity.y < passenger_impact_response_threshold.GetFloat() )
+	{
+		SetCondition( COND_VEHICLE_HARD_IMPACT );
+		GetOuter()->GetExpresser()->Speak( TLK_PASSENGER_IMPACT );
+	}
+
+	// Detect being overturned
+	if ( m_hVehicle->IsOverturned() )
+	{	
+		if ( m_vehicleState.m_bWasOverturned == false )
+		{
+			SetCondition( COND_VEHICLE_OVERTURNED );
+			m_vehicleState.m_bWasOverturned = true;
+
+			if ( m_vehicleState.m_flNextWarningTime < gpGlobals->curtime )
+			{
+				// FIXME: Delay for a bit
+				GetOuter()->GetExpresser()->Speak( TLK_PASSENGER_OVERTURNED );
+				m_vehicleState.m_flNextWarningTime = gpGlobals->curtime + 5.0f;
+			}
+		}
+	}
+	else
+	{
+		ClearCondition( COND_VEHICLE_OVERTURNED );
+		m_vehicleState.m_bWasOverturned = false;
+	}
 
 	// See if we're going to collide with anything soon
-	GatherVehicleCollisionConditions( m_vehicleState.m_vecLastLocalVelocity );
-
-	// Say anything we're meant to through the response rules
-	SpeakVehicleConditions();
+	GatherVehicleCollisionConditions( localVelocity );
 }
 
 //-----------------------------------------------------------------------------
@@ -391,7 +290,7 @@ void CAI_PassengerBehaviorCompanion::UpdateStuckStatus( void )
 		return;
 
 	// Always clear this to start out with
-	ClearCondition( COND_PASSENGER_CAN_LEAVE_STUCK_VEHICLE );
+	ClearCondition( COND_CAN_LEAVE_STUCK_VEHICLE );
 
 	// If we can't exit the vehicle, then don't bother with these checks
 	if ( m_hVehicle->NPC_CanExitVehicle( GetOuter(), true ) == false )
@@ -422,7 +321,7 @@ void CAI_PassengerBehaviorCompanion::UpdateStuckStatus( void )
 	// Warn about being stuck upside-down if it's been long enough
 	if ( m_flOverturnedDuration > MIN_OVERTURNED_WARN_DURATION && m_flNextOverturnWarning < gpGlobals->curtime )
 	{
-		SetCondition( COND_PASSENGER_WARN_OVERTURNED );
+		SetCondition( COND_WARN_OVERTURNED );
 	}
 
 	// If the player can see us or is still in the vehicle, we never exit
@@ -441,13 +340,13 @@ void CAI_PassengerBehaviorCompanion::UpdateStuckStatus( void )
 	{
 		if ( m_flUnseenDuration > MIN_OVERTURNED_DURATION )
 		{
-			SetCondition( COND_PASSENGER_CAN_LEAVE_STUCK_VEHICLE );
+			SetCondition( COND_CAN_LEAVE_STUCK_VEHICLE );
 		}
 	}
 	else if ( m_nExitAttempts >= MIN_FAILED_EXIT_ATTEMPTS )
 	{
 		// The player can't be looking at us
-		SetCondition( COND_PASSENGER_CAN_LEAVE_STUCK_VEHICLE );
+		SetCondition( COND_CAN_LEAVE_STUCK_VEHICLE );
 	}
 }
 
@@ -459,83 +358,22 @@ void CAI_PassengerBehaviorCompanion::GatherConditions( void )
 	// Code below relies on these conditions being set first!
 	BaseClass::GatherConditions();
 
-	// We're not enabled
-	if ( IsEnabled() == false )
-		return;
-
 	// In-car conditions
 	if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
 	{
-		// If we're jostling, then note that
-		if ( HasCondition( COND_PASSENGER_ERRATIC_DRIVING ) )
-		{
-			if ( CanPlayJostle( true ) )
-			{
-				// Add the gesture to be played.  If it's already playing, the underlying function will simply opt-out
-				int nSequence = GetOuter()->AddGesture( GetOuter()->NPC_TranslateActivity( ACT_PASSENGER_GESTURE_JOSTLE_LARGE ), true );
-
-				GetOuter()->SetNextAttack( gpGlobals->curtime + ( GetOuter()->SequenceDuration( nSequence ) * 2.0f ) );
-				GetOuter()->GetShotRegulator()->FireNoEarlierThan( GetOuter()->GetNextAttack() );
-
-				// Push out our fidget into the future so that we don't act unnaturally over bumpy terrain
-				ExtendFidgetDelay( random->RandomFloat( 1.5f, 3.0f ) );
-			}
-		}
-		else if ( HasCondition( COND_PASSENGER_JOSTLE_SMALL ) )
-		{
-			if ( CanPlayJostle( false ) )
-			{
-				// Add the gesture to be played.  If it's already playing, the underlying function will simply opt-out
-				GetOuter()->AddGesture( GetOuter()->NPC_TranslateActivity( ACT_PASSENGER_GESTURE_JOSTLE_SMALL ), true );
-
-				// Push out our fidget into the future so that we don't act unnaturally over bumpy terrain
-				ExtendFidgetDelay( random->RandomFloat( 1.5f, 3.0f ) );
-			}
-		}
-
+		// Get info on how we're driving
+		GatherVehicleStateConditions();
+		
 		// See if we're upside-down
 		UpdateStuckStatus();
-
-		// See if we're able to fidget
-		if ( CanFidget() )
-		{
-			SetCondition( COND_PASSENGER_CAN_FIDGET );
-		}
 	}
-
-	// Clear this out
-	ClearCondition( COND_PASSENGER_CAN_ENTER_IMMEDIATELY );
 
 	// Make sure a vehicle doesn't stray from its mark
 	if ( IsCurSchedule( SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE ) )
 	{
 		if ( m_VehicleMonitor.TargetMoved( m_hVehicle ) )
 		{
-			SetCondition( COND_PASSENGER_VEHICLE_MOVED_FROM_MARK );
-		}
-
-		// If we can get in the car right away, set us up to do so
-		int nNearestSequence;
-		if ( CanEnterVehicleImmediately( &nNearestSequence, &m_vecTargetPosition, &m_vecTargetAngles ) )
-		{
-			SetTransitionSequence( nNearestSequence );
-			SetCondition( COND_PASSENGER_ENTERING );
-			SetCondition( COND_PASSENGER_CAN_ENTER_IMMEDIATELY );
-		}
-	}
-
-	// Clear the number for now
-	m_nVisibleEnemies = 0;
-	
-	AIEnemiesIter_t iter;
-	for( AI_EnemyInfo_t *pEMemory = GetEnemies()->GetFirst(&iter); pEMemory != NULL; pEMemory = GetEnemies()->GetNext(&iter) )
-	{
-		if( GetOuter()->IRelationType( pEMemory->hEnemy ) == D_HT )
-		{
-			if( pEMemory->timeLastSeen == gpGlobals->curtime )
-			{
-				m_nVisibleEnemies++;
-			}
+			SetCondition( COND_VEHICLE_MOVED_FROM_MARK );
 		}
 	}
 }
@@ -545,87 +383,22 @@ void CAI_PassengerBehaviorCompanion::GatherConditions( void )
 //-----------------------------------------------------------------------------
 void CAI_PassengerBehaviorCompanion::AimGun( void )
 {
-	// If there is no aiming target, return to center
-	if ( GetEnemy() == NULL )
+	// Aim at enemies we may have
+	if ( GetEnemy() && HasCondition( COND_SEE_ENEMY ) )
 	{
-		GetOuter()->RelaxAim();
-		return;
-	}
+		Vector vecShootOrigin = GetOuter()->Weapon_ShootPosition();
+		Vector vecShootDir = GetOuter()->GetShootEnemyDir( vecShootOrigin, false );
 
-	// Otherwise try and shoot down the barrel
-	Vector vecForward, vecRight, vecUp;
-	GetOuter()->GetVectors( &vecForward, &vecRight, &vecUp );
-	Vector vecTorso = GetAbsOrigin() + ( vecUp * 48.0f );
+		//NDebugOverlay::Cross3D( vecShootOrigin, 32, 255, 0, 0, true, 0.5f );
+		//NDebugOverlay::Line( vecShootOrigin, vecShootOrigin + ( vecShootDir * 128 ), 255, 0, 0, true, 0.5f );
 
-	Vector vecShootDir = GetOuter()->GetShootEnemyDir( vecTorso, false );
-	
-	Vector vecDirToEnemy = GetEnemy()->GetAbsOrigin() - vecTorso;
-	VectorNormalize( vecDirToEnemy );
-
-	bool bRightSide = ( DotProduct( vecDirToEnemy, vecRight ) > 0.0f );
-	float flTargetDot = ( bRightSide ) ? -0.7f : 0.0f;
-
-	if ( DotProduct( vecForward, vecDirToEnemy ) <= flTargetDot )
-	{
-		// Don't aim at something that's outside our reach
-  		GetOuter()->RelaxAim();
+		GetOuter()->SetAim( vecShootDir );
 	}
 	else
 	{
-		// Aim at it
-		GetOuter()->SetAim( vecShootDir );
+		// Stop aiming
+		GetOuter()->RelaxAim();
 	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Allow us to deny selecting a schedule if we're not in a state to do so
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::CanSelectSchedule( void )
-{
-	if ( BaseClass::CanSelectSchedule() == false )
-		return false;
-
-	// We're in a period where we're allowing our base class to override us
-	if ( m_flNextEnterAttempt > gpGlobals->curtime )
-		return false;
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Deal with enter/exit of the vehicle
-//-----------------------------------------------------------------------------
-int	CAI_PassengerBehaviorCompanion::SelectTransitionSchedule( void )
-{
-	// Attempt to instantly enter the vehicle
-	if ( HasCondition( COND_PASSENGER_CAN_ENTER_IMMEDIATELY ) )
-	{
-		// Snap to position and begin to animate into the seat
-		EnterVehicleImmediately();
-		return SCHED_PASSENGER_ENTER_VEHICLE_IMMEDIATELY;
-	}
-
-	// Entering schedule
-	if ( HasCondition( COND_PASSENGER_ENTERING ) || m_PassengerIntent == PASSENGER_INTENT_ENTER )
-	{
-		if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
-		{
-			ClearCondition( COND_PASSENGER_ENTERING );
-			m_PassengerIntent = PASSENGER_INTENT_NONE;
-			return SCHED_NONE;
-		}
-
-		// Don't attempt to enter for a period of time
-		if ( m_flNextEnterAttempt > gpGlobals->curtime )
-			return SCHED_NONE;
-
-		ClearCondition( COND_PASSENGER_ENTERING );
-
-		// Failing that, run to the right place
-		return SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE;
-	}
-
-	return BaseClass::SelectTransitionSchedule();
 }
 
 //-----------------------------------------------------------------------------
@@ -634,37 +407,19 @@ int	CAI_PassengerBehaviorCompanion::SelectTransitionSchedule( void )
 int CAI_PassengerBehaviorCompanion::SelectScheduleInsideVehicle( void )
 {
 	// Overturned
-	if ( HasCondition( COND_PASSENGER_OVERTURNED ) )
+	if ( HasCondition( COND_VEHICLE_OVERTURNED ) )
 		return SCHED_PASSENGER_OVERTURNED;
 
-	if ( HasCondition( COND_PASSENGER_HARD_IMPACT ) )
-	{
-		// Push out our fidget into the future so that we don't act unnaturally over bumpy terrain
-		ExtendFidgetDelay( random->RandomFloat( 1.5f, 3.0f ) );
-		m_flNextJostleTime = gpGlobals->curtime + random->RandomFloat( 2.5f, 4.0f );
+	if ( HasCondition( COND_VEHICLE_HARD_IMPACT	) )
 		return SCHED_PASSENGER_IMPACT;
-	}
 
 	// Look for exiting the vehicle
-	if ( HasCondition( COND_PASSENGER_CAN_LEAVE_STUCK_VEHICLE ) )
+	if ( HasCondition( COND_CAN_LEAVE_STUCK_VEHICLE ) )
 		return SCHED_PASSENGER_EXIT_STUCK_VEHICLE;
-
-	// Cower if we're about to get nailed
-	if ( HasCondition( COND_HEAR_DANGER ) && IsCurSchedule( SCHED_PASSENGER_COWER ) == false )
-	{
-		SpeakIfAllowed( TLK_DANGER );
-		return SCHED_PASSENGER_COWER;
-	}
 
 	// Fire on targets 
 	if ( GetEnemy() )
 	{
-		// Limit how long we'll keep an enemy if there are many on screen
-		if ( HasCondition( COND_NEW_ENEMY ) && m_nVisibleEnemies > 1 )
-		{
-			GetEnemies()->SetTimeValidEnemy( GetEnemy(), random->RandomFloat( 0.5f, 1.0f ) );
-		}
-
 		// Always face
 		GetOuter()->AddLookTarget( GetEnemy(), 1.0f, 2.0f );
 		
@@ -672,231 +427,37 @@ int CAI_PassengerBehaviorCompanion::SelectScheduleInsideVehicle( void )
 			return SCHED_PASSENGER_RANGE_ATTACK1;
 	}
 
-	// Reload when we have the chance
-	if ( HasCondition( COND_LOW_PRIMARY_AMMO ) && HasCondition( COND_SEE_ENEMY ) == false )
-			return SCHED_PASSENGER_RELOAD;
-
 	// Say an overturned line
-	if ( HasCondition( COND_PASSENGER_WARN_OVERTURNED ) )
+	if ( HasCondition( COND_WARN_OVERTURNED ) )
 	{
-		SpeakIfAllowed( TLK_PASSENGER_REQUEST_UPRIGHT );
+		GetOuter()->GetExpresser()->Speak( TLK_PASSENGER_REQUEST_UPRIGHT );
 		m_flNextOverturnWarning = gpGlobals->curtime + random->RandomFloat( 5.0f, 10.0f );
-		ClearCondition( COND_PASSENGER_WARN_OVERTURNED );
-	}
-
-	// Should we fidget?
-	if ( HasCondition( COND_PASSENGER_CAN_FIDGET ) )
-	{
-		ExtendFidgetDelay( random->RandomFloat( 6.0f, 12.0f ) );
-		return SCHED_PASSENGER_FIDGET;
+		ClearCondition( COND_WARN_OVERTURNED );
 	}
 
 	return SCHED_NONE;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Select schedules while we're outside the car
+// Purpose: Select schedules while we're outisde the car
 //-----------------------------------------------------------------------------
 int CAI_PassengerBehaviorCompanion::SelectScheduleOutsideVehicle( void )
 {
-	// FIXME: How can we get in here?
-	Assert( m_hVehicle );
-	if ( m_hVehicle == NULL )
-		return SCHED_NONE;
+	// Reset our mark
+	m_VehicleMonitor.SetMark( m_hVehicle, 8.0f );
 
-	// Handle our mark moving
-	if ( HasCondition( COND_PASSENGER_VEHICLE_MOVED_FROM_MARK ) )
+	// Wait if the vehicle is moving
+	if ( ( GetVehicleSpeed() > STOPPED_VELOCITY_THRESHOLD ) || m_hVehicle->IsOverturned() )
 	{
-		// Reset our mark
-		m_VehicleMonitor.SetMark( m_hVehicle, 36.0f );
-		ClearCondition( COND_PASSENGER_VEHICLE_MOVED_FROM_MARK );
+		GetOuter()->SetTarget( m_hVehicle );
+		return SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE_FAILED;
 	}
 
-	// If we want to get in, the try to do so
+	// If we intend to enter, run to the vehicle
 	if ( m_PassengerIntent == PASSENGER_INTENT_ENTER )
-	{
-		// If we're not attempting to enter the vehicle again, just fall to the base class
-		if ( m_flNextEnterAttempt > gpGlobals->curtime )
-			return BaseClass::SelectSchedule();
-
-		// Otherwise try and enter thec car
 		return SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE;
-	}
-	
-	// This means that we're outside the vehicle with no intent to enter, which should have disabled us!
-	Disable();
-	Assert( 0 );
 
 	return SCHED_NONE;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *pPlayer - 
-//			&vecCenter - 
-//			flRadius - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool SphereWithinPlayerFOV( CBasePlayer *pPlayer, const Vector &vecCenter, float flRadius )
-{
-	// TODO: For safety sake, we might want to do a more fully qualified test against the frustum using the bbox
-
-	// If the player can see us, then we can't enter immediately anyway
-	if ( pPlayer == NULL )
-		return false;
-
-	// Find the length to the point
-	Vector los = ( vecCenter - pPlayer->EyePosition() );
-	float flLength = VectorNormalize( los );
-
-	// Get the player's forward direction
-	Vector vecPlayerForward;
-	pPlayer->EyeVectors( &vecPlayerForward, NULL, NULL );
-
-	// This is the additional number of degrees to add to account for our distance
-	float flArcAddition = atan2( flRadius, flLength );
-
-	// Find if the sphere is within our FOV
-	float flDot = DotProduct( los, vecPlayerForward );
-	float flPlayerFOV = cos( DEG2RAD( pPlayer->GetFOV() / 2.0f ) );
-	
-	return ( flDot > (flPlayerFOV-flArcAddition) );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::CanEnterVehicleImmediately( int *pResultSequence, Vector *pResultPos, QAngle *pResultAngles )
-{
-	// Must wait a short time before trying to do this (otherwise we stack up on the player!)
-	if ( ( gpGlobals->curtime - m_flEnterBeginTime ) < 0.5f )
-		return false;
-
-	// Vehicle can't be moving too quickly
-	if ( GetVehicleSpeed() > 150 )
-		return false;
-
-	// If the player can see us, then we can't enter immediately anyway
-	CBasePlayer *pPlayer = AI_GetSinglePlayer();	
-	if ( pPlayer == NULL )
-		return false;
-
-	Vector vecPosition = GetOuter()->WorldSpaceCenter();
-	float flRadius = GetOuter()->CollisionProp()->BoundingRadius2D();
-	if ( SphereWithinPlayerFOV( pPlayer, vecPosition, flRadius ) )
-		return false;
-
-	// Reserve an entry point
-	if ( ReserveEntryPoint( VEHICLE_SEAT_ANY ) == false )
-		return false;
-
-	// Get a list of all our animations
-	const PassengerSeatAnims_t *pEntryAnims = m_hVehicle->GetServerVehicle()->NPC_GetPassengerSeatAnims( GetOuter(), PASSENGER_SEAT_ENTRY );
-	if ( pEntryAnims == NULL )
-		return -1;
-
-	// Get the ultimate position we'll end up at
-	Vector vecStartPos, vecEndPos;
-	QAngle vecStartAngles;
-	if ( m_hVehicle->GetServerVehicle()->NPC_GetPassengerSeatPosition( GetOuter(), &vecEndPos, NULL ) == false )
-		return -1;
-
-	// Categorize the passenger in terms of being on the left or right side of the vehicle
-	Vector vecRight;
-	m_hVehicle->GetVectors( NULL, &vecRight, NULL );
-	
-	CPlane lateralPlane;
-	lateralPlane.InitializePlane( vecRight, m_hVehicle->WorldSpaceCenter() );
-
-	bool bPlaneSide = lateralPlane.PointInFront( GetOuter()->GetAbsOrigin() );
-
-	Vector	vecPassengerOffset = ( GetOuter()->WorldSpaceCenter() - GetOuter()->GetAbsOrigin() );
-
-	const CPassengerSeatTransition *pTransition;
-	float	flNearestDistSqr = FLT_MAX;
-	float	flSeatDistSqr;
-	int		nNearestSequence = -1;
-	int		nSequence;
-	Vector	vecNearestPos;
-	QAngle	vecNearestAngles;
-
-	// Test each animation (sorted by priority) for the best match
-	for ( int i = 0; i < pEntryAnims->Count(); i++ )
-	{
-		// Find the activity for this animation name
-		pTransition = &pEntryAnims->Element(i);
-		nSequence = GetOuter()->LookupSequence( STRING( pTransition->GetAnimationName() ) );
-		if ( nSequence == -1 )
-			continue;
-
-		// Test this entry for validity
-		if ( GetEntryPoint( nSequence, &vecStartPos, &vecStartAngles ) == false )
-			continue;
-
-		// See if the passenger would be visible if standing at this position
-		if ( SphereWithinPlayerFOV( pPlayer, (vecStartPos+vecPassengerOffset), flRadius ) )
-			continue;
-
-		// Otherwise distance is the deciding factor
-		flSeatDistSqr = ( vecStartPos - GetOuter()->GetAbsOrigin() ).LengthSqr();
-
-		// We must be within a certain distance to the vehicle
-		if ( flSeatDistSqr > Square( 25*12 ) )
-			continue;
-
-		// We cannot cross between the plane which splits the vehicle laterally in half down the middle
-		// This avoids cases where the character magically ends up on one side of the vehicle after they were
-		// clearly just on the other side.  
-		if ( lateralPlane.PointInFront( vecStartPos ) != bPlaneSide )
-			continue;
-
-		// Closer, take it
-		if ( flSeatDistSqr < flNearestDistSqr )
-		{
-			flNearestDistSqr = flSeatDistSqr;
-			nNearestSequence = nSequence;
-			vecNearestPos = vecStartPos;
-			vecNearestAngles = vecStartAngles;
-		}
-	}
-
-	// Fail if we didn't find anything
-	if ( nNearestSequence == -1 )
-		return false;
-
-	// Return the results
-	if ( pResultSequence )
-	{
-		*pResultSequence = nNearestSequence;
-	}
-
-	if ( pResultPos )
-	{
-		*pResultPos = vecNearestPos;
-	}
-
-	if ( pResultAngles )
-	{
-		*pResultAngles = vecNearestAngles;
-	}
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Put us into the vehicle immediately
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorCompanion::EnterVehicleImmediately( void )
-{
-	// Now play the animation
-	GetOuter()->SetIdealActivity( ACT_SCRIPT_CUSTOM_MOVE );
-	GetOuter()->GetNavigator()->ClearGoal();
-
-	// Put us there and get going (no interpolation!)
-	GetOuter()->Teleport( &m_vecTargetPosition, &m_vecTargetAngles, &vec3_origin );
-	GetOuter()->AddEffects( EF_NOINTERP );
 }
 
 //-----------------------------------------------------------------------------
@@ -905,21 +466,23 @@ void CAI_PassengerBehaviorCompanion::EnterVehicleImmediately( void )
 //-----------------------------------------------------------------------------
 int CAI_PassengerBehaviorCompanion::SelectSchedule( void )
 {
-	// First, keep track of our transition state (enter/exit)
-	int nSched = SelectTransitionSchedule();
-	if ( nSched != SCHED_NONE )
-		return nSched;
+	// Entering schedule
+	if ( HasCondition( COND_ENTERING_VEHICLE ) )
+	{
+		ClearCondition( COND_ENTERING_VEHICLE );
+		return SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE;
+	}
 
 	// Handle schedules based on our passenger state
 	if ( GetPassengerState() == PASSENGER_STATE_OUTSIDE )
 	{
-		nSched = SelectScheduleOutsideVehicle();
+		int nSched = SelectScheduleOutsideVehicle();
 		if ( nSched != SCHED_NONE )
 			return nSched;
 	}
 	else if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
 	{
-		nSched = SelectScheduleInsideVehicle();
+		int nSched = SelectScheduleInsideVehicle();
 		if ( nSched != SCHED_NONE )
 			return nSched;
 	}
@@ -936,22 +499,19 @@ int CAI_PassengerBehaviorCompanion::SelectFailSchedule( int failedSchedule, int 
 	{
 	case TASK_GET_PATH_TO_VEHICLE_ENTRY_POINT:
 		{
-			// This is not allowed!
-			if ( GetPassengerState() != PASSENGER_STATE_OUTSIDE )
-			{
-				Assert( 0 );
-				return SCHED_FAIL;
-			}
-
 			// If we're not close enough, then get nearer the target
 			if ( UTIL_DistApprox( m_hVehicle->GetAbsOrigin(), GetOuter()->GetAbsOrigin() ) > PASSENGER_NEAR_VEHICLE_THRESHOLD )
 				return SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE_FAILED;
+
+			// Stand around and wait for something to open up
+			GetOuter()->SetTarget( m_hVehicle );	
+				
+			return SCHED_PASSENGER_ENTER_VEHICLE_PAUSE;
 		}
-		
-		// Fall through
+		break;
 
 	case TASK_GET_PATH_TO_NEAR_VEHICLE:
-		m_flNextEnterAttempt = gpGlobals->curtime + 3.0f;
+		return SCHED_PASSENGER_ENTER_VEHICLE_PAUSE;
 		break;
 	}
 
@@ -967,7 +527,6 @@ void CAI_PassengerBehaviorCompanion::EnterVehicle( void )
 
 	m_nExitAttempts = 0;
 	m_VehicleMonitor.SetMark( m_hVehicle, 8.0f );
-	m_flEnterBeginTime = gpGlobals->curtime;
 	
 	// Remove this flag because we're sitting so close we always think we're going to hit the player
 	// FIXME: We need to store this state so we don't incorrectly restore it later
@@ -975,8 +534,6 @@ void CAI_PassengerBehaviorCompanion::EnterVehicle( void )
 
 	// Discard enemies quickly
 	GetOuter()->GetEnemies()->SetEnemyDiscardTime( 2.0f );
-
-	SpeakIfAllowed( TLK_PASSENGER_BEGIN_ENTRANCE );
 }
 
 //-----------------------------------------------------------------------------
@@ -988,21 +545,6 @@ void CAI_PassengerBehaviorCompanion::FinishEnterVehicle( void )
 
 	// We succeeded
 	ResetVehicleEntryFailedState();
-
-	// Push this out into the future so we don't always fidget immediately in the vehicle
-	ExtendFidgetDelay( random->RandomFloat( 4.0, 15.0f ) );
-
-	SpeakIfAllowed( TLK_PASSENGER_FINISH_ENTRANCE );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorCompanion::ExitVehicle( void )
-{
-	BaseClass::ExitVehicle();
-
-	SpeakIfAllowed( TLK_PASSENGER_BEGIN_EXIT );
 }
 
 //-----------------------------------------------------------------------------
@@ -1020,8 +562,6 @@ void CAI_PassengerBehaviorCompanion::FinishExitVehicle( void )
 
 	// FIXME: Restore this properly
 	GetOuter()->GetEnemies()->SetEnemyDiscardTime( AI_DEF_ENEMY_DISCARD_TIME );
-
-	SpeakIfAllowed( TLK_PASSENGER_FINISH_EXIT );
 }
 
 //-----------------------------------------------------------------------------
@@ -1031,8 +571,7 @@ void CAI_PassengerBehaviorCompanion::FinishExitVehicle( void )
 bool CAI_PassengerBehaviorCompanion::FindPathToVehicleEntryPoint( void )
 {
 	// Set our custom move name
-	// bool bFindNearest = ( GetOuter()->m_NPCState == NPC_STATE_COMBAT || GetOuter()->m_NPCState == NPC_STATE_ALERT );
-	bool bFindNearest = true;	// For the sake of quick gameplay, just make Alyx move directly!
+	bool bFindNearest = ( GetOuter()->m_NPCState == NPC_STATE_COMBAT || GetOuter()->m_NPCState == NPC_STATE_ALERT );
 	int nSequence = FindEntrySequence( bFindNearest );
 	if ( nSequence  == -1 )
 		return false;
@@ -1043,61 +582,34 @@ bool CAI_PassengerBehaviorCompanion::FindPathToVehicleEntryPoint( void )
 	// Get the entry position
 	Vector vecEntryPoint;
 	QAngle vecEntryAngles;
-	if ( GetEntryPoint( m_nTransitionSequence, &vecEntryPoint, &vecEntryAngles ) == false )
+	GetEntryPoint( m_nTransitionSequence, &vecEntryPoint, &vecEntryAngles );
+
+	// Find the actual point on the ground to base our pathfinding on
+	Vector vecActualPoint;
+	if ( FindGroundAtPosition( vecEntryPoint, 16, 64, &vecActualPoint ) == false )
 	{
 		MarkVehicleEntryFailed( vecEntryPoint );
 		return false;
 	}
 
 	// If we're already close enough, just succeed
-	float flDistToGoalSqr = ( GetOuter()->GetAbsOrigin() - vecEntryPoint ).LengthSqr();
-	if ( flDistToGoalSqr < Square(3*12) )
+	float flDistToGoal = ( GetOuter()->GetAbsOrigin() - vecActualPoint ).Length();
+	if ( flDistToGoal < 8 )
 		return true;
 
 	// Setup our goal
 	AI_NavGoal_t goal( GOALTYPE_LOCATION );
-	// goal.arrivalActivity = ACT_SCRIPT_CUSTOM_MOVE;
-	goal.dest = vecEntryPoint;
+	goal.arrivalActivity = ACT_SCRIPT_CUSTOM_MOVE;
+	goal.dest = vecActualPoint;
 
-	// See if we need a radial route around the car, to our goal
-	if ( UseRadialRouteToEntryPoint( vecEntryPoint ) )
+	// Try and set a direct route
+	if ( GetOuter()->GetNavigator()->SetGoal( goal ) )
 	{
-		// Find the bounding radius of the vehicle
-		Vector vecCenterPoint = m_hVehicle->WorldSpaceCenter();
-		vecCenterPoint.z = vecEntryPoint.z;
-		bool bClockwise;
-		float flArc = GetArcToEntryPoint( vecCenterPoint, vecEntryPoint, bClockwise );
-		float flRadius = m_hVehicle->CollisionProp()->BoundingRadius2D();
-
-		// Try and set a radial route
-		if ( GetOuter()->GetNavigator()->SetRadialGoal( vecEntryPoint, vecCenterPoint, flRadius, flArc, 64.0f, bClockwise ) == false )
-		{
-			// Try the opposite way
-			flArc = 360.0f - flArc;
-
-			// Try the opposite way around
-			if ( GetOuter()->GetNavigator()->SetRadialGoal( vecEntryPoint, vecCenterPoint, flRadius, flArc, 64.0f, !bClockwise ) == false )
-			{
-				// Try and set a direct route as a last resort
-				if ( GetOuter()->GetNavigator()->SetGoal( goal ) == false )
-					return false;
-			}
-		}
-
-		// We found a goal
 		GetOuter()->GetNavigator()->SetArrivalDirection( vecEntryAngles );
-		GetOuter()->GetNavigator()->SetArrivalSpeed( 64.0f );
+		//GetOuter()->GetNavigator()->SetArrivalActivity( ACT_SCRIPT_CUSTOM_MOVE );
+		//GetOuter()->GetNavigator()->SetArrivalSpeed( 64 );
+
 		return true;
-	}
-	else
-	{
-		// Try and set a direct route
-		if ( GetOuter()->GetNavigator()->SetGoal( goal ) )
-		{
-			GetOuter()->GetNavigator()->SetArrivalDirection( vecEntryAngles );
-			GetOuter()->GetNavigator()->SetArrivalSpeed( 64.0f );
-			return true;
-		}
 	}
 
 	// We failed, so remember it
@@ -1112,7 +624,7 @@ bool CAI_PassengerBehaviorCompanion::FindPathToVehicleEntryPoint( void )
 //-----------------------------------------------------------------------------
 bool CAI_PassengerBehaviorCompanion::CanExitAtPosition( const Vector &vecTestPos )
 {
-	CBasePlayer *pPlayer = AI_GetSinglePlayer();
+	CBasePlayer *pPlayer = UTIL_PlayerByIndex( 1 );
 	if ( pPlayer == NULL )
 		return false;
 
@@ -1120,52 +632,8 @@ bool CAI_PassengerBehaviorCompanion::CanExitAtPosition( const Vector &vecTestPos
 	if ( pPlayer->FInViewCone( vecTestPos ) )
 		return false;
 
-	// NOTE: There's no reason to do this since this is only called from a node's reported position
-	// Find the exact ground at this position
-	//Vector vecGroundPos;
-	//if ( FindGroundAtPosition( vecTestPos, 16.0f, 64.0f, &vecGroundPos ) == false )
-	//	return false;
-
-	// Get the ultimate position we'll end up at
-	Vector	vecStartPos;
-	if ( m_hVehicle->GetServerVehicle()->NPC_GetPassengerSeatPosition( GetOuter(), &vecStartPos, NULL ) == false )
-		return false;
-
-	// See if we can move from where we are to that position in space
-	if ( IsValidTransitionPoint( vecStartPos, vecTestPos ) == false )
-		return false;
-
-	// Trace down to the ground
-	// FIXME: This piece of code is redundant and happening in IsValidTransitionPoint() as well
-	/*
-	Vector vecGroundPos;
-	if ( FindGroundAtPosition( vecTestPos, GetOuter()->StepHeight(), 64.0f, &vecGroundPos ) == false )
-		return false;
-	*/
-
-	// Try and sweep a box through space and make sure it's clear of obstructions
-	/*
-	trace_t tr;
-	CTraceFilterVehicleTransition skipFilter( GetOuter(), m_hVehicle, COLLISION_GROUP_NONE );
-	
-	// These are very approximated (and magical) numbers to allow passengers greater head room and leg room when transitioning
-	Vector vecMins = GetOuter()->GetHullMins() + Vector( 0, 0, GetOuter()->StepHeight()*2.0f ); // FIXME: 
-	Vector vecMaxs = GetOuter()->GetHullMaxs() - Vector( 0, 0, GetOuter()->StepHeight() );
-	
-	UTIL_TraceHull( GetOuter()->GetAbsOrigin(), vecGroundPos, vecMins, vecMaxs, MASK_NPCSOLID, &skipFilter, &tr );
-
-	// If we're blocked, we can't get out there
-	if ( tr.fraction < 1.0f || tr.allsolid || tr.startsolid )
-	{
-		if ( passenger_debug_transition.GetBool() )
-		{
-			NDebugOverlay::SweptBox( GetOuter()->GetAbsOrigin(), vecGroundPos, vecMins, GetOuter()->GetHullMaxs(), vec3_angle, 255, 0, 0, 64, 2.0f );
-		}
-		return false;
-	}
-	*/
-
-	return true;
+	// Check to see if that path is clear and valid
+	return IsValidTransitionPoint( GetOuter()->WorldSpaceCenter(), vecTestPos );
 }
 
 #define	NUM_EXIT_ITERATIONS	8
@@ -1201,23 +669,16 @@ bool CAI_PassengerBehaviorCompanion::GetStuckExitPos( Vector *vecResult )
 		vecTestPos *= flVehicleRadius;
 		vecTestPos += vecCenter;
 
-		// Now find the nearest node and use that
-		int nNearNode = GetOuter()->GetPathfinder()->NearestNodeToPoint( vecTestPos );
-		if ( nNearNode != NO_NODE )
+		// Test the position
+		if ( CanExitAtPosition( vecTestPos ) )
 		{
-			Vector vecNodePos = g_pBigAINet->GetNodePosition( GetOuter()->GetHullType(), nNearNode );
-
-			// Test the position
-			if ( CanExitAtPosition( vecNodePos ) )
-			{
-				// Take the result
-				*vecResult = vecNodePos;
-				return true;
-			}
-
-			// Move to the next iteration
-			flCurAngle += flAngleIncr;
+			// Take the result
+			*vecResult = vecTestPos;
+			return true;
 		}
+
+		// Move to the next iteration
+		flCurAngle += flAngleIncr;
 	}
 
 	// None found
@@ -1244,7 +705,6 @@ bool CAI_PassengerBehaviorCompanion::ExitStuckVehicle( void )
 	// Teleport to the destination 
 	// TODO: Make sure that the player can't see this!
 	GetOuter()->Teleport( &vecExitPos, &vec3_angle, &vec3_origin );
-	GetOuter()->AddEffects( EF_NOINTERP );
 
 	return true;
 }
@@ -1274,22 +734,8 @@ void CAI_PassengerBehaviorCompanion::StartTask( const Task_t *pTask )
 
 	switch ( pTask->iTask )
 	{
-	case TASK_RUN_TO_VEHICLE_ENTRANCE:
-		{
-			// Get a move on!
-			GetOuter()->GetNavigator()->SetMovementActivity( ACT_RUN );
-		}
-		break;
-
 	case TASK_GET_PATH_TO_VEHICLE_ENTRY_POINT:
 		{
-			if ( GetPassengerState() != PASSENGER_STATE_OUTSIDE )
-			{
-				Assert( 0 );
-				TaskFail( "Trying to run while inside a vehicle!\n");
-				return;
-			}
-
 			// Reserve an entry point
 			if ( ReserveEntryPoint( VEHICLE_SEAT_ANY ) == false )
 			{
@@ -1318,12 +764,6 @@ void CAI_PassengerBehaviorCompanion::StartTask( const Task_t *pTask )
 
 	case TASK_GET_PATH_TO_NEAR_VEHICLE:
 		{
-			if ( m_hVehicle == NULL )
-			{
-				TaskFail("Lost vehicle pointer\n");
-				return;
-			}
-
 			// Find the passenger offset we're going for
 			Vector vecRight;
 			m_hVehicle->GetVectors( NULL, &vecRight, NULL );
@@ -1366,10 +806,9 @@ void CAI_PassengerBehaviorCompanion::StartTask( const Task_t *pTask )
 	case TASK_PASSENGER_OVERTURNED:
 		{
 			// Go into our overturned animation
-			if ( GetOuter()->GetActivity() != ACT_PASSENGER_OVERTURNED )
+			if ( GetOuter()->GetIdealActivity() != ACT_PASSENGER_OVERTURNED )
 			{
-				GetOuter()->SetActivity( ACT_RESET );
-				GetOuter()->SetActivity( ACT_PASSENGER_OVERTURNED );
+				GetOuter()->SetIdealActivity( ACT_PASSENGER_OVERTURNED );
 			}
 
 			TaskComplete();
@@ -1378,18 +817,12 @@ void CAI_PassengerBehaviorCompanion::StartTask( const Task_t *pTask )
 
 	case TASK_PASSENGER_IMPACT:
 		{
-			// Stomp anything currently playing on top of us, this has to take priority
-			GetOuter()->RemoveAllGestures();
-
 			// Go into our impact animation
 			GetOuter()->ResetIdealActivity( ACT_PASSENGER_IMPACT );
 			
 			// Delay for twice the duration of our impact animation
 			int nSequence = GetOuter()->SelectWeightedSequence( ACT_PASSENGER_IMPACT ); 
-			float flSeqDuration = GetOuter()->SequenceDuration( nSequence );
-			float flStunTime = flSeqDuration  + random->RandomFloat( 1.0f, 2.0f );
-			GetOuter()->SetNextAttack( gpGlobals->curtime + flStunTime );
-			ExtendFidgetDelay( flStunTime );
+			GetOuter()->SetNextAttack( gpGlobals->curtime + (GetOuter()->SequenceDuration( nSequence ) * 2.0f ) );
 		}
 		break;
 
@@ -1397,65 +830,6 @@ void CAI_PassengerBehaviorCompanion::StartTask( const Task_t *pTask )
 		BaseClass::StartTask( pTask );
 		break;
 	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::IsCurTaskContinuousMove( void )
-{
-	const Task_t *pCurTask = GetCurTask();
-	if ( pCurTask && pCurTask->iTask == TASK_RUN_TO_VEHICLE_ENTRANCE )
-		return true;
-
-	return BaseClass::IsCurTaskContinuousMove();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Update our path if we're running towards the vehicle (since it can move)
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::UpdateVehicleEntrancePath( void )
-{
-	// If it's too soon to check again, don't bother
-	if ( m_flEntraceUpdateTime > gpGlobals->curtime )
-		return true;
-
-	// Find out if we need to update
-	if ( m_VehicleMonitor.TargetMoved2D( m_hVehicle ) == false )
-	{
-		m_flEntraceUpdateTime = gpGlobals->curtime + 0.5f;
-		return true;
-	}
-
-	// Don't attempt again for some amount of time
-	m_flEntraceUpdateTime = gpGlobals->curtime + 1.0f;
-
-	int nSequence = FindEntrySequence( true );
-	if ( nSequence  == -1 )
-		return false;
-
-	SetTransitionSequence( nSequence );
-
-	// Get the entry position
-	Vector vecEntryPoint;
-	QAngle vecEntryAngles;
-	if ( GetEntryPoint( m_nTransitionSequence, &vecEntryPoint, &vecEntryAngles ) == false )
-		return false;
-
-	// Move the entry point forward in time a bit to predict where it'll be
-	Vector vecVehicleSpeed = m_hVehicle->GetSmoothedVelocity();
-
-	// Tack on the smoothed velocity
-	vecEntryPoint += vecVehicleSpeed; // one second
-
-	// Update our entry point
-	if ( GetOuter()->GetNavigator()->UpdateGoalPos( vecEntryPoint ) == false )
-		return false;
-
-	// Reset the goal angles
-	GetNavigator()->SetArrivalDirection( vecEntryAngles );
-	
-	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1484,40 +858,6 @@ void CAI_PassengerBehaviorCompanion::RunTask( const Task_t *pTask )
 		}
 		break;
 
-	case TASK_RUN_TO_VEHICLE_ENTRANCE:
-		{
-			// Update our entrance point if we can
-			if ( UpdateVehicleEntrancePath() == false )
-			{
-				TaskFail("Unable to find entrance to vehicle");
-				break;
-			}
-			
-			// See if we're close enough to our goal
-			if ( GetOuter ()->GetNavigator()->IsGoalActive() == false )
-			{
-				// See if we're close enough now to enter the vehicle
-				Vector vecEntryPoint;
-				GetEntryPoint( m_nTransitionSequence, &vecEntryPoint );
-				if ( ( vecEntryPoint - GetAbsOrigin() ).Length2DSqr() < Square( 36.0f ) )
-				{
-					if ( GetNavigator()->GetArrivalActivity() != ACT_INVALID )
-					{
-						SetActivity( GetNavigator()->GetArrivalActivity() );
-					}
-					
-					TaskComplete();
-				}
-				else
-				{
-					TaskFail( "Unable to navigate to vehicle" );
-				}
-			}
-
-			// Keep merrily going!
-		}
-		break;
-
 	default:
 		BaseClass::RunTask( pTask );
 		break;
@@ -1532,76 +872,335 @@ void CAI_PassengerBehaviorCompanion::BuildScheduleTestBits( void )
 	// Always break on being able to exit
 	if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
 	{
-		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_PASSENGER_CAN_LEAVE_STUCK_VEHICLE ) );
-		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_PASSENGER_HARD_IMPACT) );
+		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_CAN_LEAVE_STUCK_VEHICLE ) );
+		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_VEHICLE_HARD_IMPACT) );
 		
-		if ( IsCurSchedule( SCHED_PASSENGER_OVERTURNED ) == false )
+		if ( GetOuter()->IsCurSchedule( SCHED_PASSENGER_OVERTURNED ) == false )
 		{
-			GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_PASSENGER_OVERTURNED ) );
-		}
-
-		// Append the ability to break on fidgeting
-		if ( IsCurSchedule( SCHED_PASSENGER_IDLE ) )
-		{
-			GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_PASSENGER_CAN_FIDGET ) );
-		}
-
-		// Add this so we're prompt about exiting the vehicle when able to
-		if ( m_PassengerIntent == PASSENGER_INTENT_EXIT )
-		{
-			GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_PASSENGER_VEHICLE_STOPPED ) );
+			GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_VEHICLE_OVERTURNED ) );
 		}
 	}
 
 	BaseClass::BuildScheduleTestBits();
 }
+
 //-----------------------------------------------------------------------------
-// Purpose: Determines if the passenger should take a radial route to the goal
-// Input  : &vecEntryPoint - Point of entry
+// Purpose: Attempt to build a local route to a goal and append it to the chain (if it exists)
+// Input  : &vecStart - Path's starting position
+//			&vecEnd - Path's ending position
+//			**pWaypoints - pointer to a waypoint list to append the data to
 // Output : Returns true on success, false on failure.
 //-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::UseRadialRouteToEntryPoint( const Vector &vecEntryPoint )
+bool CAI_PassengerBehaviorCompanion::AppendLocalPath( const Vector &vecStart, const Vector &vecEnd, AI_Waypoint_t **pWaypoints )
 {
-	// Get the center position of the vehicle we'll radiate around
-	Vector vecCenterPos = m_hVehicle->WorldSpaceCenter();
-	vecCenterPos.z = vecEntryPoint.z;
+	// Find the next waypoint to use
+	AI_Waypoint_t *pNextRoute = GetOuter()->GetPathfinder()->BuildLocalRoute( vecStart, vecEnd, NULL, 0, NO_NODE, bits_BUILD_GROUND, 8.0f );
+	if ( pNextRoute == NULL )
+		return false;
 
-	// Find out if we need to go around the vehicle 
-	float flDistToVehicleCenter = ( vecCenterPos - GetOuter()->GetAbsOrigin() ).Length();
-	float flDistToGoal = ( vecEntryPoint - GetOuter()->GetAbsOrigin() ).Length();
-	if ( flDistToGoal > flDistToVehicleCenter )
-		return true;
+	// We cannot simply our route
+	pNextRoute->ModifyFlags( bits_WP_DONT_SIMPLIFY, true );
 
-	return false;
+	// Start the list
+	if ( (*pWaypoints) == NULL )
+	{
+		*pWaypoints = pNextRoute;
+	}
+	else
+	{
+		// Concat the list
+		AddWaypointLists( (*pWaypoints), pNextRoute );
+	}
+
+	return true;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Find the arc in degrees to reach our goal position
-// Input  : &vecCenterPoint - Point around which the arc rotates
-//			&vecEntryPoint - Point we're trying to reach
-//			&bClockwise - If we should move clockwise or not to get there
-// Output : float - degrees around arc to follow
+// Purpose: Find the "quadrant" in which we're aligned around an entity
+// Input  : &vecPos - position to test
+//			*pCenter - Center entity (facing and origin used)
+// Output : top-left = 0, bottom-left = 1, bottom-right = 2, top-right = 3 (winding counter-clockwise)
 //-----------------------------------------------------------------------------
-float CAI_PassengerBehaviorCompanion::GetArcToEntryPoint( const Vector &vecCenterPoint, const Vector &vecEntryPoint, bool &bClockwise )
+inline int FindQuadrantForPosition( const Vector &vecPos, CBaseEntity *pCenterEnt )
 {
-	// We want the entry point to be at the same level as the center to make this a two dimensional problem
-	Vector vecEntryPointAdjusted = vecEntryPoint;
-	vecEntryPointAdjusted.z = vecCenterPoint.z;
+	// Find the direction to our goal entity
+	Vector vecPosToGoalDir = ( pCenterEnt->GetAbsOrigin() - vecPos );
+	vecPosToGoalDir.z = 0.0f;
+	VectorNormalize( vecPosToGoalDir );
 
-	// Direction from vehicle center to passenger
-	Vector vecVehicleToPassenger = ( GetOuter()->GetAbsOrigin() - vecCenterPoint );
-	VectorNormalize( vecVehicleToPassenger );
+	// Get our goal entity's facing
+	Vector vecForward, vecRight;
+	pCenterEnt->GetVectors( &vecForward, &vecRight, NULL );
 
-	// Direction from vehicle center to entry point
-	Vector vecVehicleToEntry = ( vecEntryPointAdjusted - vecCenterPoint );
-	VectorNormalize( vecVehicleToEntry );
+	// Find in what "quadrant" the target is in
+	float flForwardDot = DotProduct( vecForward, vecPosToGoalDir );
+	float flRightDot = DotProduct( vecRight, vecPosToGoalDir );
 
-	float flVehicleToPassengerYaw = UTIL_VecToYaw( vecVehicleToPassenger );
-	float flVehicleToEntryYaw = UTIL_VecToYaw( vecVehicleToEntry );
-	float flArcDist = UTIL_AngleDistance( flVehicleToEntryYaw, flVehicleToPassengerYaw );
+	int nQuadrant;
+	if ( flForwardDot < 0.0f )
+	{
+		// Top right / left
+		nQuadrant = ( flRightDot < 0.0f ) ? 3 : 0;
+	}
+	else
+	{
+		// Bottom right / left
+		nQuadrant = ( flRightDot < 0.0f ) ? 2 : 1;
+	}
 
-	bClockwise = ( flArcDist < 0.0f );
-	return fabs( flArcDist );
+	return nQuadrant;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Get the next node (with wrapping) around a circularly wound path
+// Input  : nLastNode - The starting node
+//			nDirection - Direction we're moving
+//			nNumNodes - Total nodes in the chain
+//-----------------------------------------------------------------------------
+inline int GetNextNode( int nLastNode, int nDirection, int nNumNodes )
+{
+	// FIXME: Account for non-singular steps
+
+	int nNextNode = nLastNode + nDirection;
+	if ( nNextNode > (nNumNodes-1) )
+		nNextNode = 0;
+	else if ( nNextNode < 0 )
+		nNextNode = (nNumNodes-1);
+
+	return nNextNode;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Attempts to construct a local path given a set of nodes and criteria
+// Input  : *vecPositions - positions of the nodes to use
+//			nNumNodes - number of nodes supplied
+//			nDirection - direction in which to traverse the node list
+// Output : Returns the path constructed, NULL if none could be made
+//-----------------------------------------------------------------------------
+AI_Waypoint_t *CAI_PassengerBehaviorCompanion::BuildNodeRouteAroundVehicle( const VehicleAvoidParams_t &avoidParams )
+{
+	// DEBUG
+	/*
+	for ( int i = 0; i < avoidParams.nNumNodes; i++ )
+	{
+		if ( i == avoidParams.nStartNode )
+		{
+			NDebugOverlay::Box( avoidParams.pNodePositions[i], -Vector(14,14,14), Vector(14,14,14), 0, 255, 0, true, 1.0f );
+		}
+		else if ( i == avoidParams.nEndNode	)
+		{
+			NDebugOverlay::Box( avoidParams.pNodePositions[i], -Vector(14,14,14), Vector(14,14,14), 0, 0, 255, true, 1.0f );
+		}
+		else
+		{
+			NDebugOverlay::Box( avoidParams.pNodePositions[i], -Vector(14,14,14), Vector(14,14,14), 255, 0, 0, true, 1.0f );
+		}
+	}
+	*/
+	// END DEBUG
+
+	// Get the next node along the path
+	int nNextNode = GetNextNode( avoidParams.nStartNode, avoidParams.nDirection, avoidParams.nNumNodes );
+
+	// NDebugOverlay::Cross3D( avoidParams.pNodePositions[nNextNode], 32.0f, 255, 0, 0, true, 2.0f );
+
+	// If we're not moving directly to the goal, see if we're already along the path
+	if ( nNextNode != avoidParams.nEndNode )
+	{
+		// Find the direction between us and our first node
+		Vector vecStartDir = ( GetOuter()->GetAbsOrigin() - avoidParams.pNodePositions[avoidParams.nStartNode] );
+		VectorNormalize( vecStartDir );
+
+		// Find the direction of the next leg of the path
+		Vector vecPathDir = ( avoidParams.pNodePositions[avoidParams.nStartNode] - avoidParams.pNodePositions[nNextNode] );
+		VectorNormalize( vecPathDir );
+
+		// We're closer to the next node on our path, just go there!
+		if ( DotProduct( vecStartDir, vecPathDir ) < 0.0f )
+		{
+			// Validate that we have a clear shot to it
+			trace_t tr;
+			UTIL_TraceHull( GetOuter()->GetAbsOrigin(), avoidParams.pNodePositions[nNextNode], GetOuter()->GetHullMins(), GetOuter()->GetHullMaxs(), MASK_NPCSOLID, GetOuter(), COLLISION_GROUP_VEHICLE, &tr );
+			if ( tr.fraction < 1.0f )
+			{
+				// Nope, run to our start
+				nNextNode = avoidParams.nStartNode;
+
+				//NDebugOverlay::HorzArrow( GetOuter()->GetAbsOrigin(), avoidParams.pNodePositions[nNextNode], 4, 255, 0, 0, 128, true, 2.0f );
+			}
+			/*else
+			{
+				NDebugOverlay::HorzArrow( GetOuter()->GetAbsOrigin(), avoidParams.pNodePositions[nNextNode], 4, 0, 255, 0, 128, true, 2.0f );
+			}*/
+		}
+	}
+
+	AI_Waypoint_t *pHeadRoute = NULL;
+
+	// Attempt to path to our next node (skipping the first if possible)
+	if ( AppendLocalPath( avoidParams.vecStartPos, avoidParams.pNodePositions[nNextNode], &pHeadRoute ) == false )
+	{
+		//NDebugOverlay::HorzArrow( avoidParams.vecStartPos, avoidParams.pNodePositions[nNextNode], 32, 255, 0, 0, 128, true, 2.0f );
+
+		// Failing that, just run to our start position
+		nNextNode = avoidParams.nStartNode;
+		if ( AppendLocalPath( avoidParams.vecStartPos, avoidParams.pNodePositions[nNextNode], &pHeadRoute ) == false )
+		{
+			//NDebugOverlay::HorzArrow( avoidParams.vecStartPos, avoidParams.pNodePositions[nNextNode], 32, 255, 0, 0, 128, true, 2.0f );
+			return false;
+		}
+	}
+
+	// Now walk the path and keep adding point on until we're finished
+	int nLastNode = 0;
+	int nSteps = 0;
+	while ( nSteps < avoidParams.nNumNodes )
+	{
+		// Move the node ahead
+		nLastNode = nNextNode;
+		nNextNode = GetNextNode( nNextNode, avoidParams.nDirection, avoidParams.nNumNodes );
+
+		// Try the next leg of the path
+		if ( AppendLocalPath( avoidParams.pNodePositions[nLastNode], avoidParams.pNodePositions[nNextNode], &pHeadRoute ) == false )
+		{
+			//NDebugOverlay::HorzArrow( avoidParams.pNodePositions[nLastNode], avoidParams.pNodePositions[nNextNode], 16, 255, 0, 0, 128, true, 2.0f );
+			return NULL;
+		}
+
+		// See if we're at the final node (finished if we are)
+		if ( nNextNode == avoidParams.nEndNode )
+			return pHeadRoute;
+
+		//NDebugOverlay::HorzArrow( avoidParams.pNodePositions[nLastNode], avoidParams.pNodePositions[nNextNode], 16, 0, 255, 0, 128, true, 2.0f );
+
+		// Increment the counter
+		nSteps++;
+	}
+
+	// No path found!
+	return NULL;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Quickly walk a circular path to find the winding that's shortest
+// Input  : *pParams - avoid params
+//-----------------------------------------------------------------------------
+inline void FindShortestDirectionToNode( VehicleAvoidParams_t *pParams )
+{
+	int nNextNode = GetNextNode( pParams->nStartNode, 1, pParams->nNumNodes );
+	int nDistance = 1;
+
+	// Try going counter-clockwise
+	for ( int i = 0; i < pParams->nNumNodes; i++ )
+	{
+		if ( nNextNode == pParams->nEndNode )
+			break;
+
+		nNextNode = GetNextNode( nNextNode, 1, pParams->nNumNodes );
+		nDistance++;
+	}
+
+	nNextNode = GetNextNode( pParams->nStartNode, -1, pParams->nNumNodes );
+
+	// Now go the other way and see if it's shorter to do so
+	for ( int i = 0; i < nDistance; i++ )
+	{
+		if ( nNextNode == pParams->nEndNode )
+		{
+			pParams->nDirection = -1;
+			return;
+		}
+
+		nNextNode = GetNextNode( nNextNode, -1, pParams->nNumNodes );
+	}
+
+	pParams->nDirection = 1;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Try to build a route around a blocking vehicle (lest we bump into it dumbly)
+// Output : Returns true if a path was built successfully
+//-----------------------------------------------------------------------------
+bool CAI_PassengerBehaviorCompanion::BuildVehicleAvoidancePath( CBaseEntity *pVehicle, const Vector &vecMoveDir )
+{
+	// Get our local OBB and inflate it by our hull size
+	Vector vecLocalMins = pVehicle->CollisionProp()->OBBMins();
+	Vector vecLocalMaxs = pVehicle->CollisionProp()->OBBMaxs();
+
+	// FIXME: For some reason the OBB is crazy-big!
+	// FIXME: Shrink the OBB for giggles
+	vecLocalMins[0] += GetOuter()->GetHullWidth()*0.5f;
+	vecLocalMins[1] += GetOuter()->GetHullWidth()*0.5f;
+
+	vecLocalMaxs[0] -= GetOuter()->GetHullWidth()*0.5f;
+	vecLocalMaxs[1] -= GetOuter()->GetHullWidth()*0.5f;
+
+	vecLocalMins[2] = 0.0f;
+	vecLocalMaxs[2] = 0.0f;
+
+	// Get the four corners in worldspace as our points of circumnavigation
+	Vector vecNodes[4];
+	Vector vecScratch;
+	matrix3x4_t matColToWorld = pVehicle->CollisionProp()->CollisionToWorldTransform();
+
+	vecScratch.z = 0.0f;
+
+	// Top left
+	vecScratch.x = vecLocalMins.x;
+	vecScratch.y = vecLocalMaxs.y;
+	VectorTransform( vecScratch, matColToWorld, vecNodes[0] );
+
+	// Bottom left
+	vecScratch.x = vecLocalMins.x;
+	vecScratch.y = vecLocalMins.y;
+	VectorTransform( vecScratch, matColToWorld, vecNodes[1] );
+
+	// Bottom right
+	vecScratch.x = vecLocalMaxs.x;
+	vecScratch.y = vecLocalMins.y;
+	VectorTransform( vecScratch, matColToWorld, vecNodes[2] );
+
+	// Top right
+	vecScratch.x = vecLocalMaxs.x;
+	vecScratch.y = vecLocalMaxs.y;
+	VectorTransform( vecScratch, matColToWorld, vecNodes[3] );
+
+	VehicleAvoidParams_t avoidParams;
+
+	// Get the quadrants we're moving between
+	avoidParams.nStartNode = FindQuadrantForPosition( GetOuter()->GetAbsOrigin(), pVehicle );
+	avoidParams.nEndNode = FindQuadrantForPosition( GetOuter()->GetNavigator()->GetPath()->ActualGoalPosition(), pVehicle );
+
+	// If we're moving within the same quadrant, we've got no path
+	if ( avoidParams.nStartNode == avoidParams.nEndNode )
+		return false;
+
+	// Get the direction of traversal for the array ( 1 = counter-clockwise )
+	avoidParams.pNodePositions = vecNodes;
+	avoidParams.nNumNodes = ARRAYSIZE( vecNodes );
+
+	// Specify the points in space we're coming from and going to
+	avoidParams.vecStartPos = GetOuter()->GetAbsOrigin();
+	avoidParams.vecGoalPos = GetOuter()->GetNavigator()->GetPath()->ActualGoalPosition();
+
+	// Find our shortest path to the node in question
+	FindShortestDirectionToNode( &avoidParams );
+
+	// Try and build a route around the vehicle
+	AI_Waypoint_t *pAvoidRoute = BuildNodeRouteAroundVehicle( avoidParams );
+	if ( pAvoidRoute == NULL )
+	{
+		// Try the opposite direction
+		avoidParams.nDirection = -avoidParams.nDirection;
+		pAvoidRoute = BuildNodeRouteAroundVehicle( avoidParams );
+		if ( pAvoidRoute == NULL )
+			return false;
+	}
+
+	// Splice this into our current node path
+	GetOuter()->GetNavigator()->GetPath()->PrependWaypoints( pAvoidRoute );
+	GetOuter()->GetNavigator()->SimplifyPath();
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1613,7 +1212,7 @@ void CAI_PassengerBehaviorCompanion::ResetVehicleEntryFailedState( void )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Adds a failed position to the list and marks when it occurred
+// Purpose: Adds a failed position to the list and marks when it occured
 // Input  : &vecPosition - Position that failed
 //-----------------------------------------------------------------------------
 void CAI_PassengerBehaviorCompanion::MarkVehicleEntryFailed( const Vector &vecPosition )
@@ -1622,12 +1221,6 @@ void CAI_PassengerBehaviorCompanion::MarkVehicleEntryFailed( const Vector &vecPo
 	failPos.flTime = gpGlobals->curtime;
 	failPos.vecPosition = vecPosition;
 	m_FailedEntryPositions.AddToTail( failPos );
-
-	// Show this as failed
-	if ( passenger_debug_entry.GetBool() )
-	{
-		NDebugOverlay::Box( vecPosition, -Vector(8,8,8), Vector(8,8,8), 255, 0, 0, 0, 2.0f );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1640,33 +1233,49 @@ bool CAI_PassengerBehaviorCompanion::PointIsWithinEntryFailureRadius( const Vect
 	// Test this point against our known failed points and reject it if it's too near
 	for ( int i = 0; i < m_FailedEntryPositions.Count(); i++ )
 	{
-		// If our time has expired, kill the position
-		if ( ( gpGlobals->curtime - m_FailedEntryPositions[i].flTime ) > 3.0f )
-		{
-			// Show that we've cleared it
-			if ( passenger_debug_entry.GetBool() )
-			{
-				NDebugOverlay::Box( m_FailedEntryPositions[i].vecPosition, -Vector(12,12,12), Vector(12,12,12), 255, 255, 0, 0, 2.0f );
-			}
-
-  			m_FailedEntryPositions.Remove( i );
-			continue;
-		}
-
-		// See if this position is too near our last failed attempt
-		if ( ( vecPosition - m_FailedEntryPositions[i].vecPosition ).LengthSqr() < Square(3*12) )
-		{
-			// Show that this was denied
-			if ( passenger_debug_entry.GetBool() )
-			{
-				NDebugOverlay::Box( m_FailedEntryPositions[i].vecPosition, -Vector(12,12,12), Vector(12,12,12), 255, 0, 0, 128, 2.0f );
-			}
-
+		if ( ( vecPosition - m_FailedEntryPositions[i].vecPosition ).LengthSqr() < (32.0f*32.0f) )
 			return true;
-		}
 	}
 
 	return false;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CAI_PassengerBehaviorCompanion::OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult )
+{
+	// If we've hit something we need to see what it might be
+	if ( pMoveGoal->bHasTraced && pMoveGoal->directTrace.pObstruction != NULL )
+	{
+		// See if we're a buggy
+		CPropJeepEpisodic *pBuggy = dynamic_cast<CPropJeepEpisodic *>(pMoveGoal->directTrace.pObstruction);
+		if ( pBuggy != NULL )
+		{
+			IServerVehicle *pServerVehicle = pBuggy->GetServerVehicle();
+			if ( pServerVehicle != NULL )
+			{
+				Vector vecGoalPos = GetNavigator()->GetPath()->ActualGoalPosition();
+				float flGoalDist = ( GetAbsOrigin() - vecGoalPos ).Length();
+				if ( flGoalDist > distClear )
+				{
+					bool bSucceeded = BuildVehicleAvoidancePath( pServerVehicle->GetVehicleEnt(), pMoveGoal->target );
+					if ( bSucceeded )
+					{
+						ResetVehicleEntryFailedState();
+						return true;
+					}
+
+					// Mark this point as having failed, so try a new entrance when we re-tried
+					MarkVehicleEntryFailed( GetNavigator()->GetPath()->ActualGoalPosition() );
+					return false;
+				}
+			}
+		}
+	}
+
+	return BaseClass::OnCalcBaseMove( pMoveGoal, distClear, pResult );
 }
 
 //-----------------------------------------------------------------------------
@@ -1689,8 +1298,9 @@ int CAI_PassengerBehaviorCompanion::FindEntrySequence( bool bNearest /*= false*/
 		return -1;
 
 	const CPassengerSeatTransition *pTransition;
-	float	flNearestDistSqr = FLT_MAX;
-	float	flSeatDistSqr;
+	Vector	vecSeatDir;
+	float	flNearestDist = 99999999999.9f;
+	float	flSeatDist;
 	int		nNearestSequence = -1;
 	int		nSequence;
 
@@ -1704,8 +1314,7 @@ int CAI_PassengerBehaviorCompanion::FindEntrySequence( bool bNearest /*= false*/
 			continue;
 
 		// Test this entry for validity
-		if ( GetEntryPoint( nSequence, &vecStartPos ) == false )
-			continue;
+		GetEntryPoint( nSequence, &vecStartPos );
 
 		// See if this entry position is in our list of known unreachable places
 		if ( PointIsWithinEntryFailureRadius( vecStartPos ) )
@@ -1719,12 +1328,13 @@ int CAI_PassengerBehaviorCompanion::FindEntrySequence( bool bNearest /*= false*/
 				return nSequence;
 
 			// Otherwise distance is the deciding factor
-			flSeatDistSqr = ( vecStartPos - GetOuter()->GetAbsOrigin() ).LengthSqr();
+			vecSeatDir = ( vecStartPos - GetOuter()->GetAbsOrigin() );
+			flSeatDist = VectorNormalize( vecSeatDir );
 
 			// Closer, take it
-			if ( flSeatDistSqr < flNearestDistSqr )
+			if ( flSeatDist < flNearestDist )
 			{
-				flNearestDistSqr = flSeatDistSqr;
+				flNearestDist = flSeatDist;
 				nNearestSequence = nSequence;
 			}
 		}
@@ -1732,139 +1342,6 @@ int CAI_PassengerBehaviorCompanion::FindEntrySequence( bool bNearest /*= false*/
 	}
 
 	return nNearestSequence;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Override certain animations
-//-----------------------------------------------------------------------------
-Activity CAI_PassengerBehaviorCompanion::NPC_TranslateActivity( Activity activity )
-{
-	Activity newActivity = BaseClass::NPC_TranslateActivity( activity );
-
-	// Handle animations from inside the vehicle
-	if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
-	{
-		// Alter idle depending on the vehicle's state
-		if ( newActivity == ACT_IDLE )
-		{
-			// Always play the overturned animation
-			if ( m_vehicleState.m_bWasOverturned )
-				return ACT_PASSENGER_OVERTURNED;
-		}
-	}
-
-	return newActivity;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::CanExitVehicle( void )
-{
-	if ( BaseClass::CanExitVehicle() == false )
-		return false;
-
-	// If we're tipped too much, we can't exit
-	Vector vecUp;
-	GetOuter()->GetVectors( NULL, NULL, &vecUp );
-	if ( DotProduct( vecUp, Vector(0,0,1) ) < DOT_45DEGREE )
-		return false;
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: NPC needs to get to their marks, so do so with urgent navigation
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::IsNavigationUrgent( void )
-{
-	// If we're running to the vehicle, do so urgently
-	if ( GetPassengerState() == PASSENGER_STATE_OUTSIDE && m_PassengerIntent == PASSENGER_INTENT_ENTER )
-		return true;
-
-	return BaseClass::IsNavigationUrgent();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Calculate our body lean based on our delta velocity
-//-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorCompanion::CalculateBodyLean( void )
-{
-	// Calculate our lateral displacement from a perfectly centered start
-	float flLateralDisp = SimpleSplineRemapVal( m_vehicleState.m_vecLastAngles.z, 100.0f, -100.0f, -1.0f, 1.0f );
-	flLateralDisp = clamp( flLateralDisp, -1.0f, 1.0f );
-
-	// FIXME: Framerate dependent!
-	m_flLastLateralLean = ( m_flLastLateralLean * 0.2f ) + ( flLateralDisp * 0.8f );
-
-	// Here we can make Alyx do something different on an "extreme" lean condition
-	if ( fabs( m_flLastLateralLean ) > 0.75f )
-	{
-		// Large lean, make us react?
-	}
-
-	// Set these parameters
-	GetOuter()->SetPoseParameter( "vehicle_lean", m_flLastLateralLean );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Whether or not we're allowed to fidget
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::CanFidget( void )
-{
-	// Can't fidget again too quickly
-	if ( m_flNextFidgetTime > gpGlobals->curtime )
-		return false;
-
-	// FIXME: Really we want to check our readiness level at this point
-	if ( GetOuter()->GetEnemy() != NULL )
-		return false;
-
-	// Don't fidget unless we're at low readiness
-	if ( m_hCompanion && ( m_hCompanion->GetReadinessLevel() > AIRL_RELAXED ) )
-		return false;
-
-	// Don't fidget while we're in a script
-	if ( GetOuter()->IsInAScript() || GetOuter()->GetIdealState() == NPC_STATE_SCRIPT || IsRunningScriptedScene( GetOuter() ) )
-		return false;
-
-	// If we're upside down, don't bother
-	if ( HasCondition( COND_PASSENGER_OVERTURNED ) )
-		return false;
-
-	// Must be visible to the player
-	CBasePlayer *pPlayer = AI_GetSinglePlayer();
-	if ( pPlayer && pPlayer->FInViewCone( GetOuter()->EyePosition() ) == false )
-		return false;
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Extends the fidget delay by the time specified
-// Input  : flDuration - in seconds
-//-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorCompanion::ExtendFidgetDelay( float flDuration )
-{
-	// If we're already expired, just set this as the next time
-	if ( m_flNextFidgetTime < gpGlobals->curtime )
-	{
-		m_flNextFidgetTime = gpGlobals->curtime + flDuration;
-	}
-	else
-	{
-		// Otherwise bump the delay farther into the future
-		m_flNextFidgetTime += flDuration;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: We never want to be marked as crouching when inside a vehicle
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorCompanion::IsCrouching( void )
-{
-	return false;
 }
 
 AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorCompanion )
@@ -1877,14 +1354,6 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorCompanion )
 	DECLARE_ACTIVITY( ACT_PASSENGER_POINT )
 	DECLARE_ACTIVITY( ACT_PASSENGER_POINT_BEHIND )
 	DECLARE_ACTIVITY( ACT_PASSENGER_IDLE_READY )
-	DECLARE_ACTIVITY( ACT_PASSENGER_GESTURE_JOSTLE_LARGE )
-	DECLARE_ACTIVITY( ACT_PASSENGER_GESTURE_JOSTLE_SMALL )
-	DECLARE_ACTIVITY( ACT_PASSENGER_GESTURE_JOSTLE_LARGE_STIMULATED )
-	DECLARE_ACTIVITY( ACT_PASSENGER_GESTURE_JOSTLE_SMALL_STIMULATED )
-	DECLARE_ACTIVITY( ACT_PASSENGER_COWER_IN )
-	DECLARE_ACTIVITY( ACT_PASSENGER_COWER_LOOP )
-	DECLARE_ACTIVITY( ACT_PASSENGER_COWER_OUT )
-	DECLARE_ACTIVITY( ACT_PASSENGER_IDLE_FIDGET )
 
 	DECLARE_TASK( TASK_GET_PATH_TO_VEHICLE_ENTRY_POINT )
 	DECLARE_TASK( TASK_GET_PATH_TO_NEAR_VEHICLE )
@@ -1892,31 +1361,28 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorCompanion )
 	DECLARE_TASK( TASK_PASSENGER_EXIT_STUCK_VEHICLE )
 	DECLARE_TASK( TASK_PASSENGER_OVERTURNED )
 	DECLARE_TASK( TASK_PASSENGER_IMPACT )
-	DECLARE_TASK( TASK_RUN_TO_VEHICLE_ENTRANCE )
 
-	DECLARE_CONDITION( COND_PASSENGER_VEHICLE_MOVED_FROM_MARK )
-	DECLARE_CONDITION( COND_PASSENGER_CAN_LEAVE_STUCK_VEHICLE )
-	DECLARE_CONDITION( COND_PASSENGER_WARN_OVERTURNED )
-	DECLARE_CONDITION( COND_PASSENGER_WARN_COLLISION )
-	DECLARE_CONDITION( COND_PASSENGER_CAN_FIDGET )
-	DECLARE_CONDITION( COND_PASSENGER_CAN_ENTER_IMMEDIATELY )
+	DECLARE_CONDITION( COND_HARD_IMPACT )
+	DECLARE_CONDITION( COND_VEHICLE_MOVED_FROM_MARK )
+	DECLARE_CONDITION( COND_VEHICLE_STOPPED )
+	DECLARE_CONDITION( COND_CAN_LEAVE_STUCK_VEHICLE )
+	DECLARE_CONDITION( COND_WARN_OVERTURNED )
 
 	DEFINE_SCHEDULE
 	(
 		SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE,
 
 		"	Tasks"
-		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE_FAILED"
 		"		TASK_STOP_MOVING				0"
-		"		TASK_SET_TOLERANCE_DISTANCE		36"	// 3 ft
+		"		TASK_SET_TOLERANCE_DISTANCE		4"
 		"		TASK_SET_ROUTE_SEARCH_TIME		5"
 		"		TASK_GET_PATH_TO_VEHICLE_ENTRY_POINT	0"
-		"		TASK_RUN_TO_VEHICLE_ENTRANCE	0"
+		"		TASK_RUN_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
 		"		TASK_SET_SCHEDULE				SCHEDULE:SCHED_PASSENGER_ENTER_VEHICLE"
 		""
 		"	Interrupts"
-		"		COND_PASSENGER_CAN_ENTER_IMMEDIATELY"
-		"		COND_PASSENGER_CANCEL_ENTER"
+		"		COND_VEHICLE_MOVED_FROM_MARK"
 	)
 
 	DEFINE_SCHEDULE
@@ -1924,16 +1390,16 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorCompanion )
 		SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE_FAILED,
 
 		"	Tasks"
-		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_PASSENGER_ENTER_VEHICLE_PAUSE"
 		"		TASK_STOP_MOVING				0"
-		"		TASK_SET_TOLERANCE_DISTANCE		36"
+		"		TASK_SET_TOLERANCE_DISTANCE		32"
 		"		TASK_SET_ROUTE_SEARCH_TIME		3"
 		"		TASK_GET_PATH_TO_NEAR_VEHICLE	0"
 		"		TASK_RUN_PATH					0"
 		"		TASK_WAIT_FOR_MOVEMENT			0"
 		""
 		"	Interrupts"
-		"		COND_PASSENGER_CANCEL_ENTER"
+		"		COND_VEHICLE_MOVED_FROM_MARK"
+		"		COND_VEHICLE_STOPPED"
 	)
 
 	DEFINE_SCHEDULE
@@ -1946,9 +1412,9 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorCompanion )
 		"		TASK_WAIT					2"
 		""
 		"	Interrupts"
+		"		COND_VEHICLE_STOPPED"
 		"		COND_LIGHT_DAMAGE"
 		"		COND_NEW_ENEMY"
-		"		COND_PASSENGER_CANCEL_ENTER"
 	)
 
 	DEFINE_SCHEDULE
@@ -2003,50 +1469,12 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorCompanion )
 
 	DEFINE_SCHEDULE
 	(
-		SCHED_PASSENGER_IMPACT,
+	SCHED_PASSENGER_IMPACT,
 
-		"	Tasks"
-		"		TASK_PASSENGER_IMPACT	0"
-		""
-		"	Interrupts"
-	)
-
-	DEFINE_SCHEDULE
-	(
-		SCHED_PASSENGER_ENTER_VEHICLE_IMMEDIATELY,
-
-		"	Tasks"
-		"		TASK_PASSENGER_ATTACH_TO_VEHICLE	0"
-		"		TASK_PASSENGER_ENTER_VEHICLE		0"
-		""
-		"	Interrupts"
-		"		COND_NO_CUSTOM_INTERRUPTS"
-	)
-
-	DEFINE_SCHEDULE
-	(
-		SCHED_PASSENGER_COWER,
-		
-		"	Tasks"
-		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_PASSENGER_COWER_IN"
-		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_PASSENGER_COWER_LOOP"
-		"		TASK_WAIT_UNTIL_NO_DANGER_SOUND		0"
-		"		TASK_WAIT							2"
-		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_PASSENGER_COWER_OUT"
-		""
-		"	Interrupts"
-		"		COND_NO_CUSTOM_INTERRUPTS"
-	)
-
-	DEFINE_SCHEDULE
-	(
-		SCHED_PASSENGER_FIDGET,
-
-		"	Tasks"
-		"		TASK_PLAY_SEQUENCE		ACTIVITY:ACT_PASSENGER_IDLE_FIDGET"
-		""
-		"	Interrupts"
-		"		COND_NO_CUSTOM_INTERRUPTS"
+	"	Tasks"
+	"		TASK_PASSENGER_IMPACT	0"
+	""
+	"	Interrupts"
 	)
 
 	AI_END_CUSTOM_SCHEDULE_PROVIDER()

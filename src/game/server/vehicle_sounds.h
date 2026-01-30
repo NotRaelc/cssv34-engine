@@ -90,23 +90,6 @@ enum sound_states
 //-----------------------------------------------------------------------------
 struct vehiclesounds_t
 {
-	void Init( void )
-	{
-		pGears.Purge();
-		crashSounds.Purge();
-		
-		for ( int i = 0; i < VS_NUM_SOUNDS; i++ )
-		{
-			iszSound[i] = NULL_STRING;
-		}
-
-		for ( int i = 0; i < SS_NUM_STATES; i++ )
-		{
-			iszStateSounds[i] = NULL_STRING;
-			minStateTime[i] = 0.0f;
-		}
-	}
-
 	DECLARE_DATADESC();
 
 	CUtlVector<vehicle_gear_t>	pGears;
@@ -124,10 +107,12 @@ class CVehicleSoundsParser : public IVPhysicsKeyHandler
 public:
 	CVehicleSoundsParser( void );
 
+	void	ParseVehicleSounds( const char *pScriptName, vehiclesounds_t *pSounds );
+
+private:
 	virtual void ParseKeyValue( void *pData, const char *pKey, const char *pValue );
 	virtual void SetDefaults( void *pData );
 
-private:
 	// Index of the gear we're currently reading data into
 	int	m_iCurrentGear;
 	int	m_iCurrentState;

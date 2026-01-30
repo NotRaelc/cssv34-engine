@@ -597,10 +597,6 @@ void CNPC_VehicleDriver::CalculatePostPoints( void )
 		{
 			m_vecPostPostPoint = pCurWaypoint->GetNext()->GetNext()->GetPos();
 		}
-		else
-		{
-			m_vecPostPostPoint = m_vecPostPoint;
-		}
 	}
 }
 
@@ -778,7 +774,6 @@ bool CNPC_VehicleDriver::OverridePathMove( float flInterval )
 	Vector vecToDesired = (vSplinePoint - GetAbsOrigin());
 	float flDistToDesired = VectorNormalize( vecToDesired );
 	float flTangentLength = VectorNormalize( vSplineTangent );
-
 	if ( flDistToDesired > (flTangentLength * 0.75) )
 	{
 		m_vecDesiredVelocity = vecToDesired * flTangentLength;
@@ -811,10 +806,6 @@ bool CNPC_VehicleDriver::OverridePathMove( float flInterval )
 		NDebugOverlay::Box( m_vecPostPostPoint, -Vector(20,20,20), Vector(20,20,20), 0,128,0, true, 0.1);
 		NDebugOverlay::Box( vSplinePoint, -Vector(10,10,10), Vector(10,10,10), 0,0,255, true, 0.1);
 		NDebugOverlay::Line( vSplinePoint, vSplinePoint + (vSplineTangent * 40), 0,0,255, true, 0.1);
-
-		//NDebugOverlay::HorzArrow( pCurrentSplineBeingTraversed->splinePoints[0], pCurrentSplineBeingTraversed->splinePoints[1], 30, 255,255,255,0, false, 0.1f );
-		//NDebugOverlay::HorzArrow( pCurrentSplineBeingTraversed->splinePoints[1], pCurrentSplineBeingTraversed->splinePoints[2], 20, 255,255,255,0, false, 0.1f );
-		//NDebugOverlay::HorzArrow( pCurrentSplineBeingTraversed->splinePoints[2], pCurrentSplineBeingTraversed->splinePoints[3], 10, 255,255,255,0, false, 0.1f );
 
 		// Draw the plane we're checking against for waypoint passing
 		Vector vecPlaneRight;
@@ -1009,7 +1000,7 @@ void CNPC_VehicleDriver::RecalculateSpeeds( void )
 	if ( pParams )
 	{
 		m_flMaxSpeed = pParams->engine.maxSpeed * m_flDriversMaxSpeed;
-		m_flSteering = pParams->steering.degreesSlow;
+		m_flSteering = pParams->steering.degrees;
 	}
 }
 

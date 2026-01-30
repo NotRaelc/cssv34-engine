@@ -15,7 +15,7 @@
 #include "ai_networkmanager.h"
 #include "ndebugoverlay.h"
 #include "animation.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "mapentities_shared.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -439,7 +439,6 @@ CAI_Hint *CAI_HintManager::FindHint( CAI_BaseNPC *pNPC, const Vector &position, 
 			pTestHint = CAI_HintManager::GetFoundHint( i );
 			if ( pTestHint )
 			{
-				Assert( dynamic_cast<CAI_Hint *>(pTestHint) != NULL );
 				++visited;
 				if ( pTestHint->HintMatchesCriteria( pNPC, hintCriteria, position, &flBestDistance ) )
 				{
@@ -473,7 +472,6 @@ CAI_Hint *CAI_HintManager::FindHint( CAI_BaseNPC *pNPC, const Vector &position, 
 
 			++visited;
 
-			Assert( dynamic_cast<CAI_Hint *>(pTestHint) != NULL );
 			if ( pTestHint->HintMatchesCriteria( pNPC, hintCriteria, position, &flBestDistance, false, bIgnoreHintType ) )
 			{
 				// If we were searching for the nearest, just note that this is now the nearest node
@@ -605,7 +603,7 @@ CAI_Hint* CAI_HintManager::CreateHint( HintNodeData *pNodeData, const char *pMap
 		pHint->SetName( pNodeData->strEntityName );
 		pHint->SetAbsOrigin( pNodeData->vecPosition );
 		memcpy( &(pHint->m_NodeData), pNodeData, sizeof(HintNodeData) );
-		DispatchSpawn( pHint );
+		pHint->Spawn();
 
 		return pHint;
 	}
@@ -774,31 +772,6 @@ void CAI_HintManager::DumpHints()
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CAI_HintManager::ValidateHints()
-{
-#ifdef _DEBUG
-	int nTyped = 0;
-	FOR_EACH_VEC( gm_AllHints, i )
-	{
-		Assert( dynamic_cast<CAI_Hint *>(gm_AllHints[i]) != NULL );
-	}
-
-	for ( int i = gm_TypedHints.FirstInorder(); i != gm_TypedHints.InvalidIndex(); i = gm_TypedHints.NextInorder( i ) )
-	{
-		FOR_EACH_VEC( gm_TypedHints[i], j )
-		{
-			nTyped++;
-			Assert( dynamic_cast<CAI_Hint *>(gm_TypedHints[i][j]) != NULL );
-		}
-	}
-
-	Assert( gm_AllHints.Count() == nTyped );
-#endif
-}
-
 //------------------------------------------------------------------------------
 // Purpose :
 // Input   :
@@ -937,13 +910,7 @@ void CAI_Hint::Spawn( void )
 void CAI_Hint::Activate()
 {
 	BaseClass::Activate();
-	CAI_HintManager::AddHint( this );
-}
-
-void CAI_Hint::UpdateOnRemove( void )
-{
-	CAI_HintManager::RemoveHint( this );
-	BaseClass::UpdateOnRemove();
+	SetHintType( m_NodeData.nHintType, true );
 }
 
 //------------------------------------------------------------------------------
@@ -1035,8 +1002,6 @@ bool CAI_Hint::IsViewable(void)
 	switch( HintType() )
 	{
 	case HINT_WORLD_VISUALLY_INTERESTING:
-	case HINT_WORLD_VISUALLY_INTERESTING_DONT_AIM:
-	case HINT_WORLD_VISUALLY_INTERESTING_STEALTH:
 		return true;
 	}
 	
@@ -1240,27 +1205,6 @@ bool CAI_Hint::HintMatchesCriteria( CAI_BaseNPC *pNPC, const CHintCriteria &hint
 		}
 	}
 
-	if ( hintCriteria.HasFlag( bits_HINT_NOT_CLOSE_TO_ENEMY ) )
-	{
-		if ( pNPC == NULL )
-		{
-			AssertMsg( 0, "Hint node attempted to find node not close to enemy without specifying NPC!\n" );
-		}
-		else
-		{
-			if( pNPC->GetEnemy() )
-			{
-				float flDistHintToEnemySqr = GetAbsOrigin().DistToSqr( pNPC->GetEnemy()->GetAbsOrigin() ) ;
-
-				if( flDistHintToEnemySqr < Square( 30.0f * 12.0f ) )
-				{
-					REPORTFAILURE( "Hint takes NPC close to Enemy" );
-					return false;
-				}
-			}
-		}
-	}
-
 	{
 		AI_PROFILE_SCOPE( HINT_FVisible );
 		// See if we're requesting a visible node
@@ -1339,27 +1283,6 @@ bool CAI_Hint::HintMatchesCriteria( CAI_BaseNPC *pNPC, const CHintCriteria &hint
 
 		// Remember the distance
 		*flNearestDistance = distance;
-	}
-
-	if ( hintCriteria.HasFlag(bits_HINT_HAS_LOS_TO_PLAYER|bits_HAS_EYEPOSITION_LOS_TO_PLAYER) )
-	{
-		CBasePlayer *pPlayer = UTIL_GetNearestPlayerPreferVisible(this);
-
-		if( pPlayer != NULL )
-		{
-			Vector vecDest = GetAbsOrigin(); 
-
-			if( hintCriteria.HasFlag(bits_HAS_EYEPOSITION_LOS_TO_PLAYER) )
-			{
-				vecDest += pNPC->GetDefaultEyeOffset();
-			}
-
-			if( !pPlayer->FVisible(vecDest) )
-			{
-				REPORTFAILURE( "Do not have LOS to player" );
-				return false;
-			}
-		}
 	}
 
 	// Must either be visible or not if requested
@@ -1446,6 +1369,7 @@ CAI_Hint::CAI_Hint(void)
 {
 	m_flNextUseTime	= 0;
 	m_nTargetNodeID = NO_NODE;
+	CAI_HintManager::AddHint( this );
 }
 
 //-----------------------------------------------------------------------------
@@ -1455,6 +1379,7 @@ CAI_Hint::CAI_Hint(void)
 //-----------------------------------------------------------------------------
 CAI_Hint::~CAI_Hint(void)
 {
+	CAI_HintManager::RemoveHint( this );
 }
 
 //-----------------------------------------------------------------------------
@@ -1475,7 +1400,9 @@ CAI_Node *CAI_Hint::GetNode( void )
 //-----------------------------------------------------------------------------
 void CAI_Hint::DisableForSeconds( float flSeconds )
 {
-	Unlock( flSeconds );
+	SetDisabled( true );
+	SetThink( &CAI_Hint::EnableThink );
+	SetNextThink( gpGlobals->curtime + flSeconds );
 }
 
 //-----------------------------------------------------------------------------
@@ -1535,7 +1462,11 @@ void CAI_Hint::NPCStoppedUsing( CAI_BaseNPC *pNPC )
 
 CON_COMMAND(ai_dump_hints, "")
 {
-	CAI_HintManager::ValidateHints();
+#ifdef BUGFIXED
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+#endif
+	
 	CAI_HintManager::DumpHints();
 }
 
@@ -1645,13 +1576,13 @@ const char *GetHintTypeDescription( CAI_Hint *pHint )
 //-----------------------------------------------------------------------------
 // Purpose: Debug command to drop hints into the world
 //-----------------------------------------------------------------------------
-void CC_ai_drop_hint( const CCommand &args )
+void CC_ai_drop_hint( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( UTIL_GetCommandClient() );
 	if ( !pPlayer )
 		return;
 
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2	)
 	{
 		Msg("Invalid hint type specified. Format: ai_drop_hint <hint type>\nValid hint types:\n");
 
@@ -1665,7 +1596,7 @@ void CC_ai_drop_hint( const CCommand &args )
 	HintNodeData nodeData;
 	nodeData.strEntityName = MAKE_STRING("ai_drop_hint");
 	nodeData.vecPosition = pPlayer->EyePosition();
-	nodeData.nHintType = atoi( args[1] );
+	nodeData.nHintType = atoi( engine->Cmd_Argv(1) );
 	nodeData.nNodeID = NO_NODE;
 	nodeData.strGroup = NULL_STRING;
 	nodeData.iDisabled = false;
@@ -1676,7 +1607,6 @@ void CC_ai_drop_hint( const CCommand &args )
 	CAI_Hint *pHint = CAI_HintManager::CreateHint( &nodeData, NULL );
 	if ( pHint )
 	{
-		((CBaseEntity *)pHint)->Activate();
 		pHint->KeyValue( "nodeFOV", "360" );
 		pHint->m_debugOverlays |= (OVERLAY_TEXT_BIT | OVERLAY_BBOX_BIT); 
 	}

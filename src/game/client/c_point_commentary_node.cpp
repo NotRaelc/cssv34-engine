@@ -17,7 +17,6 @@
 #include "soundenvelope.h"
 #include "convar.h"
 #include "hud_closecaption.h"
-#include "in_buttons.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -28,14 +27,6 @@
 extern ConVar english;
 extern ConVar closecaption;
 class C_PointCommentaryNode;
-
-CUtlVector< CHandle<C_PointCommentaryNode> >	g_CommentaryNodes;
-bool IsInCommentaryMode( void )
-{
-	return (g_CommentaryNodes.Count() > 0);
-}
-
-static bool g_bTracingVsCommentaryNodes = false;
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -48,7 +39,6 @@ public:
 
 	virtual void Init( void );
 	virtual void VidInit( void );
-	virtual void LevelInit( void ) { g_CommentaryNodes.Purge(); }
 	virtual void ApplySchemeSettings( vgui::IScheme *pScheme );
 
 	void StartCommentary( C_PointCommentaryNode *pNode, char *pszSpeakers, int iNode, int iNodeMax, float flStartTime, float flEndTime );
@@ -86,7 +76,7 @@ private:
 
 	CPanelAnimationVar( bool, m_bUseScriptBGColor, "use_script_bgcolor", "0" );
 	CPanelAnimationVar( Color, m_BackgroundColor, "BackgroundColor", "0 0 0 0" );
-	CPanelAnimationVar( Color, m_BGOverrideColor, "BackgroundOverrideColor", "Panel.BgColor" );
+	CPanelAnimationVar( Color, m_BGOverrideColor, "BackgroundColor", "Panel.BgColor" );
 };
 
 //-----------------------------------------------------------------------------
@@ -111,21 +101,6 @@ public:
 			StopLoopingSounds();
 			m_bRestartAfterRestore = true;
 		}
-
-		AddAndLockCommentaryHudGroup();
-	}
-
-	//-----------------------------------------------------------------------------
-	// Purpose: 
-	//-----------------------------------------------------------------------------
-	virtual void SetDormant( bool bDormant )
-	{
-		if ( !IsDormant() && bDormant )
-		{
-			RemoveAndUnlockCommentaryHudGroup();
-		}
-
-		BaseClass::SetDormant( bDormant );
 	}
 
 	//-----------------------------------------------------------------------------
@@ -133,8 +108,6 @@ public:
 	//-----------------------------------------------------------------------------
 	void UpdateOnRemove( void )
 	{
-		RemoveAndUnlockCommentaryHudGroup();
-
 		StopLoopingSounds();
 		BaseClass::UpdateOnRemove();
 	}
@@ -142,31 +115,6 @@ public:
 	void	StopLoopingSounds( void );
 
 	virtual bool TestCollision( const Ray_t &ray, unsigned int mask, trace_t& trace );
-
-	void AddAndLockCommentaryHudGroup( void )
-	{
-		if ( !g_CommentaryNodes.Count() )
-		{
-			int iRenderGroup = gHUD.LookupRenderGroupIndexByName( "commentary" );
-			gHUD.LockRenderGroup( iRenderGroup );
-		}
-
-		if ( g_CommentaryNodes.Find(this) == g_CommentaryNodes.InvalidIndex() )
-		{
-			g_CommentaryNodes.AddToTail( this );
-		}
-	}
-
-	void RemoveAndUnlockCommentaryHudGroup( void )
-	{
-		g_CommentaryNodes.FindAndRemove( this );
-
-		if ( !g_CommentaryNodes.Count() )
-		{
-			int iRenderGroup = gHUD.LookupRenderGroupIndexByName( "commentary" );
-			gHUD.UnlockRenderGroup( iRenderGroup );
-		}
-	}
 
 public:
 	// Data received from the server
@@ -217,11 +165,6 @@ void C_PointCommentaryNode::OnPreDataChanged( DataUpdateType_t updateType )
 void C_PointCommentaryNode::OnDataChanged( DataUpdateType_t updateType )
 {
 	BaseClass::OnDataChanged( updateType );
-
-	if ( updateType == DATA_UPDATE_CREATED )
-	{
-		AddAndLockCommentaryHudGroup();
-	}
 
 	if ( m_bWasActive == m_bActive && !m_bRestartAfterRestore )
 		return;
@@ -329,31 +272,7 @@ void C_PointCommentaryNode::StopLoopingSounds( void )
 //-----------------------------------------------------------------------------
 bool C_PointCommentaryNode::TestCollision( const Ray_t &ray, unsigned int mask, trace_t& trace )
 {
-	if ( !g_bTracingVsCommentaryNodes )
-		return false;
-
-	return BaseClass::TestCollision( ray, mask, trace );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool IsNodeUnderCrosshair( C_BasePlayer *pPlayer )
-{
-	// See if the player's looking at a commentary node
-	trace_t tr;
-	Vector vecSrc = pPlayer->EyePosition();
-	Vector vecForward;
-	AngleVectors( pPlayer->EyeAngles(), &vecForward );
-
-	g_bTracingVsCommentaryNodes = true;
-	UTIL_TraceLine( vecSrc, vecSrc + vecForward * MAX_TRACE_LENGTH, MASK_SOLID, pPlayer, COLLISION_GROUP_NONE, &tr );
-	g_bTracingVsCommentaryNodes = false;
-
-	if ( !tr.m_pEnt )
-		return false;
-
-	return dynamic_cast<C_PointCommentaryNode*>(tr.m_pEnt);
+	return false;
 }
 
 //===================================================================================================================
@@ -441,39 +360,11 @@ void CHudCommentary::Paint()
 	// Draw the speaker names
 	// Get our scheme and font information
 	vgui::HScheme scheme = vgui::scheme()->GetScheme( "ClientScheme" );
-	vgui::HFont hFont = vgui::scheme()->GetIScheme(scheme)->GetFont( "CommentaryDefault" );
-	if ( !hFont )
-	{
-		hFont = vgui::scheme()->GetIScheme(scheme)->GetFont( "Default" );
-	}
+	vgui::HFont hFont = vgui::scheme()->GetIScheme(scheme)->GetFont( "Default" );
 	vgui::surface()->DrawSetTextFont( hFont );
 	vgui::surface()->DrawSetTextColor( clr ); 
 	vgui::surface()->DrawSetTextPos( m_iSpeakersX, m_iSpeakersY );
 	vgui::surface()->DrawPrintText( m_szSpeakers, wcslen(m_szSpeakers) );
-
-	if ( COMMENTARY_BUTTONS & IN_ATTACK )
-	{
-		int iY = m_iBarY + m_iBarTall + YRES(4);
-		wchar_t wzFinal[512] = L"";
-
-		wchar_t *pszText = g_pVGuiLocalize->Find( "#Commentary_PrimaryAttack" );
-		if ( pszText )
-		{
-			UTIL_ReplaceKeyBindings( pszText, 0, wzFinal, sizeof( wzFinal ) );
-			vgui::surface()->DrawSetTextPos( m_iSpeakersX, iY );
-			vgui::surface()->DrawPrintText( wzFinal, wcslen(wzFinal) );
-		}
-
-		pszText = g_pVGuiLocalize->Find( "#Commentary_SecondaryAttack" );
-		if ( pszText )
-		{
-			int w, h;
-			UTIL_ReplaceKeyBindings( pszText, 0, wzFinal, sizeof( wzFinal ) );
-			vgui::surface()->GetTextSize( hFont, wzFinal, w, h );
-			vgui::surface()->DrawSetTextPos( m_iBarX + m_iBarWide - w, iY );
-			vgui::surface()->DrawPrintText( wzFinal, wcslen(wzFinal) );
-		}
-	}
 
 	// Draw the commentary count
 	// Determine our text size, and move that far in from the right hand size (plus the offset)
@@ -501,7 +392,7 @@ bool CHudCommentary::ShouldDraw()
 //-----------------------------------------------------------------------------
 void CHudCommentary::Init( void )
 { 
-	m_matIcon.Init( "vgui/hud/icon_commentary", TEXTURE_GROUP_VGUI );
+	m_matIcon.Init( "vgui/icon_commentary", TEXTURE_GROUP_VGUI );
 }
 
 //-----------------------------------------------------------------------------
@@ -525,13 +416,13 @@ void CHudCommentary::StartCommentary( C_PointCommentaryNode *pNode, char *pszSpe
 	m_flStartTime = flStartTime;
 	m_flEndTime = flEndTime;
 	m_bHiding = false;
-	g_pVGuiLocalize->ConvertANSIToUnicode( pszSpeakers, m_szSpeakers, sizeof(m_szSpeakers) );
+	vgui::localize()->ConvertANSIToUnicode( pszSpeakers, m_szSpeakers, sizeof(m_szSpeakers) );
 
 	// Don't draw the element itself if closecaptions are on (and captions are always on in non-english mode)
-	ConVarRef pCVar( "closecaption" );
-	if ( pCVar.IsValid() )
+	ConVar *pCVar = cvar->FindVar("closecaption");
+	if ( pCVar )
 	{
-		m_bShouldPaint = ( !pCVar.GetBool() && english.GetBool() );
+		m_bShouldPaint = (!pCVar->GetBool() && english.GetBool());
 	}
 	else
 	{
@@ -541,7 +432,7 @@ void CHudCommentary::StartCommentary( C_PointCommentaryNode *pNode, char *pszSpe
 
 	char sz[MAX_COUNT_STRING];
 	Q_snprintf( sz, sizeof(sz), "%d \\ %d", iNode, iNodeMax );
-	g_pVGuiLocalize->ConvertANSIToUnicode( sz, m_szCount, sizeof(m_szCount) );
+	vgui::localize()->ConvertANSIToUnicode( sz, m_szCount, sizeof(m_szCount) );
 
 	// If the commentary just started, play the commentary fade in.
 	if ( fabs(flStartTime - gpGlobals->curtime) < 1.0 )
@@ -563,24 +454,3 @@ void CHudCommentary::StopCommentary( void )
 	m_hActiveNode = NULL;
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-bool CommentaryModeShouldSwallowInput( C_BasePlayer *pPlayer )
-{
-	if ( !IsInCommentaryMode() )	
-		return false;
-
-	if ( pPlayer->m_nButtons & COMMENTARY_BUTTONS )
-	{
-		// Always steal the secondary attack
-		if ( pPlayer->m_nButtons & IN_ATTACK2 )
-			return true;
-
-		// See if there's any nodes ahead of us.
-		if ( IsNodeUnderCrosshair( pPlayer ) )
-			return true;
-	}
-
-	return false;
-}

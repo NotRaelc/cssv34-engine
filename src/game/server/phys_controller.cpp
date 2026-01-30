@@ -176,6 +176,11 @@ void CPhysForce::Spawn( void )
 	{
 		m_integrator.Init( IMotionEvent::SIM_GLOBAL_ACCELERATION );
 	}
+
+	if ( m_spawnflags & SF_THRUST_STARTACTIVE )
+	{
+		ForceOn();
+	}
 }
 
 void CPhysForce::OnRestore( )
@@ -208,9 +213,9 @@ void CPhysForce::Activate( void )
 	// Let the derived class set up before we throw the switch
 	OnActivate();
 
-	if ( m_spawnflags & SF_THRUST_STARTACTIVE )
+	if ( m_pController )
 	{
-		ForceOn();
+		ActivateForce();
 	}
 }
 
@@ -708,21 +713,8 @@ CPhysMotor::~CPhysMotor()
 void CPhysMotor::Spawn( void )
 {
 	m_motor.m_axis -= GetLocalOrigin();
-	float axisLength = VectorNormalize(m_motor.m_axis);
-	// double check that the axis is at least a unit long. If not, warn and self-destruct.
-	if ( axisLength > 1.0f )
-	{
-		UTIL_SnapDirectionToAxis( m_motor.m_axis );
-	}
-	else
-	{
-		Warning("phys_motor %s does not have a valid axis helper, and self-destructed!\n", GetDebugName());
-
-		m_motor.m_speed = 0;
-		SetNextThink( TICK_NEVER_THINK );
-
-		UTIL_Remove(this);
-	}
+	VectorNormalize(m_motor.m_axis);
+	UTIL_SnapDirectionToAxis( m_motor.m_axis );
 }
 
 
@@ -879,7 +871,6 @@ private:
 	EHANDLE						m_attachedObject;
 	float						m_angularLimit;
 	bool						m_bActive;
-	bool						m_bDampAllRotation;
 };
 
 #define SF_KEEPUPRIGHT_START_INACTIVE		0x0001
@@ -895,7 +886,6 @@ BEGIN_DATADESC( CKeepUpright )
 	DEFINE_FIELD( m_attachedObject, FIELD_EHANDLE ),
 	DEFINE_KEYFIELD( m_angularLimit, FIELD_FLOAT, "angularlimit" ),
 	DEFINE_FIELD( m_bActive, FIELD_BOOLEAN ),
-	DEFINE_FIELD( m_bDampAllRotation, FIELD_BOOLEAN ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOn", InputTurnOn ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOff", InputTurnOff ),
@@ -908,7 +898,6 @@ CKeepUpright::CKeepUpright()
 	// by default, recover from up to 15 degrees / sec angular velocity
 	m_angularLimit = 15;
 	m_attachedObject = NULL;
-	m_bDampAllRotation = false;
 }
 
 CKeepUpright::~CKeepUpright()
@@ -953,7 +942,7 @@ void CKeepUpright::Activate()
 		}
 		else
 		{
-			pPhys = FindPhysicsObjectByName( STRING(m_nameAttach), this );
+			pPhys = FindPhysicsObjectByName( STRING(m_nameAttach) );
 		}
 
 		if ( !pPhys )
@@ -961,20 +950,6 @@ void CKeepUpright::Activate()
 			UTIL_Remove(this);
 			return;
 		}
-		// HACKHACK: Due to changes in the vehicle simulator the keepupright controller used in coast_01 is unstable
-		// force it to have perfect damping to compensate.
-		// detect it using the hack of angular limit == 150, attached to a vehicle
-		// Fixing it in the code is the simplest course of action presently
-#ifdef HL2_DLL
-		if ( m_angularLimit == 150.0f )
-		{
-			CBaseEntity *pEntity = static_cast<CBaseEntity *>(pPhys->GetGameData());
-			if ( pEntity && pEntity->GetServerVehicle() && Q_stristr( gpGlobals->mapname.ToCStr(), "d2_coast_01" ) )
-			{
-				m_bDampAllRotation = true;
-			}
-		}
-#endif
 
 		m_pController = physenv->CreateMotionController( (IMotionEvent *)this );
 		m_pController->AttachObject( pPhys, false );
@@ -1027,16 +1002,7 @@ IMotionEvent::simresult_e CKeepUpright::Simulate( IPhysicsMotionController *pCon
 
 	float invDeltaTime = (1/deltaTime);
 
-	if ( m_bDampAllRotation )
-	{
-		angular = ComputeRotSpeedToAlignAxes( m_localTestAxis, currentLocalTargetAxis, angVel, 0, invDeltaTime, m_angularLimit );
-		angular -= angVel;
-		angular *= invDeltaTime;
-		return SIM_LOCAL_ACCELERATION;
-	}
-
-	angular = ComputeRotSpeedToAlignAxes( m_localTestAxis, currentLocalTargetAxis, angVel, 1.0, invDeltaTime, m_angularLimit );
-	angular *= invDeltaTime;
+	angular = ComputeRotSpeedToAlignAxes( m_localTestAxis, currentLocalTargetAxis, angVel, 1.0, invDeltaTime * invDeltaTime, m_angularLimit * invDeltaTime );
 
 #if 0
 	Vector position, out, worldAxis;

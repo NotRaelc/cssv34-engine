@@ -585,7 +585,7 @@ void CNavArea::Load( FileHandle_t file, unsigned int version )
 				filesystem->Read( &connect.id, sizeof(unsigned int), file );
 
 				bool alreadyConnected = false;
-				FOR_EACH_LL( m_ladder[dir], j )
+				for ( int j=0; j<m_ladder[dir].Count(); ++j )
 				{
 					if ( m_ladder[dir][j].id == connect.id )
 					{

@@ -9,7 +9,7 @@
 #include "cbase.h"
 #include "basetempentity.h"
 #include "event_tempentity_tester.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

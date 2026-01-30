@@ -26,12 +26,11 @@ enum
 	SF_TRIGGER_ALLOW_PHYSICS				= 0x08,		// Physics objects can fire this trigger
 	SF_TRIGGER_ONLY_PLAYER_ALLY_NPCS		= 0x10,		// *if* NPCs can fire this trigger, this flag means only player allies do so
 	SF_TRIGGER_ONLY_CLIENTS_IN_VEHICLES		= 0x20,		// *if* Players can fire this trigger, this flag means only players inside vehicles can 
-	SF_TRIGGER_ALLOW_ALL					= 0x40,		// Everything can fire this trigger EXCEPT DEBRIS!
+	SF_TRIGGER_ALLOW_ALL					= 0x40,		// Everything can fire this trigger
 	SF_TRIGGER_ONLY_CLIENTS_OUT_OF_VEHICLES	= 0x200,	// *if* Players can fire this trigger, this flag means only players outside vehicles can 
 	SF_TRIG_PUSH_ONCE						= 0x80,		// trigger_push removes itself after firing once
 	SF_TRIG_PUSH_AFFECT_PLAYER_ON_LADDER	= 0x100,	// if pushed object is player on a ladder, then this disengages them from the ladder (HL2only)
 	SF_TRIG_TOUCH_DEBRIS 					= 0x400,	// Will touch physics debris objects
-	SF_TRIGGER_ONLY_NPCS_IN_VEHICLES		= 0X800,	// *if* NPCs can fire this trigger, only NPCs in vehicles do so (respects player ally flag too)
 };
 
 // DVS TODO: get rid of CBaseToggle
@@ -51,19 +50,17 @@ public:
 	void Enable( void );
 	void Disable( void );
 	void Spawn( void );
+	bool CreateVPhysics( void );
 	void UpdateOnRemove( void );
-	void TouchTest(  void );
 
 	// Input handlers
 	virtual void InputEnable( inputdata_t &inputdata );
 	virtual void InputDisable( inputdata_t &inputdata );
 	virtual void InputToggle( inputdata_t &inputdata );
-	virtual void InputTouchTest ( inputdata_t &inputdata );
 
 	virtual void InputStartTouch( inputdata_t &inputdata );
 	virtual void InputEndTouch( inputdata_t &inputdata );
 
-	virtual bool UsesFilter( void ){ return ( m_hFilter.Get() != NULL ); }
 	virtual bool PassesTriggerFilters(CBaseEntity *pOther);
 	virtual void StartTouch(CBaseEntity *pOther);
 	virtual void EndTouch(CBaseEntity *pOther);
@@ -84,11 +81,8 @@ protected:
 
 	// Outputs
 	COutputEvent m_OnStartTouch;
-	COutputEvent m_OnStartTouchAll;
 	COutputEvent m_OnEndTouch;
 	COutputEvent m_OnEndTouchAll;
-	COutputEvent m_OnTouching;
-	COutputEvent m_OnNotTouching;
 
 	// Entities currently being touched by this trigger
 	CUtlVector< EHANDLE >	m_hTouchingEntities;
@@ -149,59 +143,11 @@ public:
 	void InputToggle( inputdata_t &inputdata );
 	void InputEnable( inputdata_t &inputdata );
 	void InputDisable( inputdata_t &inputdata );
-	
 
 protected:
 	bool						m_bDisabled;
 	string_t					m_iFilterName;
 	CHandle<class CBaseFilter>	m_hFilter;
-};
-
-//-----------------------------------------------------------------------------
-// Purpose: Hurts anything that touches it. If the trigger has a targetname,
-//			firing it will toggle state.
-//-----------------------------------------------------------------------------
-class CTriggerHurt : public CBaseTrigger
-{
-public:
-	CTriggerHurt()
-	{
-		// This field came along after levels were built so the field defaults to 20 here in the constructor.
-		m_flDamageCap = 20.0f;
-	}
-
-	DECLARE_CLASS( CTriggerHurt, CBaseTrigger );
-
-	void Spawn( void );
-	void RadiationThink( void );
-	void HurtThink( void );
-	void Touch( CBaseEntity *pOther );
-	void EndTouch( CBaseEntity *pOther );
-	bool HurtEntity( CBaseEntity *pOther, float damage );
-	int HurtAllTouchers( float dt );
-
-	DECLARE_DATADESC();
-
-	float	m_flOriginalDamage;	// Damage as specified by the level designer.
-	float	m_flDamage;			// Damage per second.
-	float	m_flDamageCap;		// Maximum damage per second.
-	float	m_flLastDmgTime;	// Time that we last applied damage.
-	float	m_flDmgResetTime;	// For forgiveness, the time to reset the counter that accumulates damage.
-	int		m_bitsDamageInflict;	// DMG_ damage type that the door or tigger does
-	int		m_damageModel;
-	bool	m_bNoDmgForce;		// Should damage from this trigger impart force on what it's hurting
-
-	enum
-	{
-		DAMAGEMODEL_NORMAL = 0,
-		DAMAGEMODEL_DOUBLE_FORGIVENESS,
-	};
-
-	// Outputs
-	COutputEvent m_OnHurt;
-	COutputEvent m_OnHurtPlayer;
-
-	CUtlVector<EHANDLE>	m_hurtEntities;
 };
 
 #endif // TRIGGERS_H

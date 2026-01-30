@@ -24,7 +24,6 @@
 #else
 	
 	#include "baseentity.h"
-	#include "recipientfilter.h"
 
 #endif
 
@@ -38,16 +37,6 @@ class CBaseCombatCharacter;
 class CBasePlayer;
 class CItem;
 class CAmmoDef;
-
-extern ConVar sk_autoaim_mode;
-
-// Autoaiming modes
-enum
-{
-	AUTOAIM_NONE = 0,		// No autoaim at all.
-	AUTOAIM_ON,				// Autoaim is on.
-	AUTOAIM_ON_CONSOLE,		// Autoaim is on, including enhanced features for Console gaming (more assistance, etc)
-};
 
 // weapon respawning return codes
 enum
@@ -122,20 +111,6 @@ public:
 	CGameRules(void);
 	virtual ~CGameRules( void );
 
-	// Damage Queries - these need to be implemented by the various subclasses (single-player, multi-player, etc).
-	// The queries represent queries against damage types and properties.
-	virtual bool	Damage_IsTimeBased( int iDmgType ) = 0;			// Damage types that are time-based.
-	virtual bool	Damage_ShouldGibCorpse( int iDmgType ) = 0;		// Damage types that gib the corpse.
-	virtual bool	Damage_ShowOnHUD( int iDmgType ) = 0;			// Damage types that have client HUD art.
-	virtual bool	Damage_NoPhysicsForce( int iDmgType ) = 0;		// Damage types that don't have to supply a physics force & position.
-	virtual bool	Damage_ShouldNotBleed( int iDmgType ) = 0;		// Damage types that don't make the player bleed.
-	//Temp: These will go away once DamageTypes become enums.
-	virtual int		Damage_GetTimeBased( void ) = 0;				// Actual bit-fields.
-	virtual int		Damage_GetShouldGibCorpse( void ) = 0;
-	virtual int		Damage_GetShowOnHud( void ) = 0;					
-	virtual int		Damage_GetNoPhysicsForce( void )= 0;
-	virtual int		Damage_GetShouldNotBleed( void ) = 0;
-
 // Ammo Definitions
 	//CAmmoDef* GetAmmoDef();
 
@@ -169,21 +144,17 @@ public:
 	virtual bool IsMultiplayer( void ) = 0;// is this a multiplayer game? (either coop or deathmatch)
 
 	virtual const unsigned char *GetEncryptionKey() { return NULL; }
-
-	virtual bool InRoundRestart( void ) { return false; }
-
 #ifdef CLIENT_DLL
 
-	virtual bool IsBonusChallengeTimeBased( void );
-	
 #else
-	
 
 
 // CBaseEntity overrides.
 public:
 
 // Setup
+
+	virtual void CheckHaptics( CBasePlayer* pPlayer );
 	
 	// Called when game rules are destroyed by CWorld
 	virtual void LevelShutdown( void ) { return; };
@@ -244,8 +215,6 @@ public:
 	virtual bool  FPlayerCanTakeDamage( CBasePlayer *pPlayer, CBaseEntity *pAttacker ) {return TRUE;};// can this player take damage from this attacker?
 	virtual bool ShouldAutoAim( CBasePlayer *pPlayer, edict_t *target ) { return TRUE; }
 	virtual float GetAutoAimScale( CBasePlayer *pPlayer ) { return 1.0f; }
-	virtual int	GetAutoAimMode()	{ return AUTOAIM_ON; }
-
 	virtual bool ShouldUseRobustRadiusDamage(CBaseEntity *pEntity) { return false; }
 	virtual void  RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc, float flRadius, int iClassIgnore, CBaseEntity *pEntityIgnore );
 	// Let the game rules specify if fall death should fade screen to black
@@ -263,14 +232,14 @@ public:
 	virtual bool IsSpawnPointValid( CBaseEntity *pSpot, CBasePlayer *pPlayer );
 
 	virtual bool AllowAutoTargetCrosshair( void ) { return TRUE; };
-	virtual bool ClientCommand( CBaseEntity *pEdict, const CCommand &args );  // handles the user commands;  returns TRUE if command handled properly
+	virtual bool ClientCommand( const char *pcmd, CBaseEntity *pEdict );  // handles the user commands;  returns TRUE if command handled properly
 	virtual void ClientSettingsChanged( CBasePlayer *pPlayer );		 // the player has changed cvars
 
 // Client kills/scoring
 	virtual int IPointsForKill( CBasePlayer *pAttacker, CBasePlayer *pKilled ) = 0;// how many points do I award whoever kills this player?
 	virtual void PlayerKilled( CBasePlayer *pVictim, const CTakeDamageInfo &info ) = 0;// Called each time a player dies
 	virtual void DeathNotice( CBasePlayer *pVictim, const CTakeDamageInfo &info )=  0;// Call this from within a GameRules class to report an obituary.
-	virtual const char *GetDamageCustomString( const CTakeDamageInfo &info ) { return NULL; }
+	virtual const char *GetCustomKillString( const CTakeDamageInfo &info ) { return NULL; }
 
 // Weapon Damage
 	// Determines how much damage Player's attacks inflict, based on skill level.
@@ -320,7 +289,6 @@ public:
 	virtual const char *GetTeamID( CBaseEntity *pEntity ) = 0;// what team is this entity on?
 	virtual int PlayerRelationship( CBaseEntity *pPlayer, CBaseEntity *pTarget ) = 0;// What is the player's relationship with this entity?
 	virtual bool PlayerCanHearChat( CBasePlayer *pListener, CBasePlayer *pSpeaker ) = 0;
-	virtual void CheckChatText( CBasePlayer *pPlayer, char *pText ) { return; }
 
 	virtual int GetTeamIndex( const char *pTeamName ) { return -1; }
 	virtual const char *GetIndexedTeamName( int teamIndex ) { return ""; }
@@ -354,22 +322,16 @@ public:
 	// VGUI format string for chat, if desired
 	virtual const char *GetChatFormat( bool bTeamOnly, CBasePlayer *pPlayer ) { return NULL; }
 
-	// Whether props that are on fire should get a DLIGHT.
+// Whether props that are on fire should get a DLIGHT.
 	virtual bool ShouldBurningPropsEmitLight() { return false; }
+
+	virtual bool InRoundRestart( void ) { return false; }
 
 	virtual bool CanEntityBeUsePushed( CBaseEntity *pEnt ) { return true; }
 
-	virtual void CreateCustomNetworkStringTables( void ) { }
-
-	// Game Achievements (server version)
-	virtual void MarkAchievement ( IRecipientFilter& filter, char const *pchAchievementName );
-
-	virtual void ResetMapCycleTimeStamp( void ){ return; }
+	virtual void CreateCustomNetworkStringTables( void ) {}
 	
 #endif
-
-	virtual const char *GetGameTypeName( void ){ return NULL; }
-	virtual int GetGameType( void ){ return 0; }
 };
 
 

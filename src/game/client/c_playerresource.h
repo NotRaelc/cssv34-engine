@@ -21,7 +21,6 @@ class C_PlayerResource : public C_BaseEntity, public IGameResources
 	DECLARE_CLASS( C_PlayerResource, C_BaseEntity );
 public:
 	DECLARE_CLIENTCLASS();
-	DECLARE_PREDICTABLE();
 
 					C_PlayerResource();
 	virtual			~C_PlayerResource();
@@ -49,15 +48,10 @@ public : // IGameResources intreface
 	virtual int		GetFrags( int index );
 	virtual int		GetHealth( int index );
 
-	virtual void ClientThink();
-	virtual	void	OnDataChanged(DataUpdateType_t updateType);
-
 protected:
-	void	UpdatePlayerName( int slot );
-
 	// Data for each player that's propagated to all clients
 	// Stored in individual arrays so they can be sent down via datatables
-	string_t	m_szName[MAX_PLAYERS+1];
+	char	m_szName[MAX_PLAYERS+1][ MAX_PLAYER_NAME_LENGTH ];
 	int		m_iPing[MAX_PLAYERS+1];
 	int		m_iScore[MAX_PLAYERS+1];
 	int		m_iDeaths[MAX_PLAYERS+1];

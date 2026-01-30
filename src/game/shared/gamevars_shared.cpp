@@ -13,11 +13,7 @@
 // some shared cvars used by game rules
 ConVar mp_forcecamera( 
 	"mp_forcecamera", 
-#ifdef TF_DLL
-	"3",
-#else
-	"1", 
-#endif
+	"0", 
 	FCVAR_REPLICATED,
 	"Restricts spectator modes for dead players" );
 	
@@ -31,8 +27,7 @@ ConVar friendlyfire(
 	"mp_friendlyfire",
 	"0",
 	FCVAR_REPLICATED | FCVAR_NOTIFY,
-	"Allows team members to injure other members of their team"
-	);
+	"Allows team members to injure other members of their team" );
 
 ConVar mp_fadetoblack( 
 	"mp_fadetoblack", 

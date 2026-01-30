@@ -19,57 +19,40 @@
 #include "phys_controller.h"
 #include "entityblocker.h"
 #include "vehicle_baseserver.h"
-#include "vehicle_viewblend_shared.h"
 
 class CNPC_VehicleDriver;
 class CFourWheelVehiclePhysics;
 class CPropVehicleDriveable;
 class CSoundPatch;
 
-// the tires are considered to be skidding if they have sliding velocity of 10 in/s or more
-const float DEFAULT_SKID_THRESHOLD = 10.0f;
-
 //-----------------------------------------------------------------------------
 // Purpose: Four wheel physics vehicle server vehicle
 //-----------------------------------------------------------------------------
 class CFourWheelServerVehicle : public CBaseServerVehicle
 {
-	DECLARE_CLASS( CFourWheelServerVehicle, CBaseServerVehicle );
-
+	typedef CBaseServerVehicle BaseClass;
 // IServerVehicle
 public:
 	virtual ~CFourWheelServerVehicle( void )
 	{
 	}
 
-							CFourWheelServerVehicle( void );
 	virtual bool			IsVehicleUpright( void );
 	virtual bool			IsVehicleBodyInWater( void );
-	virtual void			GetVehicleViewPosition( int nRole, Vector *pOrigin, QAngle *pAngles, float *pFOV = NULL );
-	IPhysicsVehicleController *GetVehicleController();
+	virtual void			GetVehicleViewPosition( int nRole, Vector *pOrigin, QAngle *pAngles );
 	const vehicleparams_t	*GetVehicleParams( void );
-	const vehicle_controlparams_t *GetVehicleControlParams( void );
-	const vehicle_operatingparams_t	*GetVehicleOperatingParams( void );
 
 	// NPC Driving
 	void					NPC_SetDriver( CNPC_VehicleDriver *pDriver );
 	void					NPC_DriveVehicle( void );
 
 	CPropVehicleDriveable	*GetFourWheelVehicle( void );
-	bool					GetWheelContactPoint( int nWheelIndex, Vector &vecPos );
 
 public:
 	virtual void	SetVehicle( CBaseEntity *pVehicle );
-	void	InitViewSmoothing( const Vector &vecStartOrigin, const QAngle &vecStartAngles );
-	bool	IsPassengerEntering( void );
-	bool	IsPassengerExiting( void );
-
-	DECLARE_SIMPLE_DATADESC();
 
 private:
 	CFourWheelVehiclePhysics	*GetFourWheelVehiclePhysics( void );
-	
-	ViewSmoothingData_t		m_ViewSmoothing;
 };
 
 //-----------------------------------------------------------------------------
@@ -124,7 +107,7 @@ protected:
 	void ResetControls();
 	
 	// Upright strength of the controller (angular limit)
-	virtual float GetUprightStrength( void ) { return 8.0f; }
+	virtual float GetUprightStrength( void ) { return 0.0f; }
 	virtual float GetUprightTime( void ) { return 5.0f; }
 
 protected:
@@ -181,7 +164,6 @@ public:
 	virtual void	Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
 	virtual void	Think( void );
 	virtual void	TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr );
-	virtual void	Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info );
 
 	// Vehicle handling
 	virtual void	VPhysicsCollision( int index, gamevcollisionevent_t *pEvent );
@@ -225,9 +207,6 @@ public:
 	virtual bool		AllowMidairExit( CBaseCombatCharacter *pPassenger, int nRole ) { return false; }
 	virtual void		PreExitVehicle( CBaseCombatCharacter *pPassenger, int nRole ) {}
 	virtual void		ExitVehicle( int nRole );
-	virtual string_t	GetVehicleScriptName() { return m_vehicleScript; }
-	
-	virtual bool		PassengerShouldReceiveDamage( CTakeDamageInfo &info ) { return true; }
 
 	// If this is a vehicle, returns the vehicle interface
 	virtual IServerVehicle *GetServerVehicle() { return m_pServerVehicle; }
@@ -285,10 +264,6 @@ public:
 
 	// NPC Passengers
 	// --------------------------------
-
-	bool IsEnterAnimOn( void ) { return m_bEnterAnimOn; }
-	bool IsExitAnimOn( void ) { return m_bExitAnimOn; }
-	const Vector &GetEyeExitEndpoint( void ) { return m_vecEyeExitEndpoint; }
 
 protected:
 	// Entering / Exiting

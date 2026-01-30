@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: A camera entity that's used by the -makedevshots system to take
 //			dev screenshots everytime the map is checked into source control.
@@ -7,7 +7,7 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "tier0/icommandline.h"
+#include "vstdlib/ICommandLine.h"
 #include "igamesystem.h"
 #include "filesystem.h"
 #include <KeyValues.h>

@@ -18,7 +18,6 @@ class CChoreoEvent;
 class CChoreoActor;
 class CChoreoScene;
 class CUtlBuffer;
-class IChoreoStringPool;
 
 //-----------------------------------------------------------------------------
 // Purpose: A channel is owned by an actor and contains zero or more events
@@ -34,8 +33,8 @@ public:
 	CChoreoChannel&	operator=(const CChoreoChannel& src );
 
 	// Serialization
-	void			SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool );
-	bool			RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, CChoreoActor *pActor, IChoreoStringPool *pStringPool );
+	void			SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene );
+	bool			RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, CChoreoActor *pActor );
 
 	// Accessors
 	void			SetName( const char *name );

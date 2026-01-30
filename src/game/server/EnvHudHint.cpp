@@ -14,8 +14,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define SF_HUDHINT_ALLPLAYERS			0x0001
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -28,8 +26,6 @@ public:
 	void	Precache( void );
 
 private:
-	inline	bool	AllPlayers(void) { return (m_spawnflags & SF_HUDHINT_ALLPLAYERS) != 0; }
-
 	void InputShowHudHint( inputdata_t &inputdata );
 	void InputHideHudHint( inputdata_t &inputdata );
 	string_t m_iszMessage;
@@ -72,36 +68,28 @@ void CEnvHudHint::Precache( void )
 //-----------------------------------------------------------------------------
 void CEnvHudHint::InputShowHudHint( inputdata_t &inputdata )
 {
-	if (AllPlayers())
+	CBaseEntity *pPlayer = NULL;
+
+	if ( inputdata.pActivator && inputdata.pActivator->IsPlayer() )
 	{
-		CReliableBroadcastRecipientFilter user;
-		UserMessageBegin(user, "KeyHintText");
-			WRITE_BYTE(1);	// one message
-			WRITE_STRING(STRING(m_iszMessage));
-		MessageEnd();
+		pPlayer = inputdata.pActivator;
 	}
 	else
 	{
-		CBaseEntity *pPlayer = NULL;
+		pPlayer = UTIL_GetLocalPlayer();
+	}
 
-		if ( inputdata.pActivator && inputdata.pActivator->IsPlayer() )
-		{
-			pPlayer = inputdata.pActivator;
-		}
-		else
-		{
-			pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
-		}
+	if ( pPlayer )
+	{
+		if ( !pPlayer || !pPlayer->IsNetClient() )
+			return;
 
-		if ( pPlayer && pPlayer->IsNetClient() )
-		{
-			CSingleUserRecipientFilter user( (CBasePlayer *)pPlayer );
-			user.MakeReliable();
-			UserMessageBegin( user, "KeyHintText" );
-				WRITE_BYTE( 1 );	// one message
-				WRITE_STRING( STRING(m_iszMessage) );
-			MessageEnd();
-		}
+		CSingleUserRecipientFilter user( (CBasePlayer *)pPlayer );
+		user.MakeReliable();
+		UserMessageBegin( user, "HintText" );
+			WRITE_BYTE( 1 );	// one message
+			WRITE_STRING( STRING(m_iszMessage) );
+		MessageEnd();
 	}
 }
 
@@ -109,35 +97,27 @@ void CEnvHudHint::InputShowHudHint( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CEnvHudHint::InputHideHudHint( inputdata_t &inputdata )
 {
-	if (AllPlayers())
+	CBaseEntity *pPlayer = NULL;
+
+	if ( inputdata.pActivator && inputdata.pActivator->IsPlayer() )
 	{
-		CReliableBroadcastRecipientFilter user;
-		UserMessageBegin(user, "KeyHintText");
-		WRITE_BYTE(1);	// one message
-		WRITE_STRING(STRING(NULL_STRING));
-		MessageEnd();
+		pPlayer = inputdata.pActivator;
 	}
 	else
 	{
-		CBaseEntity *pPlayer = NULL;
+		pPlayer = UTIL_GetLocalPlayer();
+	}
 
-		if ( inputdata.pActivator && inputdata.pActivator->IsPlayer() )
-		{
-			pPlayer = inputdata.pActivator;
-		}
-		else
-		{
-			pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
-		}
+	if ( pPlayer )
+	{
+		if ( !pPlayer || !pPlayer->IsNetClient() )
+			return;
 
-		if ( pPlayer && pPlayer->IsNetClient() )
-		{
-			CSingleUserRecipientFilter user( (CBasePlayer *)pPlayer );
-			user.MakeReliable();
-			UserMessageBegin( user, "KeyHintText" );
-			WRITE_BYTE( 1 );	// one message
-			WRITE_STRING( STRING(NULL_STRING) );
-			MessageEnd();
-		}
+		CSingleUserRecipientFilter user( (CBasePlayer *)pPlayer );
+		user.MakeReliable();
+		UserMessageBegin( user, "HintText" );
+		WRITE_BYTE( 1 );	// one message
+		WRITE_STRING( STRING(NULL_STRING) );
+		MessageEnd();
 	}
 }

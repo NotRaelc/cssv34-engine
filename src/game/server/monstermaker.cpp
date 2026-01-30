@@ -28,8 +28,6 @@ static void DispatchActivate( CBaseEntity *pEntity )
 	mdlcache->SetAsyncLoad( MDLCACHE_ANIMBLOCK, bAsyncAnims );
 }
 
-ConVar ai_inhibit_spawners( "ai_inhibit_spawners", "0", FCVAR_CHEAT );
-
 
 LINK_ENTITY_TO_CLASS( info_npc_spawn_destination, CNPCSpawnDestination );
 
@@ -164,9 +162,6 @@ bool CBaseNPCMaker::HumanHullFits( const Vector &vecLocation )
 //-----------------------------------------------------------------------------
 bool CBaseNPCMaker::CanMakeNPC( bool bIgnoreSolidEntities )
 {
-	if( ai_inhibit_spawners.GetBool() )
-		return false;
-
 	if ( m_nMaxLiveChildren > 0 && m_nLiveChildren >= m_nMaxLiveChildren )
 	{// not allowed to make a new one yet. Too many live ones out right now.
 		return false;
@@ -231,9 +226,7 @@ bool CBaseNPCMaker::CanMakeNPC( bool bIgnoreSolidEntities )
 				// Only spawn if the player's looking away from me
 				if( pPlayer->FInViewCone( GetAbsOrigin() ) && pPlayer->FVisible( GetAbsOrigin() ) )
 				{
-					if ( !(pPlayer->GetFlags() & FL_NOTARGET) )
-						return false;
-					DevMsg( 2, "Spawner %s spawning even though seen due to notarget\n", STRING( GetEntityName() ) );
+					return false;
 				}
 			}
 		}
@@ -494,7 +487,7 @@ void CBaseNPCMaker::ChildPostSpawn( CAI_BaseNPC *pChild )
 		//NDebugOverlay::Box( pChild->GetAbsOrigin(), pChild->WorldAlignMins(), pChild->WorldAlignMaxs(), 0, 255, 0, 32, 5.0 );
 		if ( tr.fraction != 1.0 && tr.m_pEnt )
 		{
-			if ( FClassnameIs( tr.m_pEnt, "prop_physics" ) )
+			if ( dynamic_cast<CBaseProp*>(tr.m_pEnt) )
 			{
 				// Set to non-solid so this loop doesn't keep finding it
 				tr.m_pEnt->AddSolidFlags( FSOLID_NOT_SOLID );
@@ -567,21 +560,10 @@ BEGIN_DATADESC( CTemplateNPCMaker )
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "SpawnNPCInRadius", InputSpawnInRadius ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "SpawnNPCInLine", InputSpawnInLine ),
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "SpawnMultiple", InputSpawnMultiple ),
 	DEFINE_INPUTFUNC( FIELD_STRING, "ChangeDestinationGroup", InputChangeDestinationGroup ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetMinimumSpawnDistance", InputSetMinimumSpawnDistance ),
 
 END_DATADESC()
-
-
-//-----------------------------------------------------------------------------
-// A hook that lets derived NPC makers do special stuff when precaching.
-//-----------------------------------------------------------------------------
-void CTemplateNPCMaker::PrecacheTemplateEntity( CBaseEntity *pEntity )
-{
-	pEntity->Precache();
-}
-
 
 void CTemplateNPCMaker::Precache()
 {
@@ -621,7 +603,7 @@ void CTemplateNPCMaker::Precache()
 		MapEntity_ParseEntity( pEntity, STRING(m_iszTemplateData), NULL );
 		if ( pEntity != NULL )
 		{
-			PrecacheTemplateEntity( pEntity );
+			pEntity->Precache();
 			UTIL_RemoveImmediate( pEntity );
 		}
 	}
@@ -659,7 +641,6 @@ CNPCSpawnDestination *CTemplateNPCMaker::FindSpawnDestination()
 		{
 			bool fValid = true;
 			Vector vecTest = pDestination->GetAbsOrigin();
-			pPlayer = UTIL_GetNearestPlayer( vecTest );
 
 			if( m_CriterionVisibility != TS_YN_DONT_CARE )
 			{
@@ -677,12 +658,7 @@ CNPCSpawnDestination *CTemplateNPCMaker::FindSpawnDestination()
 				else
 				{
 					if( fVisible )
-					{
-						if ( !(pPlayer->GetFlags() & FL_NOTARGET) )
-							fValid = false;
-						else
-							DevMsg( 2, "Spawner %s spawning even though seen due to notarget\n", STRING( GetEntityName() ) );
-					}
+						fValid = false;
 				}
 			}
 
@@ -727,7 +703,6 @@ CNPCSpawnDestination *CTemplateNPCMaker::FindSpawnDestination()
 			for( int i = 0 ; i < count ; i++ )
 			{
 				Vector vecTest = pDestinations[ i ]->GetAbsOrigin();
-				pPlayer = UTIL_GetNearestPlayer( vecTest );
 				float flDist = ( vecTest - pPlayer->GetAbsOrigin() ).Length();
 
 				if ( m_iMinSpawnDistance != 0 && m_iMinSpawnDistance > flDist )
@@ -781,7 +756,7 @@ void CTemplateNPCMaker::MakeNPC( void )
 		return;
 	}
 
-	if (!CanMakeNPC( ( m_iszDestinationGroup != NULL_STRING ) ))
+	if (!CanMakeNPC())
 		return;
 
 	CNPCSpawnDestination *pDestination = NULL;
@@ -1042,32 +1017,6 @@ bool CTemplateNPCMaker::PlaceNPCInRadius( CAI_BaseNPC *pNPC )
 
 	DevMsg("**Failed to place NPC in radius!\n");
 	return false;
-}
-
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CTemplateNPCMaker::MakeMultipleNPCS( int nNPCs )
-{
-	bool bInRadius = ( m_iszDestinationGroup == NULL_STRING && m_flRadius > 0.1 );
-	while ( nNPCs-- )
-	{
-		if ( !bInRadius )
-		{
-			MakeNPC();
-		}
-		else
-		{
-			MakeNPCInRadius();
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CTemplateNPCMaker::InputSpawnMultiple( inputdata_t &inputdata )
-{
-	MakeMultipleNPCS( inputdata.value.Int() );
 }
 
 //-----------------------------------------------------------------------------

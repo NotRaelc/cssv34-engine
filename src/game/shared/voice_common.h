@@ -21,7 +21,5 @@
 
 typedef CBitVec<VOICE_MAX_PLAYERS> CPlayerBitVec;
 
-#define VOICE_DEFAULT_PROXIMITY_RANGE 1200 //100 feet
-
 
 #endif // VOICE_COMMON_H

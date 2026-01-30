@@ -9,9 +9,9 @@
 
 #include "cbase.h"
 #include "engine/ivdebugoverlay.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

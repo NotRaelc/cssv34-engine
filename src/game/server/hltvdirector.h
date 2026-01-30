@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -11,21 +11,22 @@
 #pragma once
 #endif
 
-#include "GameEventListener.h"
+#include <igameevents.h>
 #include <igamesystem.h>
 #include <ihltvdirector.h>
 #include <ihltv.h>
 #include <utlrbtree.h>
 
+#define	HLTV_MIN_DELAY				1	// minimum delay
 #define	HLTV_MIN_DIRECTOR_DELAY		10	// minimum delay if director is enabled
 #define	HLTV_MAX_DELAY				120	// maximum delay
 
 
 #define MAX_NUM_CAMERAS				64	// support up to 64 fixed cameras per level
 
-#define MIN_SHOT_LENGTH				4.0f  // minimum time of a cut (seconds)
+#define MIN_SHOT_LENGTH				2.0f  // minimum time of a cut (seconds)
 #define MAX_SHOT_LENGTH				8.0f  // maximum time of a cut (seconds)
-#define DEF_SHOT_LENGTH				6.0f  // average time of a cut (seconds)
+#define DEF_SHOT_LENGTH				4.0f  // average time of a cut (seconds)
 
 class CGameEvent
 {
@@ -35,7 +36,7 @@ public:
 		IGameEvent	*m_Event;	// IGameEvent
 };
 
-class CHLTVDirector : public CGameEventListener, public CBaseGameSystemPerFrame, public IHLTVDirector
+class CHLTVDirector : public IGameEventListener2, public CBaseGameSystemPerFrame, public IHLTVDirector
 {
 public:
 	DECLARE_CLASS_NOBASE( CHLTVDirector );
@@ -54,8 +55,6 @@ public:
 	bool	IsActive( void );
 
 	virtual const char** GetModEvents(); // returns list of event names forwarded to HLTV clients
-
-	void	BuildCameraList( void );
 		
 
 public: // IGameEventListener Interface
@@ -67,7 +66,6 @@ public: // CBaseGameSystem overrides
 	virtual void	Shutdown();
 	virtual void	FrameUpdatePostEntityThink();
 	virtual void	LevelInitPostEntity();
-	virtual char	*GetFixedCameraEntityName( void ) { return "point_viewcontrol"; }
 
 			bool	SetCameraMan( int iPlayerIndex );
 			int		GetCameraMan() { return m_iCameraManIndex; }
@@ -81,12 +79,10 @@ protected:
 	virtual void	StartBestFixedCameraShot(bool bForce);
 	virtual void	StartBestPlayerCameraShot();
 	virtual void	StartFixedCameraShot(int iCamera, int iTarget);
-	virtual void	StartChaseCameraShot(int iTarget1, int iTarget2, int distance, int phi, int theta, bool bInEye);
 	virtual void	UpdateSettings();
 	virtual void	AnalyzePlayers();
 	virtual void 	AnalyzeCameras();
 	virtual bool	StartCameraManShot();
-	virtual void	StartInstantBroadcastShot();
 	virtual void	FinishCameraManShot();
 	virtual void	BuildActivePlayerList();
 	virtual CGameEvent *FindBestGameEvent();
@@ -113,7 +109,7 @@ protected:
 	
 	int				m_nNumActivePlayers;	//number of cameras in current map
 	CBasePlayer		*m_pActivePlayers[MAX_PLAYERS]; // fixed cameras (point_viewcontrol)
-	int				m_iCameraManIndex;		// entity index of current camera man or 0
+	int				m_iCameraManIndex;		// entity index of camera man or 0
 	
 	CUtlRBTree<CGameEvent>	m_EventHistory;
 };

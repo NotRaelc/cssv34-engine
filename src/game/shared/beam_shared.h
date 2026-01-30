@@ -93,7 +93,7 @@ public:
 
 	void SetTexture( int spriteIndex );
 	void SetHaloTexture( int spriteIndex );
-	void SetHaloScale( float haloScale );
+	void SetHaloScale( int haloScale );
 	void SetWidth( float width );
 	void SetEndWidth( float endWidth );
 	void SetFadeLength( float fadeLength );
@@ -103,18 +103,13 @@ public:
 	void SetFrame( float frame );
 	void SetScrollRate( int speed );
 	void SetFireTime( float flFireTime );
-	void SetFrameRate( float flFrameRate ) { m_flFrameRate = flFrameRate; }
-
-	void SetMinDXLevel( int nMinDXLevel ) { m_nMinDXLevel = nMinDXLevel; }
 
 	void TurnOn( void );
 	void TurnOff( void );
 
 	int	GetType( void ) const;
 	int	GetBeamFlags( void ) const;
-	CBaseEntity* GetStartEntityPtr( void ) const;
 	int	GetStartEntity( void ) const;
-	CBaseEntity* GetEndEntityPtr( void ) const;
 	int	GetEndEntity( void ) const;
 	int GetStartAttachment() const;
 	int GetEndAttachment() const;
@@ -156,14 +151,6 @@ public:
 	void LiveForTime( float time );
 	void BeamDamageInstant( trace_t *ptr, float damage );
 
-// Only supported in TF2 right now
-#if defined( INVASION_CLIENT_DLL )
-	virtual bool	ShouldPredict( void )
-	{
-		return true;
-	}
-#endif
-
 	virtual const char *GetDecalName( void ) { return "BigShot"; }
 
 #if defined( CLIENT_DLL )
@@ -171,7 +158,7 @@ public:
 public:
 	virtual int			DrawModel( int flags );
 	virtual bool		IsTransparent( void );
-	virtual bool		ShouldDraw();
+
 	virtual void		OnDataChanged( DataUpdateType_t updateType );
 
 	virtual bool		OnPredictedEntityRemove( bool isbeingremoved, C_BaseEntity *predicted );
@@ -225,7 +212,7 @@ private:
 	CNetworkVar( float, m_fAmplitude );
 	CNetworkVar( float, m_fStartFrame );
 	CNetworkVar( float, m_fSpeed );
-	CNetworkVar( int, m_nMinDXLevel );
+
 	CNetworkVar( float, m_flFrame );
 
 	CNetworkVector( m_vecEndPos );
@@ -235,12 +222,6 @@ private:
 #if !defined( CLIENT_DLL )
 	int			m_nDissolveType;
 #endif
-
-public:
-#ifdef PORTAL
-	CNetworkVar( bool, m_bDrawInMainRender );
-	CNetworkVar( bool, m_bDrawInPortalRender );
-#endif //#ifdef PORTAL
 };
 
 #if !defined( CLIENT_DLL )
@@ -308,7 +289,7 @@ inline void CBeam::SetHaloTexture( int spriteIndex )
 	m_nHaloIndex = spriteIndex; 
 }
 
-inline void CBeam::SetHaloScale( float haloScale )		
+inline void CBeam::SetHaloScale( int haloScale )		
 { 
 	m_fHaloScale = haloScale; 
 }
@@ -355,20 +336,10 @@ inline void CBeam::SetScrollRate( int speed )
 	m_fSpeed = speed; 
 }
 
-inline CBaseEntity* CBeam::GetStartEntityPtr( void ) const 
-{ 
-	return m_hAttachEntity[0].Get(); 
-}
-
 inline int CBeam::GetStartEntity( void ) const 
 { 
 	CBaseEntity *pEntity = m_hAttachEntity[0].Get();
 	return pEntity ? pEntity->entindex() : 0; 
-}
-
-inline CBaseEntity* CBeam::GetEndEntityPtr( void ) const 
-{ 
-	return m_hAttachEntity[1].Get(); 
 }
 
 inline int CBeam::GetEndEntity( void ) const	

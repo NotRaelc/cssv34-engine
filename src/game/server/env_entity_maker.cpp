@@ -34,10 +34,9 @@ public:
 	virtual void Spawn( void );
 	virtual void Activate( void );
 
-	void		 SpawnEntity( Vector vecAlternateOrigin = vec3_invalid, QAngle vecAlternateAngles = vec3_angle );
+	void		 SpawnEntity( void );
 	void		 CheckSpawnThink( void );
 	void		 InputForceSpawn( inputdata_t &inputdata );
-	void		 InputForceSpawnAtEntityOrigin( inputdata_t &inputdata );
 
 private:
 
@@ -56,7 +55,6 @@ private:
 	QAngle			m_angPostSpawnDirection;
 	float			m_flPostSpawnDirectionVariance;
 	float			m_flPostSpawnSpeed;
-	bool			m_bPostSpawnUseAngles;
 
 	string_t		m_iszTemplate;
 
@@ -74,7 +72,6 @@ BEGIN_DATADESC( CEnvEntityMaker )
 	DEFINE_KEYFIELD( m_angPostSpawnDirection, FIELD_VECTOR, "PostSpawnDirection" ),
 	DEFINE_KEYFIELD( m_flPostSpawnDirectionVariance, FIELD_FLOAT, "PostSpawnDirectionVariance" ),
 	DEFINE_KEYFIELD( m_flPostSpawnSpeed, FIELD_FLOAT, "PostSpawnSpeed" ),
-	DEFINE_KEYFIELD( m_bPostSpawnUseAngles, FIELD_BOOLEAN, "PostSpawnInheritAngles" ),
 
 	// Outputs
 	DEFINE_OUTPUT( m_pOutputOnSpawned, "OnEntitySpawned" ),
@@ -82,7 +79,6 @@ BEGIN_DATADESC( CEnvEntityMaker )
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID, "ForceSpawn", InputForceSpawn ),
-	DEFINE_INPUTFUNC( FIELD_STRING, "ForceSpawnAtEntityOrigin", InputForceSpawnAtEntityOrigin ),
 
 	// Functions
 	DEFINE_THINKFUNC( CheckSpawnThink ),
@@ -113,7 +109,7 @@ void CEnvEntityMaker::Activate( void )
 	// check for valid template
 	if ( m_iszTemplate == NULL_STRING )
 	{
-		Warning( "env_entity_maker %s has no template entity!\n", GetEntityName().ToCStr() );
+		Warning( "env_entity_maker %s has no template entity!\n", GetEntityName() );
 		UTIL_Remove( this );
 		return;
 	}
@@ -135,7 +131,7 @@ CPointTemplate *CEnvEntityMaker::FindTemplate()
 	CPointTemplate *pTemplate = dynamic_cast<CPointTemplate *>(gEntList.FindEntityByName( NULL, STRING(m_iszTemplate) ));
 	if ( !pTemplate )
 	{
-		Warning( "env_entity_maker %s failed to find template %s.\n", GetEntityName().ToCStr(), STRING(m_iszTemplate) );
+		Warning( "env_entity_maker %s failed to find template %s.\n", GetEntityName(), STRING(m_iszTemplate) );
 	}
 
 	return pTemplate;
@@ -145,26 +141,15 @@ CPointTemplate *CEnvEntityMaker::FindTemplate()
 //-----------------------------------------------------------------------------
 // Purpose: Spawn an instance of the entity
 //-----------------------------------------------------------------------------
-void CEnvEntityMaker::SpawnEntity( Vector vecAlternateOrigin, QAngle vecAlternateAngles )
+void CEnvEntityMaker::SpawnEntity( void )
 {
 	CPointTemplate *pTemplate = FindTemplate();
 	if (!pTemplate)
 		return;
 
 	// Spawn our template
-	Vector vecSpawnOrigin = GetAbsOrigin();
-	QAngle vecSpawnAngles = GetAbsAngles();
-
-	if( vecAlternateOrigin != vec3_invalid )
-	{
-		// We have a valid alternate origin and angles. Use those instead
-		// of spawning the items at my own origin and angles.
-		vecSpawnOrigin = vecAlternateOrigin;
-		vecSpawnAngles = vecAlternateAngles;
-	}
-
 	CUtlVector<CBaseEntity*> hNewEntities;
-	if ( !pTemplate->CreateInstance( vecSpawnOrigin, vecSpawnAngles, &hNewEntities ) )
+	if ( !pTemplate->CreateInstance( GetAbsOrigin(), GetAbsAngles(), &hNewEntities ) )
 		return;
 	
 	//Adrian: oops we couldn't spawn the entity (or entities) for some reason!
@@ -206,19 +191,7 @@ void CEnvEntityMaker::SpawnEntity( Vector vecAlternateOrigin, QAngle vecAlternat
 
 			// Calculate a velocity for this entity
 			Vector vForward,vRight,vUp;
-			QAngle angSpawnDir( m_angPostSpawnDirection );
-			if ( m_bPostSpawnUseAngles )
-			{
-				if ( GetParent() )
-				{
-					angSpawnDir += GetParent()->GetAbsAngles();
-				}
-				else
-				{
-					angSpawnDir += GetAbsAngles();
-				}
-			}
-			AngleVectors( angSpawnDir, &vForward, &vRight, &vUp );
+			AngleVectors( m_angPostSpawnDirection, &vForward, &vRight, &vUp );
 			Vector vecShootDir = vForward;
 			vecShootDir += vRight * random->RandomFloat(-1, 1) * m_flPostSpawnDirectionVariance;
 			vecShootDir += vForward * random->RandomFloat(-1, 1) * m_flPostSpawnDirectionVariance;
@@ -353,14 +326,3 @@ void CEnvEntityMaker::InputForceSpawn( inputdata_t &inputdata )
 	SpawnEntity();
 }
 
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CEnvEntityMaker::InputForceSpawnAtEntityOrigin( inputdata_t &inputdata )
-{
-	CBaseEntity *pTargetEntity = gEntList.FindEntityByName( NULL, inputdata.value.String(), this, inputdata.pActivator, inputdata.pCaller );
-		
-	if( pTargetEntity )
-	{
-		SpawnEntity( pTargetEntity->GetAbsOrigin(), pTargetEntity->GetAbsAngles() );
-	}
-}

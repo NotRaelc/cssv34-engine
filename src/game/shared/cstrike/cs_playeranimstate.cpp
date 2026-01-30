@@ -62,7 +62,7 @@ public:
 
 	CCSPlayerAnimState();
 
-	virtual void DoAnimationEvent( PlayerAnimEvent_t event, int nData );
+	virtual void DoAnimationEvent( PlayerAnimEvent_t event );
 	virtual bool IsThrowingGrenade();
 	virtual int CalcAimLayerSequence( float *flCycle, float *flAimSequenceWeight, bool bForceIdle );
 	virtual void ClearAnimationState();
@@ -396,8 +396,7 @@ void CCSPlayerAnimState::ClearAnimationState()
 	BaseClass::ClearAnimationState();
 }
 
-
-void CCSPlayerAnimState::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
+void CCSPlayerAnimState::DoAnimationEvent( PlayerAnimEvent_t event )
 {
 	Assert( event != PLAYERANIMEVENT_THROW_GRENADE );
 
@@ -606,7 +605,7 @@ int CCSPlayerAnimState::CalcReloadLayerSequence( PlayerAnimEvent_t event )
 	return -1;
 }
 
-	void CCSPlayerAnimState::UpdateLayerSequenceGeneric( CStudioHdr *pStudioHdr, int iLayer, bool &bEnabled, float &flCurCycle, int &iSequence, bool bWaitAtEnd )
+void CCSPlayerAnimState::UpdateLayerSequenceGeneric( CStudioHdr *pStudioHdr, int iLayer, bool &bEnabled, float &flCurCycle, int &iSequence, bool bWaitAtEnd )
 {
 	if ( !bEnabled || iSequence < 0 )
 		return;
@@ -1027,7 +1026,7 @@ void CCSPlayerAnimState::ComputeFireSequence( CStudioHdr *pStudioHdr )
 
 	if ( m_delayedFire != PLAYERANIMEVENT_COUNT )
 	{
-		DoAnimationEvent( m_delayedFire, 0 );
+		DoAnimationEvent( m_delayedFire );
 		m_delayedFire = PLAYERANIMEVENT_COUNT;
 	}
 

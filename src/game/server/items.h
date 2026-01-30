@@ -14,8 +14,6 @@
 
 #include "entityoutput.h"
 #include "player_pickup.h"
-#include "vphysics/constraints.h"
-
 
 // Armor given by a battery
 #define MAX_NORMAL_BATTERY	100
@@ -34,9 +32,6 @@
 #define SIZE_AMMO_357_LARGE			20
 #define SIZE_AMMO_CROSSBOW			6
 #define	SIZE_AMMO_AR2_ALTFIRE		1
-
-#define SF_ITEM_START_CONSTRAINED	0x00000001
-
 
 class CItem : public CBaseAnimating, public CDefaultPlayerPickupVPhysics
 {
@@ -84,12 +79,10 @@ private:
 private:
 	bool		m_bActivateWhenAtRest;
 	COutputEvent m_OnPlayerTouch;
-	COutputEvent m_OnCacheInteraction;
 	
 	Vector		m_vOriginalSpawnOrigin;
 	QAngle		m_vOriginalSpawnAngles;
 
-	IPhysicsConstraint		*m_pConstraint;
 };
 
 #endif // ITEMS_H

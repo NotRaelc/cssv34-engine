@@ -16,7 +16,7 @@
 
 // NOTE: Changing this constant will break save files!!! (changes type of CAI_ScheduleBits)
 #ifndef MAX_CONDITIONS
-#define	MAX_CONDITIONS 32*8
+#define	MAX_CONDITIONS 32*4
 #endif
 
 //=========================================================
@@ -109,8 +109,6 @@ enum SCOND_t
 	// This is a talker condition, but done here because we need to handle it in base AI
 	// due to it's interaction with behaviors.
 	COND_TALKER_RESPOND_TO_QUESTION,
-	
-	COND_NO_CUSTOM_INTERRUPTS,		// Don't call BuildScheduleTestBits for this schedule. Used for schedules that must strictly control their interruptibility.
 
 	// ======================================
 	// IMPORTANT: This must be the last enum

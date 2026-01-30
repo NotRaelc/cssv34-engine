@@ -28,7 +28,7 @@ public:
 	ClientShadowHandle_t GetFlashlightHandle( void ) { return m_FlashlightHandle; }
 	void SetFlashlightHandle( ClientShadowHandle_t Handle ) { m_FlashlightHandle = Handle;	}
 	
-protected:
+private:
 
 	void LightOff();
 	void LightOffOld();
@@ -44,9 +44,6 @@ protected:
 	// Vehicle headlight dynamic light pointer
 	dlight_t *m_pPointLight;
 	float m_flDistMod;
-
-	// Texture for flashlight
-	CTextureReference m_FlashlightTexture;
 };
 
 class CHeadlightEffect : public CFlashlightEffect

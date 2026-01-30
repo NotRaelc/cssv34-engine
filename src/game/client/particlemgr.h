@@ -105,24 +105,19 @@ entities. Each one is useful under different conditions.
 #ifndef PARTICLEMGR_H
 #define PARTICLEMGR_H
 
-#ifdef _WIN32
-#pragma once
-#endif
 
 #include "materialsystem/imaterial.h"
 #include "materialsystem/imaterialsystem.h"
-#include "mathlib/vector.h"
-#include "mathlib/vmatrix.h"
-#include "mathlib/Mathlib.h"
+#include "vector.h"
+#include "vmatrix.h"
+#include "Mathlib.h"
 #include "iclientrenderable.h"
 #include "clientleafsystem.h"
 #include "tier0/fasttimer.h"
 #include "utllinkedlist.h"
 #include "UtlDict.h"
-#include <typeinfo>
-#include "tier1/utlintrusivelist.h"
-#include "tier1/utlstring.h"
 
+#include <typeinfo>
 
 //-----------------------------------------------------------------------------
 // forward declarations
@@ -137,8 +132,7 @@ class CMemoryPool;
 class CEffectMaterial;
 class CParticleSimulateIterator;
 class CParticleRenderIterator;
-class IThreadPool;
-class CParticleSystemDefinition;
+
 
 
 #define INVALID_MATERIAL_HANDLE	NULL
@@ -166,6 +160,8 @@ struct Particle
 
 	// If m_Pos isn't used to store the world position, then implement IParticleEffect::GetParticlePosition()
 	Vector m_Pos;			// Position of the particle in world space
+
+	void ToolRecordParticle( KeyValues *msg );
 };
 
 
@@ -222,10 +218,6 @@ public:
 	CParticleSubTextureGroup *m_pGroup;
 	CParticleSubTextureGroup m_DefaultGroup;	// This is used as the group if a particle's material
 												// isn't using a group.
-
-#ifdef _DEBUG
-	char *m_szDebugName;
-#endif
 	
 	IMaterial *m_pMaterial;
 };
@@ -326,14 +318,13 @@ public:
 // are good to go.
 class CParticleEffectBinding : public CDefaultClientRenderable
 {
-	friend class CParticleMgr;
-	friend class CParticleSimulateIterator;
-	friend class CNewParticleEffect;
+friend class CParticleMgr;
+friend class CParticleSimulateIterator;
 
 public:
-	CParticleEffectBinding();
-	~CParticleEffectBinding();
-	
+					CParticleEffectBinding();
+					~CParticleEffectBinding();
+
 
 // Helper functions to setup, add particles, etc..
 public:
@@ -361,8 +352,6 @@ public:
 	// After you make this call, the particle manager will no longer update the bounding
 	// box automatically if bDisableAutoUpdate is true.
 	void			SetBBox( const Vector &bbMin, const Vector &bbMax, bool bDisableAutoUpdate = true );
-	// gets a copy of the current bbox mins/maxs in worldspace
-	void			GetWorldspaceBounds( Vector *pMins, Vector *pMaxs );
 
 	// This tells the particle manager that your particles are transformed by the specified matrix.
 	// That way, it can transform the bbox defined by Particle::m_Pos into world space correctly.
@@ -395,7 +384,6 @@ public:
 	int				GetAlwaysSimulate()								{ return GetFlag( FLAGS_ALWAYSSIMULATE ); }
 	void			SetAlwaysSimulate( int bAlwaysSimulate )		{ SetFlag( FLAGS_ALWAYSSIMULATE, bAlwaysSimulate ); }
 
-	void			SetIsNewParticleSystem( void )		{ SetFlag( FLAGS_NEW_PARTICLE_SYSTEM, 1 ); }
 	// Set if the effect was drawn the previous frame.
 	// This can be used by particle effect classes
 	// to decide whether or not they want to spawn
@@ -446,6 +434,7 @@ public:
 	void			DetectChanges();
 
 private:
+
 	// Change flags..
 	void			SetFlag( int flag, int bOn )	{ if( bOn ) m_Flags |= flag; else m_Flags &= ~flag; }
 	int				GetFlag( int flag ) const		{ return m_Flags & flag; }
@@ -471,13 +460,13 @@ private:
 						bool bWireframe
 						 );
 
-	void			GrowBBoxFromParticlePositions( CEffectMaterial *pMaterial, bool &bboxSet, Vector &bbMin, Vector &bbMax );
+	void			GrowBBoxFromParticlePositions( CEffectMaterial *pMaterial, bool bBucketSort, bool &bboxSet, Vector &bbMin, Vector &bbMax );
 
 	void			RenderStart( VMatrix &mTempModel, VMatrix &mTempView );
 	void			RenderEnd( VMatrix &mModel, VMatrix &mView );
 
-	void			BBoxCalcStart( Vector &bbMin, Vector &bbMax );
-	void			BBoxCalcEnd( bool bboxSet, Vector &bbMin, Vector &bbMax );
+	void			BBoxCalcStart( bool bFullBBoxUpdate, Vector &bbMin, Vector &bbMax );
+	void			BBoxCalcEnd( bool bFullBBoxUpdate, bool bboxSet, Vector &bbMin, Vector &bbMax );
 	
 	void			DoBucketSort( 
 						CEffectMaterial *pMaterial, 
@@ -538,8 +527,7 @@ private:
 		FLAGS_DRAW_THRU_LEAF_SYSTEM=(1<<8),	// This is the default - do the effect's visibility through the leaf system.
 		FLAGS_DRAW_BEFORE_VIEW_MODEL=(1<<9),// Draw before the view model? If this is set, it assumes FLAGS_DRAW_THRU_LEAF_SYSTEM goes off.
 		FLAGS_AUTOAPPLYLOCALTRANSFORM=(1<<10), // Automatically apply the local transform to CParticleMgr::GetModelView()'s matrix.
-		FLAGS_FIRST_FRAME =         (1<<11),	// Cleared after the first frame that this system exists (so it can simulate after rendering once).
-		FLAGS_NEW_PARTICLE_SYSTEM=  (1<<12) // uses new particle system
+		FLAGS_FIRST_FRAME =         (1<<11)	// Cleared after the first frame that this system exists (so it can simulate after rendering once).
 	};
 
 
@@ -602,12 +590,11 @@ enum
 
 class CParticleMgr
 {
-	friend class CParticleEffectBinding;
-	friend class CParticleCollection;
+friend class CParticleEffectBinding;
 
 public:
 
-	CParticleMgr();
+					CParticleMgr();
 	virtual			~CParticleMgr();
 
 	// Call at init time to preallocate the bucket of particles.
@@ -615,8 +602,6 @@ public:
 
 	// Shutdown - free everything.
 	void			Term();
-
-	void			LevelInit();
 
 	void			RegisterEffect( const char *pEffectType, CreateParticleEffectFN func );
 	IParticleEffect	*CreateEffect( const char *pEffectType );
@@ -628,9 +613,6 @@ public:
 	//       CParticleMgr::RemoveEffect.
 	bool			AddEffect( CParticleEffectBinding *pEffect, IParticleEffect *pSim );
 	void			RemoveEffect( CParticleEffectBinding *pEffect );
-
-	void			AddEffect( CNewParticleEffect *pEffect );
-	void			RemoveEffect( CNewParticleEffect *pEffect );
 
 	// Called at level shutdown to free all the lingering particle effects (usually
 	// CParticleEffect-derived effects that can linger with noone holding onto them).
@@ -656,10 +638,7 @@ public:
 	void			FreeParticle( Particle * );
 
 	PMaterialHandle	GetPMaterial( const char *pMaterialName );
-	IMaterial*		PMaterialToIMaterial( PMaterialHandle hMaterial );
-
-	//HACKHACK: quick fix that compensates for the fact that this system was designed to never release materials EVER.
-	void RepairPMaterial( PMaterialHandle hMaterial );
+	IMaterial*		PMaterialToIMaterial( PMaterialHandle hMaterial ) const;
 
 	// Particles drawn with the ParticleSphere material will use this info.
 	// This should be set in IParticleEffect.
@@ -674,38 +653,11 @@ public:
 
 	// Tool effect ids
 	int AllocateToolParticleEffectId();
-
-	// Remove all new effects
-	void RemoveAllNewEffects();
-
-	// Should particle effects be rendered?
-	void RenderParticleSystems( bool bEnable );
-	bool ShouldRenderParticleSystems() const;
-
 private:
-	struct RetireInfo_t
-	{
-		CParticleCollection *m_pCollection;
-		float m_flScreenArea;
-		bool m_bFirstFrame;
-	};
-
 	// Call Update() on all the effects.
-	void UpdateAllEffects( float flTimeDelta );
-
-	void UpdateNewEffects( float flTimeDelta );				// update new particle effects
-
-	void SpewActiveParticleSystems( );
+	void			UpdateAllEffects( float flTimeDelta );
 
 	CParticleSubTextureGroup* FindOrAddSubTextureGroup( IMaterial *pPageMaterial );
-
-	int ComputeParticleDefScreenArea( int nInfoCount, RetireInfo_t *pInfo, float *pTotalArea, CParticleSystemDefinition* pDef, 
-		const CViewSetup& view, const VMatrix &worldToPixels, float flFocalDist );
-
-	bool RetireParticleCollections( CParticleSystemDefinition* pDef, int nCount, RetireInfo_t *pInfo, float flScreenArea, float flMaxTotalArea );
-	void BuildParticleSimList( CUtlVector< CNewParticleEffect* > &list );
-	bool EarlyRetireParticleSystems( int nCount, CNewParticleEffect **ppEffects );
-	static int RetireSort( const void *p1, const void *p2 ); 
 
 private:
 
@@ -720,15 +672,10 @@ private:
 	unsigned short					m_FrameCode;
 
 	bool							m_bUpdatingEffects;
-	bool							m_bRenderParticleEffects;
 
 	// All the active effects.
 	CUtlLinkedList<CParticleEffectBinding*, unsigned short>		m_Effects;
 
-	// all the active effects using the new particle interface
-	CUtlIntrusiveDList< CNewParticleEffect > m_NewEffects;
-
-	
 	CUtlVector< IClientParticleListener *> m_effectListeners;
 
 	IMaterialSystem					*m_pMaterialSystem;
@@ -743,8 +690,6 @@ private:
 	CUtlMap< const char*, CreateParticleEffectFN > m_effectFactories;
 
 	int m_nToolParticleEffectId;
-
-	IThreadPool *m_pThreadPool[2];
 };
 
 inline int CParticleMgr::AllocateToolParticleEffectId()

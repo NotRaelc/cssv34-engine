@@ -48,9 +48,9 @@ public:
 	// ----------------------------------------------------
 	// Queries & probes
 	// ----------------------------------------------------
-	bool				MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, AIMoveTrace_t* pMove = NULL );
-	bool				MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, float pctToCheckStandPositions, AIMoveTrace_t* pMove = NULL );
-	bool				MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, float pctToCheckStandPositions, unsigned flags, AIMoveTrace_t* pMove = NULL );
+	bool				MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, AIMoveTrace_t* pMove = NULL ) const;
+	bool				MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, float pctToCheckStandPositions, AIMoveTrace_t* pMove = NULL ) const;
+	bool				MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, float pctToCheckStandPositions, unsigned flags, AIMoveTrace_t* pMove = NULL ) const;
 	
 	bool				CheckStandPosition( const Vector &vecStart, unsigned int collisionMask ) const;
 	bool				FloorPoint( const Vector &vecStart, unsigned int collisionMask, float flStartZ, float flEndZ, Vector *pVecResult ) const;
@@ -78,9 +78,6 @@ public:
 										unsigned int collisionMask, float pctToCheckStandPositions, unsigned flags, AIMoveTrace_t *pMoveTrace ) const;
 
 	bool				ShouldBrushBeIgnored( CBaseEntity *pEntity );
-
-	void				ClearBlockingEntity()	{ m_hLastBlockingEnt = NULL; }
-	CBaseEntity *		GetBlockingEntity()	{ return m_hLastBlockingEnt; }
 
 private:
 	struct CheckStepArgs_t
@@ -132,21 +129,19 @@ private:
 
 	CTraceListData *	m_pTraceListData;
 
-	EHANDLE				m_hLastBlockingEnt;
-
 	DECLARE_SIMPLE_DATADESC();
 };
 
 // ----------------------------------------------------------------------------
 
-inline bool CAI_MoveProbe::MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, float pctToCheckStandPositions, AIMoveTrace_t* pMove)
+inline bool CAI_MoveProbe::MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, float pctToCheckStandPositions, AIMoveTrace_t* pMove) const
 {
 	return MoveLimit( navType, vecStart, vecEnd, collisionMask, pTarget, pctToCheckStandPositions, AIMLF_DEFAULT, pMove);
 }
 
 // ------------------------------------
 
-inline bool CAI_MoveProbe::MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, AIMoveTrace_t* pMove)
+inline bool CAI_MoveProbe::MoveLimit( Navigation_t navType, const Vector &vecStart, const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, AIMoveTrace_t* pMove) const
 {
 	return MoveLimit( navType, vecStart, vecEnd, collisionMask, pTarget, 100.0f, AIMLF_DEFAULT, pMove);
 }

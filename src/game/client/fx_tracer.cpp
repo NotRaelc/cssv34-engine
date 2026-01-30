@@ -8,7 +8,6 @@
 #include "c_te_effect_dispatch.h"
 #include "basecombatweapon_shared.h"
 #include "baseviewmodel_shared.h"
-#include "particles_new.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -36,9 +35,7 @@ Vector GetTracerOrigin( const CEffectData &data )
 			return vecStart;
 
 		C_BaseEntity *pEnt = data.GetEntity();
-
-// This check should probably be for all multiplayer games, investigate later
-#if defined( HL2MP ) || defined( TF_CLIENT_DLL )
+#ifdef HL2MP
 		if ( pEnt && pEnt->IsDormant() )
 			return vecStart;
 #endif
@@ -110,47 +107,6 @@ void TracerCallback( const CEffectData &data )
 
 DECLARE_CLIENT_EFFECT( "Tracer", TracerCallback );
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void ParticleTracerCallback( const CEffectData &data )
-{
-	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
-	if ( !player )
-		return;
-
-	// Grab the data
-	Vector vecStart = GetTracerOrigin( data );
-	Vector vecEnd = data.m_vOrigin;
-
-	// Adjust view model tracers
-	C_BaseEntity *pEntity = data.GetEntity();
-	if ( data.entindex() && data.entindex() == player->index )
-	{
-		QAngle	vangles;
-		Vector	vforward, vright, vup;
-
-		engine->GetViewAngles( vangles );
-		AngleVectors( vangles, &vforward, &vright, &vup );
-
-		VectorMA( data.m_vStart, 4, vright, vecStart );
-		vecStart[2] -= 0.5f;
-	}
-
-	// Create the particle effect
-	QAngle vecAngles;
-	Vector vecToEnd = vecEnd - vecStart;
-	VectorNormalize(vecToEnd);
-	VectorAngles( vecToEnd, vecAngles );
-	DispatchParticleEffect( data.m_nHitBox, vecStart, vecEnd, vecAngles, pEntity );
-
-	if ( data.m_fFlags & TRACER_FLAG_WHIZ )
-	{
-		FX_TracerSound( vecStart, vecEnd, TRACER_TYPE_DEFAULT );	
-	}
-}
-
-DECLARE_CLIENT_EFFECT( "ParticleTracer", ParticleTracerCallback );
 
 //-----------------------------------------------------------------------------
 // Purpose: 

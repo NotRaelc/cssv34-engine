@@ -63,12 +63,6 @@ enum propdata_interactions_t
 
 	PROPINTER_PHYSGUN_CREATE_FLARE,		// "onpickup"		"create_flare"
 
-	PROPINTER_PHYSGUN_ALLOW_OVERHEAD,	// "allow_overhead"	"yes"
-
-	PROPINTER_WORLD_BLOODSPLAT,			// "onworldimpact", "bloodsplat"
-	
-	PROPINTER_PHYSGUN_NOTIFY_CHILDREN,	// "onfirstimpact" cause attached flechettes to explode
-
 	// If we get more than 32 of these, we'll need a different system
 
 	PROPINTER_NUM_INTERACTIONS,
@@ -95,16 +89,6 @@ enum mp_break_t
 	MULTIPLAYER_BREAK_CLIENTSIDE,
 	MULTIPLAYER_BREAK_BOTH
 };
-
-
-enum PerformanceMode_t
-{
-	PM_NORMAL,
-	PM_NO_GIBS,
-	PM_FULL_GIBS,
-	PM_REDUCED_GIBS,
-};
-
 
 //=============================================================================================================
 // PROP DATA
@@ -244,9 +228,5 @@ void BreakModelList( CUtlVector<breakmodel_t> &list, int modelindex, float defBu
 void PropBreakableCreateAll( int modelindex, IPhysicsObject *pPhysics, const breakablepropparams_t &params, CBaseEntity *pEntity, int iPrecomputedBreakableCount, bool bIgnoreGibLImit, bool defaultLocation = true );
 void PropBreakableCreateAll( int modelindex, IPhysicsObject *pPhysics, const Vector &origin, const QAngle &angles, const Vector &velocity, const AngularImpulse &angularVelocity, float impactEnergyScale, float burstScale, int collisionGroup, CBaseEntity *pEntity = NULL, bool defaultLocation = true );
 
-// Player gibs.
-void PrecacheGibsForModel( int iModel );
-void BuildGibList( CUtlVector<breakmodel_t> &list, int modelindex, float defBurstScale, int defCollisionGroup );
-CBaseEntity *CreateGibsFromList( CUtlVector<breakmodel_t> &list, int modelindex, IPhysicsObject *pPhysics, const breakablepropparams_t &params, CBaseEntity *pEntity, int iPrecomputedBreakableCount, bool bIgnoreGibLImit, bool defaultLocation = true, CUtlVector<EHANDLE> *pGibList = NULL );
 
 #endif // PROPS_SHARED_H

@@ -34,11 +34,8 @@ public:
 	bool			IsFogEnabled();
 	void			GetFogColor( unsigned char &r, unsigned char &g, unsigned char &b );
 	float			GetFogStart();
-	float			GetFogMaxDensity();
 	float			GetFogEnd();
 	bool			UseScreenAspectRatio() const { return m_bUseScreenAspectRatio; }
-
-	virtual void	GetToolRecordingState( KeyValues *msg );
 
 private:
 	float m_FOV;
@@ -47,7 +44,6 @@ private:
 	color32 m_FogColor;
 	float m_flFogStart;
 	float m_flFogEnd;
-	float m_flFogMaxDensity;
 	bool m_bActive;
 	bool m_bUseScreenAspectRatio;
 

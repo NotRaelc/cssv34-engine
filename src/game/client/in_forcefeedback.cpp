@@ -11,7 +11,7 @@
 #include "cdll_util.h"
 #include "input.h"
 #include "convar.h"
-#include "tier0/icommandline.h"
+#include "vstdlib/icommandline.h"
 #include "forcefeedback.h"
 #include "FileSystem.h"
 

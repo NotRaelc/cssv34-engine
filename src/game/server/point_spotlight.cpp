@@ -1,8 +1,8 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include "beam_shared.h"
@@ -67,10 +67,6 @@ private:
 	float	m_flSpotlightCurLength;
 	float	m_flSpotlightGoalWidth;
 	float	m_flHDRColorScale;
-	int		m_nMinDXLevel;
-
-public:
-	COutputEvent m_OnOn, m_OnOff;     ///< output fires when turned on, off
 };
 
 BEGIN_DATADESC( CPointSpotlight )
@@ -91,13 +87,10 @@ BEGIN_DATADESC( CPointSpotlight )
 	DEFINE_KEYFIELD( m_flSpotlightMaxLength,FIELD_FLOAT, "SpotlightLength"),
 	DEFINE_KEYFIELD( m_flSpotlightGoalWidth,FIELD_FLOAT, "SpotlightWidth"),
 	DEFINE_KEYFIELD( m_flHDRColorScale, FIELD_FLOAT, "HDRColorScale" ),
-	DEFINE_KEYFIELD( m_nMinDXLevel, FIELD_INTEGER, "mindxlevel" ),
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID,		"LightOn",		InputLightOn ),
 	DEFINE_INPUTFUNC( FIELD_VOID,		"LightOff",		InputLightOff ),
-	DEFINE_OUTPUT( m_OnOn, "OnLightOn" ),
-	DEFINE_OUTPUT( m_OnOff, "OnLightOff" ),
 
 	DEFINE_THINKFUNC( SpotlightThink ),
 
@@ -117,7 +110,6 @@ CPointSpotlight::CPointSpotlight()
 	m_vSpotlightDir.Init();
 #endif
 	m_flHDRColorScale = 1.0f;
-	m_nMinDXLevel = 0;
 }
 
 
@@ -237,8 +229,6 @@ void CPointSpotlight::CreateEfficientSpotlight()
 	m_flSpotlightCurLength = VectorNormalize( m_hSpotlightTarget->m_vSpotlightDir );
 	m_hSpotlightTarget->SetMoveType( MOVETYPE_NONE );
 	ComputeRenderInfo();
-
-	m_OnOn.FireOutput( this, this );
 }
 
 
@@ -297,10 +287,8 @@ void CPointSpotlight::OnEntityEvent( EntityEvent_t event, void *pEventData )
 //-------------------------------------------------------------------------------------
 int CPointSpotlight::UpdateTransmitState()
 {
-	if ( m_bEfficientSpotlight )
-		return SetTransmitState( FL_EDICT_DONTSEND );
-
 	return SetTransmitState( FL_EDICT_PVSCHECK );
+	
 }
 
 //-----------------------------------------------------------------------------
@@ -333,7 +321,7 @@ void CPointSpotlight::SpotlightCreate(void)
 	AngleVectors( GetAbsAngles(), &m_vSpotlightDir );
 
 	trace_t tr;
-	UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + m_vSpotlightDir * m_flSpotlightMaxLength, MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr);
+	UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + m_vSpotlightDir * m_flSpotlightMaxLength, MASK_NPCSOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr);
 
 	m_hSpotlightTarget = (CSpotlightEnd*)CreateEntityByName( "spotlight_end" );
 	m_hSpotlightTarget->Spawn();
@@ -359,16 +347,7 @@ void CPointSpotlight::SpotlightCreate(void)
 	m_hSpotlight->SetBeamFlags( (FBEAM_SHADEOUT|FBEAM_NOTILE) );
 	m_hSpotlight->SetBrightness( 64 );
 	m_hSpotlight->SetNoise( 0 );
-	m_hSpotlight->SetMinDXLevel( m_nMinDXLevel );
-
-	if ( m_bEfficientSpotlight )
-	{
-		m_hSpotlight->PointsInit( GetAbsOrigin(), m_hSpotlightTarget->GetAbsOrigin() );
-	}
-	else
-	{
-		m_hSpotlight->EntsInit( this, m_hSpotlightTarget );
-	}
+	m_hSpotlight->EntsInit( this, m_hSpotlightTarget );
 }
 
 //------------------------------------------------------------------------------
@@ -382,7 +361,7 @@ Vector CPointSpotlight::SpotlightCurrentPos(void)
 
 	//	Get beam end point.  Only collide with solid objects, not npcs
 	trace_t tr;
-	UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + (m_vSpotlightDir * 2 * m_flSpotlightMaxLength), MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
+	UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + (m_vSpotlightDir * 2 * m_flSpotlightMaxLength), MASK_NPCSOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
 	return tr.endpos;
 }
 
@@ -395,8 +374,6 @@ void CPointSpotlight::SpotlightDestroy(void)
 {
 	if ( m_hSpotlight )
 	{
-		m_OnOff.FireOutput( this, this );
-
 		UTIL_Remove(m_hSpotlight);
 		UTIL_Remove(m_hSpotlightTarget);
 	}

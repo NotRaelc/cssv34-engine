@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Physics simulation for non-havok/ipion objects
 //
@@ -8,7 +8,7 @@
 
 #include "cbase.h"
 #ifdef _WIN32
-#include "typeinfo"
+#include "typeinfo.h"
 // BUGBUG: typeinfo stomps some of the warning settings (in yvals.h)
 #pragma warning(disable:4244)
 #elif _LINUX
@@ -31,7 +31,6 @@
 #include "movetype_push.h"
 #include "hierarchy.h"
 #include "trains.h"
-#include "vphysicsupdateai.h"
 #include "tier0/vcrmode.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -234,7 +233,7 @@ void CPhysicsPushedEntities::UnlinkPusherList( int *pPusherHandles )
 {
 	for ( int i = m_rgPusher.Count(); --i >= 0; )
 	{
-		pPusherHandles[i] = partition->HideElement( m_rgPusher[i].m_pEntity->CollisionProp()->GetPartitionHandle() );
+		pPusherHandles[i] = partition->FastRemove( m_rgPusher[i].m_pEntity->CollisionProp()->GetPartitionHandle() );
 	}
 }
 
@@ -242,7 +241,7 @@ void CPhysicsPushedEntities::RelinkPusherList( int *pPusherHandles )
 {
 	for ( int i = m_rgPusher.Count(); --i >= 0; )
 	{
-		partition->UnhideElement( m_rgPusher[i].m_pEntity->CollisionProp()->GetPartitionHandle(), pPusherHandles[i] );
+		partition->FastInsert( m_rgPusher[i].m_pEntity->CollisionProp()->GetPartitionHandle(), pPusherHandles[i] );
 	}
 }
 
@@ -265,13 +264,6 @@ void CPhysicsPushedEntities::ComputeRotationalPushDirection( CBaseEntity *pBlock
 		start.x = (pMove->x < 0) ? vecAbsMaxs.x : vecAbsMins.x;
 		start.y = (pMove->y < 0) ? vecAbsMaxs.y : vecAbsMins.y;
 		start.z = (pMove->z < 0) ? vecAbsMaxs.z : vecAbsMins.z;
-		
-		CBasePlayer *pPlayer = ToBasePlayer(pBlocker);
-		if ( pPlayer )
-		{
-			// notify the player physics code so it can use vphysics to keep players from getting stuck
-			pPlayer->SetPhysicsFlag( PFLAG_GAMEPHYSICS_ROTPUSH, true );
-		}
 	}
 
 	// org is pusher local coordinate of start
@@ -677,14 +669,10 @@ public:
 		m_pRootHighestParent = m_pPushedEntities->m_rgPusher[0].m_pEntity->GetRootMoveParent();
 		++s_nEnumCount;
 
-		m_collisionGroupCount = 0;
 		for ( int i = m_pPushedEntities->m_rgPusher.Count(); --i >= 0; )
 		{
 			m_pushersOnly.AddEntityToHit( m_pPushedEntities->m_rgPusher[i].m_pEntity );
-			int collisionGroup = m_pPushedEntities->m_rgPusher[i].m_pEntity->GetCollisionGroup();
-			AddCollisionGroup(collisionGroup);
 		}
-
 	}
 
 	virtual IterationRetval_t EnumElement( IHandleEntity *pHandleEntity )
@@ -701,21 +689,6 @@ public:
 	}
 
 private:
-
-	inline void AddCollisionGroup(int collisionGroup)
-	{
-		for ( int i = 0; i < m_collisionGroupCount; i++ )
-		{
-			if ( m_collisionGroups[i] == collisionGroup )
-				return;
-		}
-		if ( m_collisionGroupCount < ARRAYSIZE(m_collisionGroups) )
-		{
-			m_collisionGroups[m_collisionGroupCount] = collisionGroup;
-			m_collisionGroupCount++;
-		}
-	}
-
 	bool IsStandingOnPusher( CBaseEntity *pCheck )
 	{
 		CBaseEntity *pGroundEnt = pCheck->GetGroundEntity();
@@ -764,17 +737,9 @@ private:
 			return NULL;
 		}
 
-		bool bCollide = false;
-		for ( int i = 0; i < m_collisionGroupCount; i++ )
-		{
-			if ( g_pGameRules->ShouldCollide( pCheck->GetCollisionGroup(), m_collisionGroups[i] ) )
-			{
-				bCollide = true;
-				break;
-			}
-		}
-		if ( !bCollide )
+		if ( !g_pGameRules->ShouldCollide( pCheck->GetCollisionGroup(), m_pRootHighestParent->GetCollisionGroup() ) )
 			return NULL;
+
 		// We're not pushing stuff we're hierarchically attached to
 		CBaseEntity *pCheckHighestParent = pCheck->GetRootMoveParent();
 		if (pCheckHighestParent == m_pRootHighestParent)
@@ -801,8 +766,6 @@ private:
 	CPhysicsPushedEntities *m_pPushedEntities;
 	CBaseEntity *m_pRootHighestParent;
 	CTraceFilterAgainstEntityList	m_pushersOnly;
-	int m_collisionGroups[8];
-	int m_collisionGroupCount;
 };
 
 int CPushBlockerEnum::s_nEnumCount = 0;
@@ -1347,7 +1310,7 @@ void CBaseEntity::PhysicsPushEntity( const Vector& push, trace_t *pTrace )
 
 	if ( GetMoveParent() )
 	{
-		Warning( "pushing entity (%s) that has parent (%s)!\n", GetDebugName(), GetMoveParent()->GetDebugName() );
+		Warning( "pushing entity (%s) that has m_pMoveParent!\n", GetClassname() );
 		Assert(0);
 	}
 
@@ -1754,8 +1717,7 @@ void CBaseEntity::StepSimulationThink( float dt )
 		// Remember old values
 		step->m_Previous.nTickCount = gpGlobals->tickcount;
 		step->m_Previous.vecOrigin = GetStepOrigin();
-		QAngle stepAngles = GetStepAngles();
-		AngleQuaternion( stepAngles, step->m_Previous.qRotation );
+		AngleQuaternion( GetStepAngles(), step->m_Previous.qRotation );
 
 		// Run simulation
 		PhysicsStepRunTimestep( dt );
@@ -1771,8 +1733,7 @@ void CBaseEntity::StepSimulationThink( float dt )
 
 		// Latch new values to see if external code modifies our position/orientation
 		step->m_Next.vecOrigin = GetStepOrigin();
-		stepAngles = GetStepAngles();
-		AngleQuaternion( stepAngles, step->m_Next.qRotation );
+		AngleQuaternion( GetStepAngles(), step->m_Next.qRotation );
 		// Also store of non-Quaternion version for simple comparisons
 		step->m_angNextRotation = GetStepAngles();
 		step->m_Next.nTickCount = GetNextThinkTick();
@@ -1842,32 +1803,19 @@ void CBaseEntity::PhysicsStep()
 		PhysicsStepRunTimestep( gpGlobals->frametime );
 		PhysicsCheckWaterTransition();
 		SetLastThink( -1, gpGlobals->curtime );
-		UpdatePhysicsShadowToCurrentPosition(gpGlobals->frametime);
-		PhysicsRelinkChildren(gpGlobals->frametime);
 		return;
 	}
 
+	// not going to think, don't run physics either
+	if ( thinktick > gpGlobals->tickcount )
+	{
+		return;
+	}
+	
 	Vector oldOrigin = GetAbsOrigin();
 
-	// Feed the position delta back from vphysics if enabled
-	bool updateFromVPhysics = npc_vphysics.GetBool();
-	if ( HasDataObjectType(VPHYSICSUPDATEAI) )
-	{
-		vphysicsupdateai_t *pUpdate = static_cast<vphysicsupdateai_t *>(GetDataObject( VPHYSICSUPDATEAI ));
-		if ( pUpdate->stopUpdateTime > gpGlobals->curtime )
-		{
-			updateFromVPhysics = true;
-		}
-		else
-		{
-			float maxAngular;
-			VPhysicsGetObject()->GetShadowController()->GetMaxSpeed( NULL, &maxAngular );
-			VPhysicsGetObject()->GetShadowController()->MaxSpeed( pUpdate->savedShadowControllerMaxSpeed, maxAngular );
-			DestroyDataObject(VPHYSICSUPDATEAI);
-		}
-	}
-
-	if ( updateFromVPhysics && VPhysicsGetObject() && !GetParent() )
+	// HACKHACK: As an experiment, feed the position delta back
+	if ( npc_vphysics.GetBool() && VPhysicsGetObject() && !GetParent() )
 	{
 		Vector position;
 		VPhysicsGetObject()->GetShadowPosition( &position, NULL );
@@ -1879,20 +1827,41 @@ void CBaseEntity::PhysicsStep()
 			// If so, ignore the physics result.
 			trace_t tr;
 			Physics_TraceEntity( this, GetAbsOrigin(), GetAbsOrigin(), PhysicsSolidMaskForEntity(), &tr );
-			updateFromVPhysics = tr.startsolid;
+			if ( tr.startsolid )
+			{
+				SetAbsOrigin( position );
+				PhysicsTouchTriggers();
+			}
 		}
-		if ( updateFromVPhysics )
+		else
 		{
 			SetAbsOrigin( position );
 			PhysicsTouchTriggers();
 		}
-		//NDebugOverlay::Box( position, WorldAlignMins(), WorldAlignMaxs(), 255, 255, 0, 0, 0.0 );
+		//NDebugOverlay::Box( position, WorldAlignMins(), WorldAlignMaxs(), 255, 255, 0, 0, 0.1 );
 	}
 
-	// not going to think, don't run game physics either
-	if ( thinktick > gpGlobals->tickcount )
-		return;
-	
+// handy debug code to visualize tolerance / shadow lag
+#if 0
+	else
+	{
+		if ( VPhysicsGetObject() && !GetParent() )
+		{
+			Vector position;
+			VPhysicsGetObject()->GetShadowPosition( &position, NULL );
+			float delta = (GetAbsOrigin() - position).LengthSqr();
+			if ( delta > 8 )
+			{
+				NDebugOverlay::Box( position, WorldAlignMins(), WorldAlignMaxs(), 255, 0, 0, 0, 0.1 );
+			}
+			else
+			{
+				NDebugOverlay::Box( position, WorldAlignMins(), WorldAlignMaxs(), 0, 255, 0, 0, 0.1 );
+			}
+		}
+	}
+#endif
+
 	// Don't let things stay in the past.
 	//  it is possible to start that way
 	//  by a trigger with a local time.
@@ -1916,7 +1885,7 @@ void CBaseEntity::PhysicsStep()
 			VPhysicsGetObject()->UpdateShadow( GetAbsOrigin(), vec3_angle, (GetFlags() & FL_FLY) ? true : false, dt );
 		}
 	}
-	PhysicsRelinkChildren(dt);
+	PhysicsRelinkChildren();
 }
 
 
@@ -2166,8 +2135,6 @@ void Physics_RunThinkFunctions( bool simulating )
 			{
 				// Always reset clock to real sv.time
 				gpGlobals->curtime = starttime;
-				// Force usercmd processing even though gpGlobals->tickcount isn't incrementing
-				pPlayer->ForceSimulation();
 				Physics_SimulateEntity( pPlayer );
 			}
 		}

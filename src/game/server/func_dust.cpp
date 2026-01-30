@@ -29,7 +29,6 @@ public:
 
 	virtual void	Spawn();
 	virtual void	Activate();
-	virtual void	Precache();
 	virtual bool	KeyValue( const char *szKeyName, const char *szValue );
 
 
@@ -153,8 +152,6 @@ CFunc_Dust::~CFunc_Dust()
 
 void CFunc_Dust::Spawn()
 {
-	Precache();
-
 	// Bind to our bmodel.
 	SetModel( STRING( GetModelName() ) );
 	//AddSolidFlags( FSOLID_NOT_SOLID );
@@ -168,11 +165,6 @@ void CFunc_Dust::Spawn()
 	BaseClass::Spawn();
 }
 
-
-void CFunc_Dust::Precache()
-{
-	PrecacheMaterial( "particle/sparkles" );
-}
 
 void CFunc_Dust::Activate()
 {

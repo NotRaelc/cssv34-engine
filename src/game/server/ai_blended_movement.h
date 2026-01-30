@@ -174,8 +174,6 @@ private:
 
 	float			m_flStartCycle;
 
-	float			m_flCurrRate;
-
 	float			m_flPredictiveSpeedAdjust;		// predictive speed adjust from probing slope 
 	float			m_flReactiveSpeedAdjust;		// reactive speed adjust when slope movement detected
 	Vector			m_vecPrevOrigin1;

@@ -15,7 +15,7 @@
 #define SPLINEPATCH_H
 #pragma once
 
-#include "mathlib/vector4D.h"
+#include "vector4D.h"
 
 //-----------------------------------------------------------------------------
 // Spline patch: 

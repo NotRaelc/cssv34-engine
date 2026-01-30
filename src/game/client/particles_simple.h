@@ -149,6 +149,8 @@ public:
 	unsigned char	m_uchEndSize;
 	unsigned char 	m_iFlags;	// See SimpleParticleFlag_t above
 	float		m_flRollDelta;
+
+	void ToolRecordParticle( KeyValues *msg );
 };
 
 

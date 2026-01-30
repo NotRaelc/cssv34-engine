@@ -1,15 +1,24 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Color correction entity.
 //
  // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 #include "cbase.h"
 
+#include "cbase.h"
 #include "filesystem.h"
+//#include "triggers.h"
 #include "cdll_client_int.h"
+
 #include "materialsystem/materialsystemutil.h"
-#include "colorcorrectionmgr.h"
+#include "materialsystem/icolorcorrection.h"
+
+#include "utlvector.h"
+
+#include "generichash.h"
+
+//#include "engine/conprint.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -30,19 +39,17 @@ public:
 	DECLARE_CLIENTCLASS();
 	DECLARE_PREDICTABLE();
 
-	C_ColorCorrectionVolume();
-	virtual ~C_ColorCorrectionVolume();
-
 	void OnDataChanged(DataUpdateType_t updateType);
 	bool ShouldDraw();
 
 	void ClientThink();
 
 private:
+
 	float	m_Weight;
 	char	m_lookupFilename[MAX_PATH];
 
-	ClientCCHandle_t m_CCHandle;
+	ColorCorrectionHandle_t m_CCHandle;
 };
 
 IMPLEMENT_CLIENTCLASS_DT(C_ColorCorrectionVolume, DT_ColorCorrectionVolume, CColorCorrectionVolume)
@@ -54,21 +61,6 @@ BEGIN_PREDICTION_DATA( C_ColorCorrectionVolume )
 	DEFINE_PRED_FIELD( m_Weight, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 END_PREDICTION_DATA()
 
-
-//------------------------------------------------------------------------------
-// Constructor, destructor
-//------------------------------------------------------------------------------
-C_ColorCorrectionVolume::C_ColorCorrectionVolume()
-{
-	m_CCHandle = INVALID_CLIENT_CCHANDLE;
-}
-
-C_ColorCorrectionVolume::~C_ColorCorrectionVolume()
-{
-	g_pColorCorrectionMgr->RemoveColorCorrection( m_CCHandle );
-}
-
-
 //------------------------------------------------------------------------------
 // Purpose :
 // Input   :
@@ -78,16 +70,24 @@ void C_ColorCorrectionVolume::OnDataChanged(DataUpdateType_t updateType)
 {
 	BaseClass::OnDataChanged( updateType );
 
+	// We're releasing the CS:S client before the engine with this interface, so we need to fail gracefully
+	if ( !colorcorrection )
+	{
+		return;
+	}
+
 	if ( updateType == DATA_UPDATE_CREATED )
 	{
-		if ( m_CCHandle == INVALID_CLIENT_CCHANDLE )
-		{
-			char filename[MAX_PATH];
-			Q_strncpy( filename, m_lookupFilename, MAX_PATH );
+		SetNextClientThink( CLIENT_THINK_ALWAYS );
 
-			m_CCHandle = g_pColorCorrectionMgr->AddColorCorrection( filename );
-			SetNextClientThink( ( m_CCHandle != INVALID_CLIENT_CCHANDLE ) ? CLIENT_THINK_ALWAYS : CLIENT_THINK_NEVER );
-		}
+		char filename[MAX_PATH];
+		Q_strncpy( filename, m_lookupFilename, MAX_PATH );
+
+		m_CCHandle = colorcorrection->AddLookup( filename );
+
+		colorcorrection->LockLookup( m_CCHandle );
+		colorcorrection->LoadLookup( m_CCHandle, filename );
+		colorcorrection->UnlockLookup( m_CCHandle );
 	}
 }
 
@@ -101,8 +101,15 @@ bool C_ColorCorrectionVolume::ShouldDraw()
 
 void C_ColorCorrectionVolume::ClientThink()
 {
+	// We're releasing the CS:S client before the engine with this interface, so we need to fail gracefully
+	if ( !colorcorrection )
+	{
+		return;
+	}
+
 	Vector entityPosition = GetAbsOrigin();
-	g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CCHandle, m_Weight );
+
+	colorcorrection->SetLookupWeight( m_CCHandle, m_Weight );
 }
 
 

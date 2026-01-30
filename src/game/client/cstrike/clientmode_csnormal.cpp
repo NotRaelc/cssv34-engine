@@ -231,15 +231,15 @@ void ClientModeCSNormal::Init()
 {
 	BaseClass::Init();
 
-	ListenForGameEvent( "round_end" );
-	ListenForGameEvent( "round_start" );
-	ListenForGameEvent( "player_team" );
-	ListenForGameEvent( "player_death" );
-	ListenForGameEvent( "bomb_planted" );
-	ListenForGameEvent( "bomb_defused" );
-	ListenForGameEvent( "hostage_killed" );
-	ListenForGameEvent( "hostage_hurt" );
-	ListenForGameEvent( "round_end_message" );
+	gameeventmanager->AddListener( this, "round_end", false );
+	gameeventmanager->AddListener( this, "round_start", false );
+	gameeventmanager->AddListener( this, "player_team", false );
+	gameeventmanager->AddListener( this, "player_death", false );
+	gameeventmanager->AddListener( this, "bomb_planted", false );
+	gameeventmanager->AddListener( this, "bomb_defused", false );
+	gameeventmanager->AddListener( this, "hostage_killed", false );
+	gameeventmanager->AddListener( this, "hostage_hurt", false );
+	gameeventmanager->AddListener( this, "round_end_message", false );
 
 	usermessages->HookMessage( "KillCam", MsgFunc_KillCam );
 }
@@ -330,7 +330,7 @@ void ClientModeCSNormal::UpdateSpectatorMode( void )
 //-----------------------------------------------------------------------------
 // Purpose: We've received a keypress from the engine. Return 1 if the engine is allowed to handle it.
 //-----------------------------------------------------------------------------
-int	ClientModeCSNormal::KeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
+int	ClientModeCSNormal::KeyInput( int down, int keynum, const char *pszCurrentBinding )
 {
 	// don't process input in LogoMaps
 	if( CSGameRules() && CSGameRules()->IsLogoMap() )
@@ -465,9 +465,48 @@ void ClientModeCSNormal::FireGameEvent( IGameEvent *event )
 		internalCenterPrint->Print( hudtextmessage->LookupString( event->GetString("message") ) );
 	}
 
+#ifdef _CLIENT_FIXES
+	else if ( Q_strcmp( "player_connect", eventname ) == 0 )
+	{
+		wchar_t *formatString = NULL;
+		wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
+		wchar_t wszLocalized[128];
+		char szLocalized[128];
+
+		formatString = vgui::localize()->Find("#Cstrike_TitlesTXT_Game_connected");
+
+		vgui::localize()->ConvertANSIToUnicode( event->GetString("name"), wszPlayerName, sizeof(wszPlayerName) );
+		vgui::localize()->ConstructString( wszLocalized, sizeof(wszLocalized), formatString, 1, wszPlayerName );
+		vgui::localize()->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
+
+		pHudChat->Printf( CHAT_FILTER_JOINLEAVE, szLocalized );
+	}
+
+
+	else if ( Q_strcmp( "player_disconnect", eventname ) == 0 )
+	{
+		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
+
+		if ( !pPlayer )
+			return;
+
+		wchar_t *formatString = NULL;
+		wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
+		wchar_t wszLocalized[128];
+		char szLocalized[128];
+
+		formatString = vgui::localize()->Find("#Cstrike_TitlesTXT_Game_disconnected");
+
+		vgui::localize()->ConvertANSIToUnicode( pPlayer->GetPlayerName(), wszPlayerName, sizeof(wszPlayerName) );
+		vgui::localize()->ConstructString( wszLocalized, sizeof(wszLocalized), formatString, 1, wszPlayerName );
+		vgui::localize()->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
+
+		pHudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s (%s)", szLocalized, event->GetString("reason")  );
+	}
+#endif
+
 	else if ( Q_strcmp( "player_team", eventname ) == 0 )
 	{
-		CBaseHudChat *pHudChat = (CBaseHudChat *)GET_HUDELEMENT( CHudChat );
 		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
 		
 		if ( !pPlayer )
@@ -486,12 +525,34 @@ void ClientModeCSNormal::FireGameEvent( IGameEvent *event )
 			pPlayer->TeamChange( iTeam );
 		}
 
+#ifdef _CLIENT_FIXES
+		wchar_t *formatString = NULL;
+		wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
+		wchar_t wszLocalized[128];
+		char szLocalized[128];
+
+		if ( iTeam == TEAM_SPECTATOR )
+			formatString = vgui::localize()->Find("#Cstrike_game_join_spectators");
+		else if ( iTeam == TEAM_TERRORIST )
+			formatString = vgui::localize()->Find("#Cstrike_game_join_terrorist");
+		else if (iTeam == TEAM_CT)
+			formatString = vgui::localize()->Find("#Cstrike_game_join_ct");
+		else
+			return;
+
+		vgui::localize()->ConvertANSIToUnicode( pPlayer->GetPlayerName(), wszPlayerName, sizeof(wszPlayerName) );
+		vgui::localize()->ConstructString( wszLocalized, sizeof(wszLocalized), formatString, 1, wszPlayerName );
+		vgui::localize()->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
+		
+		pHudChat->Printf( CHAT_FILTER_NONE, szLocalized );
+#else
 		if ( iTeam == TEAM_SPECTATOR )
 			pHudChat->Printf( CHAT_FILTER_NONE, hudtextmessage->LookupString( "#Game_join_spectators" ), pPlayer->GetPlayerName() );
 		else if ( iTeam == TEAM_TERRORIST )
 			pHudChat->Printf( CHAT_FILTER_NONE, hudtextmessage->LookupString( "#Game_join_terrorist" ), pPlayer->GetPlayerName() );
 		else if ( iTeam == TEAM_CT )
 			pHudChat->Printf( CHAT_FILTER_NONE, hudtextmessage->LookupString( "#Game_join_ct" ), pPlayer->GetPlayerName() );
+#endif
 	}
 
 	else if ( Q_strcmp( "bomb_planted", eventname ) == 0 )
@@ -777,7 +838,7 @@ void UpdateClassImageEntity(
 	view.zFar = 1000;
 
 	Frustum dummyFrustum;
-	render->Push3DView( view, 0, NULL, dummyFrustum );
+	render->Push3DView( view, 0, NULL, NULL, dummyFrustum );
 
 	pPlayerModel->DrawModel( STUDIO_RENDER );
 

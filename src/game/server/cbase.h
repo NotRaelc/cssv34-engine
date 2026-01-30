@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -28,6 +28,7 @@
 #include <math.h>
 
 #include <stdio.h>
+#include "minmax.h"
 
 // tier 0
 #include "tier0/dbg.h"
@@ -35,9 +36,9 @@
 #include "basetypes.h"
 
 // tier 1
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "utlvector.h"
-#include "mathlib/vmatrix.h"
+#include "vmatrix.h"
 
 // tier 2
 #include "string_t.h"
@@ -53,18 +54,12 @@
 #include "eiface.h"
 #include "iserverentity.h"
 
-#include "dt_send.h"
-
 // Shared header between the client DLL and the game DLLs
 #include "shareddefs.h"
 #include "ehandle.h"
 
 // app
-#if defined(_X360)
-#define DISABLE_DEBUG_HISTORY 1
-#endif
-
-
+#include "dt_send.h"
 #include "datamap.h"
 #include "util.h"
 #include "predictable_entity.h"

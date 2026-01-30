@@ -13,7 +13,7 @@
 
 
 #include "ehandle.h"
-#include "mathlib/vmatrix.h"
+#include "vmatrix.h"
 
 class CBaseEntity;
 

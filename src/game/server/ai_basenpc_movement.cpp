@@ -475,17 +475,10 @@ float CAI_BaseNPC::MaxYawSpeed( void )
 }
 
 //-----------------------------------------------------------------------------
-// Returns the estimate in seconds before we reach our nav goal.
-// -1 means we don't know / haven't calculated it yet.
-//-----------------------------------------------------------------------------
+
 float CAI_BaseNPC::GetTimeToNavGoal()
 {
-	float flDist = GetNavigator()->BuildAndGetPathDistToGoal();
-	if ( flDist < 0 )
-	{
-		return -1.0f;
-	}
-
+	float flDist = GetNavigator()->GetPathDistToGoal();
 	float flSpeed = GetIdealSpeed();
 
 	// FIXME: needs to consider stopping time!

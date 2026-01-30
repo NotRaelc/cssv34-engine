@@ -41,12 +41,12 @@ int GetAlternateProportionalValueFromScaled( vgui::HScheme scheme, int scaledVal
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void DrawRoundedBackground( Color bgColor, int wide, int tall );
+void DrawBackground( Color bgColor, int wide, int tall,  bool rounded = false );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void DrawRoundedBorder( Color borderColor, int wide, int tall );
+void DrawBorder( Color borderColor, int wide, int tall,  bool rounded = false );
 
 //-----------------------------------------------------------------------------
 

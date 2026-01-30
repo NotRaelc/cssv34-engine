@@ -12,7 +12,7 @@
 #endif
 
 #include "interface.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 
 #define INTERFACEVERSION_MAPDATA	"MapData001"
 

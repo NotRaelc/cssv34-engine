@@ -11,7 +11,7 @@
 #include "player.h"
 #include "gamerules.h"
 #include "ammodef.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "in_buttons.h"
 #include "soundent.h"
 #include "animation.h"
@@ -20,7 +20,6 @@
 #include "ndebugoverlay.h"
 #include "te_effect_dispatch.h"
 #include "rumble_shared.h"
-#include "gamestats.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -132,7 +131,7 @@ void CBaseHLBludgeonWeapon::SecondaryAttack()
 //------------------------------------------------------------------------------
 // Purpose: Implement impact function
 //------------------------------------------------------------------------------
-void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity, bool bIsSecondary )
+void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
 	
@@ -169,11 +168,6 @@ void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity, bool 
 
 		// Now hit all triggers along the ray that... 
 		TraceAttackToTriggers( info, traceHit.startpos, traceHit.endpos, hitDirection );
-
-		if ( ToBaseCombatCharacter( pHitEntity ) )
-		{
-			gamestats->Event_WeaponHit( pPlayer, !bIsSecondary, GetClassname(), info );
-		}
 	}
 
 	// Apply an impact effect
@@ -298,7 +292,9 @@ void CBaseHLBludgeonWeapon::Swing( int bIsSecondary )
 	if ( !pOwner )
 		return;
 
+#ifdef _XBOX
 	pOwner->RumbleEffect( RUMBLE_CROWBAR_SWING, 0, RUMBLE_FLAG_RESTART );
+#endif//_XBOX
 
 	Vector swingStart = pOwner->Weapon_ShootPosition( );
 	Vector forward;
@@ -343,17 +339,6 @@ void CBaseHLBludgeonWeapon::Swing( int bIsSecondary )
 		}
 	}
 
-	if ( !bIsSecondary )
-	{
-		m_iPrimaryAttacks++;
-	} 
-	else 
-	{
-		m_iSecondaryAttacks++;
-	}
-
-	gamestats->Event_WeaponFired( pOwner, !bIsSecondary, GetClassname() );
-
 	// -------------------------
 	//	Miss
 	// -------------------------
@@ -369,7 +354,7 @@ void CBaseHLBludgeonWeapon::Swing( int bIsSecondary )
 	}
 	else
 	{
-		Hit( traceHit, nHitActivity, bIsSecondary ? true : false );
+		Hit( traceHit, nHitActivity );
 	}
 
 	// Send the anim

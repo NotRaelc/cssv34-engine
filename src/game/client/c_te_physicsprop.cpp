@@ -11,7 +11,6 @@
 #include "c_te_legacytempents.h"
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
-#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -134,8 +133,6 @@ void TE_PhysicsProp( IRecipientFilter& filter, float delay,
 //-----------------------------------------------------------------------------
 void C_TEPhysicsProp::PostDataUpdate( DataUpdateType_t updateType )
 {
-	VPROF( "C_TEPhysicsProp::PostDataUpdate" );
-
 	tempents->PhysicsProp( m_nModelIndex, m_nSkin, m_vecOrigin, m_angRotation, m_vecVelocity, m_nFlags, m_nEffects );
 	RecordPhysicsProp( m_vecOrigin, m_angRotation, m_vecVelocity, m_nModelIndex, m_nFlags, m_nSkin, m_nEffects );
 }

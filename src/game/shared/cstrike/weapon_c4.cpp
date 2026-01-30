@@ -958,23 +958,6 @@ void CC4::PrimaryAttack()
 				trace_t tr;
 				UTIL_TraceEntity( pC4, GetAbsOrigin(), GetAbsOrigin() + Vector(0,0,-200), MASK_SOLID, this, COLLISION_GROUP_NONE, &tr );
 				pC4->SetAbsOrigin( tr.endpos );
-
-				CBombTarget *pBombTarget = (CBombTarget*)UTIL_EntityByIndex( pPlayer->m_iBombSiteIndex );
-				
-				if ( pBombTarget )
-				{
-					CBaseEntity *pAttachPoint = gEntList.FindEntityByName( NULL, pBombTarget->GetBombMountTarget() );
-
-					if ( pAttachPoint )
-					{
-						pC4->SetAbsOrigin( pAttachPoint->GetAbsOrigin() );
-						pC4->SetAbsAngles( pAttachPoint->GetAbsAngles() );
-						pC4->SetParent( pAttachPoint );
-					}
-
-					variant_t emptyVariant;
-					pBombTarget->AcceptInput( "BombPlanted", pC4, pC4, emptyVariant, 0 );
-				}
 			}
 
 			IGameEvent * event = gameeventmanager->CreateEvent( "bomb_planted" );

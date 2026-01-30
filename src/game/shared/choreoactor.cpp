@@ -240,19 +240,18 @@ CChoreoChannel *CChoreoActor::FindChannel( const char *name )
 	return NULL;
 }
 
-void CChoreoActor::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool )
+void CChoreoActor::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 {
-	buf.PutShort( pStringPool->FindOrAddString( GetName() ) );
+	int i, c;
+	buf.PutString( GetName() );
 
-	int c = GetNumChannels();
-	Assert( c <= 255 );
-	buf.PutUnsignedChar( c );
-
-	for ( int i = 0; i < c; i++ )
+	c = GetNumChannels();
+	buf.PutShort( c );
+	for ( i = 0; i < c; i++ )
 	{
 		CChoreoChannel *channel = GetChannel( i );
 		Assert( channel );
-		channel->SaveToBuffer( buf, pScene, pStringPool );
+		channel->SaveToBuffer( buf, pScene );
 	}
 
 	/*
@@ -264,20 +263,20 @@ void CChoreoActor::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoS
 	buf.PutChar( GetActive() ? 1 : 0 );
 }
 
-bool CChoreoActor::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool )
+bool CChoreoActor::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 {
 	char sz[ 256 ];
-	pStringPool->GetString( buf.GetShort(), sz, sizeof( sz ) );
+	buf.GetString( sz, sizeof( sz ) );
 
 	SetName( sz );
 
 	int i;
-	int c = buf.GetUnsignedChar();
+	int c = buf.GetShort();
 	for ( i = 0; i < c; i++ )
 	{
 		CChoreoChannel *channel = pScene->AllocChannel();
 		Assert( channel );
-		if ( channel->RestoreFromBuffer( buf, pScene, this, pStringPool ) )
+		if ( channel->RestoreFromBuffer( buf, pScene, this ) )
 		{
 			AddChannel( channel );
 			channel->SetActor( this );

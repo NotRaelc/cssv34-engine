@@ -14,7 +14,6 @@
 #include "nav_mesh.h"
 #include "nav_node.h"
 #include "fmtstr.h"
-#include "utlbuffer.h"
 #include "tier0/vprof.h"
 
 #define DrawLine( from, to, duration, red, green, blue )		NDebugOverlay::Line( from, to, red, green, blue, true, 0.1f )
@@ -39,9 +38,6 @@ CNavMesh::CNavMesh( void )
 	m_spawnName = NULL;
 	m_gridCellSize = 300.0f;
 
-	m_placeCount = 0;
-	m_placeName = NULL;
-
 	LoadPlaceDatabase();
 
 	Reset();
@@ -56,12 +52,10 @@ CNavMesh::~CNavMesh()
 	if (m_spawnName)
 		delete [] m_spawnName;
 
- // !!!!bug!!! why does this crash in linux on server exit
 	for( unsigned int i=0; i<m_placeCount; ++i )
 	{
 		delete [] m_placeName[i];
 	}
-
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -651,48 +645,52 @@ void CNavMesh::LoadPlaceDatabase( void )
 {
 	m_placeCount = 0;
 
-	CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
-	filesystem->ReadFile("NavPlace.db", "GAME", buf);
+	FileHandle_t file = filesystem->Open( "NavPlace.db", "r" );
 
-	if (!buf.Size())
+	if (!file)
+	{
 		return;
+	}
 
 	const int maxNameLength = 128;
 	char buffer[ maxNameLength ];
 
-	CUtlVector<char*> placeNames;
-
 	// count the number of places
 	while( true )
 	{
-		buf.GetLine( buffer, maxNameLength );
-
-		if ( !buf.IsValid() )
+		if (filesystem->ReadLine( buffer, maxNameLength, file ) == NULL)
 			break;
 
-		int len = V_strlen( buffer );
-		if ( len >= 2 )
-		{
-			if ( buffer[len-1] == '\n' )
-				buffer[len-1] = 0;
-			
-			if ( buffer[len-2] == '\r' )
-				buffer[len-2] = 0;
-
-			char *pName = new char[ len + 1 ];
-			V_strncpy( pName, buffer, len+1 );
-			placeNames.AddToTail( pName );
-		}
+		++m_placeCount;
 	}
 
 	// allocate place name array
-	m_placeCount = placeNames.Count();
 	m_placeName = new char * [ m_placeCount ];
-	
-	for ( unsigned int i=0; i < m_placeCount; i++ )
+
+
+	// rewind and actually read the places
+	filesystem->Seek( file, 0, FILESYSTEM_SEEK_HEAD );
+
+	int i = 0;
+	while( true )
 	{
-		m_placeName[i] = placeNames[i];
+		if (filesystem->ReadLine( buffer, maxNameLength, file ) == NULL)
+			break;
+
+		int length = strlen( buffer );
+
+		// remove trailing newline
+		if (buffer[ length-1 ] == '\n')
+			buffer[ length-1 ] = '\000';
+		if (buffer[ length-2 ] == '\r')
+			buffer[ length-2 ] = '\000';
+
+		m_placeName[ i ] = new char [ strlen(buffer)+1 ];
+		strcpy( m_placeName[ i ], buffer );
+		++i;
 	}
+
+	filesystem->Close( file );
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -1143,12 +1141,12 @@ static ConCommand nav_merge( "nav_merge", CommandNavMerge, "To merge two Areas i
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CommandNavMark( const CCommand &args )
+void CommandNavMark( void )
 {
 	if ( !UTIL_IsCommandIssuedByServerAdmin() )
 		return;
 
-	TheNavMesh->CommandNavMark( args );
+	TheNavMesh->CommandNavMark();
 }
 static ConCommand nav_mark( "nav_mark", CommandNavMark, "Marks the Area or Ladder under the cursor for manipulation by subsequent editing commands.", FCVAR_GAMEDLL | FCVAR_CHEAT );
 
@@ -1403,12 +1401,12 @@ static int PlaceNameAutocompleteCallback( char const *partial, char commands[ CO
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CommandNavUsePlace( const CCommand &args )
+void CommandNavUsePlace( void )
 {
 	if ( !UTIL_IsCommandIssuedByServerAdmin() )
 		return;
 
-	if (args.ArgC() == 1)
+	if (engine->Cmd_Argc() == 1)
 	{
 		// no arguments = list all available places
 		TheNavMesh->PrintAllPlaces();
@@ -1416,7 +1414,7 @@ void CommandNavUsePlace( const CCommand &args )
 	else
 	{
 		// single argument = set current place
-		Place place = TheNavMesh->PartialNameToPlace( args[ 1 ] );
+		Place place = TheNavMesh->PartialNameToPlace( engine->Cmd_Argv( 1 ) );
 
 		if (place == UNDEFINED_PLACE)
 		{
@@ -1433,12 +1431,12 @@ static ConCommand nav_use_place( "nav_use_place", CommandNavUsePlace, "If used w
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CommandNavPlaceReplace( const CCommand &args )
+void CommandNavPlaceReplace( void )
 {
 	if ( !UTIL_IsCommandIssuedByServerAdmin() )
 		return;
 
-	if (args.ArgC() != 3)
+	if (engine->Cmd_Argc() != 3)
 	{
 		// no arguments
 		Msg( "Usage: nav_place_replace <OldPlace> <NewPlace>\n" );
@@ -1446,8 +1444,8 @@ void CommandNavPlaceReplace( const CCommand &args )
 	else
 	{
 		// two arguments - replace the first place with the second
-		Place oldPlace = TheNavMesh->PartialNameToPlace( args[ 1 ] );
-		Place newPlace = TheNavMesh->PartialNameToPlace( args[ 2 ] );
+		Place oldPlace = TheNavMesh->PartialNameToPlace( engine->Cmd_Argv( 1 ) );
+		Place newPlace = TheNavMesh->PartialNameToPlace( engine->Cmd_Argv( 2 ) );
 
 		if ( oldPlace == UNDEFINED_PLACE || newPlace == UNDEFINED_PLACE )
 		{
@@ -1513,15 +1511,15 @@ static ConCommand nav_toggle_place_mode( "nav_toggle_place_mode", CommandNavTogg
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CommandNavSetPlaceMode( const CCommand &args )
+void CommandNavSetPlaceMode( void )
 {
 	if ( !UTIL_IsCommandIssuedByServerAdmin() )
 		return;
 
 	bool on = true;
-	if ( args.ArgC() == 2 )
+	if ( engine->Cmd_Argc() == 2 )
 	{
-		on = (atoi( args[ 1 ] ) != 0);
+		on = (atoi( engine->Cmd_Argv( 1 ) ) != 0);
 	}
 
 	if ( on != TheNavMesh->IsPlaceMode() )
@@ -1610,12 +1608,12 @@ static ConCommand nav_corner_lower( "nav_corner_lower", CommandNavCornerLower, "
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CommandNavCornerPlaceOnGround( const CCommand &args )
+void CommandNavCornerPlaceOnGround( void )
 {
 	if ( !UTIL_IsCommandIssuedByServerAdmin() )
 		return;
 
-	TheNavMesh->CommandNavCornerPlaceOnGround( args );
+	TheNavMesh->CommandNavCornerPlaceOnGround();
 }
 static ConCommand nav_corner_place_on_ground( "nav_corner_place_on_ground", CommandNavCornerPlaceOnGround, "Places the selected corner of the currently marked Area on the ground.", FCVAR_GAMEDLL | FCVAR_CHEAT );
 

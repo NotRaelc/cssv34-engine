@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -14,7 +14,6 @@
 
 #include "soundent.h"
 #include "entitylist.h"
-#include "GameStats.h"
 
 #endif
 
@@ -182,31 +181,10 @@ void CBaseGrenade::Explode( trace_t *pTrace, int bitsDamageType )
 
 	SetThink( &CBaseGrenade::SUB_Remove );
 	SetTouch( NULL );
-	SetSolid( SOLID_NONE );
 	
 	AddEffects( EF_NODRAW );
 	SetAbsVelocity( vec3_origin );
-
-#if HL2_EPISODIC
-	// Because the grenade is zipped out of the world instantly, the EXPLOSION sound that it makes for
-	// the AI is also immediately destroyed. For this reason, we now make the grenade entity inert and
-	// throw it away in 1/10th of a second instead of right away. Removing the grenade instantly causes
-	// intermittent bugs with env_microphones who are listening for explosions. They will 'randomly' not
-	// hear explosion sounds when the grenade is removed and the SoundEnt thinks (and removes the sound)
-	// before the env_microphone thinks and hears the sound.
-	SetNextThink( gpGlobals->curtime + 0.1 );
-#else
 	SetNextThink( gpGlobals->curtime );
-#endif//HL2_EPISODIC
-
-#if defined( HL2_DLL )
-	CBasePlayer *pPlayer = ToBasePlayer( m_hThrower.Get() );
-	if ( pPlayer )
-	{
-		gamestats->Event_WeaponHit( pPlayer, true, "weapon_frag", info );
-	}
-#endif
-
 #endif
 }
 
@@ -289,14 +267,6 @@ void CBaseGrenade::Detonate( void )
 
 	vecSpot = GetAbsOrigin() + Vector ( 0 , 0 , 8 );
 	UTIL_TraceLine ( vecSpot, vecSpot + Vector ( 0, 0, -32 ), MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, & tr);
-
-	if( tr.startsolid )
-	{
-		// Since we blindly moved the explosion origin vertically, we may have inadvertently moved the explosion into a solid,
-		// in which case nothing is going to be harmed by the grenade's explosion because all subsequent traces will startsolid.
-		// If this is the case, we do the downward trace again from the actual origin of the grenade. (sjb) 3/8/2007  (for ep2_outland_09)
-		UTIL_TraceLine( GetAbsOrigin(), GetAbsOrigin() + Vector( 0, 0, -32), MASK_SHOT_HULL, this, COLLISION_GROUP_NONE, &tr );
-	}
 
 	Explode( &tr, DMG_BLAST );
 
@@ -509,12 +479,6 @@ CBaseCombatCharacter *CBaseGrenade::GetThrower( void )
 void CBaseGrenade::SetThrower( CBaseCombatCharacter *pThrower )
 {
 	m_hThrower = pThrower;
-
-	// if this is the first thrower, set it as the original thrower
-	if ( NULL == m_hOriginalThrower )
-	{
-		m_hOriginalThrower = pThrower;
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -534,7 +498,6 @@ CBaseGrenade::~CBaseGrenade(void)
 CBaseGrenade::CBaseGrenade(void)
 {
 	m_hThrower			= NULL;
-	m_hOriginalThrower	= NULL;
 	m_bIsLive			= false;
 	m_DmgRadius			= 100;
 	m_flDetonateTime	= 0;

@@ -111,13 +111,6 @@ void CHudMenu::VidInit( void )
 //-----------------------------------------------------------------------------
 void CHudMenu::OnThink()
 {
-	float flSelectionTimeout = MENU_SELECTION_TIMEOUT;
-
-	// If we've been open for a while without input, hide
-	if ( m_bMenuDisplayed && ( gpGlobals->curtime - m_flSelectionTime > flSelectionTimeout ) )
-	{
-		m_bMenuDisplayed = false;
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -390,61 +383,12 @@ void CHudMenu::ShowMenu( const char * menuName, int validSlots )
 	// we have the whole string, so we can localise it now
 	char szMenuString[MAX_MENU_STRING];
 	Q_strncpy( szMenuString, ConvertCRtoNL( hudtextmessage->BufferedLocaliseTextString( g_szPrelocalisedMenuString ) ), sizeof( szMenuString ) );
-	g_pVGuiLocalize->ConvertANSIToUnicode( szMenuString, g_szMenuString, sizeof( g_szMenuString ) );
+	vgui::localize()->ConvertANSIToUnicode( szMenuString, g_szMenuString, sizeof( g_szMenuString ) );
 	
 	ProcessText();
 
 	m_bMenuDisplayed = true;
 	m_bMenuTakesInput = true;
-
-	m_flSelectionTime = gpGlobals->curtime;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CHudMenu::ShowMenu_KeyValueItems( KeyValues *pKV )
-{
-	m_flShutoffTime = -1;
-	m_fWaitingForMore = 0;
-	m_bitsValidSlots = 0;
-
-	g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("MenuOpen");
-	m_nSelectedItem = -1;
-	
-	g_szMenuString[0] = '\0';
-
-	wchar_t wItem[128];
-
-	int i = 0;
-	for ( KeyValues *item = pKV->GetFirstSubKey(); item != NULL; item = item->GetNextKey() )
-	{
-		// Set this slot valid
-		m_bitsValidSlots |= (1<<i);
-
-		const char *pszItem = item->GetName();
-		const wchar_t *wLocalizedItem = g_pVGuiLocalize->Find( pszItem );
-
-		_snwprintf( wItem, sizeof( wItem )/ sizeof( wchar_t ), L"%d. %s\n", i+1, wLocalizedItem );
-
-		_snwprintf( g_szMenuString, sizeof( g_szMenuString )/ sizeof( wchar_t ), L"%s%s", g_szMenuString, wItem );
-
-		i++;
-	}
-
-	// put a cancel on the end
-	m_bitsValidSlots |= (1<<9);
-
-	_snwprintf( wItem, sizeof( wItem )/ sizeof( wchar_t ), L"0. %s", g_pVGuiLocalize->Find( "#Cancel" ) );
-
-	_snwprintf( g_szMenuString, sizeof( g_szMenuString )/ sizeof( wchar_t ), L"%s\n%s", g_szMenuString, wItem );
-
-	ProcessText();
-
-	m_bMenuDisplayed = true;
-	m_bMenuTakesInput = true;
-
-	m_flSelectionTime = gpGlobals->curtime;
 }
 
 //-----------------------------------------------------------------------------
@@ -494,15 +438,13 @@ void CHudMenu::MsgFunc_ShowMenu( bf_read &msg)
 			// we have the whole string, so we can localise it now
 			char szMenuString[MAX_MENU_STRING];
 			Q_strncpy( szMenuString, ConvertCRtoNL( hudtextmessage->BufferedLocaliseTextString( g_szPrelocalisedMenuString ) ), sizeof( szMenuString ) );
-			g_pVGuiLocalize->ConvertANSIToUnicode( szMenuString, g_szMenuString, sizeof( g_szMenuString ) );
+			vgui::localize()->ConvertANSIToUnicode( szMenuString, g_szMenuString, sizeof( g_szMenuString ) );
 			
 			ProcessText();
 		}
 
 		m_bMenuDisplayed = true;
 		m_bMenuTakesInput = true;
-
-		m_flSelectionTime = gpGlobals->curtime;
 	}
 	else
 	{

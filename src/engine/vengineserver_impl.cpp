@@ -40,7 +40,7 @@
 #include "networkstringtable.h"
 #include "LocalNetworkBackdoor.h"
 #include "host_phonehome.h"
-#include "matchmaking.h"
+//#include "matchmaking.h"
 #include "sv_plugin.h"
 
 // memdbgon must be the last include file in a .cpp file!!!

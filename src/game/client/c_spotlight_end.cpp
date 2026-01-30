@@ -100,14 +100,6 @@ void C_SpotlightEnd::ClientThink(void)
 	if ( m_flLightScale <= 0 )
 		return;
 
-	ColorRGBExp32 color;
-	color.r	= m_clrRender->r * m_clrRender->a;
-	color.g	= m_clrRender->g * m_clrRender->a;
-	color.b	= m_clrRender->b * m_clrRender->a;
-	color.exponent = 0;
-	if ( color.r == 0 && color.g == 0 && color.b == 0 )
-		return;
-
 	// Deal with the environment light
 	if ( !m_pDynamicLight || (m_pDynamicLight->key != index) )
 	{
@@ -119,7 +111,10 @@ void C_SpotlightEnd::ClientThink(void)
 	m_pDynamicLight->radius		= m_flLightScale*3.0f;
 	m_pDynamicLight->origin		= GetAbsOrigin() + Vector(0,0,5);
 	m_pDynamicLight->die		= gpGlobals->curtime + 0.05f;
-	m_pDynamicLight->color		= color;
+	m_pDynamicLight->color.r	= m_clrRender->r * m_clrRender->a;
+	m_pDynamicLight->color.g	= m_clrRender->g * m_clrRender->a;
+	m_pDynamicLight->color.b	= m_clrRender->b * m_clrRender->a;
+	m_pDynamicLight->color.exponent	= 0.75f;
 
 	/*
 	// For bumped lighting

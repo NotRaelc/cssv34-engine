@@ -94,14 +94,14 @@ enum Class_T
 	CLASS_ANTLION,
 	CLASS_BARNACLE,
 	CLASS_BULLSEYE,
-	CLASS_BULLSQUID,	
+	//CLASS_BULLSQUID,	
 	CLASS_CITIZEN_PASSIVE,	
 	CLASS_CITIZEN_REBEL,
 	CLASS_COMBINE,
 	CLASS_COMBINE_GUNSHIP,
 	CLASS_CONSCRIPT,
 	CLASS_HEADCRAB,
-	CLASS_HOUNDEYE,
+	//CLASS_HOUNDEYE,
 	CLASS_MANHACK,
 	CLASS_METROPOLICE,		
 	CLASS_MILITARY,		
@@ -114,7 +114,6 @@ enum Class_T
 	CLASS_FLARE,
 	CLASS_EARTH_FAUNA,
 	CLASS_HACKED_ROLLERMINE,
-	CLASS_COMBINE_HUNTER,
 
 	NUM_AI_CLASSES
 };
@@ -137,39 +136,6 @@ enum Class_T
 	CLASS_PLAYER_BIOWEAPON,
 	CLASS_ALIEN_BIOWEAPON,
 
-	NUM_AI_CLASSES
-};
-
-#elif defined( INVASION_DLL )
-
-enum Class_T
-{
-	CLASS_NONE = 0,
-	CLASS_PLAYER,			
-	CLASS_PLAYER_ALLY,
-	CLASS_PLAYER_ALLY_VITAL,
-	CLASS_ANTLION,
-	CLASS_BARNACLE,
-	CLASS_BULLSEYE,
-	CLASS_BULLSQUID,	
-	CLASS_CITIZEN_PASSIVE,	
-	CLASS_CITIZEN_REBEL,
-	CLASS_COMBINE,
-	CLASS_COMBINE_GUNSHIP,
-	CLASS_CONSCRIPT,
-	CLASS_HEADCRAB,
-	CLASS_HOUNDEYE,
-	CLASS_MANHACK,
-	CLASS_METROPOLICE,		
-	CLASS_MILITARY,		
-	CLASS_SCANNER,		
-	CLASS_STALKER,		
-	CLASS_VORTIGAUNT,
-	CLASS_ZOMBIE,
-	CLASS_PROTOSNIPER,
-	CLASS_MISSILE,
-	CLASS_FLARE,
-	CLASS_EARTH_FAUNA,
 	NUM_AI_CLASSES
 };
 
@@ -287,8 +253,6 @@ enum DebugOverlayBits_t
 	OVERLAY_PROP_DEBUG			=	0x10000000,
 
 	OVERLAY_NPC_RELATION_BIT	=	0x20000000,		// show relationships between target and all children
-
-	OVERLAY_VIEWOFFSET			=	0x40000000,		// show view offset
 };
 
 struct TimedOverlay_t;
@@ -359,8 +323,6 @@ protected:
 	static int				m_nDebugSteps;		// Number of entity outputs to fire before pausing again.
 
 	static bool				sm_bDisableTouchFuncs;	// Disables PhysicsTouch and PhysicsStartTouch function calls
-public:
-	static bool				sm_bAccurateTriggerBboxChecks;	// SOLID_BBOX entities do a fully accurate trigger vs bbox check when this is set
 
 public:
 	// If bServerOnly is true, then the ent never goes to the client. This is used
@@ -544,8 +506,7 @@ public:
 	virtual void ParseMapData( CEntityMapData *mapData );
 	virtual bool KeyValue( const char *szKeyName, const char *szValue );
 	virtual bool KeyValue( const char *szKeyName, float flValue );
-	virtual bool KeyValue( const char *szKeyName, const Vector &vecValue );
-	virtual bool GetKeyValue( const char *szKeyName, char *szValue, int iMaxLen );
+	virtual bool KeyValue( const char *szKeyName, Vector vec );
 
 	void ValidateEntityConnections();
 	void FireNamedOutput( const char *pszOutput, variant_t variant, CBaseEntity *pActivator, CBaseEntity *pCaller, float flDelay = 0.0f );
@@ -585,10 +546,6 @@ public:
 private:
 	bool		NameMatchesComplex( const char *pszNameOrWildcard );
 	bool		ClassMatchesComplex( const char *pszClassOrWildcard );
-	void		TransformStepData_WorldToParent( CBaseEntity *pParent );
-	void		TransformStepData_ParentToParent( CBaseEntity *pOldParent, CBaseEntity *pNewParent );
-	void		TransformStepData_ParentToWorld( CBaseEntity *pParent );
-
 
 public:
 	int			GetSpawnFlags( void ) const;
@@ -672,7 +629,7 @@ public:
 	virtual	void DrawDebugGeometryOverlays(void);					
 	virtual int  DrawDebugTextOverlays(void);
 	void		 DrawTimedOverlays( void );
-	void		 DrawBBoxOverlay( float flDuration = 0.0f );
+	void		 DrawBBoxOverlay( void );
 	void		 DrawAbsBoxOverlay();
 	void		 DrawRBoxOverlay();
 
@@ -758,17 +715,10 @@ public:
 	void				SetRenderMode( RenderMode_t nRenderMode );
 	RenderMode_t		GetRenderMode() const;
 
-private:
-	// NOTE: Keep this near vtable so it's in cache with vtable.
-	CServerNetworkProperty m_Network;
-
-public:
 	// members
 	string_t m_iClassname;  // identifier for entity creation and save/restore
 	string_t m_iGlobalname; // identifier for carrying entity across level transitions
 	string_t m_iParent;	// the name of the entities parent; linked into m_pParent during Activate()
-
-	int		m_iHammerID; // Hammer unique edit id number
 
 public:
 	// was pev->speed
@@ -861,11 +811,9 @@ public:
 // still realize that they are teammates. (overridden for NPCs that form groups)
 	virtual Class_T Classify ( void );
 	virtual void	DeathNotice ( CBaseEntity *pVictim ) {}// NPC maker children use this to tell the NPC maker that they have died.
-	virtual bool	ShouldAttractAutoAim( CBaseEntity *pAimingEnt ) { return ((GetFlags() & FL_AIMTARGET) != 0); }
-	virtual float	GetAutoAimRadius();
+	virtual bool	ShouldAttractAutoAim( CBaseEntity *pAimingEnt ) { return false; }
+	virtual float	GetAutoAimRadius() { return 24.0f; }
 	virtual Vector	GetAutoAimCenter() { return WorldSpaceCenter(); }
-
-	virtual ITraceFilter*	GetBeamTraceFilter( void );
 
 	// Call this to do a TraceAttack on an entity, performs filtering. Don't call TraceAttack() directly except when chaining up to base class
 	void			DispatchTraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr );
@@ -887,12 +835,10 @@ public:
 
 	virtual int		TakeHealth( float flHealth, int bitsDamageType );
 
-	virtual bool	IsAlive( void );
+	bool	IsAlive( void );
 	// Entity killed (only fired once)
 	virtual void	Event_Killed( const CTakeDamageInfo &info );
 	
-	void SendOnKilledGameEvent( const CTakeDamageInfo &info );
-
 	// Notifier that I've killed some other entity. (called from Victim's Event_Killed).
 	virtual void	Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info ) { return; }
 
@@ -1030,7 +976,6 @@ public:
 
 	// UNDONE: Move these virtuals to CBaseCombatCharacter?
 	virtual void MakeTracer( const Vector &vecTracerSrc, const trace_t &tr, int iTracerType );
-	virtual int	GetTracerAttachment( void );
 	virtual void FireBullets( const FireBulletsInfo_t &info );
 	virtual void DoImpactEffect( trace_t &tr, int nDamageType ); // give shooter a chance to do a custom impact.
 
@@ -1038,7 +983,7 @@ public:
 	void FireBullets( int cShots, const Vector &vecSrc, const Vector &vecDirShooting, 
 		const Vector &vecSpread, float flDistance, int iAmmoType, int iTracerFreq = 4, 
 		int firingEntID = -1, int attachmentID = -1, int iDamage = 0, 
-		CBaseEntity *pAttacker = NULL, bool bFirstShotAccurate = false, bool bPrimaryAttack = true );
+		CBaseEntity *pAttacker = NULL, bool bFirstShotAccurate = false );
 
 	virtual CBaseEntity *Respawn( void ) { return NULL; }
 
@@ -1058,27 +1003,27 @@ public:
 
 	// Ugly code to lookup all functions to make sure they are in the table when set.
 #ifdef _DEBUG
-	void FunctionCheck( void *pFunction, const char *name );
+	void FunctionCheck( void *pFunction, char *name );
 
 	ENTITYFUNCPTR TouchSet( ENTITYFUNCPTR func, char *name ) 
 	{ 
 		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
 		m_pfnTouch = func; 
-		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnTouch)), name ); 
+		FunctionCheck( (void *)*((int *)((char *)this + ( offsetof(CBaseEntity,m_pfnTouch)))), name ); 
 		return func;
 	}
 	USEPTR	UseSet( USEPTR func, char *name ) 
 	{ 
 		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
 		m_pfnUse = func; 
-		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnUse)), name ); 
+		FunctionCheck( (void *)*((int *)((char *)this + ( offsetof(CBaseEntity,m_pfnUse)))), name ); 
 		return func;
 	}
 	ENTITYFUNCPTR	BlockedSet( ENTITYFUNCPTR func, char *name ) 
 	{ 
 		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
 		m_pfnBlocked = func; 
-		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnBlocked)), name ); 
+		FunctionCheck( (void *)*((int *)((char *)this + ( offsetof(CBaseEntity,m_pfnBlocked)))), name ); 
 		return func;
 	}
 
@@ -1176,8 +1121,8 @@ public:
 	float			GetFriction( void ) const;
 	void			SetFriction( float flFriction );
 
-	virtual	bool FVisible ( CBaseEntity *pEntity, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
-	virtual bool FVisible( const Vector &vecTarget, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
+	virtual	bool FVisible ( CBaseEntity *pEntity, int traceMask = MASK_OPAQUE, CBaseEntity **ppBlocker = NULL );
+	virtual bool FVisible( const Vector &vecTarget, int traceMask = MASK_OPAQUE, CBaseEntity **ppBlocker = NULL );
 
 	virtual bool CanBeSeenBy( CAI_BaseNPC *pNPC ) { return true; } // allows entities to be 'invisible' to NPC senses.
 
@@ -1187,6 +1132,9 @@ public:
 	// This returns a value that scales all damage done to this entity
 	// Use CDamageModifier to hook in damage modifiers on a guy.
 	virtual float			GetReceivedDamageScale( CBaseEntity *pAttacker );
+
+	virtual bool			CanBePoweredUp( void ) { return false; }
+	virtual bool			AttemptToPowerup( int iPowerup, float flTime, float flAmount = 0, CBaseEntity *pAttacker = NULL, CDamageModifier *pDamageModifier = NULL ) { return false; }
 
  	void					SetCheckUntouch( bool check );
 	bool					GetCheckUntouch() const;
@@ -1375,7 +1323,6 @@ public:
 	// in the future (or 0 for now)
 	virtual void	UpdatePhysicsShadowToCurrentPosition( float deltaTime );
 	virtual int		VPhysicsGetObjectList( IPhysicsObject **pList, int listMax );
-	virtual bool	VPhysicsIsFlesh( void );
 	// --------------------------------------------------------------------
 
 public:
@@ -1418,7 +1365,7 @@ protected:
 	void					InvalidatePhysicsRecursive( int nChangeFlags );
 
 	int						PhysicsClipVelocity (const Vector& in, const Vector& normal, Vector& out, float overbounce );
-	void					PhysicsRelinkChildren( float dt );
+	void					PhysicsRelinkChildren( void );
 
 	// Performs the collision resolution for fliers.
 	void					PerformFlyCollisionResolution( trace_t &trace, Vector &move );
@@ -1481,7 +1428,6 @@ private:
 public:
 	// Add a discontinuity to a step
 	bool					AddStepDiscontinuity( float flTime, const Vector &vecOrigin, const QAngle &vecAngles );
-	int						GetFirstThinkTick();	// get first tick thinking on any context
 private:
 	// origin and angles to use in step calculations
 	virtual	Vector			GetStepOrigin( void ) const;
@@ -1492,7 +1438,6 @@ private:
 	void					CheckHasGamePhysicsSimulation();
 	bool					WillThink();
 	bool					WillSimulateGamePhysics();
-
 
 	friend void SendProxy_Origin( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
 	friend void SendProxy_Angles( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
@@ -1527,10 +1472,6 @@ private:
 
 	// Changes shadow cast distance over time
 	void ShadowCastDistThink( );
-
-	// Precache model sounds + particles
-	static void PrecacheModelComponents( int nModelIndex );
-	static void PrecacheSoundHelper( const char *pName );
 
 protected:
 	// Which frame did I simulate?
@@ -1567,6 +1508,7 @@ private:
 	friend class CCollisionProperty;
 	friend class CServerNetworkProperty;
 	CNetworkVarEmbedded( CCollisionProperty, m_Collision );
+	CServerNetworkProperty m_Network;
 
 	CNetworkHandle( CBaseEntity, m_hOwnerEntity );	// only used to point to an edict it won't collide with
 	CNetworkHandle( CBaseEntity, m_hEffectEntity );	// Fire/Dissolve entity.
@@ -1687,7 +1629,7 @@ private:
 	friend void UnlinkAllChildren( CBaseEntity *pParent );
 	friend void UnlinkFromParent( CBaseEntity *pRemove );
 	friend void TransferChildren( CBaseEntity *pOldParent, CBaseEntity *pNewParent );
-	
+
 public:
 	// Accessors for above
 	static int						GetPredictionRandomSeed( void );
@@ -1710,23 +1652,6 @@ public:
 	static char const				*GetDLLType( void )
 	{
 		return "server";
-	}
-	
-	// Used to access m_vecAbsOrigin during restore when it's unsafe to call GetAbsOrigin.
-	friend class CPlayerRestoreHelper;
-	
-	static bool s_bAbsQueriesValid;
-
-	// Call this when hierarchy is not completely set up (such as during Restore) to throw asserts
-	// when people call GetAbsAnything. 
-	static inline void SetAbsQueriesValid( bool bValid )
-	{
-		s_bAbsQueriesValid = bValid;
-	}
-	
-	static inline bool IsAbsQueriesValid()
-	{
-		return s_bAbsQueriesValid;
 	}
 };
 
@@ -1941,9 +1866,11 @@ inline void CBaseEntity::SetEFlags( int iEFlags )
 	m_iEFlags = iEFlags;
 
 	if ( iEFlags & ( EFL_FORCE_CHECK_TRANSMIT | EFL_IN_SKYBOX ) )
-	{
 		DispatchUpdateTransmitState();
-	}
+	
+	// Make sure the EFL_DIRTY_PVS_INFORMATION flag gets passed onto the edict.
+	if ( (iEFlags & EFL_DIRTY_PVS_INFORMATION) && edict() )
+		edict()->m_fStateFlags |= FL_EDICT_DIRTY_PVS_INFORMATION;
 }
 
 inline void CBaseEntity::AddEFlags( int nEFlagMask )
@@ -1951,9 +1878,11 @@ inline void CBaseEntity::AddEFlags( int nEFlagMask )
 	m_iEFlags |= nEFlagMask;
 
 	if ( nEFlagMask & ( EFL_FORCE_CHECK_TRANSMIT | EFL_IN_SKYBOX ) )
-	{
 		DispatchUpdateTransmitState();
-	}
+
+	// Make sure the EFL_DIRTY_PVS_INFORMATION flag gets passed onto the edict.
+	if ( (nEFlagMask & EFL_DIRTY_PVS_INFORMATION) && edict() )
+		edict()->m_fStateFlags |= FL_EDICT_DIRTY_PVS_INFORMATION;
 }
 
 inline void CBaseEntity::RemoveEFlags( int nEFlagMask )
@@ -2018,8 +1947,6 @@ inline const QAngle& CBaseEntity::GetLocalAngles( void ) const
 
 inline const Vector& CBaseEntity::GetAbsOrigin( void ) const
 {
-	Assert( CBaseEntity::IsAbsQueriesValid() );
-
 	if (IsEFlagSet(EFL_DIRTY_ABSTRANSFORM))
 	{
 		const_cast<CBaseEntity*>(this)->CalcAbsolutePosition();
@@ -2029,8 +1956,6 @@ inline const Vector& CBaseEntity::GetAbsOrigin( void ) const
 
 inline const QAngle& CBaseEntity::GetAbsAngles( void ) const
 {
-	Assert( CBaseEntity::IsAbsQueriesValid() );
-
 	if (IsEFlagSet(EFL_DIRTY_ABSTRANSFORM))
 	{
 		const_cast<CBaseEntity*>(this)->CalcAbsolutePosition();
@@ -2045,8 +1970,6 @@ inline const QAngle& CBaseEntity::GetAbsAngles( void ) const
 //-----------------------------------------------------------------------------
 inline matrix3x4_t &CBaseEntity::EntityToWorldTransform() 
 { 
-	Assert( CBaseEntity::IsAbsQueriesValid() );
-
 	if (IsEFlagSet(EFL_DIRTY_ABSTRANSFORM))
 	{
 		CalcAbsolutePosition();
@@ -2056,8 +1979,6 @@ inline matrix3x4_t &CBaseEntity::EntityToWorldTransform()
 
 inline const matrix3x4_t &CBaseEntity::EntityToWorldTransform() const
 { 
-	Assert( CBaseEntity::IsAbsQueriesValid() );
-
 	if (IsEFlagSet(EFL_DIRTY_ABSTRANSFORM))
 	{
 		const_cast<CBaseEntity*>(this)->CalcAbsolutePosition();
@@ -2111,8 +2032,6 @@ inline const Vector &CBaseEntity::GetLocalVelocity( ) const
 
 inline const Vector &CBaseEntity::GetAbsVelocity( ) const
 {
-	Assert( CBaseEntity::IsAbsQueriesValid() );
-
 	if (IsEFlagSet(EFL_DIRTY_ABSVELOCITY))
 	{
 		const_cast<CBaseEntity*>(this)->CalcAbsoluteVelocity();
@@ -2522,7 +2441,7 @@ inline void CBaseEntity::DecrementTransmitStateOwnedCounter()
 inline void CBaseEntity::FireBullets( int cShots, const Vector &vecSrc, 
 	const Vector &vecDirShooting, const Vector &vecSpread, float flDistance, 
 	int iAmmoType, int iTracerFreq, int firingEntID, int attachmentID,
-	int iDamage, CBaseEntity *pAttacker, bool bFirstShotAccurate, bool bPrimaryAttack )
+	int iDamage, CBaseEntity *pAttacker, bool bFirstShotAccurate )
 {
 	FireBulletsInfo_t info;
 	info.m_iShots = cShots;
@@ -2535,7 +2454,6 @@ inline void CBaseEntity::FireBullets( int cShots, const Vector &vecSrc,
 	info.m_iDamage = iDamage;
 	info.m_pAttacker = pAttacker;
 	info.m_nFlags = bFirstShotAccurate ? FIRE_BULLETS_FIRST_SHOT_ACCURATE : 0;
-	info.m_bPrimaryAttack = bPrimaryAttack;
 
 	FireBullets( info );
 }

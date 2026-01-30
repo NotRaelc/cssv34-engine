@@ -40,7 +40,6 @@ int SendProxyArrayLength_PlayerArray( const void *pStruct, int objectID )
 IMPLEMENT_SERVERCLASS_ST_NOBASE(CTeam, DT_Team)
 	SendPropInt( SENDINFO(m_iTeamNum), 5 ),
 	SendPropInt( SENDINFO(m_iScore), 0 ),
-	SendPropInt( SENDINFO(m_iRoundsWon), 8 ),
 	SendPropString( SENDINFO( m_szTeamname ) ),
 
 	SendPropArray2( 
@@ -111,10 +110,6 @@ int CTeam::UpdateTransmitState()
 //-----------------------------------------------------------------------------
 bool CTeam::ShouldTransmitToPlayer( CBasePlayer* pRecipient, CBaseEntity* pEntity )
 {
-	// Always transmit the observer target to players
-	if ( pRecipient && pRecipient->IsObserver() && pRecipient->GetObserverTarget() == pEntity )
-		return true;
-
 	return false;
 }
 
@@ -135,7 +130,7 @@ void CTeam::Init( const char *pName, int iNumber )
 //-----------------------------------------------------------------------------
 // DATA HANDLING
 //-----------------------------------------------------------------------------
-int CTeam::GetTeamNumber( void ) const
+int CTeam::GetTeamNumber( void )
 {
 	return m_iTeamNum;
 }
@@ -294,36 +289,4 @@ void CTeam::SetScore( int iScore )
 int CTeam::GetScore( void )
 {
 	return m_iScore;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CTeam::ResetScores( void )
-{
-	SetScore(0);
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CTeam::AwardAchievement( int iAchievement )
-{
-	Assert( iAchievement >= 0 && iAchievement < 255 );	// must fit in byte 
-
-	CRecipientFilter filter;
-
-	int iNumPlayers = GetNumPlayers();
-
-	for ( int i=0;i<iNumPlayers;i++ )
-	{
-		if ( GetPlayer(i) )
-		{
-			filter.AddRecipient( GetPlayer(i) );
-		}
-	}
-
-	UserMessageBegin( filter, "AchievementEvent" );
-		WRITE_BYTE( iAchievement );
-	MessageEnd();
 }

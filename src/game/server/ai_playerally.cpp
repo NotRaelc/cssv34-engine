@@ -11,14 +11,9 @@
 #include "saverestore_utlmap.h"
 #include "eventqueue.h"
 #include "ai_behavior_lead.h"
-#include "gameinterface.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-
-extern CServerGameDLL g_ServerGameDLL;
-
-extern ConVar rr_debugresponses;
 
 //-----------------------------------------------------------------------------
 
@@ -122,9 +117,6 @@ ConceptInfo_t g_ConceptInfos[] =
 	{ 	TLK_LEAD_WAITOVER,	SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
 	{ 	TLK_LEAD_MISSINGWEAPON,	SPEECH_IMPORTANT,-1,-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
 	{ 	TLK_LEAD_IDLE,		SPEECH_IMPORTANT,-1,	-1,		-1,		-1,		 -1,	-1,		AICF_DEFAULT,	},
-
-	// Passenger behaviour
-	{ TLK_PASSENGER_NEW_RADAR_CONTACT,		SPEECH_IMPORTANT,	-1,		-1,		-1,		-1,		-1,		-1,		AICF_DEFAULT,	},	
 };
 
 //-----------------------------------------------------------------------------
@@ -136,19 +128,16 @@ bool ConceptStringLessFunc( const string_t &lhs, const string_t &rhs )
 
 //-----------------------------------------------------------------------------
 
-class CConceptInfoMap : public CUtlMap<AIConcept_t, ConceptInfo_t *> {
-public:
-	CConceptInfoMap() :
-	  CUtlMap<AIConcept_t, ConceptInfo_t *>( CaselessStringLessThan )
-	  {
-		  for ( int i = 0; i < ARRAYSIZE(g_ConceptInfos); i++ )
-		  {
-			  Insert( g_ConceptInfos[i].concept, &g_ConceptInfos[i] );
-		  }
-	  }
-};
+static CUtlMap<AIConcept_t, ConceptInfo_t *> g_ConceptInfoMap;
 
-static CConceptInfoMap g_ConceptInfoMap;
+static void InitConcepts( void )
+{
+	g_ConceptInfoMap.SetLessFunc( CaselessStringLessThan );
+	for ( int i = 0; i < ARRAYSIZE(g_ConceptInfos); i++ )
+	{
+		g_ConceptInfoMap.Insert( g_ConceptInfos[i].concept, &g_ConceptInfos[i] );
+	}
+}
 
 CAI_AllySpeechManager::CAI_AllySpeechManager()
 {
@@ -164,13 +153,21 @@ CAI_AllySpeechManager::~CAI_AllySpeechManager()
 
 void CAI_AllySpeechManager::Spawn()
 {
-	Assert( g_ConceptInfoMap.Count() != 0 );
+	if ( g_ConceptInfoMap.Count() == 0 )
+	{
+		InitConcepts();
+	}
+
 	for ( int i = 0; i < ARRAYSIZE(g_ConceptInfos); i++ )
 		m_ConceptTimers.Insert( AllocPooledString( g_ConceptInfos[i].concept ), CSimpleSimTimer() );
 }
 
 void CAI_AllySpeechManager::AddCustomConcept( const ConceptInfo_t &conceptInfo )
 {
+	if ( g_ConceptInfoMap.Count() == 0 )
+	{
+		InitConcepts();
+	}
 	Assert( g_ConceptInfoMap.Count() != 0 );
 	Assert( m_ConceptTimers.Count() != 0 );
 
@@ -328,7 +325,6 @@ BEGIN_DATADESC( CAI_PlayerAlly )
 	DEFINE_EMBEDDED_AUTO_ARRAY(m_ConceptCategoryTimers),
 
 	DEFINE_KEYFIELD( m_bGameEndAlly, FIELD_BOOLEAN, "GameEndAlly" ),
-	DEFINE_FIELD( m_bCanSpeakWhileScripting, FIELD_BOOLEAN ),
 
 	DEFINE_FIELD( m_flHealthAccumulator, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flTimeLastRegen, FIELD_TIME ),
@@ -340,8 +336,6 @@ BEGIN_DATADESC( CAI_PlayerAlly )
 	DEFINE_INPUTFUNC( FIELD_VOID, "MakeRegularAlly", InputMakeRegularAlly ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerQuestion", InputAnswerQuestion ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AnswerQuestionHello", InputAnswerQuestionHello ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "EnableSpeakWhileScripting", InputEnableSpeakWhileScripting ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "DisableSpeakWhileScripting", InputDisableSpeakWhileScripting ),
 
 END_DATADESC()
 
@@ -382,10 +376,6 @@ void CAI_PlayerAlly::DisplayDeathMessage( void )
 
 		g_EventQueue.AddEvent( pReload, "Reload", 1.5f, pReload, pReload );
 	}
-
-	// clear any pending autosavedangerous
-	g_ServerGameDLL.m_fAutoSaveDangerousTime = 0.0f;
-	g_ServerGameDLL.m_fAutoSaveDangerousMinHealthToCommit = 0.0f;
 }
 
 //-----------------------------------------------------------------------------
@@ -1412,14 +1402,14 @@ bool CAI_PlayerAlly::IsOkToSpeak( ConceptCategory_t category, bool fRespondingTo
 		return false;
 
 	// Don't speak if playing a script.
-	if ( ( m_NPCState == NPC_STATE_SCRIPT ) && !m_bCanSpeakWhileScripting )
+	if ( m_NPCState == NPC_STATE_SCRIPT )
 		return false;
 
 	// Don't speak if being eaten by a barnacle
 	if ( IsEFlagSet( EFL_IS_BEING_LIFTED_BY_BARNACLE ) )
 		return false;
 
-	if ( IsInAScript() && !m_bCanSpeakWhileScripting )
+	if ( IsInAScript() )
 		return false;
 
 	if ( !fRespondingToPlayer )
@@ -1471,28 +1461,14 @@ bool CAI_PlayerAlly::IsOkToSpeak( ConceptCategory_t category, bool fRespondingTo
 	if ( fRespondingToPlayer )
 	{
 		// If we're responding to the player, don't respond if the scene has speech in it
-		if ( IsRunningScriptedSceneWithSpeechAndNotPaused( this ) )
-		{
-			if( rr_debugresponses.GetInt() > 0 )
-			{
-				DevMsg("%s not allowed to speak because they are in a scripted scene\n", GetDebugName() );
-			}
-
+		if ( IsRunningScriptedSceneWithSpeech( this ) )
 			return false;
-		}
 	}
 	else
 	{
 		// If we're not responding to the player, don't talk if running a logic_choreo
-		if ( IsRunningScriptedSceneAndNotPaused( this ) )
-		{
-			if( rr_debugresponses.GetInt() > 0 )
-			{
-				DevMsg("%s not allowed to speak because they are in a scripted scene\n", GetDebugName() );
-			}
-
+		if ( IsRunningScriptedScene( this ) )
 			return false;
-		}
 	}
 
 	return true;
@@ -1644,21 +1620,6 @@ void CAI_PlayerAlly::InputSpeakResponseConcept( inputdata_t &inputdata )
 	SpeakMapmakerInterruptConcept( inputdata.value.StringID() );
 }
 
-
-//-----------------------------------------------------------------------------
-// Allows mapmakers to override NPC_STATE_SCRIPT or IsScripting() for responses.
-//-----------------------------------------------------------------------------
-void CAI_PlayerAlly::InputEnableSpeakWhileScripting( inputdata_t &inputdata )
-{
-	m_bCanSpeakWhileScripting = true;
-}
-
-void CAI_PlayerAlly::InputDisableSpeakWhileScripting( inputdata_t &inputdata )
-{
-	m_bCanSpeakWhileScripting = false;
-}
-
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -1686,7 +1647,7 @@ bool CAI_PlayerAlly::CanRespondToEvent( const char *ResponseConcept )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CAI_PlayerAlly::RespondedTo( const char *ResponseConcept, bool bForce, bool bCancelScene )
+bool CAI_PlayerAlly::RespondedTo( const char *ResponseConcept, bool bForce )
 {
 	if ( bForce )
 	{
@@ -1696,8 +1657,7 @@ bool CAI_PlayerAlly::RespondedTo( const char *ResponseConcept, bool bForce, bool
 		if ( result )
 		{
 			// We've got something to say. Stop any scenes we're in, and speak the response.
-			if ( bCancelScene )
-				RemoveActorFromScriptedScenes( this, false );
+			RemoveActorFromScriptedScenes( this, false );
 
 			bool spoke = SpeakDispatchResponse( ResponseConcept, result );
 			return spoke;

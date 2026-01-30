@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -53,7 +53,7 @@ public:
 			false,
 			false,
 			0,
-#ifdef _DEBUG
+#ifdef DEBUG
 			true
 #endif
 		};
@@ -106,7 +106,7 @@ public:
 			false,
 			false,
 			0,
-#ifdef _DEBUG
+#ifdef DEBUG
 			true
 #endif
 		};
@@ -174,9 +174,5 @@ public:
 
 #define DEFINE_UTLVECTOR(name,fieldtype) \
 	{ FIELD_CUSTOM, #name, { offsetof(classNameTypedef,name), 0 }, 1, FTYPEDESC_SAVE, NULL, CUtlVectorDataopsInstantiator<fieldtype>::GetDataOps(&(((classNameTypedef *)0)->name)), NULL }
-
-#define DEFINE_GLOBAL_UTLVECTOR(name,fieldtype) \
-{ FIELD_CUSTOM, #name, { offsetof(classNameTypedef,name), 0 }, 1, FTYPEDESC_SAVE|FTYPEDESC_GLOBAL, NULL, CUtlVectorDataopsInstantiator<fieldtype>::GetDataOps(&(((classNameTypedef *)0)->name)), NULL }
-
-
+	
 #endif // SAVERESTORE_UTLVECTOR_H

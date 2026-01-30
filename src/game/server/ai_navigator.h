@@ -423,7 +423,7 @@ public:
 	bool				CanFitAtNode(int nodeNum, unsigned int collisionMask = MASK_NPCSOLID_BRUSHONLY); 
 	float				MovementCost( int moveType, Vector &vecStart, Vector &vecEnd );
 
-	bool				CanFitAtPosition( const Vector &vStartPos, unsigned int collisionMask, bool bIgnoreTransients = false, bool bAllowPlayerAvoid = true );
+	bool				CanFitAtPosition( const Vector &vStartPos, unsigned int collisionMask, bool bIgnoreTransients = false );
 	bool				IsOnNetwork() const			{ return !m_bNotOnNetwork; }
 
 	void				SetMaxRouteRebuildTime(float time) { m_timePathRebuildMax = time;			}
@@ -526,7 +526,6 @@ private:
 public:
 	float				GetPathDistToCurWaypoint() const;
 	float				GetPathDistToGoal() const;
-	float				BuildAndGetPathDistToGoal();
 
 	// --------------------------------
 
@@ -546,11 +545,8 @@ protected:
 private:
 	void				ClearPath(void);
 	void				SaveStoppingPath( void );
+	virtual bool 		GetStoppingPath( CAI_WaypointList *	pClippedWaypoints );
 
-protected:
-	virtual bool 		GetStoppingPath( CAI_WaypointList *pClippedWaypoints );
-
-private:
 	bool				FindPath( const AI_NavGoal_t &goal, unsigned flags );
 	bool				FindPath( bool fSignalTaskStatus = true, bool bDontIgnoreBadLinks = false );
 	bool				MarkCurWaypointFailedLink( void );			// Call when route fails

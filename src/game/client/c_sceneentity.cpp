@@ -14,14 +14,84 @@
 #include "filesystem.h"
 #include "ichoreoeventcallback.h"
 #include "scenefilecache/ISceneFileCache.h"
-#include "materialsystem/imaterialsystemhardwareconfig.h"
-#include "tier2/tier2.h"
-#include "hud_closecaption.h"
-
-#include "c_sceneentity.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+class C_SceneEntity : public C_BaseEntity, public IChoreoEventCallback
+{
+	friend class CChoreoEventCallback;
+
+public:
+	DECLARE_CLASS( C_SceneEntity, C_BaseEntity );
+	DECLARE_CLIENTCLASS();
+
+	C_SceneEntity( void );
+	~C_SceneEntity( void );
+
+	// From IChoreoEventCallback
+	virtual void			StartEvent( float currenttime, CChoreoScene *scene, CChoreoEvent *event );
+	virtual void			EndEvent( float currenttime, CChoreoScene *scene, CChoreoEvent *event );
+	virtual void			ProcessEvent( float currenttime, CChoreoScene *scene, CChoreoEvent *event );
+	virtual bool			CheckEvent( float currenttime, CChoreoScene *scene, CChoreoEvent *event );
+
+
+	virtual void PostDataUpdate( DataUpdateType_t updateType );
+	virtual void PreDataUpdate( DataUpdateType_t updateType );
+
+	virtual void ClientThink();
+
+	void					OnResetClientTime();
+
+private:
+
+
+	// Scene load/unload
+	CChoreoScene			*LoadScene( const char *filename );
+	void					LoadSceneFromFile( const char *filename );
+	void					UnloadScene( void );
+
+	C_BaseFlex				*FindNamedActor( CChoreoActor *pChoreoActor );
+
+	virtual void			DispatchStartFlexAnimation( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event );
+	virtual void			DispatchEndFlexAnimation( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event );
+	virtual void			DispatchStartExpression( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event );
+	virtual void			DispatchEndExpression( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event );
+
+	char const				*GetSceneFileName();
+
+	void					DoThink( float frametime );
+
+	void					ClearSceneEvents( CChoreoScene *scene, bool canceled );
+
+private:
+
+	void					CheckQueuedEvents();
+	void					WipeQueuedEvents();
+	void					QueueStartEvent( float starttime, CChoreoScene *scene, CChoreoEvent *event );
+
+	bool		m_bIsPlayingBack;
+	bool		m_bPaused;
+	float		m_flCurrentTime;
+	float		m_flForceClientTime;
+	int			m_nSceneStringIndex;
+
+	CUtlVector< CHandle< C_BaseFlex > > m_hActorList;		
+
+private:
+	bool		m_bWasPlaying;
+
+	CChoreoScene *m_pScene;
+
+	struct QueuedEvents_t
+	{
+		float			starttime;
+		CChoreoScene	*scene;
+		CChoreoEvent	*event;
+	};
+
+	CUtlVector< QueuedEvents_t > m_QueuedEvents;
+};
 
 //-----------------------------------------------------------------------------
 // Purpose: Decodes animtime and notes when it changes
@@ -45,7 +115,6 @@ IMPLEMENT_CLIENTCLASS_DT(C_SceneEntity, DT_SceneEntity, CSceneEntity)
 	RecvPropInt(RECVINFO(m_nSceneStringIndex)),
 	RecvPropBool(RECVINFO(m_bIsPlayingBack)),
 	RecvPropBool(RECVINFO(m_bPaused)),
-	RecvPropBool(RECVINFO(m_bMultiplayer)),
 	RecvPropFloat(RECVINFO(m_flForceClientTime), 0, RecvProxy_ForcedClientTime ),
 	RecvPropUtlVector( 
 		RECVINFO_UTLVECTOR( m_hActorList ), 
@@ -56,10 +125,6 @@ END_RECV_TABLE()
 C_SceneEntity::C_SceneEntity( void )
 {
 	m_pScene = NULL;
-	m_bMultiplayer = false;
-
-	m_hOwner = NULL;
-	m_bClientOnly = false;
 }
 
 C_SceneEntity::~C_SceneEntity( void )
@@ -77,280 +142,27 @@ char const *C_SceneEntity::GetSceneFileName()
 	return g_pStringTableClientSideChoreoScenes->GetString( m_nSceneStringIndex );
 }
 
-ConVar mp_usehwmvcds( "mp_usehwmvcds", "0", NULL, "Enable the use of the hw morph vcd(s). (-1 = never, 1 = always, 0 = based upon GPU)" ); // -1 = never, 0 = if hasfastvertextextures, 1 = always
-bool UseHWMorphVCDs()
+void C_SceneEntity::PostDataUpdate( DataUpdateType_t updateType )
 {
-	if ( mp_usehwmvcds.GetInt() == 0 )
-		return g_pMaterialSystemHardwareConfig->HasFastVertexTextures();
-	return mp_usehwmvcds.GetInt() > 0;
-}
+	BaseClass::PostDataUpdate( updateType );
 
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-bool C_SceneEntity::GetHWMorphSceneFileName( const char *pFilename, char *pHWMFilename )
-{
-	// Are we even using hardware morph?
-	if ( !UseHWMorphVCDs() )
-		return false;
+	char const *str = GetSceneFileName();
 
-	// Multi-player only!
-	if ( !m_bMultiplayer )
-		return false;
-
-	// Do we have a valid filename?
-	if ( !( pFilename && pFilename[0] ) )
-		return false;
-
-	// Check to see if we already have an player/hwm/* filename.
-	if ( ( V_strstr( pFilename, "/high" ) != NULL ) || ( V_strstr( pFilename, "\\high" ) != NULL ) )
+	if ( updateType == DATA_UPDATE_CREATED )
 	{
-		V_strcpy( pHWMFilename, pFilename );
-		return true;
-	}
-
-	// Find the hardware morph scene name and pass that along as well.
-	char szScene[MAX_PATH];
-	V_strcpy( szScene, pFilename );
-
-	char szSceneHWM[MAX_PATH];
-	szSceneHWM[0] = '\0';
-
-	char *pszToken = strtok( szScene, "/\\" );
-	while ( pszToken != NULL )
-	{
-		if ( !V_stricmp( pszToken, "low" ) )
+		Assert( str && str[ 0 ] );
+		if (  str && str[ 0 ] )
 		{
-			V_strcat( szSceneHWM, "high", sizeof( szSceneHWM ) );
-		}
-		else
-		{
-			V_strcat( szSceneHWM, pszToken, sizeof( szSceneHWM ) );
-		}
+			LoadSceneFromFile( str );
 
-		pszToken = strtok( NULL, "/\\" );
-		if ( pszToken != NULL )
-		{
-			V_strcat( szSceneHWM, "\\", sizeof( szSceneHWM ) );
-		}
-	}
-
-	V_strcpy( pHWMFilename, szSceneHWM );
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::ResetActorFlexesForScene()
-{
-	int nActorCount = m_pScene->GetNumActors();
-	for( int iActor = 0; iActor < nActorCount; ++iActor )
-	{
-		CChoreoActor *pChoreoActor = m_pScene->GetActor( iActor );
-		if ( !pChoreoActor )
-			continue;
-
-		C_BaseFlex *pFlexActor = FindNamedActor( pChoreoActor );
-		if ( !pFlexActor )
-			continue;
-
-		CStudioHdr *pStudioHdr = pFlexActor->GetModelPtr();
-		if ( !pStudioHdr )
-			continue;
-
-		if ( pStudioHdr->numflexdesc() == 0 )
-			continue;
-
-		// Reset the flex weights to their starting position.
-		LocalFlexController_t iController;
-		for ( iController = LocalFlexController_t(0); iController < pStudioHdr->numflexcontrollers(); ++iController )
-		{
-			pFlexActor->SetFlexWeight( iController, 0.0f );
-		}
-
-		// Reset the prediction interpolation values.
-		pFlexActor->m_iv_flexWeight.Reset();
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::StopClientOnlyScene()
-{
-	if ( m_pScene )
-	{
-		m_pScene->ResetSimulation();
-
-		if ( m_hOwner.Get() )
-		{
-			m_hOwner->RemoveChoreoScene( m_pScene );
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::SetupClientOnlyScene( const char *pszFilename, C_BaseFlex *pOwner /* = NULL */, bool bMultiplayer /* = false */ )
-{
-	m_bIsPlayingBack = true;
-	m_bMultiplayer = bMultiplayer;
-	m_hOwner = pOwner;
-	m_bClientOnly = true;
-
-	char szFilename[128];
-	Assert( V_strlen( pszFilename ) < 128 );
-	V_strcpy( szFilename, pszFilename );
-
-	char szSceneHWM[128];
-	if ( GetHWMorphSceneFileName( szFilename, szSceneHWM ) )
-	{
-		V_strcpy( szFilename, szSceneHWM );
-	}
-
-	Assert( szFilename && szFilename[ 0 ] );
-	if (  szFilename && szFilename[ 0 ] )
-	{
-		LoadSceneFromFile( szFilename );
-		Assert( m_pScene );
-
-		// Should handle gestures and sequences client side.
-		if ( m_bMultiplayer )
-		{
-			if ( m_pScene )
-			{
-				int types[6];
-				types[0] = CChoreoEvent::FLEXANIMATION;
-				types[1] = CChoreoEvent::EXPRESSION;
-				types[2] = CChoreoEvent::GESTURE;
-				types[3] = CChoreoEvent::SEQUENCE;
-				types[4] = CChoreoEvent::SPEAK;
-				types[5] = CChoreoEvent::LOOP;
-				m_pScene->RemoveEventsExceptTypes( types, 6 );
-			}
-
-			PrefetchAnimBlocks( m_pScene );
-		}
-		else
-		{
+			// Kill everything except flex events
+			Assert( m_pScene );
 			if ( m_pScene )
 			{
 				int types[ 2 ];
 				types[ 0 ] =  CChoreoEvent::FLEXANIMATION;
 				types[ 1 ] =  CChoreoEvent::EXPRESSION;
 				m_pScene->RemoveEventsExceptTypes( types, 2 );
-			}
-		}
-
-		SetNextClientThink( CLIENT_THINK_ALWAYS );
-	}
-
-	if ( m_hOwner.Get() )
-	{
-		Assert( m_pScene );
-
-		if ( m_pScene )
-		{
-			ClearSceneEvents( m_pScene, false );
-
-			if ( m_bIsPlayingBack )
-			{
-				m_pScene->ResetSimulation();
-				m_hOwner->StartChoreoScene( m_pScene );
-			}
-			else
-			{
-				m_pScene->ResetSimulation();
-				m_hOwner->RemoveChoreoScene( m_pScene );
-			}
-
-			// Reset the flex weights when we start a new scene.  This is normally done on the player model, but since
-			// we don't have a player here yet - we need to do this!
-			ResetActorFlexesForScene();
-		}
-	}
-	else
-	{
-		for( int i = 0; i < m_hActorList.Count() ; ++i )
-		{
-			C_BaseFlex *actor = m_hActorList[ i ].Get();
-			if ( !actor )
-				continue;
-
-			Assert( m_pScene );
-
-			if ( m_pScene )
-			{
-				ClearSceneEvents( m_pScene, false );
-
-				if ( m_bIsPlayingBack )
-				{
-					m_pScene->ResetSimulation();
-					actor->StartChoreoScene( m_pScene );
-				}
-				else
-				{
-					m_pScene->ResetSimulation();
-					actor->RemoveChoreoScene( m_pScene );
-				}
-			}
-		}
-	}
-}
-
-void C_SceneEntity::PostDataUpdate( DataUpdateType_t updateType )
-{
-	BaseClass::PostDataUpdate( updateType );
-
-	char const *str = GetSceneFileName();
-	char szFilename[MAX_PATH];
-	Assert( V_strlen( str ) < MAX_PATH );
-	V_strcpy( szFilename, str );
-
-	char szSceneHWM[MAX_PATH];
-	if ( GetHWMorphSceneFileName( szFilename, szSceneHWM ) )
-	{
-		V_strcpy( szFilename, szSceneHWM );
-	}
-
-	if ( updateType == DATA_UPDATE_CREATED )
-	{
-		Assert( szFilename && szFilename[ 0 ] );
-		if (  szFilename && szFilename[ 0 ] )
-		{
-			LoadSceneFromFile( szFilename );
-
-			// Kill everything except flex events
-			Assert( m_pScene );
-
-			// Should handle gestures and sequences clientside.
-			if ( m_bMultiplayer )
-			{
-				if ( m_pScene )
-				{
-					int types[6];
-					types[0] = CChoreoEvent::FLEXANIMATION;
-					types[1] = CChoreoEvent::EXPRESSION;
-					types[2] = CChoreoEvent::GESTURE;
-					types[3] = CChoreoEvent::SEQUENCE;				
-					types[4] = CChoreoEvent::SPEAK;
-					types[5] = CChoreoEvent::LOOP;
-					m_pScene->RemoveEventsExceptTypes( types, 6 );
-				}
-
-				PrefetchAnimBlocks( m_pScene );
-			}
-			else
-			{
-				if ( m_pScene )
-				{
-					int types[ 2 ];
-					types[ 0 ] =  CChoreoEvent::FLEXANIMATION;
-					types[ 1 ] =  CChoreoEvent::EXPRESSION;
-					m_pScene->RemoveEventsExceptTypes( types, 2 );
-				}
 			}
 
 			SetNextClientThink( CLIENT_THINK_ALWAYS );
@@ -422,11 +234,6 @@ C_BaseFlex *C_SceneEntity::FindNamedActor( CChoreoActor *pChoreoActor )
 	if ( !m_pScene )
 		return NULL;
 
-	if ( m_hOwner.Get() != NULL )
-	{
-		return m_hOwner.Get();
-	}
-
 	int idx = m_pScene->FindActorIndex( pChoreoActor );
 	if ( idx < 0 || idx >= m_hActorList.Count() )
 		return NULL;
@@ -484,165 +291,8 @@ void C_SceneEntity::StartEvent( float currenttime, CChoreoScene *scene, CChoreoE
 			}
 		}
 		break;
-	case CChoreoEvent::GESTURE:
-		{
-			// Verify data.
-			Assert( m_bMultiplayer );
-			Assert( scene != NULL );
-			Assert( event != NULL );
-
-			if ( pActor )
-			{
-				DispatchStartGesture( scene, pActor, event );
-			}
-		}
-		break;
-	case CChoreoEvent::SEQUENCE:
-		{
-			// Verify data.
-			Assert( m_bMultiplayer );
-			Assert( scene != NULL );
-			Assert( event != NULL );
-
-			if ( pActor )
-			{
-				DispatchStartSequence( scene, pActor, event );
-			}
-		}
-		break;
-	case CChoreoEvent::LOOP:
-		{
-			// Verify data.
-			Assert( m_bMultiplayer );
-			Assert( scene != NULL );
-			Assert( event != NULL );
-
-			DispatchProcessLoop( scene, event );
-		}
-	case CChoreoEvent::SPEAK:
-		{
-			if ( IsClientOnly() && pActor )
-			{
-				// FIXME: dB hack.  soundlevel needs to be moved into inside of wav?
-				soundlevel_t iSoundlevel = SNDLVL_TALKING;
-				if ( event->GetParameters2() )
-				{
-					iSoundlevel = (soundlevel_t)atoi( event->GetParameters2() );
-					if ( iSoundlevel == SNDLVL_NONE )
-					{
-						iSoundlevel = SNDLVL_TALKING;
-					}
-				}
-
-				DispatchStartSpeak( scene, pActor, event, iSoundlevel );
-			}
-		}
-		break;
 	default:
 		break;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *scene - 
-//			*event - 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::DispatchProcessLoop( CChoreoScene *scene, CChoreoEvent *event )
-{
-	Assert( event->GetType() == CChoreoEvent::LOOP );
-
-	float backtime = (float)atof( event->GetParameters() );
-
-	bool process = true;
-	int counter = event->GetLoopCount();
-	if ( counter != -1 )
-	{
-		int remaining = event->GetNumLoopsRemaining();
-		if ( remaining <= 0 )
-		{
-			process = false;
-		}
-		else
-		{
-			event->SetNumLoopsRemaining( --remaining );
-		}
-	}
-
-	if ( !process )
-		return;
-
-	scene->LoopToTime( backtime );
-	SetCurrentTime( backtime, true );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Playback sound file that contains phonemes
-// Input  : *actor - 
-//			*parameters - 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::DispatchStartSpeak( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event, soundlevel_t iSoundlevel )
-{
-	// Emit sound
-	if ( IsClientOnly() && actor )
-	{
-		CSingleUserRecipientFilter filter( C_BasePlayer::GetLocalPlayer() );
-
-		float time_in_past = m_flCurrentTime - event->GetStartTime() ;
-		float soundtime = gpGlobals->curtime - time_in_past;
-
-		EmitSound_t es;
-		es.m_nChannel = CHAN_VOICE;
-		es.m_flVolume = 1;
-		es.m_SoundLevel = iSoundlevel;
-		es.m_flSoundTime = soundtime;
-
-		// No CC since we do it manually
-		// FIXME:  This will  change
-		es.m_bEmitCloseCaption = false;
-		es.m_pSoundName = event->GetParameters();
-
-		EmitSound( filter, actor->entindex(), es );
-		actor->AddSceneEvent( scene, event, NULL, IsClientOnly() );
-
-		// Close captioning only on master token no matter what...
-		if ( event->GetCloseCaptionType() == CChoreoEvent::CC_MASTER )
-		{
-			char tok[ CChoreoEvent::MAX_CCTOKEN_STRING ];
-			bool validtoken = event->GetPlaybackCloseCaptionToken( tok, sizeof( tok ) );
-			if ( validtoken )
-			{
-				CRC32_t tokenCRC;
-				CRC32_Init( &tokenCRC );
-
-				char lowercase[ 256 ];
-				Q_strncpy( lowercase, tok, sizeof( lowercase ) );
-				Q_strlower( lowercase );
-
-				CRC32_ProcessBuffer( &tokenCRC, lowercase, Q_strlen( lowercase ) );
-				CRC32_Final( &tokenCRC );
-
-				float endtime = event->GetLastSlaveEndTime();
-				float durationShort = event->GetDuration();
-				float durationLong = endtime - event->GetStartTime();
-				float duration = max( durationShort, durationLong );
-
-				CHudCloseCaption *hudCloseCaption = GET_HUDELEMENT( CHudCloseCaption );
-				if ( hudCloseCaption )
-				{
-					hudCloseCaption->ProcessCaption( lowercase, duration );
-				}
-			}
-
-		}
-	}
-}
-
-void C_SceneEntity::DispatchEndSpeak( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event )
-{
-	if ( IsClientOnly() )
-	{
-		actor->RemoveSceneEvent( scene, event, false );
 	}
 }
 
@@ -687,62 +337,10 @@ void C_SceneEntity::EndEvent( float currenttime, CChoreoScene *scene, CChoreoEve
 			}
 		}
 		break;
-	case CChoreoEvent::GESTURE:
-		{
-			if ( pActor )
-			{
-				DispatchEndGesture( scene, pActor, event );
-			}
-		}
-		break;
-	case CChoreoEvent::SEQUENCE:
-		{
-			if ( pActor )
-			{
-				DispatchEndSequence( scene, pActor, event );
-			}
-		}
-		break;
-	case CChoreoEvent::SPEAK:
-		{
-			if ( IsClientOnly() && pActor )
-			{
-				DispatchEndSpeak( scene, pActor, event );
-			}
-		}
-		break;
 	default:
 		break;
 	}
 }
-
-//-----------------------------------------------------------------------------
-// Binary compiled VCDs get their strings from a pool
-//-----------------------------------------------------------------------------
-class CChoreoStringPool : public IChoreoStringPool
-{
-public:
-	short FindOrAddString( const char *pString )
-	{
-		// huh?, no compilation at run time, only fetches
-		Assert( 0 );
-		return -1;
-	}
-
-	bool GetString( short stringId, char *buff, int buffSize )
-	{
-		// fetch from compiled pool
-		const char *pString = scenefilecache->GetSceneString( stringId );
-		if ( !pString )
-		{
-			V_strncpy( buff, "", buffSize );
-			return false;
-		}
-		V_strncpy( buff, pString, buffSize );
-		return true;
-	} 	
-};
-CChoreoStringPool g_ChoreoStringPool;
 
 CChoreoScene *C_SceneEntity::LoadScene( const char *filename )
 {
@@ -751,45 +349,26 @@ CChoreoScene *C_SceneEntity::LoadScene( const char *filename )
 	Q_SetExtension( loadfile, ".vcd", sizeof( loadfile ) );
 	Q_FixSlashes( loadfile );
 
-	char *pBuffer = NULL;
+	char *buffer = NULL;
 	size_t bufsize = scenefilecache->GetSceneBufferSize( loadfile );
 	if ( bufsize <= 0 )
 		return NULL;
 
-	pBuffer = new char[ bufsize ];
-	if ( !scenefilecache->GetSceneData( filename, (byte *)pBuffer, bufsize ) )
+	buffer = new char[ bufsize ];
+	if ( !scenefilecache->GetSceneData( filename, (byte *)buffer, bufsize ) )
 	{
-		delete[] pBuffer;
+		delete[] buffer;
 		return NULL;
 	}
 
-	CChoreoScene *pScene;
-	if ( IsBufferBinaryVCD( pBuffer, bufsize ) )
-	{
-		pScene = new CChoreoScene( this );
-		CUtlBuffer buf( pBuffer, bufsize, CUtlBuffer::READ_ONLY );
-		if ( !pScene->RestoreFromBinaryBuffer( buf, loadfile, &g_ChoreoStringPool ) )
-		{
-			Warning( "Unable to restore binary scene '%s'\n", loadfile );
-			delete pScene;
-			pScene = NULL;
-		}
-		else
-		{
-			pScene->SetPrintFunc( Scene_Printf );
-			pScene->SetEventCallbackInterface( this );
-		}
-	}
-	else
-	{
-		g_TokenProcessor.SetBuffer( pBuffer );
-		pScene = ChoreoLoadScene( loadfile, this, &g_TokenProcessor, Scene_Printf );
-	}
+	g_TokenProcessor.SetBuffer( buffer );
+	CChoreoScene *scene = ChoreoLoadScene( loadfile, this, &g_TokenProcessor, Scene_Printf );
 
-	delete[] pBuffer;
-	return pScene;
+	delete[] buffer;
+	return scene;
 }
 
+extern "C" void _stdcall Sleep( unsigned long dwMilliseconds );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -798,6 +377,19 @@ CChoreoScene *C_SceneEntity::LoadScene( const char *filename )
 void C_SceneEntity::LoadSceneFromFile( const char *filename )
 {
 	UnloadScene();
+
+	int sleepCount = 0;
+	while ( scenefilecache->IsStillAsyncLoading( filename ) )
+	{
+		::Sleep( 10 );
+		++sleepCount;
+
+		if ( sleepCount > 10 )
+		{
+			Assert( 0 );
+			break;
+		}
+	}
 	m_pScene = LoadScene( filename );
 }
 
@@ -853,7 +445,7 @@ void C_SceneEntity::UnloadScene( void )
 //-----------------------------------------------------------------------------
 void C_SceneEntity::DispatchStartFlexAnimation( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event )
 {
-	actor->AddSceneEvent( scene, event, NULL, IsClientOnly() );
+	actor->AddSceneEvent( scene, event );
 }
 
 //-----------------------------------------------------------------------------
@@ -873,7 +465,7 @@ void C_SceneEntity::DispatchEndFlexAnimation( CChoreoScene *scene, C_BaseFlex *a
 //-----------------------------------------------------------------------------
 void C_SceneEntity::DispatchStartExpression( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event )
 {
-	actor->AddSceneEvent( scene, event, NULL, IsClientOnly() );
+	actor->AddSceneEvent( scene, event );
 }
 
 //-----------------------------------------------------------------------------
@@ -883,52 +475,6 @@ void C_SceneEntity::DispatchStartExpression( CChoreoScene *scene, C_BaseFlex *ac
 //-----------------------------------------------------------------------------
 void C_SceneEntity::DispatchEndExpression( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event )
 {
-	actor->RemoveSceneEvent( scene, event, false );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *actor - 
-//			*parameters - 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::DispatchStartGesture( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event )
-{
-	// Ingore null gestures
-	if ( !Q_stricmp( event->GetName(), "NULL" ) )
-		return;
-
-	actor->AddSceneEvent( scene, event, NULL, IsClientOnly() ); 
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *actor - 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::DispatchStartSequence( CChoreoScene *scene, CBaseFlex *actor, CChoreoEvent *event )
-{
-	actor->AddSceneEvent( scene, event, NULL, IsClientOnly() );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *actor - 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::DispatchEndSequence( CChoreoScene *scene, CBaseFlex *actor, CChoreoEvent *event )
-{
-	actor->RemoveSceneEvent( scene, event, false );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : *actor - 
-//			*parameters - 
-//-----------------------------------------------------------------------------
-void C_SceneEntity::DispatchEndGesture( CChoreoScene *scene, C_BaseFlex *actor, CChoreoEvent *event )
-{
-	// Ingore null gestures
-	if ( !Q_stricmp( event->GetName(), "NULL" ) )
-		return;
-
 	actor->RemoveSceneEvent( scene, event, false );
 }
 
@@ -1007,119 +553,7 @@ void C_SceneEntity::QueueStartEvent( float starttime, CChoreoScene *scene, CChor
 	m_QueuedEvents.AddToTail( qe );
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: Resets time such that the client version of the .vcd is also updated, if appropriate
-// Input  : t - 
-//			forceClientSync - unused for now, we may want to reenable this at some point
-//-----------------------------------------------------------------------------
-void C_SceneEntity::SetCurrentTime( float t, bool forceClientSync )
+CON_COMMAND( scenefilecache_status, "Print current scene file cache status." )
 {
-	m_flCurrentTime = t;
-	m_flForceClientTime = t;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-void C_SceneEntity::PrefetchAnimBlocks( CChoreoScene *pScene )
-{
-	Assert( pScene && m_bMultiplayer );
-	if ( !pScene || !m_bMultiplayer )
-		return;
-
-	// Build a fast lookup, too
-	CUtlMap<CChoreoActor*,CBaseFlex*> actorMap( 0, 0, DefLessFunc( CChoreoActor* ) );
-
-	int nSpew = 0;
-	int nResident = 0;
-	int nChecked = 0;
-
-	// Iterate events and precache necessary resources
-	for ( int i = 0; i < pScene->GetNumEvents(); i++ )
-	{
-		CChoreoEvent *pEvent = pScene->GetEvent( i );
-		if ( !pEvent )
-			continue;
-
-		// load any necessary data
-		switch ( pEvent->GetType() )
-		{
-		default:
-			break;
-		case CChoreoEvent::SEQUENCE:
-		case CChoreoEvent::GESTURE:
-			{
-				CChoreoActor *pActor = pEvent->GetActor();
-				if ( pActor )
-				{
-					CBaseFlex *pFlex = NULL;
-					int idx = actorMap.Find( pActor );
-					if ( idx == actorMap.InvalidIndex() )
-					{
-						pFlex = FindNamedActor( pActor );
-						idx = actorMap.Insert( pActor, pFlex );
-					}
-					else
-					{
-						pFlex = actorMap[ idx ];
-					}
-
-					if ( pFlex )
-					{
-						int iSequence = pFlex->LookupSequence( pEvent->GetParameters() );
-						if ( iSequence >= 0 )
-						{
-							CStudioHdr *pStudioHdr = pFlex->GetModelPtr();
-							if ( pStudioHdr )
-							{
-								// Now look up the animblock
-								mstudioseqdesc_t &seqdesc = pStudioHdr->pSeqdesc( iSequence );
-								for ( int i = 0 ; i < seqdesc.groupsize[ 0 ] ; ++i )
-								{
-									for ( int j = 0; j < seqdesc.groupsize[ 1 ]; ++j )
-									{
-										int iAnimation = seqdesc.anim( i, j );
-										int iBaseAnimation = pStudioHdr->iRelativeAnim( iSequence, iAnimation );
-										mstudioanimdesc_t &animdesc = pStudioHdr->pAnimdesc( iBaseAnimation );
-
-										++nChecked;
-
-										if ( nSpew != 0 )
-										{
-											Msg( "%s checking block %d\n", pStudioHdr->pszName(), animdesc.animblock );
-										}
-
-										// Async load the animation
-										int iFrame = 0;
-										const mstudioanim_t *panim = animdesc.pAnim( &iFrame );
-										if ( panim )
-										{
-											++nResident;
-											if ( nSpew > 1 )
-											{
-												Msg( "%s:%s[%i:%i] was resident\n", pStudioHdr->pszName(), animdesc.pszName(), i, j );
-											}
-										}
-										else
-										{
-											if ( nSpew != 0 )
-											{
-												Msg( "%s:%s[%i:%i] async load\n", pStudioHdr->pszName(), animdesc.pszName(), i, j );
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				break;
-			}
-		}
-	}
-
-	if ( !nSpew || nChecked <= 0 )
-		return;
-
-	Msg( "%d of %d animations resident\n", nResident, nChecked );
+	scenefilecache->OutputStatus();
 }

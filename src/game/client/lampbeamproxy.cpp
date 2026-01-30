@@ -26,9 +26,8 @@ public:
 	virtual bool		Init( IMaterial *pMaterial, KeyValues* pKeyValues );
 	virtual void		OnBind( C_BaseEntity *pC_BaseEntity );
 
-	virtual IMaterial *	GetMaterial();
-
 private:
+	
 	IMaterialVar		*m_pFadeValue;
 };
 
@@ -69,23 +68,20 @@ bool CLampBeamProxy::Init( IMaterial *pMaterial, KeyValues* pKeyValues )
 
 void CLampBeamProxy::OnBind( C_BaseEntity *pEnt )
 {
-	if ( !m_pFadeValue )
+	if( !m_pFadeValue )
+	{
 		return;
+	}
+	
+	Vector vecLocal;
 
-	Vector vecLocal = pEnt->GetAbsOrigin() - CurrentViewOrigin();
+	vecLocal = pEnt->GetAbsOrigin() - CurrentViewOrigin();
 	VectorNormalize( vecLocal );
 
-	float fade = 1.0 - fabs( vecLocal.z );
+	float fade;
+	fade = 1.0 - fabs( vecLocal.z );
 
 	m_pFadeValue->SetFloatValue( fade );
-}
-
-IMaterial *CLampBeamProxy::GetMaterial()
-{
-	if ( !m_pFadeValue )
-		return NULL;
-
-	return m_pFadeValue->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CLampBeamProxy, IMaterialProxy, "lampbeam" IMATERIAL_PROXY_INTERFACE_VERSION );

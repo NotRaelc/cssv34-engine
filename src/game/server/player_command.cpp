@@ -8,7 +8,7 @@
 #include "player.h"
 #include "usercmd.h"
 #include "igamemovement.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "client.h"
 #include "player_command.h"
 #include "movehelper_server.h"
@@ -21,6 +21,11 @@
 extern IGameMovement *g_pGameMovement;
 extern CMoveData *g_pMoveData;	// This is a global because it is subclassed by each game.
 extern ConVar sv_noclipduringpause;
+
+#ifdef BUGFIXED
+static ConVar sv_maxusrcmdprocessticks_warning( "sv_maxusrcmdprocessticks_warning", "-1", FCVAR_NONE, "Print a warning when user commands get dropped due to insufficient usrcmd ticks allocated, number of seconds to throttle, negative disabled" );
+static ConVar sv_maxusrcmdprocessticks_holdaim( "sv_maxusrcmdprocessticks_holdaim", "1", FCVAR_NONE, "Hold client aim for multiple server sim ticks when client-issued usrcmd contains multiple actions (0: off; 1: hold this server tick; 2+: hold multiple ticks)" );
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -133,11 +138,6 @@ void CPlayerMove::SetupMove( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper *p
 
 	// Allow sound, etc. to be created by movement code
 	move->m_bFirstRunOfFunctions = true;
-	move->m_bGameCodeMovedPlayer = false;
-	if ( player->GetPreviouslyPredictedOrigin() != player->GetAbsOrigin() )
-	{
-		move->m_bGameCodeMovedPlayer = true;
-	}
 
 	// Prepare the usercmd fields
 	move->m_nImpulseCommand		= ucmd->impulse;	
@@ -181,7 +181,7 @@ void CPlayerMove::SetupMove( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper *p
 
 	move->m_nPlayerHandle		= player;
 
-	move->SetAbsOrigin( player->GetAbsOrigin() );
+	move->m_vecAbsOrigin		= player->GetAbsOrigin();
 
 	// Copy constraint information
 	if ( player->m_hConstraintEntity.Get() )
@@ -205,9 +205,8 @@ void CPlayerMove::FinishMove( CBasePlayer *player, CUserCmd *ucmd, CMoveData *mo
 	VPROF( "CPlayerMove::FinishMove" );
 
 	player->m_flMaxspeed			= move->m_flClientMaxSpeed;
-	player->SetAbsOrigin( move->GetAbsOrigin() );
+	player->SetAbsOrigin( move->m_vecAbsOrigin );
 	player->SetAbsVelocity( move->m_vecVelocity );
-	player->SetPreviouslyPredictedOrigin( move->GetAbsOrigin() );
 
 	player->m_Local.m_nOldButtons			= move->m_nButtons;
 
@@ -221,7 +220,11 @@ void CPlayerMove::FinishMove( CBasePlayer *player, CUserCmd *ucmd, CMoveData *mo
 
 	move->m_vecAngles[ PITCH ] = pitch;
 
-	player->SetBodyPitch( pitch );
+	int pitch_param = player->LookupPoseParameter( "body_pitch" );
+	if ( pitch_param >= 0 )
+	{
+		player->SetPoseParameter( pitch_param, pitch );
+	}
 
 	player->SetLocalAngles( move->m_vecAngles );
 
@@ -299,8 +302,6 @@ void CPlayerMove::RunPostThink( CBasePlayer *player )
 	player->PostThink();
 }
 
-void CommentarySystem_PePlayerRunCommand( CBasePlayer *player, CUserCmd *ucmd );
-
 //-----------------------------------------------------------------------------
 // Purpose: Runs movement commands for the player
 // Input  : *player - 
@@ -310,15 +311,32 @@ void CommentarySystem_PePlayerRunCommand( CBasePlayer *player, CUserCmd *ucmd );
 //-----------------------------------------------------------------------------
 void CPlayerMove::RunCommand ( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper *moveHelper )
 {
+#ifdef BUGFIXED
+	bool bAllowUserCommandProcessing = player->ConsumeMovementTicksForUserCmdProcessing();
+
+	if ( !player->IsBot() && !player->IsHLTV() && !bAllowUserCommandProcessing )
+	{
+		// Make sure that the activity in command is erased because player cheated or dropped too many packets
+		double dblWarningFrequencyThrottle = sv_maxusrcmdprocessticks_warning.GetFloat();
+		if ( dblWarningFrequencyThrottle >= 0 )
+		{
+			static double s_dblLastWarningTime = 0;
+			double dblTimeNow = Plat_FloatTime();
+			if ( !s_dblLastWarningTime || ( dblTimeNow - s_dblLastWarningTime >= dblWarningFrequencyThrottle ) )
+			{
+				s_dblLastWarningTime = dblTimeNow;
+				Warning( "sv_maxusrcmdprocessticks_warning at server tick %u: Ignored client %s usrcmd (more commands than available movement ticks)!\n", gpGlobals->tickcount, player->GetPlayerName() );
+			}
+		}
+		return; // Don't process this command
+	}
+#endif
+	
 	StartCommand( player, ucmd );
 
 	// Set globals appropriately
 	gpGlobals->curtime		=  player->m_nTickBase * TICK_INTERVAL;
 	gpGlobals->frametime	=  player->m_bGamePaused ? 0 : TICK_INTERVAL;
-
-	// Add and subtract buttons we're forcing on the player
-	ucmd->buttons |= player->m_afButtonForced;
-	ucmd->buttons &= ~player->m_afButtonDisabled;
 
 	if ( player->m_bGamePaused )
 	{
@@ -341,9 +359,7 @@ void CPlayerMove::RunCommand ( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper 
 	}
 	*/
 
-	g_pGameMovement->StartTrackPredictionErrors( player );
-
-	CommentarySystem_PePlayerRunCommand( player, ucmd );
+	IGameSystem::FrameUpdatePrePlayerRunCommandAllSystems( player, ucmd );
 
 	// Do weapon selection
 	if ( ucmd->weaponselect != 0 )
@@ -413,14 +429,19 @@ void CPlayerMove::RunCommand ( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper 
 	// Copy output
 	FinishMove( player, ucmd, g_pMoveData );
 
+#ifdef BUGFIXED
+	if ( !player->IsBot() && ( gpGlobals->tickcount - player->GetLockViewanglesTickNumber() < sv_maxusrcmdprocessticks_holdaim.GetInt() ) )
+	{
+		player->pl.v_angle = player->GetLockViewanglesData();
+	}
+#endif
+	
 	// Let server invoke any needed impact functions
 	VPROF_SCOPE_BEGIN( "moveHelper->ProcessImpacts" );
 	moveHelper->ProcessImpacts();
 	VPROF_SCOPE_END();
 
 	RunPostThink( player );
-
-	g_pGameMovement->FinishTrackPredictionErrors( player );
 
 	FinishCommand( player );
 

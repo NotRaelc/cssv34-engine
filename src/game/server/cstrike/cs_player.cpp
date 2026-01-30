@@ -52,8 +52,6 @@
 #include "datacache/imdlcache.h"
 #include "npcevent.h"
 #include "cs_gamestats.h"
-#include "gamestats.h"
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -69,6 +67,9 @@ const float CycleLatchInterval = 0.2f;
 ConVar cs_ShowStateTransitions( "cs_ShowStateTransitions", "-2", FCVAR_CHEAT, "cs_ShowStateTransitions <ent index or -1 for all>. Show player state transitions." );
 ConVar sv_max_usercmd_future_ticks( "sv_max_usercmd_future_ticks", "8", 0, "Prevents clients from running usercmds too far in the future. Prevents speed hacks." );
 
+#ifdef BUGFIXED
+static ConVar cs_enable_player_physics_box( "cs_enable_player_physics_box", "1", FCVAR_NONE );
+#endif
 
 ConVar bot_mimic( "bot_mimic", "0", FCVAR_CHEAT );
 ConVar bot_freeze( "bot_freeze", "0", FCVAR_CHEAT );
@@ -76,6 +77,7 @@ ConVar bot_crouch( "bot_crouch", "0", FCVAR_CHEAT );
 ConVar bot_mimic_yaw_offset( "bot_mimic_yaw_offset", "180", FCVAR_CHEAT );
 
 extern ConVar mp_autokick;
+extern ConVar mp_fadetoblack;
 extern ConVar sv_turbophysics;
 
 #define THROWGRENADE_COUNTER_BITS 3
@@ -186,24 +188,21 @@ public:
 
 	CNetworkHandle( CBasePlayer, m_hPlayer );
 	CNetworkVar( int, m_iEvent );
-	CNetworkVar( int, m_nData );
 };
 
 IMPLEMENT_SERVERCLASS_ST_NOBASE( CTEPlayerAnimEvent, DT_TEPlayerAnimEvent )
 	SendPropEHandle( SENDINFO( m_hPlayer ) ),
-	SendPropInt( SENDINFO( m_iEvent ), Q_log2( PLAYERANIMEVENT_COUNT ) + 1, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO( m_nData ), 32 )
+	SendPropInt( SENDINFO( m_iEvent ), Q_log2( PLAYERANIMEVENT_COUNT ) + 1, SPROP_UNSIGNED )
 END_SEND_TABLE()
 
 static CTEPlayerAnimEvent g_TEPlayerAnimEvent( "PlayerAnimEvent" );
 
-void TE_PlayerAnimEvent( CBasePlayer *pPlayer, PlayerAnimEvent_t event, int nData )
+void TE_PlayerAnimEvent( CBasePlayer *pPlayer, PlayerAnimEvent_t event )
 {
 	CPVSFilter filter( (const Vector&)pPlayer->EyePosition() );
 	
 	g_TEPlayerAnimEvent.m_hPlayer = pPlayer;
 	g_TEPlayerAnimEvent.m_iEvent = event;
-	g_TEPlayerAnimEvent.m_nData = nData;
 	g_TEPlayerAnimEvent.Create( filter, 0 );
 }
 
@@ -321,13 +320,13 @@ END_DATADESC()
 
 // -------------------------------------------------------------------------------- //
 
-void cc_CreatePredictionError_f( const CCommand &args )
+void cc_CreatePredictionError_f()
 {
 	float distance = 32;
 
-	if ( args.ArgC() >= 2 )
+	if ( engine->Cmd_Argc() >= 2 )
 	{
-		distance = atof(args[1]);
+		distance = atof( engine->Cmd_Argv( 1 ) );
 	}
 
 	CBaseEntity *pEnt = CBaseEntity::Instance( 1 );
@@ -501,8 +500,7 @@ void CCSPlayer::PlayerRunCommand( CUserCmd *ucmd, IMoveHelper *moveHelper )
 		return;
 
 	// don't run commands in the future
-	if ( !IsEngineThreaded() && 
-		( ucmd->tick_count > (gpGlobals->tickcount + sv_max_usercmd_future_ticks.GetInt()) ) )
+	if ( ucmd->tick_count > (gpGlobals->tickcount + sv_max_usercmd_future_ticks.GetInt()) )
 	{
 		DevMsg( "Client cmd out of sync (delta %i).\n", ucmd->tick_count - gpGlobals->tickcount );
 		return;
@@ -718,14 +716,8 @@ void CCSPlayer::Spawn()
 
 	m_iRadioMessages = 60;
 	m_flRadioTime = gpGlobals->curtime;
-
-	if ( m_hRagdoll )
-	{
-		UTIL_Remove( m_hRagdoll );
-	}
-
 	m_hRagdoll = NULL;
-	
+
 	// did we change our name while we were dead?
 	if ( m_szNewName[0] != 0 )
 	{
@@ -1004,15 +996,26 @@ void CCSPlayer::DeathSound( const CTakeDamageInfo &info )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CCSPlayer::InitVCollision( const Vector &vecAbsOrigin, const Vector &vecAbsVelocity )
+void CCSPlayer::InitVCollision()
 {
-	BaseClass::InitVCollision( vecAbsOrigin, vecAbsVelocity );
+#ifdef BUGFIXED
+	if ( cs_enable_player_physics_box.GetBool() )
+	{
+#endif
+		BaseClass::InitVCollision();
 
-    if ( sv_turbophysics.GetBool() )
-		return;
-	
-	// Setup the HL2 specific callback.
-	GetPhysicsController()->SetEventHandler( &playerCallback );
+		if ( sv_turbophysics.GetBool() )
+			return;
+		
+		// Setup the HL2 specific callback.
+		GetPhysicsController()->SetEventHandler( &playerCallback );
+#ifdef BUGFIXED
+	}
+	else
+	{
+		VPhysicsDestroyObject();
+	}
+#endif
 }
 
 void CCSPlayer::VPhysicsShadowUpdate( IPhysicsObject *pPhysics )
@@ -1174,15 +1177,13 @@ void CCSPlayer::UpdateRadar()
 			
 	for ( int i=0; i < MAX_PLAYERS; i++ )
 	{
-		CCSPlayer *pPlayer = ToCSPlayer( UTIL_PlayerByIndex( i+1 ) );
+		if ( playerbits.Get(i) )
+			continue;
+		
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i+1 );
 
 		if ( !pPlayer )
 			continue; // nothing there
-
-		bool bSameTeam = pPlayer->GetTeamNumber() == GetTeamNumber();
-
-		if ( playerbits.Get(i) && bSameTeam == true )
-			continue; // this player is in my PVS and not in my team, don't update radar pos
 
 		if ( pPlayer == this )
 			continue;
@@ -1628,8 +1629,6 @@ int CCSPlayer::OnTakeDamage( const CTakeDamageInfo &inputInfo )
 		}
 
 		m_vecTotalBulletForce += info.GetDamageForce();
-
-		gamestats->Event_PlayerDamage( this, info );
 
 		return CBaseCombatCharacter::OnTakeDamage( info );
 	}
@@ -2126,7 +2125,7 @@ void CCSPlayer::CheckTKPunishment( void )
 	{
 		m_bJustKilledTeammate = false;
 		m_bPunishedForTK = true;
-		CommitSuicide();
+		ClientKill( edict() );
 	}
 }
 
@@ -2303,12 +2302,12 @@ CON_COMMAND( cs_make_vip, "Marks a player as the VIP" )
 	if ( !UTIL_IsCommandIssuedByServerAdmin() )
 		return;
 
-	if ( args.ArgC() != 2 )
+	if ( engine->Cmd_Argc() != 2 )
 	{
 		return;
 	}
 
-	CCSPlayer *player = static_cast< CCSPlayer * >(UTIL_PlayerByIndex( atoi( args[1] ) ));
+	CCSPlayer *player = static_cast< CCSPlayer * >(UTIL_PlayerByIndex( atoi( engine->Cmd_Argv( 1 ) ) ));
 	if ( !player )
 	{
 		// Invalid value clears out VIP
@@ -2579,6 +2578,12 @@ bool CCSPlayer::IsInBuyZone()
 
 bool CCSPlayer::CanPlayerBuy( bool display )
 {
+	// is the player alive?
+	if ( m_lifeState != LIFE_ALIVE )
+	{
+		return false;
+	}
+	
 	// is the player in a buy zone?
 	if ( !IsInBuyZone() )
 	{
@@ -2587,15 +2592,9 @@ bool CCSPlayer::CanPlayerBuy( bool display )
 
 	CCSGameRules* mp = CSGameRules();
 
-	// is the player alive?
-	if ( m_lifeState != LIFE_ALIVE )
-	{
-		return false;
-	}
-
 	int buyTime = (int)(mp_buytime.GetFloat() * 60);
 
-	if ( mp->IsBuyTimeElapsed() )
+	if ( buyTime < mp->GetRoundElapsedTime() )
 	{
 		if ( display == true )
 		{
@@ -3019,19 +3018,13 @@ BuyResult_e CCSPlayer::HandleCommand_Buy( const char *item )
 			// do they have enough money?
 			if ( m_iAccount >= pWeaponInfo->GetWeaponPrice() ) 
 			{
-				if ( m_lifeState == LIFE_DEAD )
+				if ( pWeaponInfo->iSlot == WEAPON_SLOT_PISTOL )
 				{
+					DropPistol();
 				}
-				else
+				else if ( pWeaponInfo->iSlot == WEAPON_SLOT_RIFLE )
 				{
-					if ( pWeaponInfo->iSlot == WEAPON_SLOT_PISTOL )
-					{
-						DropPistol();
-					}
-					else if ( pWeaponInfo->iSlot == WEAPON_SLOT_RIFLE )
-					{
-						DropRifle();
-					}
+					DropRifle();
 				}
 
 				bPurchase = true;
@@ -3511,6 +3504,23 @@ void CCSPlayer::ListPlayers()
 	ClientPrint( this, HUD_PRINTCONSOLE, "\n" );
 }
 
+bool CCSPlayer::CanHearChatFrom( CBasePlayer *pPlayer )
+{
+	if ( !pPlayer )
+		return ( m_iIgnoreGlobalChat != 1 );
+	
+	if ( m_iIgnoreGlobalChat == 1 )
+		return false;
+	
+	if ( !pPlayer->IsAlive() && IsAlive() )
+		return false;
+	
+	if ( m_iIgnoreGlobalChat == 2 && g_pGameRules->PlayerRelationship( this, pPlayer ) != GR_TEAMMATE )
+		return false;
+	
+	return true;
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : &info - 
@@ -3628,6 +3638,14 @@ void CCSPlayer::NoteWeaponFired()
 	{
 		m_iLastWeaponFireUsercmd = m_pCurrentCommand->command_number;
 	}
+	
+#ifdef BUGFIXED
+	if ( m_iLockViewanglesTickNumber != gpGlobals->tickcount )
+	{
+		m_iLockViewanglesTickNumber = gpGlobals->tickcount;
+		m_qangLockViewangles 		= pl.v_angle;
+	}
+#endif
 }
 
 
@@ -3773,9 +3791,19 @@ bool HandleRadioAliasCommands( CCSPlayer *pPlayer, const char *pszCommand )
 	return bRetVal;
 }
 
-bool CCSPlayer::ShouldRunRateLimitedCommand( const CCommand &args )
+int CCSPlayer::Cmd_Argc( void )
 {
-	const char *pcmd = args[0];
+	return engine->Cmd_Argc();
+}
+
+char *CCSPlayer::Cmd_Argv( int argc )
+{
+	return engine->Cmd_Argv( argc );
+}
+
+bool CCSPlayer::ShouldRunRateLimitedCommand( const char* command )
+{
+	const char *pcmd = command;
 
 	int i = m_RateLimitLastCommandTimes.Find( pcmd );
 	if ( i == m_RateLimitLastCommandTimes.InvalidIndex() )
@@ -3795,9 +3823,9 @@ bool CCSPlayer::ShouldRunRateLimitedCommand( const CCommand &args )
 	}
 }
 
-bool CCSPlayer::ClientCommand( const CCommand &args )
+bool CCSPlayer::ClientCommand( const char* command )
 {
-	const char *pcmd = args[0];
+	const char *pcmd = command;
 
 	// Bots mimic our client commands.
 /*
@@ -3813,104 +3841,24 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 		}
 	}
 */
-
-#if defined ( DEBUG )
-
-	if ( FStrEq( pcmd, "bot_cmd" ) )
-	{
-		CCSPlayer *pPlayer = dynamic_cast< CCSPlayer* >( UTIL_PlayerByIndex( atoi( args[1] ) ) );
-		if ( pPlayer && pPlayer != this && ( pPlayer->GetFlags() & FL_FAKECLIENT ) )
-		{
-			CCommand botArgs( args.ArgC() - 2, &args.ArgV()[2] );
-			pPlayer->ClientCommand( botArgs );
-			pPlayer->RemoveEffects( EF_NODRAW );
-		}
-		return true;
-	}
-
-	if ( FStrEq( pcmd, "blind" ) )
-	{
-		if ( ShouldRunRateLimitedCommand( args ) )
-		{
-			if ( args.ArgC() == 3 )
-			{
-				Blind( atof( args[1] ), atof( args[2] ) );
-			}
-			else
-			{
-				ClientPrint( this, HUD_PRINTCONSOLE, "usage: blind holdtime fadetime\n" );
-			}
-		}
-		return true;
-	}
-
-	if ( FStrEq( pcmd, "deafen" ) )
-	{
-		Deafen( 0.0f );
-		return true;
-	}
-
-	if ( FStrEq( pcmd, "he_deafen" ) )
-	{
-		m_applyDeafnessTime = gpGlobals->curtime + 0.3;
-		m_currentDeafnessFilter = 0;
-		return true;
-	}
-
-	if ( FStrEq( pcmd, "hint_reset" ) )
-	{
-		m_iDisplayHistoryBits = 0;
-		return true;
-	}
-
-	if ( FStrEq( pcmd, "punch" ) )
-	{
-		float flDamage = 100;
-
-		QAngle punchAngle = GetPunchAngle();
-
-		punchAngle.x = flDamage * random->RandomFloat ( -0.15, 0.15 );
-		punchAngle.y = flDamage * random->RandomFloat ( -0.15, 0.15 );
-		punchAngle.z = flDamage * random->RandomFloat ( -0.15, 0.15 );
-
-		clamp( punchAngle.x, -4, punchAngle.x );
-		clamp( punchAngle.y, -5, 5 );
-		clamp( punchAngle.z, -5, 5 );
-
-		// +y == down
-		// +x == left
-		// +z == roll clockwise
-		if ( args.ArgC() == 4 )
-		{
-			punchAngle.x = atof(args[1]);
-			punchAngle.y = atof(args[2]);
-			punchAngle.z = atof(args[3]);
-		}
-
-		SetPunchAngle( punchAngle );
-
-		return true;
-	}
 	
-#endif //DEBUG
-		
 	if ( FStrEq( pcmd, "jointeam" ) ) 
 	{
-		if ( args.ArgC() < 2 )
+		if ( Cmd_Argc() < 2 )
 		{
 			Warning( "Player sent bad jointeam syntax\n" );
 		}
 
-		if ( ShouldRunRateLimitedCommand( args ) )
+		if ( ShouldRunRateLimitedCommand( command ) )
 		{
-			int iTeam = atoi( args[1] );
+			int iTeam = atoi( Cmd_Argv( 1 ) );
 			HandleCommand_JoinTeam( iTeam );
 		}
 		return true;
 	}
 	else if ( FStrEq( pcmd, "spectate" ) )
 	{
-		if ( ShouldRunRateLimitedCommand( args ) )
+		if ( ShouldRunRateLimitedCommand( command ) )
 		{
 			// instantly join spectators
 			HandleCommand_JoinTeam( TEAM_SPECTATOR );
@@ -3929,14 +3877,14 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 	}
 	else if ( FStrEq( pcmd, "joinclass" ) ) 
 	{
-		if ( args.ArgC() < 2 )
+		if ( Cmd_Argc() < 2 )
 		{
 			Warning( "Player sent bad joinclass syntax\n" );
 		}
 
-		if ( ShouldRunRateLimitedCommand( args ) )
+		if ( ShouldRunRateLimitedCommand( command ) )
 		{
-			int iClass = atoi( args[1] );
+			int iClass = atoi( Cmd_Argv( 1 ) );
 			HandleCommand_JoinClass( iClass );
 		}
 		return true;
@@ -3960,9 +3908,9 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 	else if ( FStrEq( pcmd, "buy" ) )
 	{
 		BuyResult_e result = BUY_INVALID_ITEM;
-		if ( args.ArgC() == 2 )
+		if ( Cmd_Argc() == 2 )
 		{
-			result = HandleCommand_Buy( args[1] );
+			result = HandleCommand_Buy( Cmd_Argv( 1 ) );
 		}
 		if ( result == BUY_INVALID_ITEM )
 		{
@@ -4020,7 +3968,7 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 	}
 	else if ( FStrEq( pcmd, "nightvision" ) )
 	{
-		if ( ShouldRunRateLimitedCommand( args ) )
+		if ( ShouldRunRateLimitedCommand( command ) )
 		{
 			if( m_bHasNightVision )
 			{
@@ -4053,7 +4001,27 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 		ListPlayers();
 		return true;
 	}
+	else if ( FStrEq( pcmd, "ignoremsg" ) )
+	{
+		m_iIgnoreGlobalChat = ( m_iIgnoreGlobalChat + 1 ) % 3;
 
+		switch( m_iIgnoreGlobalChat )
+		{
+			case 0:
+				ClientPrint( this, HUD_PRINTTALK, "#Accept_All_Messages" );
+				break;
+			
+			case 1:
+				ClientPrint( this, HUD_PRINTTALK, "#Ignore_Broadcast_Messages" );
+				break;
+
+			case 2:
+				ClientPrint( this, HUD_PRINTTALK, "#Ignore_Broadcast_Team_Messages" );
+				break;
+		}
+		
+		return true;
+	}
 	else if ( FStrEq( pcmd, "ignorerad" ) )
 	{
 		m_bIgnoreRadio = !m_bIgnoreRadio;
@@ -4079,7 +4047,7 @@ bool CCSPlayer::ClientCommand( const CCommand &args )
 		return true;
 	}
 
-	return BaseClass::ClientCommand( args );
+	return BaseClass::ClientCommand( command );
 }
 
 
@@ -4254,7 +4222,7 @@ bool CCSPlayer::HandleCommand_JoinTeam( int team )
 		{
 			m_fNextSuicideTime = gpGlobals->curtime;	// allow the suicide to work
 
-			CommitSuicide();
+			ClientKill( edict() );
 
 			// add 1 to frags to balance out the 1 subtracted for killing yourself
 			IncrementFragCount( 1 );
@@ -4263,17 +4231,11 @@ bool CCSPlayer::HandleCommand_JoinTeam( int team )
 		ChangeTeam( TEAM_SPECTATOR );
 		m_iClass = (int)CS_CLASS_NONE;
 
-		if ( !(m_iDisplayHistoryBits & DHF_SPEC_DUCK) )
-		{
-			m_iDisplayHistoryBits |= DHF_SPEC_DUCK;
-			HintMessage( "#Spec_Duck", true, true );
-		}
-
 		// do we have fadetoblack on? (need to fade their screen back in)
 		if ( mp_fadetoblack.GetBool() )
 		{
-			color32_s clr = { 0,0,0,255 };
-			UTIL_ScreenFade( this, clr, 0, 0, FFADE_IN | FFADE_PURGE );
+			color32_s clr = { 0,0,0,0 };
+			UTIL_ScreenFade( this, clr, 0.001f, 0, FFADE_IN );
 		}
 
 		return true;
@@ -4364,7 +4326,7 @@ bool CCSPlayer::HandleCommand_JoinClass( int iClass )
 		// Kill player if switching classes while alive.
 		// This mimics goldsrc CS 1.6, and prevents a player from hiding, and switching classes to
 		// make the opposing team think there are more enemies than there really are.
-		CommitSuicide();
+		ClientKill( edict() );
 	}
 
 	return true;
@@ -5956,7 +5918,7 @@ bool CCSPlayer::IsUseableEntity( CBaseEntity *pEntity, unsigned int requiredCaps
 	if( pCSWepaon )
 	{
 		// we can't USE dropped weapons 
-		return true;
+		return false;
 	}
 
 	CBaseCSGrenadeProjectile *pGrenade = dynamic_cast<CBaseCSGrenadeProjectile*>(pEntity);
@@ -6100,7 +6062,7 @@ CBaseEntity	*CCSPlayer::GiveNamedItem( const char *pszName, int iSubType )
 }
 
 
-void CCSPlayer::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
+void CCSPlayer::DoAnimationEvent( PlayerAnimEvent_t event )
 {
 	if ( event == PLAYERANIMEVENT_THROW_GRENADE )
 	{
@@ -6111,8 +6073,8 @@ void CCSPlayer::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
 	}
 	else
 	{
-		m_PlayerAnimState->DoAnimationEvent( event, nData );
-		TE_PlayerAnimEvent( this, event, nData );	// Send to any clients who can see this guy.
+		m_PlayerAnimState->DoAnimationEvent( event );
+		TE_PlayerAnimEvent( this, event );	// Send to any clients who can see this guy.
 	}
 }
 
@@ -6304,7 +6266,7 @@ void CCSPlayer::ChangeTeam( int iTeamNum )
 		else if ( iOldTeam != TEAM_UNASSIGNED  && !IsDead() )
 		{
 			// Kill player if switching teams while alive
-			CommitSuicide();
+			ClientKill( edict() );
 		}
 
 		// Put up the class selection menu.
@@ -6720,30 +6682,3 @@ void CCSPlayer::StopReplayMode()
 		WRITE_BYTE( 0 );
 	MessageEnd();
 }
-	
-void CCSPlayer::PlayUseDenySound()
-{
-	// Don't do a sound here because it can mute your footsteps giving you an advantage.
-	// The CS:S content for this sound is silent anyways.
-	//EmitSound( "Player.UseDeny" );
-}
-
-void UTIL_AwardMoneyToTeam( int iAmount, int iTeam, CBaseEntity *pIgnore )
-{
-	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
-	{
-		CCSPlayer *pPlayer = (CCSPlayer*) UTIL_PlayerByIndex( i );
-
-		if ( !pPlayer )
-			continue;
-
-		if ( pPlayer->GetTeamNumber() != iTeam )
-			continue;
-
-		if ( pPlayer == pIgnore )
-			continue;
-
-		pPlayer->AddAccount( iAmount );
-	}
-}
-

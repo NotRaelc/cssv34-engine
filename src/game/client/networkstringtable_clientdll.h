@@ -1,9 +1,9 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 
 #ifndef NETWORKSTRINGTABLE_CLIENTDLL_H
 #define NETWORKSTRINGTABLE_CLIENTDLL_H

@@ -518,7 +518,7 @@ inline bool CNavArea::IsVisible( const Vector &eye, Vector *visSpot ) const
 	const float offset = 0.75f * HumanHeight;
 
 	// check center first
-	UTIL_TraceLine( eye, GetCenter() + Vector( 0, 0, offset ), MASK_BLOCKLOS_AND_NPCS, &traceFilter, &result );
+	UTIL_TraceLine( eye, GetCenter() + Vector( 0, 0, offset ), MASK_OPAQUE | CONTENTS_MONSTER, &traceFilter, &result );
 	if (result.fraction == 1.0f)
 	{
 		// we can see this area
@@ -532,7 +532,7 @@ inline bool CNavArea::IsVisible( const Vector &eye, Vector *visSpot ) const
 	for( int c=0; c<NUM_CORNERS; ++c )
 	{
 		corner = GetCorner( (NavCornerType)c );
-		UTIL_TraceLine( eye, corner + Vector( 0, 0, offset ), MASK_BLOCKLOS_AND_NPCS, &traceFilter, &result );
+		UTIL_TraceLine( eye, corner + Vector( 0, 0, offset ), MASK_OPAQUE | CONTENTS_MONSTER, &traceFilter, &result );
 		if (result.fraction == 1.0f)
 		{
 			// we can see this area

@@ -130,25 +130,12 @@ void CFilterMultiple::Activate( void )
 {
 	BaseClass::Activate();
 	
-	// We may reject an entity specified in the array of names, but we want the array of valid filters to be contiguous!
-	int nNextFilter = 0;
-
 	// Get handles to my filter entities
-	for ( int i = 0; i < MAX_FILTERS; i++ )
+	for (int i=0;i<MAX_FILTERS;i++)
 	{
-		if ( m_iFilterName[i] != NULL_STRING )
+		if (m_iFilterName[i] != NULL_STRING)
 		{
-			CBaseEntity *pEntity = gEntList.FindEntityByName( NULL, m_iFilterName[i] );
-			CBaseFilter *pFilter = dynamic_cast<CBaseFilter *>(pEntity);
-			if ( pFilter == NULL )
-			{
-				Warning("filter_multi: Tried to add entity (%s) which is not a filter entity!\n", STRING( m_iFilterName[i] ) );
-				continue;
-			}
-
-			// Take this entity and increment out array pointer
-			m_hFilter[nNextFilter] = pFilter;
-			nNextFilter++;
+			m_hFilter[i] = gEntList.FindEntityByName( NULL, m_iFilterName[i] );
 		}
 	}
 }
@@ -248,9 +235,21 @@ public:
 	bool PassesFilterImpl( CBaseEntity *pCaller, CBaseEntity *pEntity )
 	{
 		// special check for !player as GetEntityName for player won't return "!player" as a name
-		if (FStrEq(STRING(m_iFilterName), "!player"))
+		if(FStrEq(STRING(m_iFilterName), "!player"))
 		{
-			return pEntity->IsPlayer();
+			if(pEntity->IsPlayer())
+			{
+				CBasePlayer *pPlayer = ToBasePlayer( pEntity );
+				// if player is in a vehicle, don't report back we're the player
+				if ( pPlayer->IsInAVehicle() )
+					return false;
+				else
+					return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 		else
 		{
@@ -325,36 +324,6 @@ END_DATADESC()
 
 
 // ###################################################################
-//	> FilterMassGreater
-// ###################################################################
-class CFilterMassGreater : public CBaseFilter
-{
-	DECLARE_CLASS( CFilterMassGreater, CBaseFilter );
-	DECLARE_DATADESC();
-
-public:
-	float m_fFilterMass;
-
-	bool PassesFilterImpl( CBaseEntity *pCaller, CBaseEntity *pEntity )
-	{
-		if ( pEntity->VPhysicsGetObject() == NULL )
-			return false;
-
-		return ( pEntity->VPhysicsGetObject()->GetMass() > m_fFilterMass );
-	}
-};
-
-LINK_ENTITY_TO_CLASS( filter_activator_mass_greater, CFilterMassGreater );
-
-BEGIN_DATADESC( CFilterMassGreater )
-
-// Keyfields
-DEFINE_KEYFIELD( m_fFilterMass,	FIELD_FLOAT,	"filtermass" ),
-
-END_DATADESC()
-
-
-// ###################################################################
 //	> FilterDamageType
 // ###################################################################
 class FilterDamageType : public CBaseFilter
@@ -396,8 +365,6 @@ END_DATADESC()
 class CFilterEnemy : public CBaseFilter
 {
 	DECLARE_CLASS( CFilterEnemy, CBaseFilter );
-		// NOT SAVED	
-		// m_iszPlayerName
 	DECLARE_DATADESC();
 
 public:
@@ -536,7 +503,7 @@ bool CFilterEnemy::PassesProximityFilter( CBaseEntity *pCaller, CBaseEntity *pEn
 	float flSmallerRadius = m_flRadius;
 	if ( flSmallerRadius > flLargerRadius )
 	{
-		V_swap( flLargerRadius, flSmallerRadius );
+		swap( flLargerRadius, flSmallerRadius );
 	}
 
 	float flDist;	
@@ -626,6 +593,5 @@ BEGIN_DATADESC( CFilterEnemy )
 	DEFINE_KEYFIELD( m_flRadius, FIELD_FLOAT, "filter_radius" ),
 	DEFINE_KEYFIELD( m_flOuterRadius, FIELD_FLOAT, "filter_outer_radius" ),
 	DEFINE_KEYFIELD( m_nMaxSquadmatesPerEnemy, FIELD_INTEGER, "filter_max_per_enemy" ),
-	DEFINE_FIELD( m_iszPlayerName, FIELD_STRING ),
 
 END_DATADESC()

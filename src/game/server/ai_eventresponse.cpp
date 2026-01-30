@@ -32,7 +32,7 @@ void CNPCEventResponseSystem::LevelInitPreEntity( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CNPCEventResponseSystem::TriggerEvent( const char *pResponse, bool bForce, bool bCancelScript )
+void CNPCEventResponseSystem::TriggerEvent( const char *pResponse, bool bForce )
 {
 	m_flNextEventPoll = gpGlobals->curtime;
 
@@ -44,7 +44,6 @@ void CNPCEventResponseSystem::TriggerEvent( const char *pResponse, bool bForce, 
 		newEvent.flEventTime = gpGlobals->curtime;
 		newEvent.flNextResponseTime = 0;
 		newEvent.bForce = bForce;
-		newEvent.bCancelScript = bCancelScript;
 		newEvent.bPreventExpiration = false;
 		m_ActiveEvents.Insert( pResponse, newEvent );
 
@@ -58,7 +57,6 @@ void CNPCEventResponseSystem::TriggerEvent( const char *pResponse, bool bForce, 
 		// Update the trigger time
 		m_ActiveEvents[iIndex].flEventTime = gpGlobals->curtime;
 		m_ActiveEvents[iIndex].bForce = bForce;
-		m_ActiveEvents[iIndex].bCancelScript = bCancelScript;
 
 		if ( ai_debug_eventresponses.GetBool() ) 
 		{
@@ -134,7 +132,7 @@ void CNPCEventResponseSystem::FrameUpdatePreEntityThink()
 				// Found one? 
 				if ( pNearestNPC )
 				{
-					if ( pNearestNPC->RespondedTo( pResponse, m_ActiveEvents[i].bForce, m_ActiveEvents[i].bCancelScript ) )
+					if ( pNearestNPC->RespondedTo( pResponse, m_ActiveEvents[i].bForce ) )
 					{
 						// Don't remove the response yet. Leave it around until the refire time has expired.
 						// This stops repeated firings of the same concept from spamming the NPCs.
@@ -169,7 +167,6 @@ public:
 	void	Spawn();
 	void 	InputTriggerResponseEvent( inputdata_t &inputdata );
 	void 	InputForceTriggerResponseEvent( inputdata_t &inputdata );
-	void 	InputForceTriggerResponseEventNoCancel( inputdata_t &inputdata );
 };
 
 LINK_ENTITY_TO_CLASS( ai_npc_eventresponsesystem, CNPCEventResponseSystemEntity );
@@ -177,7 +174,6 @@ LINK_ENTITY_TO_CLASS( ai_npc_eventresponsesystem, CNPCEventResponseSystemEntity 
 BEGIN_DATADESC( CNPCEventResponseSystemEntity )
 	DEFINE_INPUTFUNC( FIELD_STRING,	"TriggerResponseEvent",	InputTriggerResponseEvent ),
 	DEFINE_INPUTFUNC( FIELD_STRING,	"ForceTriggerResponseEvent", InputForceTriggerResponseEvent ),
-	DEFINE_INPUTFUNC( FIELD_STRING,	"ForceTriggerResponseEventNoCancel", InputForceTriggerResponseEventNoCancel ),
 END_DATADESC()
 
 //-----------------------------------------------------------------------------
@@ -195,7 +191,7 @@ void CNPCEventResponseSystemEntity::Spawn( void )
 //-----------------------------------------------------------------------------
 void CNPCEventResponseSystemEntity::InputTriggerResponseEvent( inputdata_t &inputdata )
 {
-	NPCEventResponse()->TriggerEvent( inputdata.value.String(), false, false );
+	NPCEventResponse()->TriggerEvent( inputdata.value.String() );
 }
 
 //-----------------------------------------------------------------------------
@@ -203,13 +199,5 @@ void CNPCEventResponseSystemEntity::InputTriggerResponseEvent( inputdata_t &inpu
 //-----------------------------------------------------------------------------
 void CNPCEventResponseSystemEntity::InputForceTriggerResponseEvent( inputdata_t &inputdata )
 {
-	NPCEventResponse()->TriggerEvent( inputdata.value.String(), true, true );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CNPCEventResponseSystemEntity::InputForceTriggerResponseEventNoCancel( inputdata_t &inputdata )
-{
-	NPCEventResponse()->TriggerEvent( inputdata.value.String(), true, false );
+	NPCEventResponse()->TriggerEvent( inputdata.value.String(), true );
 }

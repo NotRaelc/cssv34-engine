@@ -12,7 +12,6 @@
 #include "iefx.h"
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
-#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -127,8 +126,6 @@ void TE_DynamicLight( IRecipientFilter& filter, float delay,
 //-----------------------------------------------------------------------------
 void C_TEDynamicLight::PostDataUpdate( DataUpdateType_t updateType )
 {
-	VPROF( "C_TEDynamicLight::PostDataUpdate" );
-
 	CBroadcastRecipientFilter filter;
 	TE_DynamicLight( filter, 0.0f, &m_vecOrigin, r, g, b, exponent, m_fRadius, m_fTime, m_fDecay, LIGHT_INDEX_TE_DYNAMIC );
 }

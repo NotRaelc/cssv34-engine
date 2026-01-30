@@ -1,9 +1,9 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include "ServerNetworkProperty.h"
@@ -14,20 +14,6 @@
 #include "tier0/memdbgon.h"
 
 extern CTimedEventMgr g_NetworkPropertyEventMgr;
-
-
-//-----------------------------------------------------------------------------
-// Save/load
-//-----------------------------------------------------------------------------
-BEGIN_DATADESC_NO_BASE( CServerNetworkProperty )
-//	DEFINE_FIELD( m_pOuter, FIELD_CLASSPTR ),
-//	DEFINE_FIELD( m_pPev, FIELD_CLASSPTR ),
-//	DEFINE_FIELD( m_PVSInfo, PVSInfo_t ),
-//	DEFINE_FIELD( m_pServerClass, FIELD_CLASSPTR ),
-	DEFINE_GLOBAL_FIELD( m_hParent, FIELD_EHANDLE ),
-//	DEFINE_FIELD( m_TimerEvent, CEventRegister ),
-//	DEFINE_FIELD( m_bPendingStateChange, FIELD_BOOLEAN ),
-END_DATADESC()
 
 
 //-----------------------------------------------------------------------------
@@ -47,8 +33,6 @@ CServerNetworkProperty::~CServerNetworkProperty()
 		m_pTransmitProxy->Release();
 	}*/
 
-	engine->CleanUpEntityClusterList( &m_PVSInfo );
-
 	// remove the attached edict if it exists
 	DetachEdict();
 }
@@ -61,10 +45,8 @@ void CServerNetworkProperty::Init( CBaseEntity *pEntity )
 {
 	m_pPev = NULL;
 	m_pOuter = pEntity;
-	m_pServerClass = NULL;
 //	m_pTransmitProxy = NULL;
 	m_bPendingStateChange = false;
-	m_PVSInfo.m_nClusterCount = 0;
 	m_TimerEvent.Init( &g_NetworkPropertyEventMgr, this );
 }
 
@@ -112,37 +94,28 @@ void CServerNetworkProperty::Release()
 
 
 //-----------------------------------------------------------------------------
-// Returns the network parent
+// EFlags access
+// FIXME: Move flags related to networking solely into this class
 //-----------------------------------------------------------------------------
-CServerNetworkProperty* CServerNetworkProperty::GetNetworkParent()
+int CServerNetworkProperty::GetEFlags() const
 {
-	CBaseEntity *pParent = m_hParent.Get();
-	return pParent ? pParent->NetworkProp() : NULL;
+	return m_pOuter->GetEFlags();
 }
 
 
-//-----------------------------------------------------------------------------
-// Marks for deletion
-//-----------------------------------------------------------------------------
-void CServerNetworkProperty::MarkForDeletion()
+void CServerNetworkProperty::AddEFlags( int iEFlags )
 {
-	m_pOuter->AddEFlags( EFL_KILLME );
+	m_pOuter->AddEFlags( iEFlags );
 }
-
-bool CServerNetworkProperty::IsMarkedForDeletion() const
-{
-	return ( m_pOuter->GetEFlags() & EFL_KILLME ) != 0;
-}
-
 
 //-----------------------------------------------------------------------------
 // PVS information
 //-----------------------------------------------------------------------------
 void CServerNetworkProperty::RecomputePVSInformation()
 {
-	if ( m_pPev && ( ( m_pPev->m_fStateFlags & FL_EDICT_DIRTY_PVS_INFORMATION ) != 0 ) )
+	if ( m_pOuter->GetEFlags() & EFL_DIRTY_PVS_INFORMATION )
 	{
-		m_pPev->m_fStateFlags &= ~FL_EDICT_DIRTY_PVS_INFORMATION;
+		m_pOuter->RemoveEFlags( EFL_DIRTY_PVS_INFORMATION );
 		engine->BuildEntityClusterList( edict(), &m_PVSInfo );
 	}
 }
@@ -153,9 +126,7 @@ void CServerNetworkProperty::RecomputePVSInformation()
 //-----------------------------------------------------------------------------
 ServerClass* CServerNetworkProperty::GetServerClass()
 {
-	if ( !m_pServerClass )
-		m_pServerClass = m_pOuter->GetServerClass();
-	return m_pServerClass;
+	return m_pOuter->GetServerClass();
 }
 
 const char* CServerNetworkProperty::GetClassName() const
@@ -199,7 +170,7 @@ bool CServerNetworkProperty::IsInPVS( const edict_t *pRecipient, const void *pvs
 	
 	if ( m_PVSInfo.m_nClusterCount < 0 )   // too many clusters, use headnode
 	{
-		return ( engine->CheckHeadnodeVisible( m_PVSInfo.m_nHeadNode, pPVS, pvssize ) != 0);
+		return (engine->CheckHeadnodeVisible( m_PVSInfo.m_nHeadNode, pPVS, pvssize ) != 0);
 	}
 	
 	for ( int i = m_PVSInfo.m_nClusterCount; --i >= 0; )
@@ -211,42 +182,32 @@ bool CServerNetworkProperty::IsInPVS( const edict_t *pRecipient, const void *pvs
 	return false;		// not visible
 }
 
-
 //-----------------------------------------------------------------------------
-// PVS: this function is called a lot, so it avoids function calls
+// PVS: this function is called alot, so it avoids function calls
 //-----------------------------------------------------------------------------
+ 
 bool CServerNetworkProperty::IsInPVS( const CCheckTransmitInfo *pInfo )
 {
 	// PVS data must be up to date
-	Assert( !m_pPev || ( ( m_pPev->m_fStateFlags & FL_EDICT_DIRTY_PVS_INFORMATION ) == 0 ) );
+	Assert( !( m_pOuter->GetEFlags() & EFL_DIRTY_PVS_INFORMATION ) );
 	
 	int i;
 
-	// Early out if the areas are connected
-	if ( !m_PVSInfo.m_nAreaNum2 )
+	for ( i=0; i< pInfo->m_AreasNetworked; i++ )
 	{
-		for ( i=0; i< pInfo->m_AreasNetworked; i++ )
-		{
-			int clientArea = pInfo->m_Areas[i];
-			if ( clientArea == m_PVSInfo.m_nAreaNum || engine->CheckAreasConnected( clientArea, m_PVSInfo.m_nAreaNum ) )
-				break;
+		int clientArea = pInfo->m_Areas[i];
+
+		// Early out if the areas are connected
+		if ( engine->CheckAreasConnected( clientArea, m_PVSInfo.m_nAreaNum) )
+		{	
+			break;
 		}
-	}
-	else
-	{
 		// doors can legally straddle two areas, so
 		// we may need to check another one
-		for ( i=0; i< pInfo->m_AreasNetworked; i++ )
+
+		if ( m_PVSInfo.m_nAreaNum2 && engine->CheckAreasConnected( clientArea, m_PVSInfo.m_nAreaNum2 ) )
 		{
-			int clientArea = pInfo->m_Areas[i];
-			if ( clientArea == m_PVSInfo.m_nAreaNum || clientArea == m_PVSInfo.m_nAreaNum2 )
-				break;
-
-			if ( engine->CheckAreasConnected( clientArea, m_PVSInfo.m_nAreaNum ) )
-				break;
-
-			if ( engine->CheckAreasConnected( clientArea, m_PVSInfo.m_nAreaNum2 ) )
-				break;
+			break;
 		}
 	}
 
@@ -271,8 +232,7 @@ bool CServerNetworkProperty::IsInPVS( const CCheckTransmitInfo *pInfo )
 	
 	for ( i = m_PVSInfo.m_nClusterCount; --i >= 0; )
 	{
-		int nCluster = m_PVSInfo.m_pClusters[i];
-		if ( ((int)(pPVS[nCluster >> 3])) & BitVec_BitInByte( nCluster ) )
+		if (pPVS[m_PVSInfo.m_pClusters[i] >> 3] & (1 << (m_PVSInfo.m_pClusters[i] & 7) ))
 			return true;
 	}
 

@@ -208,7 +208,6 @@ private:
 	COutputEvent m_OnFullyOpen;				// Triggered when the door reaches the fully open position.
 	COutputEvent m_OnClose;					// Triggered when the door is told to close.
 	COutputEvent m_OnOpen;					// Triggered when the door is told to open.
-	COutputEvent m_OnLockedUse;				// Triggered when the user tries to open a locked door.
 };
 
 

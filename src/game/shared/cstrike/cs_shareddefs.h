@@ -16,7 +16,7 @@
 //      Menu stuff      //
 /*======================*/
 
-#include <game/client/iviewport.h>
+#include <game\client\iviewport.h>
 
 // CS-specific viewport panels
 #define PANEL_CLASS_CT				"class_ct"

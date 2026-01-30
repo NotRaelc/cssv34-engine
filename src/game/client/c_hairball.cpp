@@ -6,7 +6,7 @@
 //=============================================================================//
 #include "cbase.h"
 #include "simple_physics.h"
-#include "mathlib/vmatrix.h"
+#include "vmatrix.h"
 #include "beamdraw.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -299,17 +299,16 @@ int C_Hairball::DrawModel( int flags )
 	if ( !m_pMaterial )
 		return 0;
 
-	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	for ( int iHair=0; iHair < m_nHairs; iHair++ )
 	{
 		CSimplePhysics::CNode *pBase = &m_Nodes[iHair * m_nNodesPerHair];
 		
 		CBeamSegDraw beamDraw;
-		beamDraw.Start( pRenderContext, m_nNodesPerHair-1, m_pMaterial );
+		beamDraw.Start( m_nNodesPerHair-1, m_pMaterial );
 
 		for ( int i=0; i < m_nNodesPerHair; i++ )
 		{
-			BeamSeg_t seg;
+			CBeamSeg seg;
 			seg.m_vPos = pBase[i].m_vPredicted;
 			seg.m_vColor.Init( 0, 0, 0 );
 			seg.m_flTexCoord = 0;

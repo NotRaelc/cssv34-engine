@@ -64,14 +64,6 @@ public:
 
 	virtual void	Release( void ) { delete this; }
 
-	virtual IMaterial *GetMaterial()
-	{
-		IMaterialVar *pVar = m_pLightPosition ? m_pLightPosition : m_pLightColor;
-		if ( !pVar )
-			return NULL;
-		return pVar->GetOwningMaterial();
-	}
-
 private:
 
 	IMaterialVar	*m_pLightPosition;

@@ -560,7 +560,6 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 	IMesh*			pMesh			= NULL;
 	int				nCurStyle		= -1;
 	int				nCurEdgeType	= -1;
-	CMatRenderContextPtr pRenderContext( materials );
 	for( unsigned short i = m_RenderList.Head(); i != m_RenderList.InvalidIndex(); i = m_RenderList.Next(i) )
 	{
 	
@@ -571,9 +570,9 @@ void C_BreakableSurface::DrawRenderList(IBrushSurface* pBrushSurface)
 			nCurEdgeType = m_RenderList[i].m_nEdgeType;
 
 			m_pCurrentDetailTexture = m_pEdge[nCurEdgeType][nCurStyle].m_pMaterialEdgeTexture;
-			pRenderContext->Flush(false);
-			pRenderContext->Bind(m_pCrackedMaterial, (IClientRenderable*)this);
-			pMesh = pRenderContext->GetDynamicMesh( );
+			materials->Flush(false);
+			materials->Bind(m_pCrackedMaterial, (IClientRenderable*)this);
+			pMesh = materials->GetDynamicMesh( );
 		}
 
 		Vector vRenderPos = m_vCorner + 
@@ -605,7 +604,6 @@ void C_BreakableSurface::DrawRenderListHighlights(IBrushSurface* pBrushSurface)
 	IMesh*			pMesh			= NULL;
 	int				nCurStyle		= -1;
 	int				nCurEdgeType	= -1;
-	CMatRenderContextPtr pRenderContext( materials );
 	for( unsigned short i = m_RenderList.Head(); i != m_RenderList.InvalidIndex(); i = m_RenderList.Next(i) )
 	{
 	
@@ -616,7 +614,7 @@ void C_BreakableSurface::DrawRenderListHighlights(IBrushSurface* pBrushSurface)
 			nCurEdgeType = m_RenderList[i].m_nEdgeType;
 			
 			IMaterial *pMat = m_pEdge[nCurEdgeType][nCurStyle].m_pMaterialEdge;
-			pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, pMat );
+			pMesh = materials->GetDynamicMesh( true, NULL, NULL, pMat );
 		}
 
 		Vector vRenderPos = m_vCorner + 
@@ -910,15 +908,13 @@ void C_BreakableSurface::AddToRenderList(int nWidth, int nHeight, WinSide_t nSid
 //------------------------------------------------------------------------------
 void C_BreakableSurface::DrawSolidBlocks(IBrushSurface* pBrushSurface)
 {
-	CMatRenderContextPtr pRenderContext( materials );
-
 	m_pCurrentDetailTexture = m_pMaterialBoxTexture;
 
 	// Gotta flush (in a non-stalling way) because we effectively 
 	// have a new material due to the new base texture
-	pRenderContext->Flush(false);
-	pRenderContext->Bind(m_pCrackedMaterial, (IClientRenderable*)this);
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	materials->Flush(false);
+	materials->Bind(m_pCrackedMaterial, (IClientRenderable*)this);
+	IMesh* pMesh = materials->GetDynamicMesh( );
 	CMeshBuilder pMeshBuilder;
 
 	// ---------------
@@ -1287,7 +1283,6 @@ public:
 	virtual ~CBreakableSurfaceProxy();
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( C_BaseEntity *pC_BaseEntity );
-	virtual IMaterial *CBreakableSurfaceProxy::GetMaterial();
 
 private:
 	// get at the material whose texture we're going to steal
@@ -1323,14 +1318,6 @@ void CBreakableSurfaceProxy::OnBind( C_BaseEntity *pC_BaseEntity )
 
 	// Use the current base texture specified by the suface
 	m_BaseTextureVar->SetTextureValue( pEnt->m_pCurrentDetailTexture );
-}
-
-IMaterial *CBreakableSurfaceProxy::GetMaterial()
-{
-	if ( !m_BaseTextureVar )
-		return NULL;
-
-	return m_BaseTextureVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CBreakableSurfaceProxy, IMaterialProxy, "BreakableSurface" IMATERIAL_PROXY_INTERFACE_VERSION );

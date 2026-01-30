@@ -14,7 +14,7 @@
 #endif
 
 #include <soundflags.h>
-#include "mathlib/vector.h"
+#include <vector.h>
 #include <shareddefs.h>
 
 #include "ispatialpartition.h"
@@ -66,7 +66,6 @@ byte	*UTIL_LoadFileForMe( const char *filename, int *pLength );
 void	UTIL_FreeFile( byte *buffer );
 void	UTIL_MakeSafeName( const char *oldName, char *newName, int newNameBufSize );	///< Cleans up player names for putting in vgui controls (cleaned names can be up to original*2+1 in length)
 const char *UTIL_SafeName( const char *oldName );	///< Wraps UTIL_MakeSafeName, and returns a static buffer
-void	UTIL_ReplaceKeyBindings( const wchar_t *inbuf, int inbufsizebytes, wchar_t *outbuf, int outbufsizebytes );
 
 // Fade out an entity based on distance fades
 unsigned char UTIL_ComputeEntityFade( C_BaseEntity *pEntity, float flMinDist, float flMaxDist, float flFadeScale );
@@ -157,16 +156,5 @@ inline bool FStrEq(const char *sz1, const char *sz2)
 {
 	return(stricmp(sz1, sz2) == 0);
 }
-
-// Given a vector, clamps the scalar axes to MAX_COORD_FLOAT ranges from worldsize.h
-void UTIL_BoundToWorldSize( Vector *pVecPos );
-
-// Increments the passed key for the current map, eg "viewed" if TF holds the number of times the player has
-// viewed the intro movie for this map
-void UTIL_IncrementMapKey( const char *pszCustomKey );
-
-// Gets the value of the passed key for the current map, eg "viewed" for number of times the player has viewed
-// the intro movie for this map
-int UTIL_GetMapKeyCount( const char *pszCustomKey );
 
 #endif // !UTIL_H

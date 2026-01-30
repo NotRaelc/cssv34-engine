@@ -29,8 +29,6 @@ ConVar	ai_moveprobe_debug( "ai_moveprobe_debug", "0" );
 ConVar	ai_moveprobe_jump_debug( "ai_moveprobe_jump_debug", "0" );
 ConVar	ai_moveprobe_usetracelist( "ai_moveprobe_usetracelist", "0" );
 
-ConVar	ai_strong_optimizations_no_checkstand( "ai_strong_optimizations_no_checkstand", "0" );
-
 #ifdef DEBUG
 ConVar ai_old_check_stand_position( "ai_old_check_stand_position", "0" );
 #define UseOldCheckStandPosition() (ai_old_check_stand_position.GetBool())
@@ -50,9 +48,14 @@ float MOVE_HEIGHT_EPSILON = 0.0625f;
 
 CON_COMMAND( ai_set_move_height_epsilon, "Set how high AI bumps up ground walkers when checking steps" )
 {
-	if ( args.ArgC() > 1 )
+#ifdef BUGFIXED
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+#endif
+	
+	if ( engine->Cmd_Argc() > 1 )
 	{
-		float newEps = atof( args[1] );
+		float newEps = atof(engine->Cmd_Argv(1));
 		if ( newEps >= 0.0  && newEps < 1.0 )
 		{
 			MOVE_HEIGHT_EPSILON = newEps;
@@ -64,10 +67,8 @@ CON_COMMAND( ai_set_move_height_epsilon, "Set how high AI bumps up ground walker
 //-----------------------------------------------------------------------------
 
 BEGIN_SIMPLE_DATADESC(CAI_MoveProbe)
-	//					m_pTraceListData (not saved, a cached item)
+	//					m_TraceListData (not saved, a cached item)
 	DEFINE_FIELD( m_bIgnoreTransientEntities,		FIELD_BOOLEAN ),
-	DEFINE_FIELD( m_hLastBlockingEnt,				FIELD_EHANDLE ),
-
 END_DATADESC();
 
 
@@ -89,16 +90,15 @@ bool CAI_MoveProbe::ShouldBrushBeIgnored( CBaseEntity *pEntity )
 	if ( pEntity->m_iClassname == g_iszFuncBrushClassname )
 	{
 		CFuncBrush *pFuncBrush = assert_cast<CFuncBrush *>(pEntity);
-
-		// this is true if my class or entity name matches the exclusion name on the func brush
-#if HL2_EPISODIC
-		bool nameMatches = ( pFuncBrush->m_iszExcludedClass == GetOuter()->m_iClassname ) || GetOuter()->NameMatches(pFuncBrush->m_iszExcludedClass);
-#else	// do not match against entity name in base HL2 (just in case there is some case somewhere that might be broken by this)
-		bool nameMatches = ( pFuncBrush->m_iszExcludedClass == GetOuter()->m_iClassname );
-#endif
-
-		// return true (ignore brush) if the name matches, or, if exclusion is inverted, if the name does not match
-		return ( pFuncBrush->m_bInvertExclusion ? !nameMatches : nameMatches );
+		if ( pFuncBrush->m_bInvertExclusion )
+		{
+			if ( pFuncBrush->m_iszExcludedClass != GetOuter()->m_iClassname )
+				return true;
+		}
+		else if ( pFuncBrush->m_iszExcludedClass == GetOuter()->m_iClassname )
+		{
+			return true;
+		}
 	}
 
 	return false;
@@ -1003,7 +1003,7 @@ void CAI_MoveProbe::ClimbMoveLimit( const Vector &vecStart, const Vector &vecEnd
 //-----------------------------------------------------------------------------
 bool CAI_MoveProbe::MoveLimit( Navigation_t navType, const Vector &vecStart, 
 	const Vector &vecEnd, unsigned int collisionMask, const CBaseEntity *pTarget, 
-	float pctToCheckStandPositions, unsigned flags, AIMoveTrace_t* pTrace)
+	float pctToCheckStandPositions, unsigned flags, AIMoveTrace_t* pTrace) const
 {
 	AIMoveTrace_t ignoredTrace;
 	if ( !pTrace )
@@ -1074,11 +1074,6 @@ bool CAI_MoveProbe::MoveLimit( Navigation_t navType, const Vector &vecStart,
 		break;
 	}
 
-	if (IsMoveBlocked(pTrace->fStatus) && pTrace->pObstruction && !pTrace->pObstruction->IsWorld())
-	{
-		m_hLastBlockingEnt = pTrace->pObstruction;
-	}
-	
 	return !IsMoveBlocked(pTrace->fStatus);
 }
 
@@ -1139,8 +1134,7 @@ bool CAI_MoveProbe::CheckStandPosition( const Vector &vecStart, unsigned int col
 	if ( (GetOuter()->CapabilitiesGet() & bits_CAP_SKIP_NAV_GROUND_CHECK) )
 		return true;
 
-	// This is an extra-strong optimization
-	if ( ai_strong_optimizations_no_checkstand.GetBool() )
+	if ( AIStrongOpt() )
 		return true;
 
 	if ( UseOldCheckStandPosition() )

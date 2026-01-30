@@ -15,7 +15,7 @@
 
 class CChoreoEvent;
 
-#define SCENECACHE_VERSION		7
+#define SCENECACHE_VERSION		5
 
 #pragma pack(1)
 class CSceneCache : public IBaseCacheInfo

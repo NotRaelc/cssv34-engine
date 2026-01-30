@@ -14,7 +14,6 @@
 #include "baseanimating.h"
 #include "physics_bone_follower.h"
 #include "player_pickup.h"
-#include "positionwatcher.h"
 
 //=============================================================================================================
 // PROP TYPES
@@ -89,14 +88,13 @@ public:
 		return false; 
 	}
 
-	virtual QAngle PreferredCarryAngles( void ) { return m_preferredCarryAngles; }
+	virtual const QAngle &PreferredCarryAngles( void ) { return m_preferredCarryAngles; }
 
 	virtual void Ignite( float flFlameLifetime, bool bNPCOnly, float flSize = 0.0f, bool bCalledByLevelDesigner = false );
 
 	// Specific interactions
 	void	HandleFirstCollisionInteractions( int index, gamevcollisionevent_t *pEvent );
 	void	HandleInteractionStick( int index, gamevcollisionevent_t *pEvent );
-	void	StickAtPosition( const Vector &stickPosition, const Vector &savePosition, const QAngle &saveAngles );
 	
 	// Disable auto fading under dx7 or when level fades are specified
 	void	DisableAutoFade();
@@ -104,7 +102,6 @@ public:
 public:
 	COutputEvent	m_OnBreak;
 	COutputFloat	m_OnHealthChanged;
-	COutputEvent	m_OnTakeDamage;
 
 	float			m_impactEnergyScale;
 
@@ -161,6 +158,13 @@ protected:
 	unsigned int	m_createTick;
 	float			m_flPressureDelay;
 	EHANDLE			m_hBreaker;
+
+	enum PerformanceMode_t
+	{
+		PM_NORMAL,
+		PM_NO_GIBS,
+		PM_FULL_GIBS,
+	};
 
 	PerformanceMode_t m_PerformanceMode;
 
@@ -255,7 +259,7 @@ private:
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-class CDynamicProp : public CBreakableProp, public IPositionWatcher
+class CDynamicProp : public CBreakableProp
 {
 	DECLARE_CLASS( CDynamicProp, CBreakableProp );
 
@@ -267,7 +271,6 @@ public:
 
 	void	Spawn( void );
 	bool	CreateVPhysics( void );
-	void	CreateBoneFollowers();
 	void	UpdateOnRemove( void );
 	void	AnimThink( void );
 	void	PropSetSequence( int nSequence );
@@ -275,15 +278,8 @@ public:
 	bool	OverridePropdata( void );
 	void	HandleAnimEvent( animevent_t *pEvent );
 
-	// baseentity - watch dynamic hierarchy updates
-	virtual void	SetParent( CBaseEntity* pNewParent, int iAttachment = -1 );
-	bool			TestCollision( const Ray_t &ray, unsigned int mask, trace_t& trace );
-
 	// breakable prop
 	virtual IPhysicsObject *GetRootPhysicsObjectForBreak();
-
-	// IPositionWatcher
-	virtual void NotifyPositionChanged( CBaseEntity *pEntity );
 
 	// Input handlers
 	void InputSetAnimation( inputdata_t &inputdata );
@@ -292,15 +288,13 @@ public:
 	void InputTurnOff( inputdata_t &inputdata );
 	void InputDisableCollision( inputdata_t &inputdata );
 	void InputEnableCollision( inputdata_t &inputdata );
-	void InputSetPlaybackRate( inputdata_t &inputdata );
+
+	virtual bool ShouldCollide( int collisionGroup, int contentsMask ) const;
 
 	COutputEvent		m_pOutputAnimBegun;
 	COutputEvent		m_pOutputAnimOver;
 
 	string_t			m_iszDefaultAnim;
-
-	int					m_iGoalSequence;
-	int					m_iTransitionDirection;
 
 	// Random animations
 	bool				m_bRandomAnimator;
@@ -313,13 +307,14 @@ public:
 
 	CNetworkVar( bool, m_bUseHitboxesForRenderBox );
 
+	bool				m_bDisableCollision;
+
 protected:
 	void FinishSetSequence( int nSequence );
 	void PropSetAnim( const char *szAnim );
-	void BoneFollowerHierarchyChanged();
 
 	// Contained Bone Follower manager
-	CBoneFollowerManager	m_BoneFollowerManager;
+	CBoneFollowerManager	*m_pBoneFollowerManager;
 };
 
 //-----------------------------------------------------------------------------
@@ -368,7 +363,7 @@ public:
 
 	virtual int OnTakeDamage( const CTakeDamageInfo &info );
 	int DrawDebugTextOverlays(void);
-	bool IsGib();
+
 	DECLARE_DATADESC();
 
 	// Specific interactions
@@ -381,12 +376,10 @@ private:
 	COutputEvent m_MotionEnabled;
 	COutputEvent m_OnAwakened;
 	COutputEvent m_OnPhysGunPickup;
-	COutputEvent m_OnPhysGunPunt;
 	COutputEvent m_OnPhysGunOnlyPickup;
 	COutputEvent m_OnPhysGunDrop;
 	COutputEvent m_OnPlayerUse;
 	COutputEvent m_OnPlayerPickup;
-	COutputEvent m_OnOutOfWorld;
 
 	float		m_massScale;
 	float		m_inertiaScale;
@@ -401,22 +394,6 @@ private:
 protected:
 	CNetworkVar( bool, m_bAwake );
 };
-
-
-// An interface so that objects parented to props can receive collision interaction events.
-enum parentCollisionInteraction_t
-{
-	COLLISIONINTER_PARENT_FIRST_IMPACT = 1,
-};
-
-
-abstract_class IParentPropInteraction
-{
-public:
-	virtual void OnParentCollisionInteraction( parentCollisionInteraction_t eType, int index, gamevcollisionevent_t *pEvent ) = 0;
-	virtual void OnParentPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t Reason ) = 0;
-};
-
 
 float GetBreakableDamage( const CTakeDamageInfo &inputInfo, IBreakableWithPropData *pProp = NULL );
 int PropBreakablePrecacheAll( string_t modelName );

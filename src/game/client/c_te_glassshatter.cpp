@@ -10,8 +10,6 @@
 #include "particle_simple3D.h"
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
-#include "fx.h"
-#include "tier0/vprof.h"
 
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -161,8 +159,6 @@ void C_TEShatterSurface::RecordShatterSurface( )
 //-----------------------------------------------------------------------------
 void C_TEShatterSurface::PostDataUpdate( DataUpdateType_t updateType )
 {
-	VPROF( "C_TEShatterSurface::PostDataUpdate" );
-
 	RecordShatterSurface();
 
 	CSmartPtr<CSimple3DEmitter> pGlassEmitter = CSimple3DEmitter::Create( "C_TEShatterSurface 1" );
@@ -174,14 +170,17 @@ void C_TEShatterSurface::PostDataUpdate( DataUpdateType_t updateType )
 	// HACK: Blend a little toward white to match the materials...
 	VectorLerp( vecColor, Vector( 1, 1, 1 ), 0.3, vecColor );
 
-	PMaterialHandle *hMaterial;
+	PMaterialHandle hMaterial1;
+	PMaterialHandle hMaterial2;
 	if (m_nSurfaceType == SHATTERSURFACE_GLASS)
 	{
-		hMaterial = g_Mat_Fleck_Glass;
+		hMaterial1 = pGlassEmitter->GetPMaterial( "effects/fleck_glass1" );
+		hMaterial2 = pGlassEmitter->GetPMaterial( "effects/fleck_glass2" );
 	}
 	else
 	{
-		hMaterial = g_Mat_Fleck_Tile;
+		hMaterial1 = pGlassEmitter->GetPMaterial( "effects/fleck_tile1" );
+		hMaterial2 = pGlassEmitter->GetPMaterial( "effects/fleck_tile2" );
 	}
 
 	// ---------------------------------------------------
@@ -211,7 +210,14 @@ void C_TEShatterSurface::PostDataUpdate( DataUpdateType_t updateType )
 	{
 		for (int height=0;height<nNumHigh;height++)
 		{			
-			pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), hMaterial[random->RandomInt(0,1)], vCurPos );
+			if (random->RandomInt(0,1))
+			{
+				pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), hMaterial1, vCurPos );
+			}
+			else
+			{
+				pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), hMaterial2, vCurPos );
+			}
 
 			Vector vForceVel = Vector(0,0,0);
 			if (random->RandomInt(0, 3) != 0)

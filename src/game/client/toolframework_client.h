@@ -18,7 +18,6 @@
 // Forward declarations
 //-----------------------------------------------------------------------------
 class KeyValues;
-struct AudioState_t;
 
 
 //-----------------------------------------------------------------------------
@@ -34,26 +33,12 @@ bool ToolFramework_IsThirdPersonCamera( );
 
 
 //-----------------------------------------------------------------------------
-// Are tools enabled? 
-//-----------------------------------------------------------------------------
-#ifndef NO_TOOLFRAMEWORK
-bool ToolsEnabled();
-#else
-#define ToolsEnabled() 0
-#endif
-
-
-//-----------------------------------------------------------------------------
 // View manipulation
 //-----------------------------------------------------------------------------
 void ToolFramework_AdjustEngineViewport( int& x, int& y, int& width, int& height );
 bool ToolFramework_SetupEngineView( Vector &origin, QAngle &angles, float &fov );
-bool ToolFramework_SetupAudioState( AudioState_t &audioState );
+bool ToolFramework_SetupEngineMicrophone( Vector &origin, QAngle &angles );
 
-//-----------------------------------------------------------------------------
-// material recording - primarily for proxy materials
-//-----------------------------------------------------------------------------
-void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 //-----------------------------------------------------------------------------
 // Recorded temp entity structures
@@ -84,18 +69,5 @@ enum TERecordingType_t
 	TE_RECORDING_TYPE_COUNT,
 };
 
-
-//-----------------------------------------------------------------------------
-// Helper class to indicate ownership of effects
-//-----------------------------------------------------------------------------
-class CRecordEffectOwner
-{
-public:
-	CRecordEffectOwner( C_BaseEntity *pEntity, bool bIsViewModel = false );
-	~CRecordEffectOwner();
-
-private:
-	bool m_bToolsEnabled;
-};
 
 #endif // TOOLFRAMEWORK_CLIENT_H

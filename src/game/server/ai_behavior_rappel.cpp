@@ -9,7 +9,6 @@
 #include "ai_behavior_rappel.h"
 #include "beam_shared.h"
 #include "rope.h"
-#include "eventqueue.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -199,15 +198,6 @@ void CAI_RappelBehavior::StartTask( const Task_t *pTask )
 
 	case TASK_HIT_GROUND:
 		m_bOnGround = true;
-
-		if( GetOuter()->GetGroundEntity() != NULL && GetOuter()->GetGroundEntity()->IsNPC() && GetOuter()->GetGroundEntity()->m_iClassname == GetOuter()->m_iClassname )
-		{
-			// Although I tried to get NPC's out from under me, I landed on one. Kill it, so long as it's the same type of character as me.
-			variant_t val;
-			val.SetFloat( 0 );
-			g_EventQueue.AddEvent( GetOuter()->GetGroundEntity(), "sethealth", val, 0, GetOuter(), GetOuter() );
-		}
-
 		TaskComplete();
 		break;
 
@@ -245,17 +235,6 @@ void CAI_RappelBehavior::RunTask( const Task_t *pTask )
 			SetDescentSpeed();
 			if( GetOuter()->GetFlags() & FL_ONGROUND )
 			{
-				CBaseEntity *pGroundEnt = GetOuter()->GetGroundEntity();
-
-				if( pGroundEnt && pGroundEnt->IsPlayer() )
-				{
-					// try to shove the player in the opposite direction as they are facing (so they'll see me)
-					Vector vecForward;
-					pGroundEnt->GetVectors( &vecForward, NULL, NULL );
-					pGroundEnt->SetAbsVelocity( vecForward * -500 );
-					break;
-				}
-
 				GetOuter()->m_OnRappelTouchdown.FireOutput( GetOuter(), GetOuter(), 0 );
 				GetOuter()->RemoveFlag( FL_FLY );
 				
@@ -345,18 +324,6 @@ void CAI_RappelBehavior::BeginRappel()
 	SetCondition( COND_BEGIN_RAPPEL );
 
 	m_vecRopeAnchor = GetOuter()->GetAbsOrigin();
-
-	trace_t tr;
-
-	UTIL_TraceEntity( GetOuter(), GetAbsOrigin(), GetAbsOrigin()-Vector(0,0,4096), MASK_SHOT, GetOuter(), COLLISION_GROUP_NONE, &tr );
-
-	if( tr.m_pEnt != NULL && tr.m_pEnt->IsNPC() )
-	{
-		Vector forward;
-		GetOuter()->GetVectors( &forward, NULL, NULL );
-
-		CSoundEnt::InsertSound( SOUND_DANGER, tr.m_pEnt->EarPosition() - forward * 12.0f, 32.0f, 0.2f, GetOuter() );
-	}
 }
 
 //-----------------------------------------------------------------------------

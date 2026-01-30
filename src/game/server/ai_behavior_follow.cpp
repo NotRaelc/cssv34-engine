@@ -5,7 +5,7 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "tier1/utllinkedlist.h"
+#include "tier1/utlfixedlinkedlist.h"
 #include "bitstring.h"
 #include "utlvector.h"
 #include "ai_navigator.h"
@@ -63,7 +63,7 @@ struct AI_FollowGroup_t
 	AI_FollowFormation_t *	pFormation;
 	EHANDLE 				hFollowTarget;
 	CUtlFixedLinkedList<AI_Follower_t>	followers;
-	CVarBitVec				slotUsage;
+	CBitString				slotUsage;
 };
 
 
@@ -93,33 +93,6 @@ public:
 		}
 
 		return pGroup->followers.Count();
-	}
-
-	int CountFollowers( CBaseEntity *pFollowTarget, string_t iszClassname )
-	{
-		AI_FollowGroup_t *pGroup = FindGroup( pFollowTarget );
-
-		if( !pGroup )
-		{
-			return 0;
-		}
-
-		if ( iszClassname == NULL_STRING )
-		{
-			return pGroup->followers.Count();
-		}
-		else
-		{
-			int result = 0;
-			for ( int i = pGroup->followers.Head(); i != pGroup->followers.InvalidIndex(); i = pGroup->followers.Next( i ) )
-			{
-				if ( pGroup->followers[i].hFollower && pGroup->followers[i].hFollower->ClassMatches( iszClassname ) )
-				{
-					result++;
-				}
-			}
-			return result;
-		}
 	}
 
 	int GetFollowerSlot( CAI_BaseNPC *pFollower )
@@ -167,13 +140,6 @@ private:
 CAI_FollowManager g_AIFollowManager;
 
 //-----------------------------------------------------------------------------
-
-int AIGetNumFollowers( CBaseEntity *pEntity, string_t iszClassname )
-{
-	return g_AIFollowManager.CountFollowers( pEntity, iszClassname );
-}
-
-//-----------------------------------------------------------------------------
 //
 // CAI_FollowBehavior
 //
@@ -181,7 +147,7 @@ int AIGetNumFollowers( CBaseEntity *pEntity, string_t iszClassname )
 
 BEGIN_SIMPLE_DATADESC( AI_FollowNavInfo_t )
 	DEFINE_FIELD( flags, FIELD_INTEGER ),
-	DEFINE_FIELD( position, FIELD_POSITION_VECTOR ),
+	DEFINE_FIELD( position, FIELD_VECTOR ),
 	DEFINE_FIELD( range, FIELD_FLOAT ),
 	DEFINE_FIELD( Zrange, FIELD_FLOAT ),
 	DEFINE_FIELD( tolerance, FIELD_FLOAT ),
@@ -196,7 +162,6 @@ END_DATADESC();
 
 BEGIN_SIMPLE_DATADESC( AI_FollowParams_t )
 	DEFINE_FIELD( formation, FIELD_INTEGER ),
-	DEFINE_FIELD( bNormalMemoryDiscard, FIELD_BOOLEAN ),
 
 END_DATADESC();
 
@@ -208,12 +173,9 @@ BEGIN_DATADESC( CAI_FollowBehavior )
 	DEFINE_FIELD( m_flTimeFollowTargetVisible, FIELD_TIME ),
 	DEFINE_EMBEDDED( m_TargetMonitor ),
 	DEFINE_FIELD( m_bTargetUnreachable, FIELD_BOOLEAN ),
-	DEFINE_FIELD( m_bFollowNavFailed, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bMovingToCover, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flOriginalEnemyDiscardTime, FIELD_FLOAT ),
-	DEFINE_FIELD( m_SavedDistTooFar, FIELD_FLOAT ),
 	DEFINE_EMBEDDED( m_FollowDelay ),
-	DEFINE_EMBEDDED( m_RepathOnFollowTimer ),
 	DEFINE_CUSTOM_FIELD( m_CurrentFollowActivity,	ActivityDataOps() ),
 	DEFINE_EMBEDDED( m_TimeBlockUseWaitPoint ),
 	DEFINE_EMBEDDED( m_TimeCheckForWaitPoint ),
@@ -287,17 +249,6 @@ int CAI_FollowBehavior::DrawDebugTextOverlays( int text_offset )
 	return offset;
 }
 
-
-void CAI_FollowBehavior::DrawDebugGeometryOverlays()
-{
-	if ( GetFollowTarget() )
-	{
-		Vector vecFollowPos = GetGoalPosition();
-		NDebugOverlay::HorzArrow( GetOuter()->GetAbsOrigin(), vecFollowPos, 16.0f, 0, 255, 0, 0, true, 0 );
-	}
-}
-
-
 //-------------------------------------
 
 void CAI_FollowBehavior::SetParameters( const AI_FollowParams_t &params )
@@ -338,11 +289,6 @@ void CAI_FollowBehavior::SetFollowTarget( CBaseEntity *pLeader, bool fFinishCurS
 { 
 	if ( pLeader == m_hFollowTarget )
 		return;
-
-	if ( !GetOuter()->IsAlive() )
-	{
-		return;
-	}
 
 	m_flTimeUpdatedFollowPosition = 0;
 
@@ -403,7 +349,7 @@ bool CAI_FollowBehavior::SetFollowGoal( CAI_FollowGoal *pGoal, bool fFinishCurSc
 		}
 
 		SetFollowTarget( pGoal->GetGoalEntity() );
-		Assert( pGoal->m_iFormation == AIF_SIMPLE || pGoal->m_iFormation == AIF_WIDE || pGoal->m_iFormation == AIF_MEDIUM || pGoal->m_iFormation == AIF_SIDEKICK || pGoal->m_iFormation == AIF_VORTIGAUNT );
+		Assert( pGoal->m_iFormation == AIF_SIMPLE || pGoal->m_iFormation == AIF_WIDE || pGoal->m_iFormation == AIF_MEDIUM || pGoal->m_iFormation == AIF_SIDEKICK );
 		SetParameters( AI_FollowParams_t( (AI_Formations_t)pGoal->m_iFormation ) );
 		m_hFollowGoalEnt = pGoal;
 		m_flTimeUpdatedFollowPosition = 0;
@@ -444,17 +390,6 @@ bool CAI_FollowBehavior::UpdateFollowPosition()
 		return false;
 	}
 
-	CBaseEntity *pFollowTarget = GetFollowTarget();
-
-	if ( pFollowTarget->GetParent() )
-	{
-		if ( pFollowTarget->GetParent()->GetServerVehicle() )
-		{
-			m_FollowNavGoal.targetMoveTolerance *= 1.5;
-			m_FollowNavGoal.range += pFollowTarget->GetParent()->BoundingRadius() * 0.333;
-		}
-	}
-
 #if TODO
 	// @TODO (toml 07-27-03): this is too simplistic. fails when the new point is an inappropriate target
 	CBasePlayer *pPlayer = dynamic_cast<CBasePlayer *>(m_hFollowTarget.Get());
@@ -481,12 +416,7 @@ bool CAI_FollowBehavior::CanSelectSchedule()
 	if ( !GetOuter()->IsInterruptable() )
 		return false;
 
-	if ( !ShouldFollow() )
-	{
-		return false;
-	}
-
-	return true;
+	return ShouldFollow();
 }
 
 //-------------------------------------
@@ -498,21 +428,21 @@ bool CAI_FollowBehavior::PlayerIsPushing()
 
 //-------------------------------------
 
-bool CAI_FollowBehavior::IsFollowTargetInRange( float rangeMultiplier )
+bool CAI_FollowBehavior::IsFollowTargetInRange()
 {
 	if ( !GetFollowTarget()->IsPlayer() && HasCondition( COND_RECEIVED_ORDERS ) )
 		return false;
 
 	if( GetNpcState() == NPC_STATE_COMBAT )
 	{
-		if( IsFollowGoalInRange( max( m_FollowNavGoal.coverTolerance, m_FollowNavGoal.enemyLOSTolerance ) * rangeMultiplier, GetGoalZRange(), GetGoalFlags() ) )
+		if( IsFollowGoalInRange( max( m_FollowNavGoal.coverTolerance, m_FollowNavGoal.enemyLOSTolerance ), GetGoalZRange(), GetGoalFlags() ) )
 		{
 			return true;
 		}
 	}
 	else
 	{
-		if( IsFollowGoalInRange( max( m_FollowNavGoal.tolerance, GetGoalRange() ) * rangeMultiplier, GetGoalZRange(), GetGoalFlags() ) )
+		if( IsFollowGoalInRange( max( m_FollowNavGoal.tolerance, GetGoalRange() ), GetGoalZRange(), GetGoalFlags() ) )
 		{
 			if ( m_FollowNavGoal.flags & AIFF_REQUIRE_LOS_OUTSIDE_COMBAT )
 			{
@@ -603,18 +533,9 @@ void CAI_FollowBehavior::BeginScheduleSelection()
 	m_TargetMonitor.ClearMark();
 	NoteSuccessfulFollow();
 
-	if ( !m_params.bNormalMemoryDiscard )
-	{
-		// Forget about enemies that I haven't seen for >5 seconds
-		m_flOriginalEnemyDiscardTime = GetOuter()->GetEnemies()->GetEnemyDiscardTime();
-		GetOuter()->GetEnemies()->SetEnemyDiscardTime( 5.0f );
-	}
-
-	m_SavedDistTooFar = GetOuter()->m_flDistTooFar;
-	if ( GetFollowTarget() && GetFollowTarget()->IsPlayer() )
-	{
-		GetOuter()->m_flDistTooFar = FLT_MAX;
-	}
+	// Forget about enemies that I haven't seen for >5 seconds
+	m_flOriginalEnemyDiscardTime = GetOuter()->GetEnemies()->GetEnemyDiscardTime();
+	GetOuter()->GetEnemies()->SetEnemyDiscardTime( 5.0f );
 
 	BaseClass::BeginScheduleSelection();
 }
@@ -623,16 +544,8 @@ void CAI_FollowBehavior::BeginScheduleSelection()
 
 void CAI_FollowBehavior::EndScheduleSelection()
 {
-	if ( !m_params.bNormalMemoryDiscard )
-	{
-		// Restore our original enemy discard time
-		GetOuter()->GetEnemies()->SetEnemyDiscardTime( m_flOriginalEnemyDiscardTime );
-	}
-
-	if ( m_SavedDistTooFar > 0.1 ) // backward savefile compatability
-	{
-		GetOuter()->m_flDistTooFar = m_SavedDistTooFar;
-	}
+	// Restore our original enemy discard time
+	GetOuter()->GetEnemies()->SetEnemyDiscardTime( m_flOriginalEnemyDiscardTime );
 
 	BaseClass::EndScheduleSelection();
 }
@@ -682,11 +595,6 @@ void CAI_FollowBehavior::GatherConditions( void )
 		m_pInterruptWaitPoint = NULL;
 		m_bTargetUnreachable = false;
 		m_flTimeFollowTargetVisible = 0;
-
-		if ( IsRunning() )
-		{
-			GetOuter()->ClearSchedule( "Follow target gone" );
-		}
 		return;
 	}
 
@@ -821,29 +729,14 @@ bool CAI_FollowBehavior::ShouldFollow()
 {
 	if ( !GetFollowTarget() )
 		return false;
-
-	if ( GetFollowTarget()->GetFlags() & FL_NOTARGET )
-		return false;
-
-	// If we recently failed to build a follow path, wait a while to
-	// give other schedules a chance to run.
-	if ( m_bFollowNavFailed && m_FollowDelay.IsRunning() && !m_FollowDelay.Expired() )
-	{
-		return false;
-	}
-		
-	m_bFollowNavFailed = false;
-
-	return true;	
+	
+	return !( GetFollowTarget()->GetFlags() & FL_NOTARGET);
 }
 
 //-------------------------------------
 
 bool CAI_FollowBehavior::ShouldMoveToFollowTarget()
 {
-	if ( GetFollowTarget() == NULL )
-		return false;
-
 	if( m_bTargetUnreachable )
 		return false;
 
@@ -1123,7 +1016,7 @@ int CAI_FollowBehavior::SelectSchedule()
 		m_TargetMonitor.SetMark( m_hFollowTarget, m_FollowNavGoal.targetMoveTolerance * 0.5 );
 	}
 
-	return FollowCallBaseSelectSchedule();
+	return BaseClass::SelectSchedule();
 }
 
 //-------------------------------------
@@ -1132,13 +1025,6 @@ int CAI_FollowBehavior::TranslateSchedule( int scheduleType )
 {
 	switch( scheduleType )
 	{
-		case SCHED_FOLLOWER_IDLE_STAND:
-			// If we have an enemy, at least face them!
-			if ( GetEnemy() )
-				return SCHED_FOLLOWER_COMBAT_FACE;
-			
-			break;
-
 		case SCHED_IDLE_STAND:
 		{
 			if ( ShouldMoveToFollowTarget() && !IsFollowGoalInRange( GetGoalRange(), GetGoalZRange(), GetGoalFlags() ) )
@@ -1147,11 +1033,6 @@ int CAI_FollowBehavior::TranslateSchedule( int scheduleType )
 			}
 			if ( HasFollowPoint() && !ShouldIgnoreFollowPointFacing() )
 				return SCHED_FOLLOWER_GO_TO_WAIT_POINT;
-			
-			// If we have an enemy, at least face them!
-			if ( GetEnemy() )
-				return SCHED_FOLLOWER_COMBAT_FACE;
-
 			return SCHED_FOLLOWER_IDLE_STAND;
 		}
 
@@ -1167,7 +1048,7 @@ int CAI_FollowBehavior::TranslateSchedule( int scheduleType )
 
 		case SCHED_TARGET_FACE:
 		{
-			if ( ( ShouldMoveToFollowTarget() || m_bFirstFacing ) && !IsFollowGoalInRange( GetGoalRange(), GetGoalZRange(), GetGoalFlags() ) )
+			if ( ShouldMoveToFollowTarget() && !IsFollowGoalInRange( GetGoalRange(), GetGoalZRange(), GetGoalFlags() ) )
 			{
 				return SCHED_MOVE_TO_FACE_FOLLOW_TARGET;			
 			}
@@ -1183,10 +1064,7 @@ int CAI_FollowBehavior::TranslateSchedule( int scheduleType )
 			return SCHED_FOLLOW;
 		}
 
-		// SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK just tells the NPC to chase their enemy, so
-		// forbid this unless the destination is acceptable within the parameters of the follow behavior.
 		case SCHED_CHASE_ENEMY:
-		case SCHED_ESTABLISH_LINE_OF_FIRE_FALLBACK:
 		{
 			if ( IsChaseGoalInRange() == false )
 				return SCHED_FOLLOWER_IDLE_STAND;
@@ -1195,13 +1073,8 @@ int CAI_FollowBehavior::TranslateSchedule( int scheduleType )
 
 		case SCHED_RANGE_ATTACK1:
 		{
-			if ( GetOuter()->GetShotRegulator()->IsInRestInterval() )
-			{
-				if ( GetEnemy() )
-					return SCHED_FOLLOWER_COMBAT_FACE;
-			
+			if ( GetOuter()->GetShotRegulator()->IsInRestInterval() )				
 				return SCHED_FOLLOWER_IDLE_STAND; // @TODO (toml 07-02-03): Should do something more tactically sensible
-			}
 			break;
 		}
 
@@ -1305,7 +1178,7 @@ bool CAI_FollowBehavior::ValidateFaceTarget( Vector *pFaceTarget )
 	testPoint += GetOuter()->EyePosition();
 
 	trace_t tr;
-	AI_TraceLine( GetOuter()->EyePosition(), testPoint, MASK_BLOCKLOS, m_hFollowTarget, COLLISION_GROUP_NONE, &tr );
+	AI_TraceLine( GetOuter()->EyePosition(), testPoint, MASK_OPAQUE, m_hFollowTarget, COLLISION_GROUP_NONE, &tr );
 
 	if ( tr.fraction < 1.0 )
 	{
@@ -1485,7 +1358,6 @@ void CAI_FollowBehavior::StartTask( const Task_t *pTask )
 			{
 				m_vFollowMoveAnchor = GetAbsOrigin();
 				m_CurrentFollowActivity = ACT_INVALID;
-				m_RepathOnFollowTimer.Force();
 			}
 			break;
 		}
@@ -1646,45 +1518,11 @@ void CAI_FollowBehavior::RunTask( const Task_t *pTask )
 					else
 						vGoalPosition = GetGoalPosition();
 
-					AI_NavGoal_t goal( vGoalPosition, AIN_DEF_ACTIVITY, GetGoalTolerance() );
-					if ( !m_hFollowTarget->GetParent() || !m_hFollowTarget->GetParent()->GetServerVehicle() )
+					AI_NavGoal_t goal( GetGoalPosition(), AIN_DEF_ACTIVITY, GetGoalTolerance() );
+					goal.pTarget = m_hFollowTarget;
+					if ( !GetNavigator()->SetGoal( goal ) )
 					{
-						goal.pTarget = m_hFollowTarget;
-					}
-					else
-					{
-						goal.pTarget = m_hFollowTarget->GetParent();
-					}
-
-					bool bSuccess = true;
-					if ( !GetNavigator()->SetGoal( goal, AIN_NO_PATH_TASK_FAIL ) )
-					{
-						const Vector &vTarget = GetFollowTarget()->WorldSpaceCenter();
-						Vector vToGoal = vGoalPosition - vTarget;
-						if ( vToGoal.Length2DSqr() > 6*12 )
-						{
-							goal.dest = vTarget + vToGoal * 0.5;
-							if ( !GetNavigator()->SetGoal( goal, AIN_NO_PATH_TASK_FAIL ) )
-							{
-								bSuccess = false;
-								m_FollowDelay.Start( 2.0, 5.0 );
-							}
-						}
-						else
-						{
-							bSuccess = false;
-							m_FollowDelay.Start( 2.0, 5.0 );
-						}
-					}
-
-					if ( !bSuccess )
-					{
-						m_bFollowNavFailed = true;
-						TaskFail( FAIL_NO_ROUTE );
-					}
-					else
-					{
-						TaskComplete();
+						m_FollowDelay.Start( 2.0, 5.0 );
 					}
 				}
 			}
@@ -1787,35 +1625,17 @@ void CAI_FollowBehavior::RunTask( const Task_t *pTask )
 					}
 
 					// Update the nav goal if needed
-					if ( m_RepathOnFollowTimer.Expired() )
+					if ( (GetNavigator()->GetGoalPos() - GetGoalPosition()).LengthSqr() > Square( m_FollowNavGoal.repathOnRouteTolerance ) )
 					{
-						if ( (GetNavigator()->GetGoalPos() - GetGoalPosition()).LengthSqr() > Square( m_FollowNavGoal.repathOnRouteTolerance ) )
+						if ( GetNavigator()->GetNavType() != NAV_JUMP )
 						{
-							if ( GetNavigator()->GetNavType() != NAV_JUMP )
+							if ( !GetNavigator()->UpdateGoalPos( GetGoalPosition() ) )
 							{
-								m_RepathOnFollowTimer.Set( .5 );
-								if ( !GetNavigator()->UpdateGoalPos( GetGoalPosition() ) )
-								{
-									bool bSuccess = false;
-									const Vector &vTarget = GetFollowTarget()->WorldSpaceCenter();
-									Vector vToGoal = GetGoalPosition() - vTarget;
-									if ( vToGoal.Length2DSqr() > 6*12 )
-									{
-										if ( GetNavigator()->UpdateGoalPos( vTarget + vToGoal * 0.5 ) )
-										{
-											bSuccess = true;
-										}
-									}
-
-									if ( !bSuccess )
-									{
-										TaskFail(FAIL_NO_ROUTE);
-										m_bTargetUnreachable = true;
-									}
-									break;
-								}
-								NoteSuccessfulFollow();
+								TaskFail(FAIL_NO_ROUTE);
+								m_bTargetUnreachable = true;
+								break;
 							}
+							NoteSuccessfulFollow();
 						}
 					}
 				}
@@ -2112,9 +1932,7 @@ bool CAI_FollowBehavior::ShouldAlwaysThink()
 BEGIN_DATADESC( CAI_FollowGoal )
 	DEFINE_KEYFIELD(	m_iFormation, FIELD_INTEGER, "Formation" ),
 
-#ifdef HL2_EPISODIC
 	DEFINE_INPUTFUNC( FIELD_VOID, "OutsideTransition",	InputOutsideTransition ),
-#endif
 END_DATADESC()
 
 //-------------------------------------
@@ -2130,12 +1948,12 @@ void CAI_FollowGoal::EnableGoal( CAI_BaseNPC *pAI )
 		return;
 	
 	CBaseEntity *pGoalEntity = GetGoalEntity();
-	if ( !pGoalEntity )
+	if ( !pGoalEntity && AI_IsSinglePlayer() )
 	{
-		pGoalEntity = UTIL_GetNearestPlayer(GetAbsOrigin());
-		if ( pAI->IRelationType(pGoalEntity) == D_LI )
+		if ( pAI->IRelationType(UTIL_GetLocalPlayer()) == D_LI )
 		{
-			SetGoalEntity( ( CBaseEntity *)pGoalEntity );
+			pGoalEntity = UTIL_GetLocalPlayer();
+			SetGoalEntity( pGoalEntity );
 		}
 	}
 
@@ -2156,12 +1974,10 @@ void CAI_FollowGoal::DisableGoal( CAI_BaseNPC *pAI  )
 
 //-------------------------------------
 
-#ifdef HL2_EPISODIC
 void CAI_FollowGoal::InputOutsideTransition( inputdata_t &inputdata )
 {
 	EnterDormant();
 }
-#endif
 
 //-----------------------------------------------------------------------------
 //
@@ -2456,75 +2272,8 @@ static AI_FollowFormation_t g_SidekickFollowFormation =
 	g_SidekickFollowFormationSlots,
 };
 
-
-//-------------------------------------
-// Used for hunters following striders
-//-------------------------------------
-static AI_FollowSlot_t g_HunterFollowFormationSlots[] = 
-{
-	{ 3, { 480, -240, -400 }, 0, 48, 64, 1000, 60 },
-	{ 3, { 480, 240, -400 }, 0, 48, 64, 1000, 60 },
-	{ 2, { 480, 0, -400 }, 0, 48, 64, 1000, 60 },
-	{ 1, { -240, 0, -400 }, 0, 48, 64, 1000, 60 },
-};
-
-static AI_FollowFormation_t g_HunterFollowFormation = 
-{
-	"Hunter",
-	AIFF_DEFAULT | AIFF_USE_FOLLOW_POINTS,
-	ARRAYSIZE(g_HunterFollowFormationSlots),
-	48,							// followPointTolerance
-	48,							// targetMoveTolerance
-	60,//180,						// repathOnRouteTolerance
-	0,							// walkTolerance
-	960,						// coverTolerance
-	960,						// enemyLOSTolerance
-	1920,						// chaseEnemyTolerance
-	g_HunterFollowFormationSlots,
-};
-
-
 //-------------------------------------
 
-static AI_FollowSlot_t g_VortigauntFollowFormationSlots[] = 
-{
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-	{ 1, { 0, 0, 0 }, 0, 120, 160, 256, 128 },
-};
-
-static AI_FollowFormation_t g_VortigauntFollowFormation = 
-{
-	"Vortigaunt",
-	AIFF_DEFAULT | AIFF_USE_FOLLOW_POINTS | AIFF_REQUIRE_LOS_OUTSIDE_COMBAT,
-	ARRAYSIZE(g_VortigauntFollowFormationSlots),
-	168,						// followPointTolerance
-	36,							// targetMoveTolerance
-	60,							// repathOnRouteTolerance
-	190,						// walkTolerance
-	300,						// coverTolerance
-	(50*12),					// enemyLOSTolerance
-	(50*12),					// chaseEnemyTolerance
-	g_VortigauntFollowFormationSlots,
-};
-
-
-//-----------------------------------------------------------------------------
-// NOTE: these must correspond with the AI_Formations_t enumeration in AI_Behavior_Follow.h!!
-//-----------------------------------------------------------------------------
 AI_FollowFormation_t *g_AI_Formations[] =
 {
 	&g_SimpleFollowFormation,
@@ -2533,9 +2282,7 @@ AI_FollowFormation_t *g_AI_Formations[] =
 	&g_CommanderFollowFormation,
 	&g_TightFollowFormation,
 	&g_MediumFollowFormation,
-	&g_SidekickFollowFormation,
-	&g_HunterFollowFormation,
-	&g_VortigauntFollowFormation,
+	&g_SidekickFollowFormation
 };
 
 AI_FollowFormation_t *AIGetFormation( AI_Formations_t formation )
@@ -2568,7 +2315,7 @@ bool CAI_FollowManager::AddFollower( CBaseEntity *pTarget, CAI_BaseNPC *pFollowe
 		iterNode->slot 			= slot;
 		iterNode->pGroup		= pGroup;
 
-		pGroup->slotUsage.Set( slot );
+		pGroup->slotUsage.SetBit( slot );
 		
 		CalculateFieldsFromSlot( pSlot, &iterNode->navInfo );
 		
@@ -2668,11 +2415,11 @@ bool CAI_FollowManager::RedistributeSlots( AI_FollowGroup_t *pGroup )
 		AI_Follower_t *pBest = &pGroup->followers[hBest];
 		if ( pBest->slot != -1 )
 		{
-			pGroup->slotUsage.Clear( pBest->slot );
+			pGroup->slotUsage.ClearBit( pBest->slot );
 		}
 		pBest->slot = bestSlot;
 		CalculateFieldsFromSlot( pSlot, &pBest->navInfo );
-		pGroup->slotUsage.Set( bestSlot );
+		pGroup->slotUsage.SetBit( bestSlot );
 		movedFollowers.Insert( pBest->hFollower );
 		result = true;
 	}
@@ -2712,7 +2459,7 @@ void CAI_FollowManager::ChangeFormation( AI_FollowManagerInfoHandle_t& hInfo, AI
 		h = pGroup->followers.Next( h );
 	}
 	
-	pGroup->slotUsage.ClearAll();
+	pGroup->slotUsage.ClearAllBits();
 	pGroup->pFormation = pNewFormation;
 	pGroup->slotUsage.Resize( pGroup->pFormation->nSlots );
 	
@@ -2739,7 +2486,7 @@ void CAI_FollowManager::RemoveFollower( AI_FollowManagerInfoHandle_t& hInfo )
 		AI_Follower_t* iterNode = &pGroup->followers[hInfo.m_hFollower];
 
 		int slot = iterNode->slot;
-		pGroup->slotUsage.Clear( slot );
+		pGroup->slotUsage.ClearBit( slot );
 		pGroup->followers.Remove( hInfo.m_hFollower );
 		if ( pGroup->followers.Count() == 0 )
 		{
@@ -2767,7 +2514,7 @@ int CAI_FollowManager::FindBestSlot( AI_FollowGroup_t *pGroup )
 	
 	for ( int i = 0; i < nSlots; i++ )
 	{
-		if ( !pGroup->slotUsage.IsBitSet( i ) && pGroup->pFormation->pSlots[i].priority > bestPriority )
+		if ( !pGroup->slotUsage.GetBit( i ) && pGroup->pFormation->pSlots[i].priority > bestPriority )
 		{
 			bestPriority = pGroup->pFormation->pSlots[i].priority;
 			best = i;
@@ -3086,38 +2833,6 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER(CAI_FollowBehavior)
 		"		COND_BETTER_WEAPON_AVAILABLE"
 	)
 
-	DEFINE_SCHEDULE
-	(
-	SCHED_FOLLOWER_COMBAT_FACE,
-
-		"	Tasks"
-		"		TASK_STOP_MOVING		0"
-		"		TASK_SET_ACTIVITY		ACTIVITY:ACT_IDLE"
-		"		TASK_FACE_ENEMY			0"
-		""
-		"	Interrupts"
-		"		COND_NEW_ENEMY"
-		"		COND_SEE_FEAR"
-		"		COND_CAN_RANGE_ATTACK1"
-		"		COND_CAN_RANGE_ATTACK2"
-		"		COND_CAN_MELEE_ATTACK1"
-		"		COND_CAN_MELEE_ATTACK2"
-		"		COND_NO_PRIMARY_AMMO"
-		"		COND_LIGHT_DAMAGE"
-		"		COND_HEAVY_DAMAGE"
-		"		COND_SMELL"
-		"		COND_PROVOKED"
-		"		COND_GIVE_WAY"
-		"		COND_HEAR_DANGER"
-		"		COND_HEAR_COMBAT"
-		"		COND_HEAR_BULLET_IMPACT"
-		"		COND_PLAYER_PUSHING"
-		"		COND_TARGET_MOVED_FROM_MARK"
-		"		COND_FOLLOW_DELAY_EXPIRED"
-		"		COND_FOUND_WAIT_POINT"
-		"		COND_BETTER_WEAPON_AVAILABLE"
-	)
-
-	AI_END_CUSTOM_SCHEDULE_PROVIDER()
+AI_END_CUSTOM_SCHEDULE_PROVIDER()
 
 //=============================================================================

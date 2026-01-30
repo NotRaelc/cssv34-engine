@@ -61,7 +61,7 @@ public:
 	CSDKGameRules();
 	virtual ~CSDKGameRules();
 
-	virtual bool ClientCommand( CBaseEntity *pEdict, const CCommand &args );
+	virtual bool ClientCommand( const char *pcmd, CBaseEntity *pEdict );
 	virtual void RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrcIn, float flRadius, int iClassIgnore );
 	virtual void Think();
 

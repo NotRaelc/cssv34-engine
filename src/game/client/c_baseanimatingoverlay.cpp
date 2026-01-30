@@ -207,8 +207,6 @@ void C_BaseAnimatingOverlay::GetRenderBounds( Vector& theMins, Vector& theMaxs )
 void C_BaseAnimatingOverlay::CheckForLayerChanges( CStudioHdr *hdr, float currentTime )
 {
 	CDisableRangeChecks disableRangeChecks;
-
-	bool bLayersChanged = false;
 	
 	// FIXME: damn, there has to be a better way than this.
 	int i;
@@ -231,14 +229,13 @@ void C_BaseAnimatingOverlay::CheckForLayerChanges( CStudioHdr *hdr, float curren
 
 		if ( pHead && pPrev1 && pHead->m_nSequence != pPrev1->m_nSequence )
 		{
-			bLayersChanged = true;
-	#if 1 // _DEBUG
-			if (/* Q_stristr( hdr->pszName(), r_sequence_debug.GetString()) != NULL || */ r_sequence_debug.GetInt() == entindex())
+	#if _DEBUG
+			if (Q_stristr( hdr->pszName(), r_sequence_debug.GetString()) != NULL)
 			{
-				DevMsgRT( "(%7.4f : %30s : %5.3f : %4.2f : %1d)\n", t0, hdr->pSeqdesc( pHead->m_nSequence ).pszLabel(),  (float)pHead->m_flCycle,  (float)pHead->m_flWeight, i );
-				DevMsgRT( "(%7.4f : %30s : %5.3f : %4.2f : %1d)\n", t1, hdr->pSeqdesc( pPrev1->m_nSequence ).pszLabel(),  (float)pPrev1->m_flCycle, (float)pPrev1->m_flWeight, i );
+				DevMsgRT( "(%5.2f : %30s : %5.3f : %4.2f : %1d)\n", t0, hdr->pSeqdesc( pHead->m_nSequence ).pszLabel(),  (float)pHead->m_flCycle,  (float)pHead->m_flWeight, i );
+				DevMsgRT( "(%5.2f : %30s : %5.3f : %4.2f : %1d)\n", t1, hdr->pSeqdesc( pPrev1->m_nSequence ).pszLabel(),  (float)pPrev1->m_flCycle, (float)pPrev1->m_flWeight, i );
 				if (pPrev2)
-					DevMsgRT( "(%7.4f : %30s : %5.3f : %4.2f : %1d)\n", t2, hdr->pSeqdesc( pPrev2->m_nSequence ).pszLabel(),  (float)pPrev2->m_flCycle,  (float)pPrev2->m_flWeight, i );
+					DevMsgRT( "(%5.2f : %30s : %5.3f : %4.2f : %1d)\n", t2, hdr->pSeqdesc( pPrev2->m_nSequence ).pszLabel(),  (float)pPrev2->m_flCycle,  (float)pPrev2->m_flWeight, i );
 			}
 	#endif
 
@@ -282,12 +279,6 @@ void C_BaseAnimatingOverlay::CheckForLayerChanges( CStudioHdr *hdr, float curren
 			// reset event indexes
 			m_flOverlayPrevEventCycle[i] = pHead->m_flPrevCycle - 0.01;
 		}
-	}
-
-	if (bLayersChanged)
-	{
-		// render bounds may have changed
-		UpdateVisibility();
 	}
 }
 
@@ -368,12 +359,12 @@ void C_BaseAnimatingOverlay::AccumulateLayers( CStudioHdr *hdr, Vector pos[], Qu
 
 				AccumulatePose( hdr, m_pIk, pos, q, m_AnimOverlay[i].m_nSequence, fCycle, poseparam, boneMask, fWeight, currentTime );
 
-#if 1 // _DEBUG
-				if (/* Q_stristr( hdr->pszName(), r_sequence_debug.GetString()) != NULL || */ r_sequence_debug.GetInt() == entindex())
+#if _DEBUG
+				if (Q_stristr( hdr->pszName(), r_sequence_debug.GetString()) != NULL)
 				{
 					if (1)
 					{
-						DevMsgRT( "%8.4f : %30s : %5.3f : %4.2f : %1d\n", currentTime, hdr->pSeqdesc( m_AnimOverlay[i].m_nSequence ).pszLabel(), fCycle, fWeight, i );
+						DevMsgRT( "%6.2f : %30s : %5.3f : %4.2f : %1d\n", currentTime, hdr->pSeqdesc( m_AnimOverlay[i].m_nSequence ).pszLabel(), fCycle, fWeight, i );
 					}
 					else
 					{
@@ -405,23 +396,8 @@ void C_BaseAnimatingOverlay::AccumulateLayers( CStudioHdr *hdr, Vector pos[], Qu
 					}
 				}
 #endif
-
-//#define DEBUG_TF2_OVERLAYS
-#if defined( DEBUG_TF2_OVERLAYS )
-				engine->Con_NPrintf( 10 + j, "%30s %6.2f : %6.2f : %1d", hdr->pSeqdesc( m_AnimOverlay[i].m_nSequence ).pszLabel(), fCycle, fWeight, i );
-			}
-			else
-			{
-				engine->Con_NPrintf( 10 + j, "%30s %6.2f : %6.2f : %1d", "            ", 0.f, 0.f, i );
-#endif
 			}
 		}
-#if defined( DEBUG_TF2_OVERLAYS )
-		else
-		{
-			engine->Con_NPrintf( 10 + j, "%30s %6.2f : %6.2f : %1d", "            ", 0.f, 0.f, i );
-		}
-#endif
 	}
 }
 
@@ -456,14 +432,9 @@ void C_BaseAnimatingOverlay::DoAnimationEvents( CStudioHdr *pStudioHdr )
 		if (m_AnimOverlay[j].m_flCycle == m_flOverlayPrevEventCycle[j])
 			continue;
 
-		bool bLoopingSequence = IsSequenceLooping( m_AnimOverlay[j].m_nSequence );
-
-		bool bLooped = false;
-
-		//in client code, m_flOverlayPrevEventCycle is set to -1 when we first start an overlay, looping or not
-		if ( bLoopingSequence &&
-			m_flOverlayPrevEventCycle[j] > 0.0f &&
-			m_AnimOverlay[j].m_flCycle <= m_flOverlayPrevEventCycle[j] )
+		// check for looping
+		BOOL bLooped = false;
+		if (m_AnimOverlay[j].m_flCycle <= m_flOverlayPrevEventCycle[j])
 		{
 			if (m_flOverlayPrevEventCycle[j] - m_AnimOverlay[j].m_flCycle > 0.5)
 			{
@@ -548,19 +519,3 @@ void C_BaseAnimatingOverlay::DoAnimationEvents( CStudioHdr *pStudioHdr )
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-CStudioHdr *C_BaseAnimatingOverlay::OnNewModel()
-{
-	CStudioHdr *hdr = BaseClass::OnNewModel();
-
-	// Clear out animation layers
-	for ( int i=0; i < m_AnimOverlay.Count(); i++ )
-	{
-		m_AnimOverlay[i].Reset();
-		m_AnimOverlay[i].m_nOrder = MAX_OVERLAYS;
-	}
-
-	return hdr;
-}

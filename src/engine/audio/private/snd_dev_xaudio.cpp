@@ -11,7 +11,7 @@
 #include "session.h"
 #include "server.h"
 #include "client.h"
-#include "matchmaking.h"
+//#include "matchmaking.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

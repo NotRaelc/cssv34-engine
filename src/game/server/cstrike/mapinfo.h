@@ -16,18 +16,12 @@
 
 class CMapInfo : public CPointEntity
 {
-public :
-
-	DECLARE_DATADESC();
-	DECLARE_CLASS( CMapInfo, CPointEntity );
-	
+public:
 	CMapInfo();
 	virtual ~CMapInfo();
 
 	bool KeyValue( const char *szKeyName, const char *szValue );
 	void Spawn();
-
-	void InputFireWinCondition( inputdata_t &inputdata );
 
 public:
 	int m_iBuyingStatus;

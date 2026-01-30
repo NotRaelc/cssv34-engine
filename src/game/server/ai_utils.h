@@ -23,6 +23,11 @@
 
 inline CBasePlayer *AI_GetSinglePlayer()
 {
+	if ( gpGlobals->maxClients > 1 )
+	{
+		return NULL;
+	}
+	
 	return UTIL_GetLocalPlayer();
 }
 
@@ -241,8 +246,6 @@ public:
 	{
 	}
 
-	void			Reset( float passTime = -1, float moveTolerance = -1 );
-
 	void			SetPassTarget( CBaseEntity *pTarget )		{ m_hTarget = pTarget; m_FreePassTimeRemaining = 0; }
 	CBaseEntity *	GetPassTarget()								{ return m_hTarget; }
 	
@@ -278,14 +281,13 @@ private:
 class CTraceFilterNav : public CTraceFilterSimple
 {
 public:
-	CTraceFilterNav( CAI_BaseNPC *pProber, bool bIgnoreTransientEntities, const IServerEntity *passedict, int collisionGroup, bool m_bAllowPlayerAvoid = true );
+	CTraceFilterNav( CAI_BaseNPC *pProber, bool bIgnoreTransientEntities, const IServerEntity *passedict, int collisionGroup );
 	bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
 
 private:
 	CAI_BaseNPC *m_pProber;
 	bool m_bIgnoreTransientEntities;
 	bool m_bCheckCollisionTable;
-	bool m_bAllowPlayerAvoid;
 };
 
 extern string_t g_iszFuncBrushClassname;

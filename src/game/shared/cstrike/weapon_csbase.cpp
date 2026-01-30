@@ -52,7 +52,7 @@ static const char * s_WeaponAliasInfo[] =
 	"c4",		// WEAPON_C4
 	"mac10",	// WEAPON_MAC10				// T only
 	"aug",		// WEAPON_AUG
-	"sgren",	// WEAPON_SMOKEGRENADE
+	"smokegrenade",	// WEAPON_SMOKEGRENADE
 	"elite",	// WEAPON_ELITE
 	"fiveseven",// WEAPON_FIVESEVEN
 	"ump45",	// WEAPON_UMP45
@@ -110,8 +110,6 @@ static const WeaponAliasTranslationInfoStruct s_WeaponAliasTranslationInfo[] =
 	{ "c90", "p90" },
 	{ "vest", "kevlar" },
 	{ "vesthelm", "assaultsuit" },
-	{ "smokegrenade", "sgren" },
-	{ "smokegrenade", "sgren" },
 	{ "nvgs", "nightvision" },
 
 	{ "", "" } // this needs to be last
@@ -1235,19 +1233,6 @@ void CWeaponCSBase::DefaultTouch(CBaseEntity *pOther)
 		}
 
 		return pNewWeapon;
-	}
-
-	//-----------------------------------------------------------------------------
-	// Purpose: 
-	//-----------------------------------------------------------------------------
-	void CWeaponCSBase::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
-	{
-		CBasePlayer *pPlayer = ToBasePlayer( pActivator );
-
-		if ( pPlayer )
-		{
-			pPlayer->Weapon_Equip( this );
-		}
 	}
 
 	bool CWeaponCSBase::Reload()

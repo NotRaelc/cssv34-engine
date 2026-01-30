@@ -21,19 +21,18 @@
 #include "ClientEffectPrecacheSystem.h"
 #include "collisionutils.h"
 #include "tier0/vprof.h"
-#include "viewrender.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar	cl_winddir			( "cl_winddir", "0", FCVAR_CHEAT, "Weather effects wind direction angle" );
-ConVar	cl_windspeed		( "cl_windspeed", "0", FCVAR_CHEAT, "Weather effects wind speed scalar" );
+ConVar	cl_winddir			( "cl_winddir", "0", 0, "Weather effects wind direction angle" );
+ConVar	cl_windspeed		( "cl_windspeed", "0", 0, "Weather effects wind speed scalar" );
 
 Vector g_vSplashColor( 0.5, 0.5, 0.5 );
 float g_flSplashScale = 0.15;
 float g_flSplashLifetime = 0.5f;
 float g_flSplashAlpha = 0.3f;
-ConVar r_RainSplashPercentage( "r_RainSplashPercentage", "20", FCVAR_CHEAT ); // N% chance of a rain particle making a splash.
+ConVar r_RainSplashPercentage( "r_RainSplashPercentage", "20" ); // N% chance of a rain particle making a splash.
 
 
 float GUST_INTERVAL_MIN = 1;
@@ -45,17 +44,23 @@ float GUST_LIFETIME_MAX = 3;
 float MIN_SCREENSPACE_RAIN_WIDTH = 1;
 
 #ifndef _XBOX
-ConVar r_RainHack( "r_RainHack", "0", FCVAR_CHEAT );
-ConVar r_RainRadius( "r_RainRadius", "1500", FCVAR_CHEAT );
-ConVar r_RainSideVel( "r_RainSideVel", "130", FCVAR_CHEAT, "How much sideways velocity rain gets." );
+ConVar r_RainHack( "r_RainHack", "0" );
+ConVar r_RainRadius( "r_RainRadius", "1500" );
+ConVar r_RainSideVel( "r_RainSideVel", "130", 0, "How much sideways velocity rain gets." );
 
-ConVar r_RainSimulate( "r_RainSimulate", "1", FCVAR_CHEAT, "Enable/disable rain simulation." );
+ConVar r_RainSimulate( "r_RainSimulate", "1", 0, "Enable/disable rain simulation." );
 ConVar r_DrawRain( "r_DrawRain", "1", FCVAR_CHEAT, "Enable/disable rain rendering." );
-ConVar r_RainProfile( "r_RainProfile", "0", FCVAR_CHEAT, "Enable/disable rain profiling." );
+ConVar r_RainProfile( "r_RainProfile", "0", 0, "Enable/disable rain profiling." );
 
 
 //Precahce the effects
 CLIENTEFFECT_REGISTER_BEGIN( PrecachePrecipitation )
+#ifdef HL2_EPISODIC
+CLIENTEFFECT_MATERIAL( "effects/fleck_ash1" )
+CLIENTEFFECT_MATERIAL( "effects/fleck_ash2" )
+CLIENTEFFECT_MATERIAL( "effects/fleck_ash3" )
+CLIENTEFFECT_MATERIAL( "effects/ember_swirling001" )
+#endif
 CLIENTEFFECT_MATERIAL( "particle/rain" )
 CLIENTEFFECT_MATERIAL( "particle/snow" )
 CLIENTEFFECT_REGISTER_END()
@@ -207,7 +212,7 @@ IMPLEMENT_CLIENTCLASS_DT(CClient_Precipitation, DT_Precipitation, CPrecipitation
 	RecvPropInt( RECVINFO( m_nPrecipType ) )
 END_RECV_TABLE()
 
-static ConVar r_SnowEnable( "r_SnowEnable", "1", FCVAR_CHEAT, "Snow Enable" );
+static ConVar r_SnowEnable( "r_SnowEnable", "1", 0, "Snow Enable" );
 static ConVar r_SnowParticles( "r_SnowParticles", "500", FCVAR_CHEAT, "Snow." );
 static ConVar r_SnowInsideRadius( "r_SnowInsideRadius", "256", FCVAR_CHEAT, "Snow." );
 static ConVar r_SnowOutsideRadius( "r_SnowOutsideRadius", "1024", FCVAR_CHEAT, "Snow." );
@@ -252,12 +257,12 @@ static bool IsInAir( const Vector& position )
 // Globals
 //-----------------------------------------------------------------------------
 
-ConVar CClient_Precipitation::s_raindensity( "r_raindensity","0.001", FCVAR_CHEAT);
-ConVar CClient_Precipitation::s_rainwidth( "r_rainwidth", "0.5", FCVAR_CHEAT );
-ConVar CClient_Precipitation::s_rainlength( "r_rainlength", "0.1f", FCVAR_CHEAT );
-ConVar CClient_Precipitation::s_rainspeed( "r_rainspeed", "600.0f", FCVAR_CHEAT );
-ConVar r_rainalpha( "r_rainalpha", "0.4", FCVAR_CHEAT );
-ConVar r_rainalphapow( "r_rainalphapow", "0.8", FCVAR_CHEAT );
+ConVar CClient_Precipitation::s_raindensity( "r_raindensity","0.001");
+ConVar CClient_Precipitation::s_rainwidth( "r_rainwidth", "0.5" );
+ConVar CClient_Precipitation::s_rainlength( "r_rainlength", "0.1f" );
+ConVar CClient_Precipitation::s_rainspeed( "r_rainspeed", "600.0f" );
+ConVar r_rainalpha( "r_rainalpha", "0.4" );
+ConVar r_rainalphapow( "r_rainalphapow", "0.8" );
 
 
 Vector CClient_Precipitation::s_WindVector;		// Stores the wind speed vector
@@ -563,10 +568,7 @@ void CClient_Precipitation::Render()
 		return;
 
 	// Don't render in monitors or in reflections or refractions.
-	if ( CurrentViewID() == VIEW_MONITOR )
-		return;
-
-	if ( view->GetDrawFlags() & (DF_RENDER_REFLECTION | DF_RENDER_REFRACTION) )
+	if ( view->GetDrawFlags() & (DF_MONITOR | DF_RENDER_REFLECTION | DF_RENDER_REFRACTION) )
 		return;
 
 	if ( m_nPrecipType == PRECIPITATION_TYPE_ASH )
@@ -582,21 +584,19 @@ void CClient_Precipitation::Render()
 	CFastTimer timer;
 	timer.Start();
 
-	CMatRenderContextPtr pRenderContext( materials );
-	
 	// We want to do our calculations in view space.
 	VMatrix	tempView;
-	pRenderContext->GetMatrix( MATERIAL_VIEW, &tempView );
-	pRenderContext->MatrixMode( MATERIAL_VIEW );
-	pRenderContext->LoadIdentity();
+	materials->GetMatrix( MATERIAL_VIEW, &tempView );
+	materials->MatrixMode( MATERIAL_VIEW );
+	materials->LoadIdentity();
 
 	// Force the user clip planes to use the old view matrix
-	pRenderContext->EnableUserClipTransformOverride( true );
-	pRenderContext->UserClipTransform( tempView );
+	materials->EnableUserClipTransformOverride( true );
+	materials->UserClipTransform( tempView );
 
 	// Draw all the rain tracers.
-	pRenderContext->Bind( m_MatHandle );
-	IMesh *pMesh = pRenderContext->GetDynamicMesh();
+	materials->Bind( m_MatHandle );
+	IMesh *pMesh = materials->GetDynamicMesh();
 	if ( pMesh )
 	{
 		CMeshBuilder mb;
@@ -611,9 +611,9 @@ void CClient_Precipitation::Render()
 		mb.End( false, true );
 	}
 
-	pRenderContext->EnableUserClipTransformOverride( false );
-	pRenderContext->MatrixMode( MATERIAL_VIEW );
-	pRenderContext->LoadMatrix( tempView );
+	materials->EnableUserClipTransformOverride( false );
+	materials->MatrixMode( MATERIAL_VIEW );
+	materials->LoadMatrix( tempView );
 
 	if ( r_RainProfile.GetInt() )
 	{
@@ -1653,7 +1653,7 @@ private:
 
 	bool							m_bRayParticles;
 
-	struct SnowFall_t
+	typedef struct SnowFall_t
 	{
 		PMaterialHandle			m_hMaterial;
 		CClient_Precipitation	*m_pEntity;

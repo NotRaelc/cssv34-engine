@@ -63,7 +63,7 @@ CParticleEffect::~CParticleEffect( void )
 #if !defined( _XBOX )
 	if ( ( m_nToolParticleEffectId != TOOLPARTICLESYSTEMID_INVALID ) && clienttools->IsInRecordingMode() )
 	{
-		KeyValues *msg = new KeyValues( "OldParticleSystem_Destroy" );
+		KeyValues *msg = new KeyValues( "ParticleSystem_Destroy" );
 		msg->SetInt( "id", m_nToolParticleEffectId );
 		msg->SetFloat( "time", gpGlobals->curtime );
 		ToolFramework_PostToolMessage( HTOOLHANDLE_INVALID, msg );
@@ -212,6 +212,36 @@ Particle *CParticleEffect::AddParticle( unsigned int particleSize, PMaterialHand
 
 	pParticle->m_Pos = origin;
 	return pParticle;
+}
+
+
+
+//-----------------------------------------------------------------------------
+// Particle implementation
+//-----------------------------------------------------------------------------
+
+void SimpleParticle::ToolRecordParticle( KeyValues *msg )
+{
+	Particle::ToolRecordParticle( msg );
+
+	msg->SetFloat( "velx", m_vecVelocity.x );
+	msg->SetFloat( "vely", m_vecVelocity.y );
+	msg->SetFloat( "velz", m_vecVelocity.z );
+
+	msg->SetFloat( "roll", m_flRoll );
+	msg->SetFloat( "rolldelta", m_flRollDelta );
+
+	msg->SetFloat( "dietime", m_flDieTime );
+	msg->SetFloat( "lifetime", m_flLifetime );
+
+	msg->SetColor( "color", Color( m_uchColor[0], m_uchColor[1], m_uchColor[2] ) );
+	msg->SetInt( "startalpha", m_uchStartAlpha );
+	msg->SetInt( "endalpha", m_uchEndAlpha );
+
+	msg->SetInt( "startsize", m_uchStartSize );
+	msg->SetInt( "endsize", m_uchEndSize );
+
+	msg->SetInt( "flags", m_iFlags );
 }
 
 

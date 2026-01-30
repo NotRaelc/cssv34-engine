@@ -14,19 +14,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-
-#if HL2_EPISODIC
-// In Episodic we unify the NO_WORLD_ILLUMINATION lights to use 
-// the more efficient elight structure instead. This should theoretically
-// be extended to other projects but may have unintended consequences
-// and bears more thorough testing.
-//
-// For an earlier iteration on this technique see changelist 214433,
-// which had a specific flag for use of elights.
-#define DLIGHT_NO_WORLD_USES_ELIGHT 1
-#endif
-
-
 //-----------------------------------------------------------------------------
 // A dynamic light, with the goofy hack needed for spotlights
 //-----------------------------------------------------------------------------
@@ -42,7 +29,6 @@ public:
 	void	OnDataChanged(DataUpdateType_t updateType);
 	bool	ShouldDraw();
 	void	ClientThink( void );
-	void	Release( void );
 
 	unsigned char	m_Flags;
 	unsigned char	m_LightStyle;
@@ -56,9 +42,6 @@ public:
 private:
 	dlight_t*	m_pDynamicLight;
 	dlight_t*	m_pSpotlightEnd;
-
-
-	inline bool ShouldBeElight() { return (m_Flags & DLIGHT_NO_WORLD_ILLUMINATION); }
 };
 
 IMPLEMENT_CLIENTCLASS_DT(C_DynamicLight, DT_DynamicLight, CDynamicLight)
@@ -102,26 +85,6 @@ bool C_DynamicLight::ShouldDraw()
 	return false;
 }
 
-//------------------------------------------------------------------------------
-// Purpose : Disable drawing of this light when entity perishes
-//------------------------------------------------------------------------------
-void C_DynamicLight::Release()
-{
-	if (m_pDynamicLight)
-	{
-		m_pDynamicLight->die = gpGlobals->curtime;
-		m_pDynamicLight = 0;
-	}
-	
-	if (m_pSpotlightEnd)
-	{
-		m_pSpotlightEnd->die = gpGlobals->curtime;
-		m_pSpotlightEnd = 0;
-	}
-
-	BaseClass::Release();
-}
-
 
 //------------------------------------------------------------------------------
 // Purpose :
@@ -136,15 +99,8 @@ void C_DynamicLight::ClientThink(void)
 		// Deal with the model light
  		if ( !m_pDynamicLight || (m_pDynamicLight->key != index) )
 		{
-#if DLIGHT_NO_WORLD_USES_ELIGHT
-			m_pDynamicLight = ShouldBeElight() != 0
-				? effects->CL_AllocElight( index )
-				: effects->CL_AllocDlight( index );
-#else
 			m_pDynamicLight = effects->CL_AllocDlight( index );
-#endif
 			Assert (m_pDynamicLight);
-			m_pDynamicLight->minlight = 0;
 		}
 
 		m_pDynamicLight->style = m_LightStyle;
@@ -172,11 +128,7 @@ void C_DynamicLight::ClientThink(void)
 		}
 	}
 	
-#if DLIGHT_NO_WORLD_USES_ELIGHT
-	if (( m_OuterAngle > 0 ) && !ShouldBeElight())
-#else
-	if (( m_OuterAngle > 0 ) && ((m_Flags & DLIGHT_NO_WORLD_ILLUMINATION) == 0))
-#endif
+	if (( m_OuterAngle > 0 ) && ((m_Flags & DLIGHT_NO_WORLD_ILLUMINATION) == 0) )
 	{
 		// Raycast to where the endpoint goes
 		// Deal with the environment light

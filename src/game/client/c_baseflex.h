@@ -1,10 +1,10 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//===========================================================================//
+//=============================================================================//
 // Client-side CBasePlayer
 
 #ifndef C_STUDIOFLEX_H
@@ -51,21 +51,10 @@ public:
 					C_BaseFlex();
 	virtual			~C_BaseFlex();
 
-	virtual void Spawn();
-
-	virtual void InitPhonemeMappings();
-
-	void		SetupMappings( char const *pchFileRoot );
-
 	virtual CStudioHdr *OnNewModel( void );
 
-	virtual void	StandardBlendingRules( CStudioHdr *hdr, Vector pos[], Quaternion q[], float currentTime, int boneMask );
-
-	virtual void OnThreadedDrawSetup();
-
 	// model specific
-	virtual	void	SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWeightCount, float *pFlexWeights, float *pFlexDelayedWeights );
-	virtual bool	UsesFlexDelayedWeights();
+	virtual	void	SetupWeights( );
 
 	virtual void	RunFlexRules( CStudioHdr *pStudioHdr, float *dest );
 
@@ -78,18 +67,17 @@ public:
 	// Called at the lowest level to actually apply a flex animation
 	void				AddFlexAnimation( CSceneEventInfo *info );
 
-	void			SetFlexWeight( LocalFlexController_t index, float value );
-	float			GetFlexWeight( LocalFlexController_t index );
+	void			SetFlexWeight( int index, float value );
+	float			GetFlexWeight( int index );
 
 	// Look up flex controller index by global name
-	LocalFlexController_t				FindFlexController( const char *szName );
+	int				FindFlexController( const char *szName );
 
 public:
 	Vector			m_viewtarget;
 	CInterpolatedVar< Vector >	m_iv_viewtarget;
-	// indexed by model local flexcontroller
-	float			m_flexWeight[MAXSTUDIOFLEXCTRL];
-	CInterpolatedVarArray< float, MAXSTUDIOFLEXCTRL >	m_iv_flexWeight;
+	float			m_flexWeight[64];
+	CInterpolatedVarArray< float, 64 >	m_iv_flexWeight;
 
 	int				m_blinktoggle;
 
@@ -117,8 +105,6 @@ public:
 	//  expressions to the flex weights and adds other scene events as needed
 	virtual	bool		ProcessSceneEvent( bool bFlexEvents, CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
 
-	virtual bool		ProcessSequenceSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
-
 	// Remove all playing events
 	void				ClearSceneEvents( CChoreoScene *scene, bool canceled );
 
@@ -126,7 +112,7 @@ public:
 	virtual	bool		ClearSceneEvent( CSceneEventInfo *info, bool fastKill, bool canceled );
 
 	// Add the event to the queue for this actor
-	void				AddSceneEvent( CChoreoScene *scene, CChoreoEvent *event, C_BaseEntity *pTarget = NULL, bool bClientSide = false );
+	void				AddSceneEvent( CChoreoScene *scene, CChoreoEvent *event, C_BaseEntity *pTarget = NULL );
 
 	// Remove the event from the queue for this actor
 	void				RemoveSceneEvent( CChoreoScene *scene, CChoreoEvent *event, bool fastKill );
@@ -140,17 +126,12 @@ public:
 	int					FlexControllerLocalToGlobal( const flexsettinghdr_t *pSettinghdr, int key );
 	void				EnsureTranslations( const flexsettinghdr_t *pSettinghdr );
 
-	// For handling scene files
-	void				*FindSceneFile( const char *filename );
-
 private:
-
-	bool RequestStartSequenceSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event, CChoreoActor *actor, CBaseEntity *pTarget );
 
 	bool ProcessFlexAnimationSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
 	bool ProcessFlexSettingSceneEvent( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event );
 	void AddFlexSetting( const char *expr, float scale, 
-		const flexsettinghdr_t *pSettinghdr, bool newexpression );
+		const flexsettinghdr_t *pSettinghdr, const flexsettinghdr_t *pOverrideHdr, bool newexpression );
 
 	// Array of active SceneEvents, in order oldest to newest
 	CUtlVector < CSceneEventInfo >		m_SceneEvents;
@@ -215,9 +196,8 @@ private:
 	int				m_prevblinktoggle;
 
 	int				m_iBlink;
-	LocalFlexController_t				m_iEyeUpdown;
-	LocalFlexController_t				m_iEyeRightleft;
-	bool			m_bSearchedForEyeFlexes;
+	int				m_iEyeUpdown;
+	int				m_iEyeRightleft;
 	int				m_iMouthAttachment;
 
 	float			*m_flFlexDelayedWeight;
@@ -227,7 +207,8 @@ private:
 	static char		*g_flexcontroller[MAXSTUDIOFLEXCTRL*4]; // room for global set of flexcontrollers
 	static float	g_flexweight[MAXSTUDIOFLEXDESC];
 
-protected:
+private:
+	C_BaseFlex( const C_BaseFlex & ); // not defined, not accessible
 
 	enum
 	{
@@ -249,6 +230,10 @@ protected:
 		// Global fields setup first time tracks played
 		bool			basechecked;
 		const flexsettinghdr_t *base;
+#if !defined( NO_ENTITY_PREDICTION )
+		bool			overridechecked;
+		const flexsettinghdr_t *override;
+#endif
 		const flexsetting_t *exp;
 
 		// Local fields, processed for each sentence
@@ -256,11 +241,8 @@ protected:
 		float			amount;
 	};
 
-	Emphasized_Phoneme m_PhonemeClasses[ NUM_PHONEME_CLASSES ];
-
-private:
-
-	C_BaseFlex( const C_BaseFlex & ); // not defined, not accessible
+	// For handling scene files
+	void			*FindSceneFile( const char *filename );
 
 	const flexsetting_t *FindNamedSetting( const flexsettinghdr_t *pSettinghdr, const char *expr );
 
@@ -270,14 +252,7 @@ private:
 	bool			SetupEmphasisBlend( Emphasized_Phoneme *classes, int phoneme );
 	void			ComputeBlendedSetting( Emphasized_Phoneme *classes, float emphasis_intensity );
 
-#ifdef HL2_CLIENT_DLL
-public:
-
-	Vector			m_vecLean;
-	CInterpolatedVar< Vector >	m_iv_vecLean;
-	Vector			m_vecShift;
-	CInterpolatedVar< Vector >	m_iv_vecShift;
-#endif
+	Emphasized_Phoneme m_PhonemeClasses[ NUM_PHONEME_CLASSES ];
 };
 
 

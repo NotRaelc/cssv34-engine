@@ -23,7 +23,6 @@ struct globalentity_t
 	CUtlSymbol	name;
 	CUtlSymbol	levelName;
 	GLOBALESTATE	state;
-	int				counter;
 };
 
 
@@ -41,7 +40,6 @@ public:
 		Assert( !m_disableStateUpdates );
 		m_disableStateUpdates = true;
 	}
-	
 	virtual void LevelShutdownPostEntity() 
 	{
 		Assert( m_disableStateUpdates );
@@ -59,49 +57,24 @@ public:
 			return;
 		m_list[globalIndex].state = state;
 	}
-
 	GLOBALESTATE GetState( int globalIndex )
 	{
 		if ( !m_list.IsValidIndex(globalIndex) )
 			return GLOBAL_OFF;
 		return m_list[globalIndex].state;
 	}
-
-	void SetCounter( int globalIndex, int counter )
-	{
-		if ( m_disableStateUpdates || !m_list.IsValidIndex(globalIndex) )
-			return;
-		m_list[globalIndex].counter = counter;
-	}
-
-	int AddToCounter( int globalIndex, int delta )
-	{
-		if ( m_disableStateUpdates || !m_list.IsValidIndex(globalIndex) )
-			return 0;
-		return ( m_list[globalIndex].counter += delta );
-	}
-
-	int GetCounter( int globalIndex )
-	{
-		if ( !m_list.IsValidIndex(globalIndex) )
-			return 0;
-		return m_list[globalIndex].counter;
-	}
-
 	void SetMap( int globalIndex, string_t mapname )
 	{
 		if ( !m_list.IsValidIndex(globalIndex) )
 			return;
 		m_list[globalIndex].levelName = m_nameList.AddString( STRING(mapname) );
 	}
-
 	const char *GetMap( int globalIndex )
 	{
 		if ( !m_list.IsValidIndex(globalIndex) )
 			return NULL;
 		return m_nameList.String( m_list[globalIndex].levelName );
 	}
-
 	const char *GetName( int globalIndex )
 	{
 		if ( !m_list.IsValidIndex(globalIndex) )
@@ -124,7 +97,6 @@ public:
 
 		return -1;
 	}
-
 	int AddEntity( const char *pGlobalname, const char *pMapName, GLOBALESTATE state )
 	{
 		globalentity_t entity;
@@ -169,16 +141,6 @@ void GlobalEntity_SetState( int globalIndex, GLOBALESTATE state )
 	gGlobalState.SetState( globalIndex, state );
 }
 
-void GlobalEntity_SetCounter( int globalIndex, int counter )
-{
-	gGlobalState.SetCounter( globalIndex, counter );
-}
-
-int GlobalEntity_AddToCounter( int globalIndex, int delta )
-{
-	return gGlobalState.AddToCounter( globalIndex, delta );
-}
-
 void GlobalEntity_EnableStateUpdates( bool bEnable )
 {
 	gGlobalState.EnableStateUpdates( bEnable );
@@ -205,11 +167,6 @@ GLOBALESTATE GlobalEntity_GetState( int globalIndex )
 	return gGlobalState.GetState( globalIndex );
 }
 
-int GlobalEntity_GetCounter( int globalIndex )
-{
-	return gGlobalState.GetCounter( globalIndex );
-}
-
 const char *GlobalEntity_GetMap( int globalIndex )
 {
 	return gGlobalState.GetMap( globalIndex );
@@ -227,6 +184,9 @@ int GlobalEntity_GetNumGlobals( void )
 
 CON_COMMAND(dump_globals, "Dump all global entities/states")
 {
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+	
 	gGlobalState.DumpGlobals();
 }
 
@@ -239,7 +199,7 @@ void CGlobalState::DumpGlobals( void )
 	Msg( "-- Globals --\n" );
 	for ( int i = 0; i < m_list.Count(); i++ )
 	{
-		Msg( "%s: %s (%s) = %d\n", m_nameList.String( m_list[i].name ), m_nameList.String( m_list[i].levelName ), estates[m_list[i].state], m_list[i].counter );
+		Msg( "%s: %s (%s)\n", m_nameList.String( m_list[i].name ), m_nameList.String( m_list[i].levelName ), estates[m_list[i].state] );
 	}
 }
 //#endif
@@ -256,7 +216,6 @@ BEGIN_SIMPLE_DATADESC( globalentity_t )
 	DEFINE_CUSTOM_FIELD( name, &g_GlobalSymbolDataOps ),
 	DEFINE_CUSTOM_FIELD( levelName, &g_GlobalSymbolDataOps ),
 	DEFINE_FIELD( state, FIELD_INTEGER ),
-	DEFINE_FIELD( counter, FIELD_INTEGER ),
 END_DATADESC()
 
 
@@ -305,15 +264,4 @@ void RestoreGlobalState( CSaveRestoreData *pSaveData )
 void ResetGlobalState( void )
 {
 	gGlobalState.Reset();
-}
-
-
-void ShowServerGameTime()
-{
-	Msg( "Server game time: %f\n", gpGlobals->curtime );
-}
-
-CON_COMMAND(server_game_time, "Gives the game time in seconds (server's curtime)")
-{
-	ShowServerGameTime();
 }

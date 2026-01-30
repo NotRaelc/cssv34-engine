@@ -293,7 +293,7 @@ IMotionEvent::simresult_e CGravControllerPoint::Simulate( IPhysicsMotionControll
 	pObject->LocalToWorld( &world, m_localPosition );
 	m_worldPosition = world;
 	pObject->GetVelocity( &vel, &angVel );
-	//pObject->GetVelocityAtPoint( world, &vel );
+	//pObject->GetVelocityAtPoint( world, vel );
 	float damping = 1.0;
 	world += vel * deltaTime * damping;
 	Vector delta = (m_targetPosition - world) * fracRemainingSimTime * invDeltaTime;
@@ -1423,7 +1423,7 @@ bool CWeaponGravityGun::Reload( void )
 }
 
 #define NUM_COLLISION_TESTS 2500
-void CC_CollisionTest( const CCommand &args )
+void CC_CollisionTest( void )
 {
 	if ( !physenv )
 		return;
@@ -1469,9 +1469,9 @@ void CC_CollisionTest( const CCommand &args )
 	//Vector results[NUM_COLLISION_TESTS];
 
 	int testType = 0;
-	if ( args.ArgC() >= 2 )
+	if ( engine->Cmd_Argc() >= 2 )
 	{
-		testType = atoi( args[1] );
+		testType = atoi(engine->Cmd_Argv(1));
 	}
 	float duration = 0;
 	Vector size[2];

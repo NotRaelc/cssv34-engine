@@ -79,12 +79,6 @@ void BlackMarketAddWeapon( const char *pWeaponName, CCSPlayer *pBuyer )
 
 	int iWeaponID = ClassnameToWeaponID( pWeaponName );
 
-	//Fix up the smoke grenade class name so we can get an ID for it.
-	if ( Q_stricmp( pWeaponName, "weapon_smokegrenade" ) == 0 )
-	{
-		iWeaponID = ClassnameToWeaponID( "weapon_sgren" );
-	}
-
 	TrackAutoBuyPurchases( pWeaponName, pBuyer );
 
 	if ( g_BlackMarket_WeaponsBought.Count() > 0 )

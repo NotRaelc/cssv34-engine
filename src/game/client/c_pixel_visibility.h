@@ -43,8 +43,6 @@ struct pixelvis_queryparams_t
 float PixelVisibility_FractionVisible( const pixelvis_queryparams_t &params, pixelvis_handle_t *queryHandle );
 float StandardGlowBlend( const pixelvis_queryparams_t &params, pixelvis_handle_t *queryHandle, int rendermode, int renderfx, int alpha, float *pscale );
 
-void PixelVisibility_ShiftVisibilityViews( int iSourceViewID, int iDestViewID ); //mainly needed by portal mod to avoid a pop in visibility when teleporting the player
-
 void PixelVisibility_EndCurrentView();
 void PixelVisibility_EndScene();
 float GlowSightDistance( const Vector &glowOrigin, bool bShouldTrace );

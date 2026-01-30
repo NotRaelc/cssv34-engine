@@ -845,7 +845,7 @@ void BuyPreset::SetName( const wchar_t *name )
 	wcsncpy( m_name, name, MaxBuyPresetName );
 	if ( m_name[0] == 0 )
 	{
-		const wchar_t * defaultName = g_pVGuiLocalize->Find( "#Cstrike_BuyPresetBlank" );
+		const wchar_t * defaultName = vgui::localize()->Find( "#Cstrike_BuyPresetBlank" );
 		if ( defaultName )
 		{
 			wcsncpy( m_name, defaultName, MaxBuyPresetName );

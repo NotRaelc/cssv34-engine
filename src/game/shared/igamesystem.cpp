@@ -10,9 +10,13 @@
 #include "igamesystem.h"
 #include "datacache/imdlcache.h"
 #include "utlvector.h"
-#include "vprof.h"
-#if defined( _X360 )
-#include "xbox/xbox_console.h"
+
+#if !defined( _RETAIL )
+#if defined( _XBOX )
+#include "xbox/xbox_platform.h"
+#include "xbox/xbox_win32stubs.h"
+#include "xbox/xbox_core.h"
+#endif
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -212,27 +216,25 @@ bool IGameSystem::InitAllSystems()
 
 		IGameSystem *sys = s_GameSystems[i];
 
-#if defined( _X360 )
-		char sz[128];
+#if !defined( _RETAIL )
+#if defined( _XBOX )
+		char sz[ 128 ];
 		Q_snprintf( sz, sizeof( sz ), "%s->Init():Start", sys->Name() );
 		XBX_rTimeStampLog( Plat_FloatTime(), sz );
 #endif
+#endif
 		bool valid = sys->Init();
-
-#if defined( _X360 )
+#if !defined( _RETAIL )
+#if defined( _XBOX )
 		Q_snprintf( sz, sizeof( sz ), "%s->Init():Finish", sys->Name() );
 		XBX_rTimeStampLog( Plat_FloatTime(), sz );
+#endif
 #endif
 		if ( !valid )
 			return false;
 	}
 
 	return true;
-}
-
-void IGameSystem::PostInitAllSystems( void )
-{
-	InvokeMethod( &IGameSystem::PostInit, "PostInit" );
 }
 
 void IGameSystem::ShutdownAllSystems()
@@ -295,7 +297,6 @@ void IGameSystem::SafeRemoveIfDesiredAllSystems()
 
 void IGameSystem::PreRenderAllSystems()
 {
-	VPROF("IGameSystem::PreRenderAllSystems");
 	InvokePerFrameMethod( &IGameSystemPerFrame::PreRender );
 }
 
@@ -325,6 +326,14 @@ void IGameSystem::FrameUpdatePreEntityThinkAllSystems()
 	InvokePerFrameMethod( &IGameSystemPerFrame::FrameUpdatePreEntityThink );
 }
 
+void IGameSystem::FrameUpdatePrePlayerRunCommandAllSystems( CBasePlayer *player, CUserCmd *ucmd )
+{
+	s_pRunCommandPlayer = player;
+	s_pRunCommandUserCmd = ucmd;
+
+	InvokePerFrameMethod( &IGameSystemPerFrame::FrameUpdatePrePlayerRunCommand );
+}
+
 void IGameSystem::FrameUpdatePostEntityThinkAllSystems()
 {
 	SafeRemoveIfDesiredAllSystems();
@@ -345,8 +354,13 @@ void IGameSystem::PreClientUpdateAllSystems()
 //-----------------------------------------------------------------------------
 void InvokeMethod( GameSystemFunc_t f, char const *timed /*=0*/ )
 {
+#if defined( _XBOX )
+#if !defined( _RETAIL )
+	char sz[ 128 ];
+#endif
+#else
 	NOTE_UNUSED( timed );
-
+#endif
 	int i;
 	int c = s_GameSystems.Count();
 	for ( i = 0; i < c ; ++i )
@@ -355,7 +369,25 @@ void InvokeMethod( GameSystemFunc_t f, char const *timed /*=0*/ )
 
 		MDLCACHE_CRITICAL_SECTION();
 
+#if !defined( _RETAIL )
+#if defined( _XBOX )
+		if ( timed )
+		{
+			Q_snprintf( sz, sizeof( sz ), "%s->%s():Start", sys->Name(), timed );
+			XBX_rTimeStampLog( Plat_FloatTime(), sz );
+		}
+#endif
+#endif
 		(sys->*f)();
+#if !defined( _RETAIL )
+#if defined( _XBOX )
+		if ( timed )
+		{
+			Q_snprintf( sz, sizeof( sz ), "%s->%s():Finish", sys->Name(), timed );
+			XBX_rTimeStampLog( Plat_FloatTime(), sz );
+		}
+#endif
+#endif
 	}
 }
 
@@ -364,15 +396,38 @@ void InvokeMethod( GameSystemFunc_t f, char const *timed /*=0*/ )
 //-----------------------------------------------------------------------------
 void InvokePerFrameMethod( PerFrameGameSystemFunc_t f, char const *timed /*=0*/ )
 {
+#if defined( _XBOX )
+#if !defined( _RETAIL )
+	char sz[ 128 ];
+#endif
+#else
 	NOTE_UNUSED( timed );
-
+#endif
 	int i;
 	int c = s_GameSystemsPerFrame.Count();
 	for ( i = 0; i < c ; ++i )
 	{
 		IGameSystemPerFrame *sys  = s_GameSystemsPerFrame[i];
 		MDLCACHE_CRITICAL_SECTION();
+#if !defined( _RETAIL )
+#if defined( _XBOX )
+		if ( timed )
+		{
+			Q_snprintf( sz, sizeof( sz ), "%s->%s():Start", sys->Name(), timed );
+			XBX_rTimeStampLog( Plat_FloatTime(), sz );
+		}
+#endif
+#endif
 		(sys->*f)();
+#if !defined( _RETAIL )
+#if defined( _XBOX )
+		if ( timed )
+		{
+			Q_snprintf( sz, sizeof( sz ), "%s->%s():Finish", sys->Name(), timed );
+			XBX_rTimeStampLog( Plat_FloatTime(), sz );
+		}
+#endif
+#endif
 	}
 }
 

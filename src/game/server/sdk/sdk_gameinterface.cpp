@@ -20,10 +20,14 @@ void CServerGameClients::GetPlayerLimits( int& minplayers, int& maxplayers, int 
 	defaultMaxPlayers = 32;
 }
 
+
 // -------------------------------------------------------------------------------------------- //
 // Mod-specific CServerGameDLL implementation.
 // -------------------------------------------------------------------------------------------- //
 
 void CServerGameDLL::LevelInit_ParseAllEntities( const char *pMapEntities )
 {
+	MapEntity_ParseAllEntities( pMapEntities, NULL );
 }
+
+

@@ -80,19 +80,19 @@ END_SEND_TABLE()
 // Console commands for this test.
 // ---------------------------------------------------------------------------------------- //
 
-void Test_ProxyToggle_EnableProxy( const CCommand &args )
+void Test_ProxyToggle_EnableProxy()
 {
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2 )
 	{
 		Error( "Test_ProxyToggle_EnableProxy: requires parameter (0 or 1)." );
 	}
 
-	g_bEnableProxy = !!atoi( args[ 1 ] );
+	g_bEnableProxy = !!atoi( engine->Cmd_Argv( 1 ) );
 }
 
-void Test_ProxyToggle_SetValue( const CCommand &args )
+void Test_ProxyToggle_SetValue()
 {
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2 )
 	{
 		Error( "Test_ProxyToggle_SetValue: requires value parameter." );
 	}
@@ -101,7 +101,7 @@ void Test_ProxyToggle_SetValue( const CCommand &args )
 		Error( "Test_ProxyToggle_SetValue: no entity present." );
 	}
 
-	g_pTestObj->m_WithProxy = atoi( args[ 1 ] );
+	g_pTestObj->m_WithProxy = atoi( engine->Cmd_Argv( 1 ) );
 }
 
 ConCommand cc_Test_ProxyToggle_EnableProxy( "Test_ProxyToggle_EnableProxy", Test_ProxyToggle_EnableProxy, 0, FCVAR_CHEAT );

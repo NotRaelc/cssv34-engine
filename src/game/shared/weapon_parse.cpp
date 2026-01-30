@@ -46,7 +46,7 @@ typedef struct
 	int m_iFlagValue;
 } itemFlags_t;
 #if !defined(_STATIC_LINKED) || defined(CLIENT_DLL)
-itemFlags_t g_ItemFlags[8] =
+itemFlags_t g_ItemFlags[7] =
 {
 	{ "ITEM_FLAG_SELECTONEMPTY",	ITEM_FLAG_SELECTONEMPTY },
 	{ "ITEM_FLAG_NOAUTORELOAD",		ITEM_FLAG_NOAUTORELOAD },
@@ -54,8 +54,7 @@ itemFlags_t g_ItemFlags[8] =
 	{ "ITEM_FLAG_LIMITINWORLD",		ITEM_FLAG_LIMITINWORLD },
 	{ "ITEM_FLAG_EXHAUSTIBLE",		ITEM_FLAG_EXHAUSTIBLE },
 	{ "ITEM_FLAG_DOHITLOCATIONDMG", ITEM_FLAG_DOHITLOCATIONDMG },
-	{ "ITEM_FLAG_NOAMMOPICKUPS",	ITEM_FLAG_NOAMMOPICKUPS },
-	{ "ITEM_FLAG_NOITEMPICKUP",		ITEM_FLAG_NOITEMPICKUP }
+	{ "ITEM_FLAG_NOAMMOPICKUPS",	ITEM_FLAG_NOAMMOPICKUPS }
 };
 #else
 extern itemFlags_t g_ItemFlags[7];
@@ -153,8 +152,31 @@ void PrecacheFileWeaponInfoDatabase( IFileSystem *filesystem, const unsigned cha
 	if ( m_WeaponInfoDatabase.Count() )
 		return;
 
+#if !defined( _XBOX )
+	FileFindHandle_t findHandle;
+	const char *pFilename = filesystem->FindFirstEx( "scripts/weapon_*.txt", IsXbox() ? "XGAME" : "GAME", &findHandle );
+	while ( pFilename != NULL )
+	{
+		char fileBase[512];
+		Q_FileBase( pFilename, fileBase, sizeof(fileBase) );
+		WEAPON_FILE_INFO_HANDLE tmp;
+#ifdef CLIENT_DLL
+		if ( ReadWeaponDataFromFileForSlot( filesystem, fileBase, &tmp, pICEKey ) )
+		{
+			gWR.LoadWeaponSprites( tmp );
+		}
+#else
+		ReadWeaponDataFromFileForSlot( filesystem, fileBase, &tmp, pICEKey );
+#endif
+		pFilename = filesystem->FindNext( findHandle );
+	}
+	filesystem->FindClose( findHandle );
+#else
+#define WEAPON_SCRIPT_MANIFEST_FILE		"scripts/_weapon_manifest.txt"
+
+	// Use a manifest file on the xbox
 	KeyValues *manifest = new KeyValues( "weaponscripts" );
-	if ( manifest->LoadFromFile( filesystem, "scripts/weapon_manifest.txt", "GAME" ) )
+	if ( manifest->LoadFromFile( filesystem, WEAPON_SCRIPT_MANIFEST_FILE, "XGAME" ) )
 	{
 		for ( KeyValues *sub = manifest->GetFirstSubKey(); sub != NULL ; sub = sub->GetNextKey() )
 		{
@@ -179,6 +201,7 @@ void PrecacheFileWeaponInfoDatabase( IFileSystem *filesystem, const unsigned cha
 		}
 	}
 	manifest->deleteThis();
+#endif
 }
 
 KeyValues* ReadEncryptedKVFile( IFileSystem *filesystem, const char *szFilenameWithoutExtension, const unsigned char *pICEKey )
@@ -329,10 +352,6 @@ FileWeaponInfo_t::FileWeaponInfo_t()
 	m_bBuiltRightHanded = true;
 }
 
-#ifdef CLIENT_DLL
-extern ConVar hud_fastswitch;
-#endif
-
 void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponName )
 {
 	// Okay, we tried at least once to look this up...
@@ -348,17 +367,6 @@ void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponNam
 	Q_strncpy( szAnimationPrefix, pKeyValuesData->GetString( "anim_prefix" ), MAX_WEAPON_PREFIX );
 	iSlot = pKeyValuesData->GetInt( "bucket", 0 );
 	iPosition = pKeyValuesData->GetInt( "bucket_position", 0 );
-	
-	// Use the console (X360) buckets if hud_fastswitch is set to 2.
-#ifdef CLIENT_DLL
-	if ( hud_fastswitch.GetInt() == 2 )
-#else
-	if ( IsX360() )
-#endif
-	{
-		iSlot = pKeyValuesData->GetInt( "bucket_360", iSlot );
-		iPosition = pKeyValuesData->GetInt( "bucket_position_360", iPosition );
-	}
 	iMaxClip1 = pKeyValuesData->GetInt( "clip_size", WEAPON_NOCLIP );					// Max primary clips gun can hold (assume they don't use clips by default)
 	iMaxClip2 = pKeyValuesData->GetInt( "clip2_size", WEAPON_NOCLIP );					// Max secondary clips gun can hold (assume they don't use clips by default)
 	iDefaultClip1 = pKeyValuesData->GetInt( "default_clip", iMaxClip1 );		// amount of primary ammo placed in the primary clip when it's picked up

@@ -30,9 +30,6 @@ BEGIN_DATADESC( CFuncBrush )
 	DEFINE_KEYFIELD( m_iszExcludedClass, FIELD_STRING, "excludednpc" ),
 	DEFINE_KEYFIELD( m_bInvertExclusion, FIELD_BOOLEAN, "invert_exclusion" ),
 
-	DEFINE_INPUTFUNC( FIELD_STRING, "SetExcluded", InputSetExcluded ),
-	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetInvert", InputSetInvert ),
-
 END_DATADESC()
 
 
@@ -70,10 +67,7 @@ void CFuncBrush::Spawn( void )
 
 bool CFuncBrush::CreateVPhysics( void )
 {
-	// NOTE: Don't init this static.  It's pretty common for these to be constrained
-	// and dynamically parented.  Initing shadow avoids having to destroy the physics
-	// object later and lose the constraints.
-	IPhysicsObject *pPhys = VPhysicsInitShadow(false, false);
+	IPhysicsObject *pPhys = VPhysicsInitShadow( false, false );
 	if ( pPhys )
 	{
 		int contents = modelinfo->GetModelContents( GetModelIndex() );
@@ -136,23 +130,6 @@ void CFuncBrush::InputTurnOff( inputdata_t &inputdata )
 void CFuncBrush::InputTurnOn( inputdata_t &inputdata )
 {
 	TurnOn();
-}
-
-
-//-----------------------------------------------------------------------------
-// 
-//-----------------------------------------------------------------------------
-void CFuncBrush::InputSetExcluded( inputdata_t &inputdata )
-{
-	m_iszExcludedClass = inputdata.value.StringID();
-}
-
-//-----------------------------------------------------------------------------
-// 
-//-----------------------------------------------------------------------------
-void CFuncBrush::InputSetInvert( inputdata_t &inputdata )
-{
-	m_bInvertExclusion = inputdata.value.Bool();
 }
 
 

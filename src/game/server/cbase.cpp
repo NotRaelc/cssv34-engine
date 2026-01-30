@@ -81,7 +81,7 @@ OUTPUTS:
 #include "entityinput.h"
 #include "entityoutput.h"
 #include "mempool.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "datacache/imdlcache.h"
 #include "env_debughistory.h"
 
@@ -186,7 +186,7 @@ CEventAction::CEventAction( const char *ActionData )
 
 // this memory pool stores blocks around the size of CEventAction/inputitem_t structs
 // can be used for other blocks; will error if to big a block is tried to be allocated
-CUtlMemoryPool g_EntityListPool( max(sizeof(CEventAction),sizeof(CMultiInputVar::inputitem_t)), 512, CUtlMemoryPool::GROW_FAST, "g_EntityListPool" );
+CMemoryPool g_EntityListPool( max(sizeof(CEventAction),sizeof(CMultiInputVar::inputitem_t)), 512, CMemoryPool::GROW_FAST, "g_EntityListPool" );
 
 #include "tier0/memdbgoff.h"
 
@@ -352,13 +352,12 @@ void COutputEvent::FireOutput(CBaseEntity *pActivator, CBaseEntity *pCaller, flo
 
 void CBaseEntityOutput::ParseEventAction( const char *EventData )
 {
-	AddEventAction( new CEventAction( EventData ) );
-}
+	// create the new action
+	CEventAction *newAction = new CEventAction( EventData );
 
-void CBaseEntityOutput::AddEventAction( CEventAction *pEventAction )
-{
-	pEventAction->m_pNext = m_ActionList;
-	m_ActionList = pEventAction;
+	// add it to the list
+	newAction->m_pNext = m_ActionList;
+	m_ActionList = newAction;
 }
 
 
@@ -430,24 +429,6 @@ int CBaseEntityOutput::NumberOfElements( void )
 	return count;
 }
 
-/// Delete every single action in the action list. 
-void CBaseEntityOutput::DeleteAllElements( void ) 
-{
-	// walk front to back, deleting as we go. We needn't fix up pointers because
-	// EVERYTHING will die.
-
-	CEventAction *pNext = m_ActionList;
-	// wipe out the head
-	m_ActionList = NULL;
-	while (pNext)
-	{
-		register CEventAction *strikeThis = pNext;
-		pNext = pNext->m_pNext;
-		delete strikeThis;
-	}
-
-}
-
 /// EVENTS save/restore parsing wrapper
 
 class CEventsSaveDataOps : public ISaveRestoreOps
@@ -457,8 +438,7 @@ class CEventsSaveDataOps : public ISaveRestoreOps
 		AssertMsg( fieldInfo.pTypeDesc->fieldSize == 1, "CEventsSaveDataOps does not support arrays");
 
 		CBaseEntityOutput *ev = (CBaseEntityOutput*)fieldInfo.pField;
-		const int fieldSize = fieldInfo.pTypeDesc->fieldSize;
- 		for ( int i = 0; i < fieldSize; i++, ev++ )
+ 		for ( int i = 0; i < fieldInfo.pTypeDesc->fieldSize; i++, ev++ )
 		{
 			// save out the number of fields
 			int numElements = ev->NumberOfElements();
@@ -474,8 +454,7 @@ class CEventsSaveDataOps : public ISaveRestoreOps
 		AssertMsg( fieldInfo.pTypeDesc->fieldSize == 1, "CEventsSaveDataOps does not support arrays");
 
 		CBaseEntityOutput *ev = (CBaseEntityOutput*)fieldInfo.pField;
-		const int fieldSize = fieldInfo.pTypeDesc->fieldSize;
-		for ( int i = 0; i < fieldSize; i++, ev++ )
+		for ( int i = 0; i < fieldInfo.pTypeDesc->fieldSize; i++, ev++ )
 		{
 			int nElements = pRestore->ReadInt();
 			
@@ -491,8 +470,7 @@ class CEventsSaveDataOps : public ISaveRestoreOps
 		
 		// check all the elements of the array (usually only 1)
 		CBaseEntityOutput *ev = (CBaseEntityOutput*)fieldInfo.pField;
-		const int fieldSize = fieldInfo.pTypeDesc->fieldSize;
-		for ( int i = 0; i < fieldSize; i++, ev++ )
+		for ( int i = 0; i < fieldInfo.pTypeDesc->fieldSize; i++, ev++ )
 		{
 			// It's not empty if it has events or if it has a non-void variant value
 			if (( ev->NumberOfElements() != 0 ) || ( ev->ValueFieldType() != FIELD_VOID ))
@@ -612,7 +590,7 @@ void CMultiInputVar::inputitem_t::operator delete( void *pMem )
 //
 // Purpose: holds and executes a global prioritized queue of entity actions
 //-----------------------------------------------------------------------------
-DEFINE_FIXEDSIZE_ALLOCATOR( EventQueuePrioritizedEvent_t, 128, CUtlMemoryPool::GROW_SLOW );
+DEFINE_FIXEDSIZE_ALLOCATOR( EventQueuePrioritizedEvent_t, 128, CMemoryPool::GROW_SLOW );
 
 CEventQueue g_EventQueue;
 
@@ -959,6 +937,9 @@ void CEventQueue::ServiceEvents( void )
 //-----------------------------------------------------------------------------
 void CC_DumpEventQueue()
 {
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+	
 	g_EventQueue.Dump();
 }
 static ConCommand dumpeventqueue( "dumpeventqueue", CC_DumpEventQueue, "Dump the contents of the Entity I/O event queue to the console." );
@@ -1696,7 +1677,7 @@ ISaveRestoreOps *variantFuncs = &g_VariantSaveDataOps;
 
 /////////////////////// entitylist /////////////////////
 
-CUtlMemoryPool g_EntListMemPool( sizeof(entitem_t), 256, CUtlMemoryPool::GROW_NONE, "g_EntListMemPool" );
+CMemoryPool g_EntListMemPool( sizeof(entitem_t), 256, CMemoryPool::GROW_NONE, "g_EntListMemPool" );
 
 #include "tier0/memdbgoff.h"
 

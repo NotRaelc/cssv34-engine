@@ -13,7 +13,7 @@
 #include "cbase.h"
 #include "SplinePatch.h"
 
-#include "mathlib/VMatrix.h"
+#include "VMatrix.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

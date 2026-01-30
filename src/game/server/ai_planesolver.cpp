@@ -21,8 +21,14 @@
 
 //-----------------------------------------------------------------------------
 
-const float PLANE_SOLVER_THINK_FREQUENCY[2] = { 0.0f, 0.2f };
-const float MAX_PROBE_DIST[2] = { (10.0f*12.0f), (8.0f*12.0f) };
+#ifndef AI_STRONG_OPTIMIZATIONS
+const float PLANE_SOLVER_THINK_FREQUENCY = 0.0;
+const float MAX_PROBE_DIST = 10.0*12.0;
+#else
+const float PLANE_SOLVER_THINK_FREQUENCY = 0.2;
+const float MAX_PROBE_DIST = 8.0*12.0;
+#endif
+
 
 //#define PROFILE_PLANESOLVER 1
 
@@ -60,7 +66,7 @@ CAI_PlaneSolver::CAI_PlaneSolver( CAI_BaseNPC *pNpc )
 	m_ClosestHaveBeenToCurrent( FLT_MAX ),
 	m_TimeLastProgress( FLT_MAX ),
 	m_fCannotSolveCurrent( false ),
-	m_RefreshSamplesTimer( PLANE_SOLVER_THINK_FREQUENCY[AIStrongOpt()] - 0.05 )
+	m_RefreshSamplesTimer( PLANE_SOLVER_THINK_FREQUENCY - 0.05 )
 {
 }
 
@@ -351,7 +357,7 @@ void CAI_PlaneSolver::GenerateObstacleNpcs( const AILocalMoveGoal_t &goal, float
 			}
 		}
 
-		CBaseEntity *pPlayer = UTIL_GetNearestPlayer(m_pNpc->GetAbsOrigin());
+		CBaseEntity *pPlayer = UTIL_PlayerByIndex( 1 );
 		if ( pPlayer )
 		{
 			Vector mins, maxs;
@@ -426,14 +432,14 @@ AI_SuggestorResult_t CAI_PlaneSolver::GenerateObstacleSuggestions( const AILocal
 	if ( fNewTarget )
 		m_RefreshSamplesTimer.Force();
 
-	if ( PLANE_SOLVER_THINK_FREQUENCY[AIStrongOpt()] == 0.0 || m_RefreshSamplesTimer.Expired() )
+	if ( PLANE_SOLVER_THINK_FREQUENCY == 0.0 || m_RefreshSamplesTimer.Expired() )
 	{
 		m_Solver.ClearRegulations();
 	
 		if ( !ProbeForNpcs() )
 			GenerateObstacleNpcs( goal, probeDist );
 			
-		if ( GenerateCircleObstacleSuggestions( goal, probeDist ) )
+		if ( GenerateCircleObstacleSuggestions( probeDist ) )
 			seekResult = SR_OK;
 		
 		float spanPerProbe = degreesToProbe / nProbes;
@@ -523,7 +529,7 @@ AI_SuggestorResult_t CAI_PlaneSolver::GenerateObstacleSuggestions( const AILocal
 
 		}
 
-		m_RefreshSamplesTimer.Reset( PLANE_SOLVER_THINK_FREQUENCY[AIStrongOpt()] );
+		m_RefreshSamplesTimer.Reset();
 	}
 	else if ( m_Solver.HaveRegulations() )
 		seekResult = SR_OK;
@@ -727,8 +733,8 @@ float CAI_PlaneSolver::CalcProbeDist( float speed )
 	float result = GetLookaheadTime() * speed;
 	if ( result < m_pNpc->GetMoveProbe()->GetHullWidth() )
 		return m_pNpc->GetMoveProbe()->GetHullWidth();
-	if ( result > MAX_PROBE_DIST[AIStrongOpt()] )
-		return MAX_PROBE_DIST[AIStrongOpt()];
+	if ( result > MAX_PROBE_DIST )
+		return MAX_PROBE_DIST;
 	return result;
 }
 
@@ -740,31 +746,22 @@ void CAI_PlaneSolver::AddObstacle( const Vector &center, float radius, CBaseEnti
 }
 
 //-----------------------------------------------------------------------------
-bool CAI_PlaneSolver::GenerateCircleObstacleSuggestions( const AILocalMoveGoal_t &moveGoal, float probeDist )
+
+bool CAI_PlaneSolver::GenerateCircleObstacleSuggestions( float probeDist )
 {
 	bool result = false;
 	Vector npcLoc = m_pNpc->WorldSpaceCenter();
 	Vector mins, maxs;
-
+				
 	m_pNpc->CollisionProp()->WorldSpaceSurroundingBounds( &mins, &maxs );
 	float radiusNpc = (mins.AsVector2D() - maxs.AsVector2D()).Length() * 0.5;
 	
 	for ( int i = 0; i < m_Obstacles.Count(); i++ )
 	{
-		CBaseEntity *pObstacleEntity = NULL;
-
 		float zDistTooFar;
 		if ( m_Obstacles[i].hEntity && m_Obstacles[i].hEntity->CollisionProp() )
 		{
-			pObstacleEntity = m_Obstacles[i].hEntity.Get();
-
-			if( pObstacleEntity == moveGoal.pMoveTarget && (pObstacleEntity->IsNPC() || pObstacleEntity->IsPlayer()) )
-			{
-				// HEY! I'm trying to avoid the very thing I'm trying to get to. This will make we wobble like a drunk as I approach. Don't do it.
-				continue;
-			}
-
-			pObstacleEntity->CollisionProp()->WorldSpaceSurroundingBounds( &mins, &maxs );
+			m_Obstacles[i].hEntity->CollisionProp()->WorldSpaceSurroundingBounds( &mins, &maxs );
 			zDistTooFar = ( maxs.z - mins.z ) * 0.5 + GetNpc()->GetHullHeight() * 0.5;
 		}
 		else
@@ -778,23 +775,13 @@ bool CAI_PlaneSolver::GenerateCircleObstacleSuggestions( const AILocalMoveGoal_t
 		float distToObstacleSq 	= sq(vecToNpc.x) + sq(vecToNpc.y);
 		float radius = m_Obstacles[i].radius + radiusNpc;
 
-		if ( distToObstacleSq > 0.001 && distToObstacleSq < sq( radius + probeDist ) )
+		if ( distToObstacleSq > 0.001 && distToObstacleSq < sq(radius + probeDist))
 		{
 			Vector vecToObstacle = vecToNpc * -1;
 			float distToObstacle = VectorNormalize( vecToObstacle );
 			float weight;
 			float arc;
 			float radiusSq = sq(radius);
-
-			float flDot = DotProduct( vecToObstacle, moveGoal.dir );
-
-			// Don't steer around to avoid obstacles we've already passed, unless we're right up against them.
-			// That is, do this computation without the probeDist added in.
-			if( flDot < 0.0f && distToObstacleSq > radiusSq )
-			{
-				continue;
-			}
-
 			if ( radiusSq < distToObstacleSq )
 			{
 				Vector vecTangent;

@@ -6,7 +6,7 @@
 
 #include "cbase.h"
 #include "doors.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "physics.h"
 #include "ndebugoverlay.h"
 #include "engine/IEngineSound.h"
@@ -187,23 +187,13 @@ class CFuncVehicleClip : public CBaseEntity
 {
 public:
 	DECLARE_CLASS( CFuncVehicleClip, CBaseEntity );
-	DECLARE_DATADESC();
 
 	void Spawn();
 	bool CreateVPhysics( void );
 
-	void InputEnable( inputdata_t &data );
-	void InputDisable( inputdata_t &data );
 
 private:
 };
-
-BEGIN_DATADESC( CFuncVehicleClip )
-
-	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
-
-END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( func_vehicleclip, CFuncVehicleClip );
 
@@ -230,26 +220,6 @@ bool CFuncVehicleClip::CreateVPhysics( void )
 	VPhysicsInitStatic();
 
 	return true;
-}
-
-void CFuncVehicleClip::InputEnable( inputdata_t &data )
-{
-	IPhysicsObject *pPhys = VPhysicsGetObject();
-	if ( pPhys )
-	{
-		pPhys->EnableCollisions( true );
-	}
-	RemoveSolidFlags( FSOLID_NOT_SOLID );
-}
-
-void CFuncVehicleClip::InputDisable( inputdata_t &data )
-{
-	IPhysicsObject *pPhys = VPhysicsGetObject();
-	if ( pPhys )
-	{
-		pPhys->EnableCollisions( false );
-	}
-	AddSolidFlags( FSOLID_NOT_SOLID );
 }
 
 //============================= FUNC_CONVEYOR =======================================
@@ -418,7 +388,6 @@ public:
 	int	 DrawDebugTextOverlays(void);
 
 	DECLARE_DATADESC();
-	DECLARE_SERVERCLASS();
 
 protected:
 
@@ -452,10 +421,6 @@ protected:
 	bool m_bStopAtStartPos;
 
 	bool m_bSolidBsp;				// Brush is SOLID_BSP
-
-public:
-	Vector m_vecClientOrigin;
-	QAngle m_vecClientAngles;
 };
 
 LINK_ENTITY_TO_CLASS( func_rotating, CFuncRotating );
@@ -496,64 +461,6 @@ BEGIN_DATADESC( CFuncRotating )
 
 END_DATADESC()
 
-extern void SendProxy_Origin( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
-void SendProxy_FuncRotatingOrigin( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID )
-{
-	CFuncRotating *entity = (CFuncRotating*)pStruct;
-	Assert( entity );
-	if ( entity->HasSpawnFlags(SF_BRUSH_ROTATE_CLIENTSIDE) )
-	{
-		const Vector *v = &entity->m_vecClientOrigin;
-		pOut->m_Vector[ 0 ] = v->x;
-		pOut->m_Vector[ 1 ] = v->y;
-		pOut->m_Vector[ 2 ] = v->z;
-		return;
-	}
-
-	SendProxy_Origin( pProp, pStruct, pData, pOut, iElement, objectID );
-}
-
-extern void SendProxy_Angles( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
-void SendProxy_FuncRotatingAngles( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID )
-{
-	CFuncRotating *entity = (CFuncRotating*)pStruct;
-	Assert( entity );
-	if ( entity->HasSpawnFlags(SF_BRUSH_ROTATE_CLIENTSIDE) )
-	{
-		const QAngle *a = &entity->m_vecClientAngles;
-		pOut->m_Vector[ 0 ] = anglemod( a->x );
-		pOut->m_Vector[ 1 ] = anglemod( a->y );
-		pOut->m_Vector[ 2 ] = anglemod( a->z );
-		return;
-	}
-
-	SendProxy_Angles( pProp, pStruct, pData, pOut, iElement, objectID );
-}
-
-extern void SendProxy_SimulationTime( const SendProp *pProp, const void *pStruct, const void *pVarData, DVariant *pOut, int iElement, int objectID );
-void SendProxy_FuncRotatingSimulationTime( const SendProp *pProp, const void *pStruct, const void *pVarData, DVariant *pOut, int iElement, int objectID )
-{
-	CFuncRotating *entity = (CFuncRotating*)pStruct;
-	Assert( entity );
-	if ( entity->HasSpawnFlags(SF_BRUSH_ROTATE_CLIENTSIDE) )
-	{
-		pOut->m_Int = 0;
-		return;
-	}
-
-	SendProxy_SimulationTime( pProp, pStruct, pVarData, pOut, iElement, objectID );
-}
-
-IMPLEMENT_SERVERCLASS_ST(CFuncRotating, DT_FuncRotating)
-	SendPropExclude( "DT_BaseEntity", "m_angRotation" ),
-	SendPropExclude( "DT_BaseEntity", "m_vecOrigin" ),
-	SendPropExclude( "DT_BaseEntity", "m_flSimulationTime" ),
-
-	SendPropVector(SENDINFO(m_vecOrigin), -1,  SPROP_COORD|SPROP_CHANGES_OFTEN, 0.0f, HIGH_DEFAULT, SendProxy_FuncRotatingOrigin ),
-	SendPropQAngles(SENDINFO(m_angRotation), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngles ),
-	SendPropInt(SENDINFO(m_flSimulationTime), SIMULATION_TIME_WINDOW_BITS, SPROP_UNSIGNED|SPROP_CHANGES_OFTEN|SPROP_ENCODED_AGAINST_TICKCOUNT, SendProxy_FuncRotatingSimulationTime),
-END_SEND_TABLE()
-
 
 
 //-----------------------------------------------------------------------------
@@ -584,10 +491,6 @@ bool CFuncRotating::KeyValue( const char *szKeyName, const char *szValue )
 //-----------------------------------------------------------------------------
 void CFuncRotating::Spawn( )
 {
-#ifdef TF_DLL
-	AddSpawnFlags( SF_BRUSH_ROTATE_CLIENTSIDE );
-#endif
-
 	//
 	// Maintain compatibility with previous maps.
 	//
@@ -709,12 +612,6 @@ void CFuncRotating::Spawn( )
 	if ( m_bSolidBsp )
 	{
 		SetSolid( SOLID_BSP );
-	}
-
-	if ( HasSpawnFlags(SF_BRUSH_ROTATE_CLIENTSIDE) )
-	{
-		m_vecClientOrigin = GetLocalOrigin();
-		m_vecClientAngles = GetLocalAngles();
 	}
 }
 
@@ -872,11 +769,10 @@ void CFuncRotating::UpdateSpeed( float flNewSpeed )
 		{
 			if ( flNewSpeed <= 25 && fabs( angDelta ) < 1.0f )
 			{
-				m_flTargetSpeed = 0;
+				SetTargetSpeed( 0 );
+				SetLocalAngles( m_angStart );
 				m_bStopAtStartPos = false;
 				m_flSpeed = 0.0f;
-
-				SetLocalAngles( m_angStart );
 			}
 			else if ( fabs( angDelta ) > 90.0f )
 			{
@@ -1339,14 +1235,10 @@ public:
 	bool EntityPassesFilter( CBaseEntity *pOther );
 	bool ForceVPhysicsCollide( CBaseEntity *pEntity );
 
-	void InputEnable( inputdata_t &inputdata );
-	void InputDisable( inputdata_t &inputdata );
-
 private:
 
 	string_t						m_iFilterName;
 	CHandle<CBaseFilter>			m_hFilter;
-	bool							m_bDisabled;
 };
 
 // Global Savedata for base trigger
@@ -1355,10 +1247,6 @@ BEGIN_DATADESC( CFuncVPhysicsClip )
 	// Keyfields
 	DEFINE_KEYFIELD( m_iFilterName,	FIELD_STRING,	"filtername" ),
 	DEFINE_FIELD( m_hFilter,	FIELD_EHANDLE ),
-	DEFINE_FIELD( m_bDisabled,	FIELD_BOOLEAN ),
-
-	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
 
 END_DATADESC()
 
@@ -1373,7 +1261,6 @@ void CFuncVPhysicsClip::Spawn( void )
 	SetModel( STRING( GetModelName() ) );
 	AddEffects( EF_NODRAW );
 	CreateVPhysics();
-	VPhysicsGetObject()->EnableCollisions( !m_bDisabled );
 }
 
 
@@ -1413,14 +1300,3 @@ bool CFuncVPhysicsClip::ForceVPhysicsCollide( CBaseEntity *pEntity )
 	return EntityPassesFilter(pEntity);
 }
 
-void CFuncVPhysicsClip::InputEnable( inputdata_t &inputdata )
-{
-	VPhysicsGetObject()->EnableCollisions(true);
-	m_bDisabled = false;
-}
-
-void CFuncVPhysicsClip::InputDisable( inputdata_t &inputdata )
-{
-	VPhysicsGetObject()->EnableCollisions(false);
-	m_bDisabled = true;
-}

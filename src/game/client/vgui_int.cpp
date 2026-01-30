@@ -151,22 +151,31 @@ void VGui_CreateGlobalPanels( void )
 	VPANEL gameToolParent = enginevgui->GetPanel( PANEL_CLIENTDLL_TOOLS );
 	VPANEL toolParent = enginevgui->GetPanel( PANEL_TOOLS );
 #if defined( TRACK_BLOCKING_IO )
+#if !defined( _XBOX )
 	VPANEL gameDLLPanel = enginevgui->GetPanel( PANEL_GAMEDLL );
+#else
+	VPANEL gameDLLPanel = enginevgui->GetPanel( PANEL_ROOT );
+#endif
 #endif
 	// Part of game
+	textmessage->Create( gameToolParent );
 	internalCenterPrint->Create( gameToolParent );
+#ifndef _XBOX
 	loadingdisc->Create( gameToolParent );
 	messagechars->Create( gameToolParent );
+#endif
 
 	// Debugging or related tool
 	fps->Create( toolParent );
 #if defined( TRACK_BLOCKING_IO )
 	iopanel->Create( gameDLLPanel );
 #endif
+#ifndef _XBOX
 	netgraphpanel->Create( toolParent );
+#endif
 	debugoverlaypanel->Create( gameToolParent );
 
-#ifndef _X360
+#ifndef _XBOX
 	// Create mp3 player off of tool parent panel
 	MP3Player_Create( toolParent );
 #endif
@@ -175,21 +184,22 @@ void VGui_CreateGlobalPanels( void )
 void VGui_Shutdown()
 {
 	VGUI_DestroyClientDLLRootPanel();
-
-#ifndef _X360
+#ifndef _XBOX
 	MP3Player_Destroy();
-#endif
-
 	netgraphpanel->Destroy();
+#endif
 	debugoverlaypanel->Destroy();
 #if defined( TRACK_BLOCKING_IO )
 	iopanel->Destroy();
 #endif
 	fps->Destroy();
 
+#ifndef _XBOX
 	messagechars->Destroy();
 	loadingdisc->Destroy();
+#endif
 	internalCenterPrint->Destroy();
+	textmessage->Destroy();
 
 	if ( g_pClientMode )
 	{
@@ -209,13 +219,10 @@ static ConVar cl_showpausedimage( "cl_showpausedimage", "1", 0, "Show the 'Pause
 void VGui_PreRender()
 {
 	VPROF( "VGui_PreRender" );
-
-	// 360 does not use these plaques
-	if ( IsPC() )
-	{
-		loadingdisc->SetLoadingVisible( engine->IsDrawingLoadingImage() && !engine->IsPlayingDemo() );
-		loadingdisc->SetPausedVisible( !enginevgui->IsGameUIVisible() && cl_showpausedimage.GetBool() && engine->IsPaused() && !engine->IsTakingScreenshot() && !engine->IsPlayingDemo() );
-	}
+#ifndef _XBOX
+	loadingdisc->SetLoadingVisible( engine->IsDrawingLoadingImage() && !engine->IsPlayingDemo() );
+	loadingdisc->SetPausedVisible( !enginevgui->IsGameUIVisible() && cl_showpausedimage.GetBool() && engine->IsPaused() && !engine->IsTakingScreenshot() && !engine->IsPlayingDemo() );
+#endif
 }
 
 void VGui_PostRender()
@@ -228,9 +235,9 @@ void VGui_PostRender()
 //-----------------------------------------------------------------------------
 CON_COMMAND( cl_panelanimation, "Shows panel animation variables: <panelname | blank for all panels>." )
 {
-	if ( args.ArgC() == 2 )
+	if ( engine->Cmd_Argc() == 2 )
 	{
-		PanelAnimationDumpVars( args[1] );
+		PanelAnimationDumpVars( engine->Cmd_Argv(1) );
 	}
 	else
 	{

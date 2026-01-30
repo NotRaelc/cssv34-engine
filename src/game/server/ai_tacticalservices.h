@@ -1,6 +1,8 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ====
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
-//=============================================================================
+// Purpose:
+//
+//=============================================================================//
 
 #ifndef AI_TACTICALSERVICES_H
 #define AI_TACTICALSERVICES_H
@@ -13,15 +15,6 @@
 
 class CAI_Network;
 class CAI_Pathfinder;
-
-
-enum FlankType_t
-{
-	FLANKTYPE_NONE = 0,
-	FLANKTYPE_ARC,			// Stay flFlankParam degrees of arc away from vecFlankRefPos
-	FLANKTYPE_RADIUS,		// Stay flFlankParam units away from vecFlankRefPos
-};
-
 
 //-----------------------------------------------------------------------------
 
@@ -38,7 +31,7 @@ public:
 	void Init( CAI_Network *pNetwork );
 
 	bool			FindLos( const Vector &threatPos, const Vector &threatEyePos, float minThreatDist, float maxThreatDist, float blockTime, Vector *pResult );
-	bool			FindLos( const Vector &threatPos, const Vector &threatEyePos, float minThreatDist, float maxThreatDist, float blockTime, FlankType_t eFlankType, const Vector &VecFlankRefPos, float flFlankParam, Vector *pResult );
+	bool			FindLos( const Vector &threatPos, const Vector &threatEyePos, float minThreatDist, float maxThreatDist, float blockTime, const Vector &threatFacing, Vector *pResult );
 	bool			FindLateralLos( const Vector &threatPos, Vector *pResult );
 	bool			FindBackAwayPos( const Vector &vecThreat, Vector *pResult );
 	bool			FindCoverPos( const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinDist, float flMaxDist, Vector *pResult );
@@ -54,10 +47,10 @@ private:
 	bool			TestLateralCover( const Vector &vecCheckStart, const Vector &vecCheckEnd, float flMinDist );
 	bool			TestLateralLos( const Vector &vecCheckStart, const Vector &vecCheckEnd );
 
-	int				FindBackAwayNode( const Vector &vecThreat );
-	int				FindCoverNode( const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinDist, float flMaxDist );
-	int				FindCoverNode( const Vector &vNearPos, const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinDist, float flMaxDist );
-	int				FindLosNode( const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinThreatDist, float flMaxThreatDist, float flBlockTime, FlankType_t eFlankType, const Vector &vThreatFacing, float flFlankParam );
+	int				FindBackAwayNode	(const Vector &vecThreat );
+	int				FindCoverNode		(const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinDist, float flMaxDist );
+	int				FindCoverNode		(const Vector &vNearPos, const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinDist, float flMaxDist );
+	int				FindLosNode			(const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinThreatDist, float flMaxThreatDist, float flBlockTime, const Vector &vThreatFacing = vec3_origin);
 	
 	Vector			GetNodePos( int );
 

@@ -15,7 +15,7 @@
 #include "gamerules.h"
 #include "entitylist.h"
 #include "bspfile.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "IEffects.h"
 #include "vstdlib/random.h"
 #include "soundflags.h"
@@ -35,11 +35,6 @@
 #include "engine/ivdebugoverlay.h"
 #include "datacache/imdlcache.h"
 #include "util.h"
-
-#ifdef PORTAL
-#include "PortalSimulation.h"
-//#include "Portal_PhysicsEnvironmentMgr.h"
-#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -94,6 +89,9 @@ IEntityFactoryDictionary *EntityFactoryDictionary()
 
 void DumpEntityFactories_f()
 {
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+	
 	CEntityFactoryDictionary *dict = ( CEntityFactoryDictionary * )EntityFactoryDictionary();
 	if ( dict )
 	{
@@ -112,6 +110,9 @@ static ConCommand dumpentityfactories( "dumpentityfactories", DumpEntityFactorie
 //-----------------------------------------------------------------------------
 CON_COMMAND( dump_entity_sizes, "Print sizeof(entclass)" )
 {
+	if ( !UTIL_IsCommandIssuedByServerAdmin() )
+		return;
+	
 	((CEntityFactoryDictionary*)EntityFactoryDictionary())->ReportEntitySizes();
 }
 
@@ -329,7 +330,7 @@ private:
 //-----------------------------------------------------------------------------
 // Drops an entity onto the floor
 //-----------------------------------------------------------------------------
-int UTIL_DropToFloor( CBaseEntity *pEntity, unsigned int mask, CBaseEntity *pIgnore)
+int UTIL_DropToFloor( CBaseEntity *pEntity, unsigned int mask)
 {
 	// Assume no ground
 	pEntity->SetGroundEntity( NULL );
@@ -337,12 +338,7 @@ int UTIL_DropToFloor( CBaseEntity *pEntity, unsigned int mask, CBaseEntity *pIgn
 	Assert( pEntity );
 
 	trace_t	trace;
-	// HACK: is this really the only sure way to detect crossing a terrain boundry?
-	UTIL_TraceEntity( pEntity, pEntity->GetAbsOrigin(), pEntity->GetAbsOrigin(), mask, pIgnore, pEntity->GetCollisionGroup(), &trace );
-	if (trace.fraction == 0.0)
-		return -1;
-
-	UTIL_TraceEntity( pEntity, pEntity->GetAbsOrigin(), pEntity->GetAbsOrigin() - Vector(0,0,256), mask, pIgnore, pEntity->GetCollisionGroup(), &trace );
+	UTIL_TraceEntity( pEntity, pEntity->GetAbsOrigin(), pEntity->GetAbsOrigin() - Vector(0,0,256), mask, &trace );
 
 	if (trace.allsolid)
 		return -1;
@@ -352,7 +348,6 @@ int UTIL_DropToFloor( CBaseEntity *pEntity, unsigned int mask, CBaseEntity *pIgn
 
 	pEntity->SetAbsOrigin( trace.endpos );
 	pEntity->SetGroundEntity( trace.m_pEnt );
-
 	return 1;
 }
 
@@ -441,32 +436,23 @@ bool g_bReceivedChainedUpdateOnRemove = false;
 //-----------------------------------------------------------------------------
 void UTIL_Remove( IServerNetworkable *oldObj )
 {
-	CServerNetworkProperty* pProp = static_cast<CServerNetworkProperty*>( oldObj );
-	if ( !pProp || pProp->IsMarkedForDeletion() )
+	if ( !oldObj || (oldObj->GetEFlags() & EFL_KILLME) )
 		return;
 
 	if ( PhysIsInCallback() )
 	{
-		// This assert means that someone is deleting an entity inside a callback.  That isn't supported so
-		// this code will defer the deletion of that object until the end of the current physics simulation frame
-		// Since this is hidden from the calling code it's preferred to call PhysCallbackRemove() directly from the caller
-		// in case the deferred delete will have unwanted results (like continuing to receive callbacks).  That will make it 
-		// obvious why the unwanted results are happening so the caller can handle them appropriately. (some callbacks can be masked 
-		// or the calling entity can be flagged to filter them in most cases)
+		// Need to hunt down why this is happening!
 		Assert(0);
 		PhysCallbackRemove(oldObj);
 		return;
 	}
 
 	// mark it for deletion	
-	pProp->MarkForDeletion( );
+	oldObj->AddEFlags( EFL_KILLME );
 
 	CBaseEntity *pBaseEnt = oldObj->GetBaseEntity();
 	if ( pBaseEnt )
 	{
-#ifdef PORTAL //make sure entities are in the primary physics environment for the portal mod, this code should be safe even if the entity is in neither extra environment
-		CPortalSimulator::Pre_UTIL_Remove( pBaseEnt );
-#endif
 		g_bReceivedChainedUpdateOnRemove = false;
 		pBaseEnt->UpdateOnRemove();
 
@@ -474,10 +460,6 @@ void UTIL_Remove( IServerNetworkable *oldObj )
 
 		// clear oldObj targetname / other flags now
 		pBaseEnt->SetName( NULL_STRING );
-
-#ifdef PORTAL
-		CPortalSimulator::Post_UTIL_Remove( pBaseEnt );
-#endif
 	}
 
 	gEntList.AddToDeleteList( oldObj );
@@ -517,10 +499,6 @@ void UTIL_RemoveImmediate( CBaseEntity *oldObj )
 		return;
 	}
 
-#ifdef PORTAL //make sure entities are in the primary physics environment for the portal mod, this code should be safe even if the entity is in neither extra environment
-	CPortalSimulator::Pre_UTIL_Remove( oldObj );
-#endif
-
 	oldObj->AddEFlags( EFL_KILLME );	// Make sure to ignore further calls into here or UTIL_Remove.
 
 	g_bReceivedChainedUpdateOnRemove = false;
@@ -532,10 +510,6 @@ void UTIL_RemoveImmediate( CBaseEntity *oldObj )
 	g_bDisableEhandleAccess = true;
 	delete oldObj;
 	g_bDisableEhandleAccess = false;
-
-#ifdef PORTAL
-	CPortalSimulator::Post_UTIL_Remove( oldObj );
-#endif
 }
 
 
@@ -604,151 +578,26 @@ CBasePlayer* UTIL_PlayerByUserId( int userID )
 }
 
 //
-// Return any player.
+// Return the local player.
+// If this is a multiplayer game, return NULL.
 // 
 CBasePlayer *UTIL_GetLocalPlayer( void )
 {
-	CBasePlayer* pHost = UTIL_GetListenServerHost();
-	if (pHost)
-		return pHost;
-
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
+	if ( gpGlobals->maxClients > 1 )
 	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (pPlayer)
-			return pPlayer;
-	}
-
-	return NULL;
-}
-
-//
-// Return the nearest available player.
-// source: https://github.com/whoozzem/SecobMod
-// pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
-// 
-CBasePlayer* UTIL_GetNearestPlayer(const Vector& origin)
-{
-	float distToNearest = 9999999999999999999.0f;
-	CBasePlayer* pNearest = NULL;
-
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (!pPlayer)
-			continue;
-
-		float flDist = (pPlayer->GetAbsOrigin() - origin).LengthSqr();
-		if (flDist < distToNearest)
+		if ( developer.GetBool() )
 		{
-			pNearest = pPlayer;
-			distToNearest = flDist;
+			Assert( !"UTIL_GetLocalPlayer" );
+			
+#ifdef	DEBUG
+			Warning( "UTIL_GetLocalPlayer() called in multiplayer game.\n" );
+#endif
 		}
+
+		return NULL;
 	}
 
-	return pNearest;
-}
-
-//
-// Return the nearest visible player if we found one, otherwise return the nearest player
-// 
-CBasePlayer* UTIL_GetNearestPlayerPreferVisible(CBaseEntity* pLooker, int mask)
-{
-	float distToNearest = 9999999999999999999.0f;
-	float distToNearestNonVisible = 9999999999999999999.0f;
-	CBasePlayer* pNearest = NULL;
-	CBasePlayer* pNearestNonVisible = NULL;
-
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (!pPlayer)
-			continue;
-
-		float flDist = (pPlayer->GetAbsOrigin() - pLooker->GetAbsOrigin()).LengthSqr();
-		if (flDist < distToNearest && pLooker->FVisible(pPlayer, mask))
-		{
-			pNearest = pPlayer;
-			distToNearest = flDist;
-		}
-		else if (flDist < distToNearestNonVisible)
-		{
-			pNearestNonVisible = pPlayer;
-			distToNearestNonVisible = flDist;
-		}
-	}
-
-	if (pNearest)
-		return pNearest;
-	return pNearestNonVisible;
-}
-
-//
-// Return the nearest visible player.
-// 
-CBasePlayer* UTIL_GetNearestVisiblePlayer(CBaseEntity* pLooker, int mask)
-{
-	float distToNearest = 9999999999999999999.0f;
-	CBasePlayer* pNearest = NULL;
-
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (!pPlayer)
-			continue;
-
-		float flDist = (pPlayer->GetAbsOrigin() - pLooker->GetAbsOrigin()).LengthSqr();
-		if (flDist < distToNearest && pLooker->FVisible(pPlayer, mask))  // only difference
-		{
-			pNearest = pPlayer;
-			distToNearest = flDist;
-		}
-	}
-
-	return pNearest;
-}
-
-//
-// Return true if the any player is looking at the entity.
-// 
-bool UTIL_IsAnyPlayerLookingAtEntity(CBaseEntity* pEntity)
-{
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (pPlayer && pPlayer->FInViewCone(pEntity))
-			return true;
-	}
-
-	return false;
-}
-
-
-//
-// Get the nearest player to a player that called the command
-//
-CBasePlayer* UTIL_GetOtherNearestPlayer(const Vector& origin)
-{
-	float distToOtherNearest = 128.0f; //4WH - Information: We don't want the OtherNearest player to be the player that called this function.
-	CBasePlayer* pOtherNearest = NULL;
-
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (!pPlayer)
-			continue;
-
-		float flDist = (pPlayer->GetAbsOrigin() - origin).LengthSqr();
-		if (flDist >= distToOtherNearest)
-
-		{
-			pOtherNearest = pPlayer;
-			distToOtherNearest = flDist;
-
-		}
-	}
-
-	return pOtherNearest;
+	return UTIL_PlayerByIndex( 1 );
 }
 
 //
@@ -1166,7 +1015,7 @@ void UTIL_HudHintText( CBaseEntity *pEntity, const char *pMessage )
 
 	CSingleUserRecipientFilter user( (CBasePlayer *)pEntity );
 	user.MakeReliable();
-	UserMessageBegin( user, "KeyHintText" );
+	UserMessageBegin( user, "HintText" );
 		WRITE_BYTE( 1 );	// one string
 		WRITE_STRING( pMessage );
 	MessageEnd();
@@ -1401,12 +1250,6 @@ void UTIL_SetModel( CBaseEntity *pEntity, const char *pModelName )
 	else
 	{
 		SetMinMaxSize (pEntity, vec3_origin, vec3_origin);
-	}
-
-	CBaseAnimating *pAnimating = pEntity->GetBaseAnimating();
-	if ( pAnimating )
-	{
-		pAnimating->m_nForceBone = 0;
 	}
 }
 
@@ -2592,27 +2435,6 @@ void UTIL_PointAtNamedEntity( CBaseEntity *pDest, string_t strTarget )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Copy the pose parameter values from one entity to the other
-// Input  : *pSourceEntity - entity to copy from
-//			*pDestEntity - entity to copy to
-//-----------------------------------------------------------------------------
-bool UTIL_TransferPoseParameters( CBaseEntity *pSourceEntity, CBaseEntity *pDestEntity )
-{
-	CBaseAnimating *pSourceBaseAnimating = dynamic_cast<CBaseAnimating*>( pSourceEntity );
-	CBaseAnimating *pDestBaseAnimating = dynamic_cast<CBaseAnimating*>( pDestEntity );
-
-	if ( !pSourceBaseAnimating || !pDestBaseAnimating )
-		return false;
-
-	for ( int iPose = 0; iPose < MAXSTUDIOPOSEPARAM; ++iPose )
-	{
-		pDestBaseAnimating->SetPoseParameter( iPose, pSourceBaseAnimating->GetPoseParameter( iPose ) );
-	}
-	
-	return true;
-}
-
-//-----------------------------------------------------------------------------
 // Purpose: Make a muzzle flash appear
 // Input  : &origin - position of the muzzle flash
 //			&angles - angles of the fire direction
@@ -2873,120 +2695,6 @@ bool UTIL_LoadAndSpawnEntitiesFromScript( CUtlVector <CBaseEntity*> &entities, c
 	return true;
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: Convert a vector an angle from worldspace to the entity's parent's local space
-// Input  : *pEntity - Entity whose parent we're concerned with
-//-----------------------------------------------------------------------------
-void UTIL_ParentToWorldSpace( CBaseEntity *pEntity, Vector &vecPosition, QAngle &vecAngles )
-{
-	if ( pEntity == NULL )
-		return;
-
-	// Construct the entity-to-world matrix
-	// Start with making an entity-to-parent matrix
-	matrix3x4_t matEntityToParent;
-	AngleMatrix( vecAngles, matEntityToParent );
-	MatrixSetColumn( vecPosition, 3, matEntityToParent );
-
-	// concatenate with our parent's transform
-	matrix3x4_t matScratch, matResult;
-	matrix3x4_t matParentToWorld;
-	
-	if ( pEntity->GetParent() != NULL )
-	{
-		matParentToWorld = pEntity->GetParentToWorldTransform( matScratch );
-	}
-	else
-	{
-		matParentToWorld = pEntity->EntityToWorldTransform();
-	}
-
-	ConcatTransforms( matParentToWorld, matEntityToParent, matResult );
-
-	// pull our absolute position out of the matrix
-	MatrixGetColumn( matResult, 3, vecPosition );
-	MatrixAngles( matResult, vecAngles );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Convert a vector and quaternion from worldspace to the entity's parent's local space
-// Input  : *pEntity - Entity whose parent we're concerned with
-//-----------------------------------------------------------------------------
-void UTIL_ParentToWorldSpace( CBaseEntity *pEntity, Vector &vecPosition, Quaternion &quat )
-{
-	if ( pEntity == NULL )
-		return;
-
-	QAngle vecAngles;
-	QuaternionAngles( quat, vecAngles );
-	UTIL_ParentToWorldSpace( pEntity, vecPosition, vecAngles );
-	AngleQuaternion( vecAngles, quat );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Convert a vector an angle from worldspace to the entity's parent's local space
-// Input  : *pEntity - Entity whose parent we're concerned with
-//-----------------------------------------------------------------------------
-void UTIL_WorldToParentSpace( CBaseEntity *pEntity, Vector &vecPosition, QAngle &vecAngles )
-{
-	if ( pEntity == NULL )
-		return;
-
-	// Construct the entity-to-world matrix
-	// Start with making an entity-to-parent matrix
-	matrix3x4_t matEntityToParent;
-	AngleMatrix( vecAngles, matEntityToParent );
-	MatrixSetColumn( vecPosition, 3, matEntityToParent );
-
-	// concatenate with our parent's transform
-	matrix3x4_t matScratch, matResult;
-	matrix3x4_t matWorldToParent;
-	
-	if ( pEntity->GetParent() != NULL )
-	{
-		matScratch = pEntity->GetParentToWorldTransform( matScratch );
-	}
-	else
-	{
-		matScratch = pEntity->EntityToWorldTransform();
-	}
-
-	MatrixInvert( matScratch, matWorldToParent );
-	ConcatTransforms( matWorldToParent, matEntityToParent, matResult );
-
-	// pull our absolute position out of the matrix
-	MatrixGetColumn( matResult, 3, vecPosition );
-	MatrixAngles( matResult, vecAngles );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Convert a vector and quaternion from worldspace to the entity's parent's local space
-// Input  : *pEntity - Entity whose parent we're concerned with
-//-----------------------------------------------------------------------------
-void UTIL_WorldToParentSpace( CBaseEntity *pEntity, Vector &vecPosition, Quaternion &quat )
-{
-	if ( pEntity == NULL )
-		return;
-
-	QAngle vecAngles;
-	QuaternionAngles( quat, vecAngles );
-	UTIL_WorldToParentSpace( pEntity, vecPosition, vecAngles );
-	AngleQuaternion( vecAngles, quat );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Given a vector, clamps the scalar axes to MAX_COORD_FLOAT ranges from worldsize.h
-// Input  : *pVecPos - 
-//-----------------------------------------------------------------------------
-void UTIL_BoundToWorldSize( Vector *pVecPos )
-{
-	Assert( pVecPos );
-	for ( int i = 0; i < 3; ++i )
-	{
-		(*pVecPos)[ i ] = clamp( (*pVecPos)[ i ], MIN_COORD_FLOAT, MAX_COORD_FLOAT );
-	}
-}
-
 //=============================================================================
 //
 // Tests!
@@ -2995,7 +2703,7 @@ void UTIL_BoundToWorldSize( Vector *pVecPos )
 #define NUM_KDTREE_TESTS		2500
 #define NUM_KDTREE_ENTITY_SIZE	256
 
-void CC_KDTreeTest( const CCommand &args )
+void CC_KDTreeTest( void )
 {
 	Msg( "Testing kd-tree entity queries." );
 
@@ -3048,9 +2756,9 @@ void CC_KDTreeTest( const CCommand &args )
 	}
 
 	int nTestType = 0;
-	if ( args.ArgC() >= 2 )
+	if ( engine->Cmd_Argc() >= 2 )
 	{
-		nTestType = atoi( args[ 1 ] );
+		nTestType = atoi( engine->Cmd_Argv( 1 ) );
 	}
 
 	vtune( true );
@@ -3184,18 +2892,18 @@ void CC_VoxelTreePlayerView( void )
 
 static ConCommand voxeltree_playerview( "voxeltree_playerview", CC_VoxelTreePlayerView, "View entities in the voxel-tree at the player position.", FCVAR_CHEAT );
 
-void CC_VoxelTreeBox( const CCommand &args )
+void CC_VoxelTreeBox( void )
 {
 	Vector vecMin, vecMax;
-	if ( args.ArgC() >= 6 )
+	if ( engine->Cmd_Argc() >= 6 )
 	{
-		vecMin.x = atof( args[ 1 ] );
-		vecMin.y = atof( args[ 2 ] );
-		vecMin.z = atof( args[ 3 ] );
+		vecMin.x = atof( engine->Cmd_Argv( 1 ) );
+		vecMin.y = atof( engine->Cmd_Argv( 2 ) );
+		vecMin.z = atof( engine->Cmd_Argv( 3 ) );
 
-		vecMax.x = atof( args[ 4 ] );
-		vecMax.y = atof( args[ 5 ] );
-		vecMax.z = atof( args[ 6 ] );
+		vecMax.x = atof( engine->Cmd_Argv( 4 ) );
+		vecMax.y = atof( engine->Cmd_Argv( 5 ) );
+		vecMax.z = atof( engine->Cmd_Argv( 6 ) );
 	}
 	else
 	{
@@ -3235,17 +2943,17 @@ void CC_VoxelTreeBox( const CCommand &args )
 
 static ConCommand voxeltree_box( "voxeltree_box", CC_VoxelTreeBox, "View entities in the voxel-tree inside box <Vector(min), Vector(max)>.", FCVAR_CHEAT );
 
-void CC_VoxelTreeSphere( const CCommand &args )
+void CC_VoxelTreeSphere( void )
 {
 	Vector vecCenter;
 	float flRadius;
-	if ( args.ArgC() >= 4 )
+	if ( engine->Cmd_Argc() >= 4 )
 	{
-		vecCenter.x = atof( args[ 1 ] );
-		vecCenter.y = atof( args[ 2 ] );
-		vecCenter.z = atof( args[ 3 ] );
+		vecCenter.x = atof( engine->Cmd_Argv( 1 ) );
+		vecCenter.y = atof( engine->Cmd_Argv( 2 ) );
+		vecCenter.z = atof( engine->Cmd_Argv( 3 ) );
 
-		flRadius = atof( args[ 3 ] );
+		flRadius = atof( engine->Cmd_Argv( 3 ) );
 	}
 	else
 	{
@@ -3292,7 +3000,7 @@ static ConCommand voxeltree_sphere( "voxeltree_sphere", CC_VoxelTreeSphere, "Vie
 
 
 #define NUM_COLLISION_TESTS 2500
-void CC_CollisionTest( const CCommand &args )
+void CC_CollisionTest( void )
 {
 	if ( !physenv )
 		return;
@@ -3339,9 +3047,9 @@ void CC_CollisionTest( const CCommand &args )
 	//Vector results[NUM_COLLISION_TESTS];
 
 	int testType = 0;
-	if ( args.ArgC() >= 2 )
+	if ( engine->Cmd_Argc() >= 2 )
 	{
-		testType = atoi(args[1]);
+		testType = atoi(engine->Cmd_Argv(1));
 	}
 	float duration = 0;
 	Vector size[2];

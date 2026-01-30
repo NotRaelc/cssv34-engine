@@ -14,7 +14,7 @@
 #include "ai_basenpc.h"
 #include "ai_hull.h"
 #include "ai_baseactor.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "vstdlib/random.h"
 #include "engine/IEngineSound.h"
 
@@ -202,7 +202,7 @@ public:
 	//virtual bool IsAlive( void ) { return FALSE; }
 
 	float m_flextime;
-	LocalFlexController_t m_flexnum;
+	int m_flexnum;
 	float m_flextarget[64];
 	float m_blinktime;
 	float m_looktime;
@@ -214,8 +214,8 @@ public:
 	string_t m_iszSentence;
 	int m_sentence;
 
-	void SetFlexTarget( LocalFlexController_t flexnum, float value );
-	LocalFlexController_t LookupFlex( const char *szTarget );
+	void SetFlexTarget( int flexnum, float value );
+	int LookupFlex( const char *szTarget );
 };
 
 BEGIN_DATADESC( CFlextalkActor )
@@ -247,13 +247,13 @@ extern ConVar	flex_talk;
 extern const char *predef_flexcontroller_names[];
 extern float predef_flexcontroller_values[7][30];
 
-void CFlextalkActor::SetFlexTarget( LocalFlexController_t flexnum, float value )
+void CFlextalkActor::SetFlexTarget( int flexnum, float value )
 {
 	m_flextarget[flexnum] = value;
 
 	const char *pszType = GetFlexControllerType( flexnum );
 
-	for (LocalFlexController_t i = LocalFlexController_t(0); i < GetNumFlexControllers(); i++)
+	for (int i = 0; i < GetNumFlexControllers(); i++)
 	{
 		if (i != flexnum)
 		{
@@ -285,9 +285,9 @@ void CFlextalkActor::SetFlexTarget( LocalFlexController_t flexnum, float value )
 }
 
 
-LocalFlexController_t CFlextalkActor::LookupFlex( const char *szTarget  )
+int CFlextalkActor::LookupFlex( const char *szTarget  )
 {
-	for (LocalFlexController_t i = LocalFlexController_t(0); i < GetNumFlexControllers(); i++)
+	for (int i = 0; i < GetNumFlexControllers(); i++)
 	{
 		const char *pszFlex = GetFlexControllerName( i );
 		if (stricmp( szTarget, pszFlex ) == 0)
@@ -295,7 +295,7 @@ LocalFlexController_t CFlextalkActor::LookupFlex( const char *szTarget  )
 			return i;
 		}
 	}
-	return LocalFlexController_t(-1);
+	return -1;
 }
 
 
@@ -352,14 +352,14 @@ void CFlextalkActor::ProcessSceneEvents( void )
 				{
 					if (*pszExpression == '-')
 					{
-						for (LocalFlexController_t i = LocalFlexController_t(0); i < GetNumFlexControllers(); i++)
+						for (int i = 0; i < GetNumFlexControllers(); i++)
 						{
 							m_flextarget[i] = 0;
 						}
 					}
 					else if (*pszExpression == '?')
 					{
-						for (LocalFlexController_t i = LocalFlexController_t(0); i < GetNumFlexControllers(); i++)
+						for (int i = 0; i < GetNumFlexControllers(); i++)
 						{
 							Msg( "\"%s\" ", GetFlexControllerName( i ) );
 						}
@@ -387,7 +387,7 @@ void CFlextalkActor::ProcessSceneEvents( void )
 		else if (m_flextime < gpGlobals->curtime)
 		{
 			m_flextime = gpGlobals->curtime + random->RandomFloat( 0.3, 0.5 ) * (30.0 / GetNumFlexControllers());
-			m_flexnum = (LocalFlexController_t)random->RandomInt( 0, GetNumFlexControllers() - 1 );
+			m_flexnum = random->RandomInt( 0, GetNumFlexControllers() - 1 );
 
 			if (m_flextarget[m_flexnum] == 1)
 			{
@@ -404,7 +404,7 @@ void CFlextalkActor::ProcessSceneEvents( void )
 		}
 
 		// slide it up.
-		for (LocalFlexController_t i = LocalFlexController_t(0); i < GetNumFlexControllers(); i++)
+		for (int i = 0; i < GetNumFlexControllers(); i++)
 		{
 			float weight = GetFlexWeight( i );
 

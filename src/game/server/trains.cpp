@@ -12,8 +12,6 @@
 #include "engine/IEngineSound.h"
 #include "soundenvelope.h"
 #include "physics_npc_solver.h"
-#include "vphysics/friction.h"
-#include "hierarchy.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -756,7 +754,6 @@ public:
 	float		m_flBlockDamage;		// Damage to inflict when blocked.
 	float		m_flNextBlockTime;
 	string_t m_iszLastTarget;
-
 };
 
 LINK_ENTITY_TO_CLASS( func_train, CFuncTrain );
@@ -1192,8 +1189,6 @@ BEGIN_DATADESC( CFuncTrackTrain )
 	DEFINE_FIELD( m_controlMaxs, FIELD_VECTOR ),
 	DEFINE_FIELD( m_flVolume, FIELD_FLOAT ),
 	DEFINE_FIELD( m_oldSpeed, FIELD_FLOAT ),
-	//DEFINE_FIELD( m_lastBlockPos, FIELD_POSITION_VECTOR ), // temp values for blocking, don't save
-	//DEFINE_FIELD( m_lastBlockTick, FIELD_INTEGER ),
 
 	DEFINE_FIELD( m_bSoundPlaying, FIELD_BOOLEAN ),
 
@@ -1211,10 +1206,6 @@ BEGIN_DATADESC( CFuncTrackTrain )
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetSpeed", InputSetSpeed ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetSpeedDir", InputSetSpeedDir ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetSpeedReal", InputSetSpeedReal ),
-
-	// Outputs
-	DEFINE_OUTPUT( m_OnStart, "OnStart" ),
-	DEFINE_OUTPUT( m_OnNext, "OnNextPoint" ),
 
 	// Function Pointers
 	DEFINE_FUNCTION( Next ),
@@ -1248,8 +1239,6 @@ CFuncTrackTrain::CFuncTrackTrain()
 	// require a vmf_tweak of older content to keep it from breaking.
 	m_eOrientationType = TrainOrientation_AtPathTracks;
 	m_eVelocityType = TrainVelocity_Instantaneous;
-	m_lastBlockPos.Init();
-	m_lastBlockTick = gpGlobals->tickcount;
 }
 
 
@@ -1404,7 +1393,6 @@ void CFuncTrackTrain::InputStartBackward( inputdata_t &inputdata )
 //------------------------------------------------------------------------------
 void CFuncTrackTrain::Start( void )
 {
-	m_OnStart.FireOutput(this,this);
 	Next();
 }
 
@@ -1537,39 +1525,32 @@ void CFuncTrackTrain::Stop( void )
 	SetThink(NULL);
 }
 
-static CBaseEntity *FindPhysicsBlockerForHierarchy( CBaseEntity *pParentEntity )
+#include "vphysics/friction.h"
+CBaseEntity *CFuncTrackTrain::FindPhysicsBlocker( IPhysicsObject *pPhysics )
 {
-	CUtlVector<CBaseEntity *> list;
-	GetAllInHierarchy( pParentEntity, list );
-	CBaseEntity *pPhysicsBlocker = NULL;
+	IPhysicsFrictionSnapshot *pSnapshot = pPhysics->CreateFrictionSnapshot();
+	CBaseEntity *pBlocker = NULL;
 	float maxForce = 0;
-	for ( int i = 0; i < list.Count(); i++ )
+	while ( pSnapshot->IsValid() )
 	{
-		IPhysicsObject *pPhysics = list[i]->VPhysicsGetObject();
-		if ( pPhysics )
+		IPhysicsObject *pOther = pSnapshot->GetObject(1);
+		CBaseEntity *pOtherEntity = static_cast<CBaseEntity *>(pOther->GetGameData());
+		if ( pOtherEntity->GetMoveType() == MOVETYPE_VPHYSICS )
 		{
-			IPhysicsFrictionSnapshot *pSnapshot = pPhysics->CreateFrictionSnapshot();
-			while ( pSnapshot->IsValid() )
+			Vector normal;
+			pSnapshot->GetSurfaceNormal(normal);
+			float dot = DotProduct( GetAbsVelocity(), pSnapshot->GetNormalForce() * normal );
+			if ( !pBlocker || dot > maxForce )
 			{
-				IPhysicsObject *pOther = pSnapshot->GetObject(1);
-				CBaseEntity *pOtherEntity = static_cast<CBaseEntity *>(pOther->GetGameData());
-				if ( pOtherEntity->GetMoveType() == MOVETYPE_VPHYSICS )
-				{
-					Vector normal;
-					pSnapshot->GetSurfaceNormal(normal);
-					float dot = DotProduct( pParentEntity->GetAbsVelocity(), pSnapshot->GetNormalForce() * normal );
-					if ( !pPhysicsBlocker || dot > maxForce )
-					{
-						pPhysicsBlocker = pOtherEntity;
-						maxForce = dot;
-					}
-				}
-				pSnapshot->NextFrictionData();
+				pBlocker = pOtherEntity;
+				maxForce = dot;
 			}
-			pPhysics->DestroyFrictionSnapshot( pSnapshot );
 		}
+		pSnapshot->NextFrictionData();
 	}
-	return pPhysicsBlocker;
+	pPhysics->DestroyFrictionSnapshot( pSnapshot );
+
+	return pBlocker;
 }
 
 //-----------------------------------------------------------------------------
@@ -1604,39 +1585,11 @@ void CFuncTrackTrain::Blocked( CBaseEntity *pOther )
 	}
 	if ( HasSpawnFlags(SF_TRACKTRAIN_UNBLOCKABLE_BY_PLAYER) )
 	{
-		CBaseEntity *pPhysicsBlocker = FindPhysicsBlockerForHierarchy(this);
+		CBaseEntity *pPhysicsBlocker = FindPhysicsBlocker(VPhysicsGetObject());
 		if ( pPhysicsBlocker )
 		{
-			// This code keeps track of how long this train has been blocked
-			// The heuristic here is to keep instantaneous blocks from invoking the somewhat
-			// heavy-handed solver (which will disable collisions until we're clear) in cases
-			// where physics can solve it easily enough.
-			int ticksBlocked = gpGlobals->tickcount - m_lastBlockTick;
-			float dist = 0.0f;
-			// wait at least 10 ticks and make sure the train isn't actually moving before really blocking
-			const int MIN_BLOCKED_TICKS = 10;
-			if ( ticksBlocked > MIN_BLOCKED_TICKS )
-			{
-				dist = (GetAbsOrigin() - m_lastBlockPos).Length();
-				// must have moved at least 10% of normal velocity over the blocking interval, or we're being blocked
-				float minLength = GetAbsVelocity().Length() * TICK_INTERVAL * MIN_BLOCKED_TICKS * 0.10f;
-				if ( dist < minLength )
-				{
-					// been stuck for more than one tick without moving much?
-					// yes, disable collisions with the physics object most likely to be blocking us
-					EntityPhysics_CreateSolver( this, pPhysicsBlocker, true, 4.0f );
-				}
-			}
-			// first time blocking or moved too far since last block, reset
-			if ( dist > 1.0f || m_lastBlockTick < 0  )
-			{
-				m_lastBlockPos = GetAbsOrigin();
-				m_lastBlockTick = gpGlobals->tickcount;
-			}
+			EntityPhysics_CreateSolver( this, pPhysicsBlocker, true, 4.0f );
 		}
-		// unblockable shouldn't damage the player in this case
-		if ( pOther->IsPlayer() )
-			return;
 	}
 
 	DevWarning( 2, "TRAIN(%s): Blocked by %s (dmg:%.2f)\n", GetDebugName(), pOther->GetClassname(), m_flBlockDamage );
@@ -2222,8 +2175,6 @@ void CFuncTrackTrain::Next( void )
 			}
 		}
 
-		m_OnNext.FireOutput( pNext, this );
-
 		SetThink( &CFuncTrackTrain::Next );
 		SetMoveDoneTime( 0.5 );
 		SetNextThink( gpGlobals->curtime );
@@ -2377,19 +2328,13 @@ void CFuncTrackTrain::Find( void )
 	if ( !m_ppath )
 		return;
 
-	if ( !FClassnameIs( m_ppath, "path_track" ) 
-#ifndef PORTAL	//env_portal_path_track is a child of path_track and would like to get found
-		 && !FClassnameIs( m_ppath, "env_portal_path_track" )
-#endif //#ifndef PORTAL
-		)
+	if ( !FClassnameIs( m_ppath, "path_track" ) )
 	{
 		Warning( "func_track_train must be on a path of path_track\n" );
 		Assert(0);
 		m_ppath = NULL;
 		return;
 	}
-
-
 
 	Vector nextPos = m_ppath->GetLocalOrigin();
 	Vector look = nextPos;
@@ -2610,13 +2555,6 @@ void CFuncTrackTrain::UpdateOnRemove()
 {
 	SoundStop();
 	BaseClass::UpdateOnRemove();
-}
-
-void CFuncTrackTrain::MoveDone()
-{
-	m_lastBlockPos.Init();
-	m_lastBlockTick = -1;
-	BaseClass::MoveDone();
 }
 
 

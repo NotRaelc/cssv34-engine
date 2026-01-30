@@ -13,7 +13,6 @@
 #include "voice_status.h"
 #include "clientmode_shared.h"
 #include "c_playerresource.h"
-#include "voice_common.h"
 
 
 ConVar *sv_alltalk = NULL;
@@ -35,7 +34,6 @@ public:
 
 private:
 	CHudTexture *m_pVoiceIcon;
-
 
 	Color	m_clrIcon;
 };
@@ -107,7 +105,6 @@ public:
 
 private:
 	CHudTexture *m_pVoiceIcon;
-	int m_iDeadImageID;
 
 	Color	m_clrIcon;
 
@@ -143,14 +140,6 @@ CHudVoiceStatus::CHudVoiceStatus( const char *pName ) :
 	SetHiddenBits( 0 );
 
 	m_clrIcon = Color(255,255,255,255);
-
-	m_iDeadImageID = surface()->DrawGetTextureId( "hud/leaderboard_dead" );
-	if ( m_iDeadImageID == -1 ) // we didn't find it, so create a new one
-	{
-		m_iDeadImageID = surface()->CreateNewTextureID();	
-	}
-
-	surface()->DrawSetTextureFile( m_iDeadImageID, "hud/leaderboard_dead", true, false );
 }
 
 void CHudVoiceStatus::ApplySchemeSettings(vgui::IScheme *pScheme)
@@ -197,9 +186,6 @@ void CHudVoiceStatus::OnThink( void )
 
 bool CHudVoiceStatus::ShouldDraw()
 {
-	if ( IsInFreezeCam() == true )
-		return false;
-
 	return true;
 }
 
@@ -235,12 +221,11 @@ void CHudVoiceStatus::Paint()
 	for( i = m_SpeakingList.Head(); i != m_SpeakingList.InvalidIndex(); i = m_SpeakingList.Next(i) )
 	{
 		int playerIndex = m_SpeakingList.Element(i);
-		bool bIsAlive = g_PR->IsAlive( playerIndex );
 
 		Color c = g_PR->GetTeamColor( g_PR ? g_PR->GetTeam(playerIndex) : TEAM_UNASSIGNED );
 
 		c[3] = 128;
-	
+
 		const char *pName = g_PR ? g_PR->GetPlayerName(playerIndex) : "unknown";
 		wchar_t szconverted[ 64 ];
 
@@ -254,16 +239,16 @@ void CHudVoiceStatus::Paint()
 				const char *asciiLocation = pPlayer->GetLastKnownPlaceName();
 				if ( asciiLocation && *asciiLocation )
 				{
-					const wchar_t *unicodeLocation = g_pVGuiLocalize->Find( asciiLocation );
+					const wchar_t *unicodeLocation = vgui::localize()->Find( asciiLocation );
 					if ( unicodeLocation && *unicodeLocation )
 					{
-						wchar_t *formatStr = g_pVGuiLocalize->Find( "#Voice_UseLocation" );
+						wchar_t *formatStr = vgui::localize()->Find( "#Voice_UseLocation" );
 						if ( formatStr )
 						{
 							wchar_t unicodeName[ 64 ];
-							g_pVGuiLocalize->ConvertANSIToUnicode( pName, unicodeName, sizeof( unicodeName ) );
+							vgui::localize()->ConvertANSIToUnicode( pName, unicodeName, sizeof( unicodeName ) );
 
-							g_pVGuiLocalize->ConstructString( szconverted, sizeof( szconverted ),
+							vgui::localize()->ConstructString( szconverted, sizeof( szconverted ),
 								formatStr, 2, unicodeName, unicodeLocation );
 
 							usedLocation = true;
@@ -275,41 +260,18 @@ void CHudVoiceStatus::Paint()
 
 		if ( !usedLocation )
 		{
-			g_pVGuiLocalize->ConvertANSIToUnicode( pName, szconverted, sizeof(szconverted)  );
+			localize()->ConvertANSIToUnicode( pName, szconverted, sizeof(szconverted)  );
 		}
 
 		// Draw the item background
 		surface()->DrawSetColor( c );
 		surface()->DrawFilledRect( xpos, ypos, xpos + item_wide, ypos + item_tall );
-	
-		int iDeathIconWidth = 0;
-
-		if ( bIsAlive == false && m_iDeadImageID != -1 )
-		{
-			Vertex_t vert[4];	
-			float uv1 = 0.0f;
-			float uv2 = 1.0f;
-
-			// Draw the dead material
-			surface()->DrawSetTexture( m_iDeadImageID );
-
-			vert[0].Init( Vector2D( xpos, ypos ), Vector2D( uv1, uv1 ) );
-			vert[1].Init( Vector2D( xpos + icon_wide, ypos ), Vector2D( uv2, uv1 ) );
-			vert[2].Init( Vector2D( xpos + icon_wide, ypos + icon_tall ), Vector2D( uv2, uv2 ) );				
-			vert[3].Init( Vector2D( xpos, ypos + icon_tall ), Vector2D( uv1, uv2 ) );
-
-			surface()->DrawSetColor( Color(255,255,255,255) );
-
-			surface()->DrawTexturedPolygon( 4, vert );
-
-			iDeathIconWidth = icon_wide;
-		}
 
 		// Draw the voice icon
-		m_pVoiceIcon->DrawSelf( xpos + icon_xpos + iDeathIconWidth, ypos + icon_ypos, icon_wide, icon_tall, m_clrIcon );
+		m_pVoiceIcon->DrawSelf( xpos + icon_xpos, ypos + icon_ypos, icon_wide, icon_tall, m_clrIcon );
 
 		// Draw the player's name
-		surface()->DrawSetTextPos( xpos + text_xpos + iDeathIconWidth, ypos + ( item_tall / 2 ) - ( iFontHeight / 2 ) );
+		surface()->DrawSetTextPos( xpos + text_xpos, ypos + ( item_tall / 2 ) - ( iFontHeight / 2 ) );
 
 		int iTextSpace = item_wide - text_xpos;
 

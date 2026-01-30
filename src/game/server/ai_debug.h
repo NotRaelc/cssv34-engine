@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -22,11 +22,6 @@
 #define AI_PROFILE_SCOPE_BEGIN_( pszName )	if (0) ; else { AI_PROFILE_SCOPE_( pszName )
 #define AI_PROFILE_SCOPE_END()			} do {} while (0)
 
-#if defined(VPROF_AI)
-#define VProfAI() true
-#else
-#define VProfAI() false
-#endif
 #if defined(VPROF_AI)
 #include "tier0/vprof.h"
 #define AI_PROFILE_SCOPE( tag )			VPROF( #tag )
@@ -73,7 +68,7 @@ extern bool g_fTestSteering;
 //-----------------------------------------------------------------------------
 
 
-#ifdef _DEBUG
+#ifdef DEBUG
 extern ConVar ai_debug_doors;
 #define AIIsDebuggingDoors( pNPC ) ( ai_debug_doors.GetBool() && pNPC->m_bSelected )
 #define AIDoorDebugMsg( pNPC, msg )	if ( !AIIsDebuggingDoors( pNPC ) ) ; else Msg( msg )

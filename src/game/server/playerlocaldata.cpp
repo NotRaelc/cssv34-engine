@@ -8,7 +8,7 @@
 #include "cbase.h"
 #include "playerlocaldata.h"
 #include "player.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "entitylist.h"
 #include "SkyCamera.h"
 #include "playernet_vars.h"
@@ -33,22 +33,9 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropFloat	(SENDINFO(m_flDucktime), 12, SPROP_ROUNDDOWN|SPROP_CHANGES_OFTEN, 0.0f, 2048.0f ),
 	SendPropFloat	(SENDINFO(m_flDuckJumpTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
 	SendPropFloat	(SENDINFO(m_flJumpTime), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),
-#if PREDICTION_ERROR_CHECK_LEVEL > 1 
-	SendPropFloat	(SENDINFO(m_flFallVelocity), 32, SPROP_NOSCALE ),
-
-	SendPropFloat		( SENDINFO_VECTORELEM(m_vecPunchAngle, 0), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-	SendPropFloat		( SENDINFO_VECTORELEM(m_vecPunchAngle, 1), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-	SendPropFloat		( SENDINFO_VECTORELEM(m_vecPunchAngle, 2), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-
-	SendPropFloat		( SENDINFO_VECTORELEM(m_vecPunchAngleVel, 0), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-	SendPropFloat		( SENDINFO_VECTORELEM(m_vecPunchAngleVel, 1), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-	SendPropFloat		( SENDINFO_VECTORELEM(m_vecPunchAngleVel, 2), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-
-#else
 	SendPropFloat	(SENDINFO(m_flFallVelocity), 17, SPROP_CHANGES_OFTEN, -4096.0f, 4096.0f ),
 	SendPropVector	(SENDINFO(m_vecPunchAngle),      -1,  SPROP_COORD|SPROP_CHANGES_OFTEN),
 	SendPropVector	(SENDINFO(m_vecPunchAngleVel),      -1,  SPROP_COORD),
-#endif
 	SendPropInt		(SENDINFO(m_bDrawViewmodel), 1, SPROP_UNSIGNED ),
 	SendPropInt		(SENDINFO(m_bWearingSuit), 1, SPROP_UNSIGNED ),
 	SendPropBool	(SENDINFO(m_bPoisoned)),
@@ -67,9 +54,23 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropInt( SENDINFO_STRUCTELEM( m_skybox3d.fog.colorSecondary ), 32, SPROP_UNSIGNED ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.start ), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.end ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.maxdensity ), 0, SPROP_NOSCALE ),
 
-	SendPropEHandle( SENDINFO_STRUCTELEM( m_PlayerFog.m_hCtrl ) ),
+	// fog data
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.enable ), 1, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.blend ), 1, SPROP_UNSIGNED ),
+	SendPropVector( SENDINFO_STRUCTELEM(m_fog.dirPrimary), -1, SPROP_COORD),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimary ), 32, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondary ), 32, SPROP_UNSIGNED ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.start ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.end ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.farz ), 0, SPROP_NOSCALE ),
+
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimaryLerpTo ), 32, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondaryLerpTo ), 32, SPROP_UNSIGNED ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.startLerpTo ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.endLerpTo ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.lerptime ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.duration ), 0, SPROP_NOSCALE ),
 
 	// audio data
 	SendPropVector( SENDINFO_STRUCTARRAYELEM( m_audio.localSound, 0 ), -1, SPROP_COORD),
@@ -85,18 +86,7 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropEHandle( SENDINFO_STRUCTELEM( m_audio.ent ) ),
 END_SEND_TABLE()
 
-BEGIN_SIMPLE_DATADESC( fogplayerparams_t )
-	DEFINE_FIELD( m_hCtrl, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_flTransitionTime, FIELD_FLOAT ),
-	DEFINE_FIELD( m_OldColor, FIELD_COLOR32 ),
-	DEFINE_FIELD( m_flOldStart, FIELD_FLOAT ),
-	DEFINE_FIELD( m_flOldEnd, FIELD_FLOAT ),
-	DEFINE_FIELD( m_NewColor, FIELD_COLOR32 ),
-	DEFINE_FIELD( m_flNewStart, FIELD_FLOAT ),
-	DEFINE_FIELD( m_flNewEnd, FIELD_FLOAT ),
-END_DATADESC()
-
-BEGIN_SIMPLE_DATADESC( fogparams_t )
+BEGIN_DATADESC_NO_BASE( fogparams_t )
 
 	DEFINE_FIELD( enable, FIELD_BOOLEAN ),
 	DEFINE_FIELD( blend, FIELD_BOOLEAN ),
@@ -106,7 +96,6 @@ BEGIN_SIMPLE_DATADESC( fogparams_t )
 	DEFINE_FIELD( start, FIELD_FLOAT ),
 	DEFINE_FIELD( end, FIELD_FLOAT ),
 	DEFINE_FIELD( farz, FIELD_FLOAT ),
-	DEFINE_FIELD( maxdensity, FIELD_FLOAT ),
 	DEFINE_FIELD( colorPrimaryLerpTo, FIELD_COLOR32 ),
 	DEFINE_FIELD( colorSecondaryLerpTo, FIELD_COLOR32 ),
 	DEFINE_FIELD( startLerpTo, FIELD_FLOAT ),
@@ -115,7 +104,7 @@ BEGIN_SIMPLE_DATADESC( fogparams_t )
 	DEFINE_FIELD( duration, FIELD_FLOAT ),
 END_DATADESC()
 
-BEGIN_SIMPLE_DATADESC( sky3dparams_t )
+BEGIN_DATADESC_NO_BASE( sky3dparams_t )
 
 	DEFINE_FIELD( scale, FIELD_INTEGER ),
 	DEFINE_FIELD( origin, FIELD_VECTOR ),
@@ -124,7 +113,7 @@ BEGIN_SIMPLE_DATADESC( sky3dparams_t )
 
 END_DATADESC()
 
-BEGIN_SIMPLE_DATADESC( audioparams_t )
+BEGIN_DATADESC_NO_BASE( audioparams_t )
 
 	DEFINE_AUTO_ARRAY( localSound, FIELD_VECTOR ),
 	DEFINE_FIELD( soundscapeIndex, FIELD_INTEGER ),
@@ -135,7 +124,6 @@ END_DATADESC()
 
 BEGIN_SIMPLE_DATADESC( CPlayerLocalData )
 	DEFINE_AUTO_ARRAY( m_chAreaBits, FIELD_CHARACTER ),
-	DEFINE_AUTO_ARRAY( m_chAreaPortalBits, FIELD_CHARACTER ),
 	DEFINE_FIELD( m_iHideHUD, FIELD_INTEGER ),
 	DEFINE_FIELD( m_flFOVRate, FIELD_FLOAT ),
 	DEFINE_FIELD( m_vecOverViewpoint, FIELD_VECTOR ),
@@ -156,7 +144,6 @@ BEGIN_SIMPLE_DATADESC( CPlayerLocalData )
 	DEFINE_FIELD( m_flStepSize, FIELD_FLOAT ),
 	DEFINE_FIELD( m_bAllowAutoMovement, FIELD_BOOLEAN ),
 	DEFINE_EMBEDDED( m_skybox3d ),
-	DEFINE_EMBEDDED( m_PlayerFog ),
 	DEFINE_EMBEDDED( m_fog ),
 	DEFINE_EMBEDDED( m_audio ),
 	
@@ -184,7 +171,6 @@ CPlayerLocalData::CPlayerLocalData()
 	m_audio.localBits = 0;
 	m_audio.ent.Set( NULL );
 	m_pOldSkyCamera = NULL;
-	m_bDrawViewmodel = true;
 }
 
 
@@ -226,11 +212,17 @@ void ClientData_Update( CBasePlayer *pl )
 	if ( pSkyCamera != pl->m_Local.m_pOldSkyCamera )
 	{
 		pl->m_Local.m_pOldSkyCamera = pSkyCamera;
-		pl->m_Local.m_skybox3d.CopyFrom(pSkyCamera->m_skyboxData);
+		pl->m_Local.m_skybox3d.NetworkStateChanged();
+		memcpy( &pl->m_Local.m_skybox3d, &pSkyCamera->m_skyboxData, sizeof(pl->m_Local.m_skybox3d) );
 	}
 	else if ( !pSkyCamera )
 	{
 		pl->m_Local.m_skybox3d.area = 255;
+	}
+
+	if ( GetWorldFogParams( pl->m_Local.m_fog ) )
+	{
+		pl->m_Local.m_fog.NetworkStateChanged();
 	}
 }
 

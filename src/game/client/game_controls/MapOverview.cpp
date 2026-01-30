@@ -12,7 +12,7 @@
 #include <filesystem.h>
 #include <keyvalues.h>
 #include <convar.h>
-#include "mathlib/mathlib.h"
+#include <mathlib.h>
 #include <game/client/iviewport.h>
 #include <igameresources.h>
 #include "gamevars_shared.h"
@@ -26,11 +26,11 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar overview_health( "overview_health", "1", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Show player's health in map overview.\n" );
-ConVar overview_names ( "overview_names",  "1", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Show player's names in map overview.\n" );
-ConVar overview_tracks( "overview_tracks", "1", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Show player's tracks in map overview.\n" );
-ConVar overview_locked( "overview_locked", "1", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Locks map angle, doesn't follow view angle.\n" );
-ConVar overview_alpha( "overview_alpha",  "1.0", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Overview map translucency.\n" );
+ConVar overview_health( "overview_health", "1", FCVAR_ARCHIVE, "Show player's health in map overview.\n" );
+ConVar overview_names ( "overview_names",  "1", FCVAR_ARCHIVE, "Show player's names in map overview.\n" );
+ConVar overview_tracks( "overview_tracks", "1", FCVAR_ARCHIVE, "Show player's tracks in map overview.\n" );
+ConVar overview_locked( "overview_locked", "1", FCVAR_ARCHIVE, "Locks map angle, doesn't follow view angle.\n" );
+ConVar overview_alpha( "overview_alpha",  "1.0", FCVAR_ARCHIVE, "Overview map translucency.\n" );
 
 IMapOverviewPanel *g_pMapOverview = NULL; // we assume only one overview is created
 
@@ -56,17 +56,16 @@ static int AdjustValue( int curValue, int targetValue, int amount )
 
 CON_COMMAND( overview_zoom, "Sets overview map zoom: <zoom> [<time>] [rel]" )
 {
-	if ( !g_pMapOverview || args.ArgC() < 2 )
+	if ( !g_pMapOverview || engine->Cmd_Argc() < 2 )
 		return;
 
-	float zoom = Q_atof( args[ 1 ] );
+	float zoom = Q_atof( engine->Cmd_Argv( 1 ) );
 
 	float time = 0;
-	
-	if ( args.ArgC() >= 3 )
-		time = Q_atof( args[ 2 ] );
+	if ( engine->Cmd_Argc() >= 3 )
+		time = Q_atof( engine->Cmd_Argv( 2 ) );
 
-	if ( args.ArgC() == 4 )
+	if ( engine->Cmd_Argc() == 4 )
 		zoom *= g_pMapOverview->GetZoom();
 
 	// We are going to store their zoom pick as the resultant overview size that it sees.  This way, the value will remain
@@ -94,7 +93,7 @@ CON_COMMAND( overview_mode, "Sets overview map mode off,small,large: <0|1|2>" )
 
 	int mode;
 
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2 )
 	{
 		// toggle modes
 		mode = g_pMapOverview->GetMode() + 1;
@@ -105,7 +104,7 @@ CON_COMMAND( overview_mode, "Sets overview map mode off,small,large: <0|1|2>" )
 	else
 	{
 		// set specific mode
-		mode = Q_atoi( args[ 1 ] );
+		mode = Q_atoi(engine->Cmd_Argv( 1 ));
 	}
 
 	if( mode != CMapOverview::MAP_MODE_RADAR )
@@ -179,14 +178,14 @@ CMapOverview::CMapOverview( const char *pElementName ) : BaseClass( NULL, pEleme
 void CMapOverview::Init( void )
 {
 	// register for events as client listener
-	ListenForGameEvent( "game_newmap" );
-	ListenForGameEvent( "round_start" );
-	ListenForGameEvent( "player_connect" );
-	ListenForGameEvent( "player_info" );
-	ListenForGameEvent( "player_team" );
-	ListenForGameEvent( "player_spawn" );
-	ListenForGameEvent( "player_death" );
-	ListenForGameEvent( "player_disconnect" );
+	gameeventmanager->AddListener( this, "game_newmap", false );
+	gameeventmanager->AddListener( this, "round_start", false );
+	gameeventmanager->AddListener( this, "player_connect", false );
+	gameeventmanager->AddListener( this, "player_info", false );
+	gameeventmanager->AddListener( this, "player_team", false );
+	gameeventmanager->AddListener( this, "player_spawn", false );
+	gameeventmanager->AddListener( this, "player_death", false );
+	gameeventmanager->AddListener( this, "player_disconnect", false );
 }
 
 void CMapOverview::InitTeamColorsAndIcons()
@@ -230,6 +229,7 @@ CMapOverview::~CMapOverview()
 		m_MapKeyValues->deleteThis();
 
 	g_pMapOverview = NULL;
+	gameeventmanager->RemoveListener(this);
 
 	//TODO release Textures ? clear lists
 }
@@ -688,7 +688,7 @@ bool CMapOverview::DrawIcon( MapObject_t *obj )
 	{
 		wchar_t iconText[ MAX_PLAYER_NAME_LENGTH*2 ];
 
-		g_pVGuiLocalize->ConvertANSIToUnicode( text, iconText, sizeof( iconText ) );
+		localize()->ConvertANSIToUnicode( text, iconText, sizeof( iconText ) );
 
 		int wide, tall;
 		surface()->GetTextSize( m_hIconFont, iconText, wide, tall );
@@ -849,7 +849,7 @@ void CMapOverview::SetMap(const char * levelname)
 	char tempfile[MAX_PATH];
 	Q_snprintf( tempfile, sizeof( tempfile ), "resource/overviews/%s.txt", levelname );
 	
-	if ( !m_MapKeyValues->LoadFromFile( g_pFullFileSystem, tempfile, "GAME" ) )
+	if ( !m_MapKeyValues->LoadFromFile( vgui::filesystem(), tempfile, "GAME" ) )
 	{
 		DevMsg( 1, "Error! CMapOverview::SetMap: couldn't load file %s.\n", tempfile );
 		m_nMapTextureID = -1;

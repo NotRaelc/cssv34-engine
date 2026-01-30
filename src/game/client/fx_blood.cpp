@@ -16,17 +16,14 @@
 #include "fx_quad.h"
 #include "engine/IVDebugOverlay.h"
 #include "shareddefs.h"
-#include "fx.h"
 #include "fx_blood.h"
 #include "effect_color_tables.h"
-#include "particle_simple3D.h"
-#include "particle_parse.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectBloodSpray )
-CLIENTEFFECT_MATERIAL( "effects/blood_platform" )
+CLIENTEFFECT_MATERIAL( "effects/blood_core" )
 CLIENTEFFECT_MATERIAL( "effects/blood_gore" )
 CLIENTEFFECT_MATERIAL( "effects/blood_drop" )
 CLIENTEFFECT_MATERIAL( "effects/blood_puff" )
@@ -312,7 +309,7 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 	//Find area ambient light color and use it to tint smoke
 	Vector worldLight = WorldGetLightForPoint( origin, true );
 	
-	if ( gpGlobals->maxClients > 1 )
+	if ( IsPC() && gpGlobals->maxClients > 1 )
 	{
 		worldLight = Vector( 1.0, 1.0, 1.0 );
 		r = 96;
@@ -338,7 +335,7 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 	// Cache the material if we haven't already
 	if ( g_Blood_Core == NULL )
 	{
-		g_Blood_Core = ParticleMgr()->GetPMaterial( "effects/blood_platform" );
+		g_Blood_Core = ParticleMgr()->GetPMaterial( "effects/blood_core" );
 	}
 
 	SimpleParticle *pParticle;
@@ -463,27 +460,6 @@ void FX_BloodBulletImpact( const Vector &origin, const Vector &normal, float sca
 	//C_BaseEntity::EmitSound( filter, SOUND_FROM_WORLD, CHAN_VOICE, "Physics.WaterSplash", 1.0, ATTN_NORM, 0, 100, &origin );
 }
 
-// FIXME: This will be simplified when the initializer can take color parameters as an input
-//	      For now, we use different systems
-
-struct ParticleForBlood_t
-{
-	int nColor;
-	const char *lpszParticleSystemName;
-};
-
-ParticleForBlood_t	bloodCallbacks[] =
-{
-	{ BLOOD_COLOR_RED,		"blood_impact_red_01" },
-	{ BLOOD_COLOR_GREEN,	"blood_impact_green_01" },
-	{ BLOOD_COLOR_YELLOW,	"blood_impact_yellow_01" },
-#if defined( HL2_EPISODIC )
-	{ BLOOD_COLOR_ANTLION,			"blood_impact_antlion_01" },		// FIXME: Move to Base HL2
-	{ BLOOD_COLOR_ZOMBIE,			"blood_impact_zombie_01" },			// FIXME: Move to Base HL2
-	{ BLOOD_COLOR_ANTLION_WORKER,	"blood_impact_antlion_worker_01" },
-#endif // HL2_EPISODIC
-};
-
 //-----------------------------------------------------------------------------
 // Purpose: Intercepts the blood spray message.
 //-----------------------------------------------------------------------------
@@ -501,91 +477,14 @@ DECLARE_CLIENT_EFFECT( "bloodspray", BloodSprayCallback );
 //-----------------------------------------------------------------------------
 void BloodImpactCallback( const CEffectData & data )
 {
-	bool bFoundBlood = false;
+	Vector vecPosition;
+	vecPosition = data.m_vOrigin;
+	
+	// Fetch the blood color.
+	colorentry_t color;
+	GetBloodColor( data.m_nColor, color );
 
-	// Find which sort of blood we are
-	for ( int i = 0; i < ARRAYSIZE( bloodCallbacks ); i++ )
-	{
-		if ( bloodCallbacks[i].nColor == data.m_nColor )
-		{
-			QAngle	vecAngles;
-			VectorAngles( -data.m_vNormal, vecAngles );
-			DispatchParticleEffect( bloodCallbacks[i].lpszParticleSystemName, data.m_vOrigin, vecAngles );
-			bFoundBlood = true;
-			break;
-		}
-	}
-
-	if ( bFoundBlood == false )
-	{
-		Vector vecPosition;
-		vecPosition = data.m_vOrigin;
-		
-		// Fetch the blood color.
-		colorentry_t color;
-		GetBloodColor( data.m_nColor, color );
-
-		FX_BloodBulletImpact( vecPosition, data.m_vNormal, data.m_flScale, color.r, color.g, color.b );
-	}
+	FX_BloodBulletImpact( vecPosition, data.m_vNormal, data.m_flScale, color.r, color.g, color.b );
 }
 
 DECLARE_CLIENT_EFFECT( "BloodImpact", BloodImpactCallback );
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void HunterDamageCallback( const CEffectData &data )
-{
-	CSmartPtr<CSimple3DEmitter> pGlassEmitter = CSimple3DEmitter::Create( "HunterDamage" );
-	if ( pGlassEmitter == NULL )
-		return;
-
-	pGlassEmitter->SetSortOrigin( data.m_vOrigin );
-
-	// Handle increased scale
-	const float flMaxSpeed = 400.0f;
-	const float flMinSpeed = 50.0f;
-	float flAngularSpray = 1.0f;
-
-	// Setup our collision information
-	pGlassEmitter->m_ParticleCollision.Setup( data.m_vOrigin, &data.m_vNormal, flAngularSpray, flMinSpeed, flMaxSpeed, 600.0f, 0.2f );
-
-	Vector	dir, end;
-
-	int	numFlecks = 32;
-
-	Particle3D *pFleckParticle;
-	Vector spawnOffset;
-
-	//Dump out flecks
-	for ( int i = 0; i < numFlecks; i++ )
-	{
-		spawnOffset = data.m_vOrigin + RandomVector( -32.0f, 32.0f );
-		pFleckParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), g_Mat_Fleck_Antlion[random->RandomInt(0,1)], spawnOffset );
-
-		if ( pFleckParticle == NULL )
-			break;
-
-		pFleckParticle->m_flLifeRemaining	= random->RandomFloat( 2.0f, 3.0f );
-
-		dir[0] = data.m_vNormal[0] + random->RandomFloat( -flAngularSpray, flAngularSpray );
-		dir[1] = data.m_vNormal[1] + random->RandomFloat( -flAngularSpray, flAngularSpray );
-		dir[2] = data.m_vNormal[2] + random->RandomFloat( -flAngularSpray, flAngularSpray );
-
-		pFleckParticle->m_uchSize		= random->RandomInt( 3, 8 );
-
-		pFleckParticle->m_vecVelocity	= dir * random->RandomFloat( flMinSpeed, flMaxSpeed);
-
-		pFleckParticle->m_vAngles		= RandomAngle( 0, 360 );
-		pFleckParticle->m_flAngSpeed	= random->RandomFloat( -800, 800 );
-
-		unsigned char color = 255;
-		pFleckParticle->m_uchFrontColor[0]	= color;
-		pFleckParticle->m_uchFrontColor[1]	= color;
-		pFleckParticle->m_uchFrontColor[2]	= color;
-		pFleckParticle->m_uchBackColor[0]	= color * 0.25f;
-		pFleckParticle->m_uchBackColor[1]	= color * 0.25f;
-		pFleckParticle->m_uchBackColor[2]	= color * 0.25f;
-	}
-}
-
-DECLARE_CLIENT_EFFECT( "HunterDamage", HunterDamageCallback );

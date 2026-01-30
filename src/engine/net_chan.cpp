@@ -80,15 +80,18 @@ static bool IsSafeFileToDownload( const char *pFilename )
 		return false;
 
 	// Don't allow any of these extensions.
-	if ( V_stricmp( pExt, ".cfg" ) == 0
-		|| V_stricmp( pExt, ".lst" ) == 0
-		|| V_stricmp( pExt, ".exe" ) == 0
-		|| V_stricmp( pExt, ".vbs" ) == 0
-		|| V_stricmp( pExt, ".com" ) == 0
-		|| V_stricmp( pExt, ".bat" ) == 0
-		|| V_stricmp( pExt, ".dll" ) == 0
-		|| V_stricmp( pExt, ".ini" ) == 0
-		|| V_stricmp( pExt, ".log" ) == 0 )
+	if (V_stricmp(pExt, ".cfg") == 0
+		|| V_stricmp(pExt, ".lst") == 0
+		|| V_stricmp(pExt, ".exe") == 0
+		|| V_stricmp(pExt, ".asi") == 0
+		|| V_stricmp(pExt, ".mix") == 0
+		|| V_stricmp(pExt, ".flt") == 0
+		|| V_stricmp(pExt, ".vbs") == 0
+		|| V_stricmp(pExt, ".com") == 0
+		|| V_stricmp(pExt, ".bat") == 0
+		|| V_stricmp(pExt, ".dll") == 0
+		|| V_stricmp(pExt, ".ini") == 0
+		|| V_stricmp(pExt, ".log") == 0)
 	{
 		return false;
 	}
@@ -1836,7 +1839,8 @@ bool CNetChan::ProcessMessages( bf_read &buf  )
 	{
 		if ( buf.IsOverflowed() )
 		{
-			m_MessageHandler->ConnectionCrashed( "Buffer overflow in net message" );
+			//m_MessageHandler->ConnectionCrashed( "Buffer overflow in net message" );
+			Warning("Buffer overflow in net message\n");
 			return false;
 		}	
 
@@ -2346,11 +2350,11 @@ bool CNetChan::SendNetMsg( INetMessage &msg, bool bForceReliable )
 		pStream = &m_StreamReliable;
 	}
 
-	// How would i know man?
+	// this didn't exist in late 2006
 	//if ( bVoice )
-	{
+	//{
 		//pStream = &m_StreamVoice;
-	}
+	//}
 
 	if ( vcr_verbose.GetInt() )
 	{
@@ -2371,6 +2375,7 @@ bool CNetChan::SendNetMsg( INetMessage &msg, bool bForceReliable )
 	{
 		return msg.WriteToBuffer( *pStream );
 	}
+	msg.GetType();
 }
 
 INetMessage *CNetChan::FindMessage(int type)

@@ -15,7 +15,7 @@ class C_BaseAnimating;
 class CStudioHdr;
 
 
-#include "mathlib/vector.h"
+#include "vector.h"
 
 
 class CBoneMergeCache

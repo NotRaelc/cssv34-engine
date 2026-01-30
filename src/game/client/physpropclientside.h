@@ -13,8 +13,6 @@
 #include "c_breakableprop.h"
 #include "props_shared.h"
 
-class C_FuncPhysicsRespawnZone;
-
 class C_PhysPropClientside : public C_BreakableProp, public IBreakableWithPropData, public IMultiplayerPhysics
 {
 	
@@ -29,7 +27,7 @@ public:
 			int				ParsePropData( void );
 	virtual bool			IsDormant( void ) { return false; } // we could add a PVS check here
 	virtual void			ClientThink( void );
-	virtual CollideType_t	GetCollideType( void ) { return ENTITY_SHOULD_RESPOND; }
+	virtual CollideType_t	ShouldCollide( void ) { return ENTITY_SHOULD_RESPOND; }
 	virtual void			StartTouch( C_BaseEntity *pOther );
 	virtual	void			HitSurface( C_BaseEntity *pOther );
 	virtual	void			ImpactTrace( trace_t *pTrace, int iDamageType, char *pCustomImpactName );
@@ -47,8 +45,7 @@ public:
 	virtual void			SetHealth(int iHealth) { m_iHealth = iHealth; }
 	virtual int				GetHealth() const { return m_iHealth; }
 			int				GetNumBreakableChunks( void ) { return m_iNumBreakableChunks; }
-	
-			void			SetRespawnZone( C_FuncPhysicsRespawnZone *pZone );
+			
 
 // IBreakableWithPropData interface:
 public:
@@ -94,7 +91,6 @@ protected:
 	
 	static void ParseAllEntities(const char *pMapData);
 	static const char *ParseEntity( const char *pEntData );
-	static void InitializePropRespawnZones(void);
 		
 public:
 	
@@ -127,41 +123,8 @@ protected:
 
 	// Count of how many pieces we'll break into, custom or generic
 	int				m_iNumBreakableChunks;
-
-	C_FuncPhysicsRespawnZone	*m_pRespawnZone;
 };
 
-//-----------------------------------------------------------------------------
-// Purpose: A clientside zone that respawns physics props in it when the player leaves the PVS
-//-----------------------------------------------------------------------------
-class C_FuncPhysicsRespawnZone : public C_BaseEntity
-{
-	DECLARE_CLASS( C_FuncPhysicsRespawnZone, C_BaseEntity );
-public:
 
-	C_FuncPhysicsRespawnZone( void );
-	~C_FuncPhysicsRespawnZone( void );
-
-	bool KeyValue( const char *szKeyName, const char *szValue );
-	bool Initialize( void );
-	void InitializePropsWithin( void );
-	void PropDestroyed( C_PhysPropClientside *pProp );
-	bool CanMovePropAt( Vector vecOrigin, const Vector &vecMins, const Vector &vecMaxs );
-	void RespawnProps( void );
-	void ClientThink( void );
-
-private:
-	struct clientsideproprespawn_t
-	{
-		string_t				iszModelName;
-		Vector					vecOrigin;
-		QAngle					vecAngles;
-		int						iSkin;
-		int						iHealth;
-		int						iSpawnFlags;
-		ClientEntityHandle_t	hClientEntity;
-	};
-	CUtlVector<clientsideproprespawn_t> m_PropList;
-};
 
 #endif // PHYSPROPCLIENTSIDE_H

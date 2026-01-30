@@ -37,9 +37,6 @@ BEGIN_DATADESC( CFuncAreaPortalWindow )
 	DEFINE_KEYFIELD( m_flTranslucencyLimit,	FIELD_FLOAT,	"TranslucencyLimit" ),
 	DEFINE_KEYFIELD( m_iBackgroundBModelName,FIELD_STRING,	"BackgroundBModel" ),
 //	DEFINE_KEYFIELD( m_iBackgroundModelIndex,FIELD_INTEGER ),
-	
-	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFadeStartDistance", InputSetFadeStartDistance ),
-	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetFadeEndDistance", InputSetFadeEndDistance ),
 
 END_DATADESC()
 
@@ -90,9 +87,18 @@ void CFuncAreaPortalWindow::Activate()
 
 bool CFuncAreaPortalWindow::IsWindowOpen( const Vector &vOrigin, float fovDistanceAdjustFactor )
 {
-	float flDist = CollisionProp()->CalcDistanceFromPoint( vOrigin );
+	Vector vecLocalOrigin;
+	CollisionProp()->WorldToCollisionSpace( vOrigin, &vecLocalOrigin );
+	float flDist = CalcDistanceToAABB( CollisionProp()->OBBMins(), CollisionProp()->OBBMaxs(), vecLocalOrigin );
 	flDist *= fovDistanceAdjustFactor;
-	return ( flDist <= (m_flFadeDist + FADE_DIST_BUFFER) );
+	if( flDist > (m_flFadeDist + FADE_DIST_BUFFER) )
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
 }
 
 
@@ -109,20 +115,3 @@ bool CFuncAreaPortalWindow::UpdateVisibility( const Vector &vOrigin, float fovDi
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: Changes the fade start distance 
-// Input: float distance in inches
-//-----------------------------------------------------------------------------
-void CFuncAreaPortalWindow::InputSetFadeStartDistance( inputdata_t &inputdata )
-{
-	m_flFadeStartDist = inputdata.value.Float();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Changes the fade end distance
-// Input: float distance in inches
-//-----------------------------------------------------------------------------
-void CFuncAreaPortalWindow::InputSetFadeEndDistance( inputdata_t &inputdata )
-{
-	m_flFadeDist = inputdata.value.Float();
-}

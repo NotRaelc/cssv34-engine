@@ -1,9 +1,9 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Physics constraint entities
 //
 // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include "physics.h"
@@ -13,14 +13,6 @@
 #include "igamesystem.h"
 #include "physics_saverestore.h"
 #include "vcollide_parse.h"
-#include "positionwatcher.h"
-#include "fmtstr.h"
-#include "physics_prop_ragdoll.h"
-
-#define HINGE_NOTIFY HL2_EPISODIC
-#if HINGE_NOTIFY
-#include "physconstraint_sounds.h"
-#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -32,25 +24,19 @@
 #define SF_RAGDOLL_FREEMOVEMENT					0x0002
 #define SF_CONSTRAINT_START_INACTIVE			0x0004
 #define SF_CONSTRAINT_ASSUME_WORLD_GEOMETRY		0x0008
-#define SF_CONSTRAINT_NO_CONNECT_UNTIL_ACTIVATED	0x0010	// Will only check the two attached entities at activation
-
-
-ConVar    g_debug_constraint_sounds	  ( "g_debug_constraint_sounds", "0", FCVAR_CHEAT, "Enable debug printing about constraint sounds.");
 
 struct hl_constraint_info_t
 {
 	hl_constraint_info_t() 
 	{ 
 		pObjects[0] = pObjects[1] = NULL;
-		pGroup = NULL;
 		anchorPosition[0].Init();
 		anchorPosition[1].Init();
 		swapped = false; 
 		massScale[0] = massScale[1] = 1.0f;
 	}
-	Vector			anchorPosition[2];
 	IPhysicsObject	*pObjects[2];
-	IPhysicsConstraintGroup *pGroup;
+	Vector			anchorPosition[2];
 	float			massScale[2];
 	bool			swapped;
 };
@@ -59,7 +45,6 @@ struct constraint_anchor_t
 {
 	Vector		localOrigin;
 	EHANDLE		hEntity;
-	int			parentAttachment;
 	string_t	name;
 	float		massScale;
 };
@@ -75,18 +60,16 @@ public:
 		m_list.Purge();
 	}
 
-	void AddToList( CBaseEntity *pEntity, float massScale )
+	void AddToList( string_t name, CBaseEntity *pEntity, const Vector &localCoordinate, float massScale )
 	{
 		int index = m_list.AddToTail();
 		constraint_anchor_t *pAnchor = &m_list[index];
 
-		pAnchor->hEntity = pEntity->GetParent();
-		pAnchor->parentAttachment = pEntity->GetParentAttachment();
-		pAnchor->name = pEntity->GetEntityName();
-		pAnchor->localOrigin = pEntity->GetLocalOrigin();
+		pAnchor->hEntity = pEntity;
+		pAnchor->name = name;
+		pAnchor->localOrigin = localCoordinate;
 		pAnchor->massScale = massScale;
 	}
-
 	constraint_anchor_t *Find( string_t name )
 	{
 		for ( int i = m_list.Count()-1; i >=0; i-- )
@@ -117,7 +100,7 @@ public:
 	{
 		if ( GetParent() )
 		{
-			g_AnchorList.AddToList( this, m_massScale );
+			g_AnchorList.AddToList( GetEntityName(),  GetParent(), GetLocalOrigin(), m_massScale );
 			UTIL_Remove( this );
 		}
 	}
@@ -188,9 +171,6 @@ void PhysTeleportConstrainedEntity( CBaseEntity *pTeleportSource, IPhysicsObject
 	if ( pFixup->GetMoveType() != MOVETYPE_VPHYSICS )
 		return;
 
-	if ( !pFixup->VPhysicsGetObject() || !pFixup->VPhysicsGetObject()->IsMoveable() )
-		return;
-
 	QAngle oldAngles = prevAngles;
 
 	if ( !physicsRotate )
@@ -208,55 +188,6 @@ void PhysTeleportConstrainedEntity( CBaseEntity *pTeleportSource, IPhysicsObject
 	ConcatTransforms( xform, pFixup->EntityToWorldTransform(), endCoord );
 	MatrixAngles( endCoord, fixupAngles, fixupPos );
 	pFixup->Teleport( &fixupPos, &fixupAngles, NULL );
-}
-
-static void DrawPhysicsBounds( IPhysicsObject *pObject, int r, int g, int b, int a )
-{
-	const CPhysCollide *pCollide = pObject->GetCollide();
-	Vector pos;
-	QAngle angles;
-	pObject->GetPosition( &pos, &angles );
-	Vector mins, maxs;
-	physcollision->CollideGetAABB( &mins, &maxs, pCollide, vec3_origin, vec3_angle );
-	// don't fight the z-buffer
-	mins -= Vector(1,1,1);
-	maxs += Vector(1,1,1);
-	NDebugOverlay::BoxAngles( pos, mins, maxs, angles, r, g, b, a, 0 );
-}
-
-static void DrawConstraintObjectsAxes(CBaseEntity *pConstraintEntity, IPhysicsConstraint *pConstraint)
-{
-	if ( !pConstraint || !pConstraintEntity )
-		return;
-	matrix3x4_t xformRef, xformAtt;
-	bool bXform = pConstraint->GetConstraintTransform( &xformRef, &xformAtt );
-	IPhysicsObject *pRef = pConstraint->GetReferenceObject();
-
-	if ( pRef && !pRef->IsStatic() )
-	{
-		if ( bXform )
-		{
-			Vector pos, posWorld;
-			QAngle angles;
-			MatrixAngles( xformRef, angles, pos );
-			pRef->LocalToWorld( &posWorld, pos );
-			NDebugOverlay::Axis( posWorld, vec3_angle, 12, false, 0 );
-		}
-		DrawPhysicsBounds( pRef, 0, 255, 0, 12 );
-	}
-	IPhysicsObject *pAttach = pConstraint->GetAttachedObject();
-	if ( pAttach && !pAttach->IsStatic() )
-	{
-		if ( bXform )
-		{
-			Vector pos, posWorld;
-			QAngle angles;
-			MatrixAngles( xformAtt, angles, pos );
-			pAttach->LocalToWorld( &posWorld, pos );
-			NDebugOverlay::Axis( posWorld, vec3_angle, 12, false, 0 );
-		}
-		DrawPhysicsBounds( pAttach, 255, 0, 0, 12 );
-	}
 }
 
 abstract_class CPhysConstraint : public CLogicalEntity
@@ -338,9 +269,7 @@ public:
 			EmitSound( filter, entindex(), ep );
 		}
 		m_OnBreak.FireOutput( this, this );
-		// queue this up to be deleted at the end of physics 
-		// The Deactivate() call should make sure we don't get more of these callbacks.
-		PhysCallbackRemove( this->NetworkProp() );
+		UTIL_Remove( this );
 	}
 
 	void InputBreak( inputdata_t &inputdata )
@@ -358,50 +287,17 @@ public:
 
 	void InputTurnOn( inputdata_t &inputdata )
 	{
-		if ( HasSpawnFlags( SF_CONSTRAINT_NO_CONNECT_UNTIL_ACTIVATED ) )
+		if ( m_pConstraint )
 		{
-			ActivateConstraint();
+			m_pConstraint->Activate();
+			m_pConstraint->GetReferenceObject()->Wake();
+			m_pConstraint->GetAttachedObject()->Wake();
 		}
-
-		if ( !m_pConstraint || !m_pConstraint->GetReferenceObject() || !m_pConstraint->GetAttachedObject() )
-			return;
-
-		m_pConstraint->Activate();
-		m_pConstraint->GetReferenceObject()->Wake();
-		m_pConstraint->GetAttachedObject()->Wake();
 	}
 
 	void InputTurnOff( inputdata_t &inputdata )
 	{
 		Deactivate();
-	}
-
-	int DrawDebugTextOverlays()
-	{
-		int pos = BaseClass::DrawDebugTextOverlays();
-		if ( m_pConstraint && (m_debugOverlays & OVERLAY_TEXT_BIT) )
-		{
-			constraint_breakableparams_t params;
-			Q_memset(&params,0,sizeof(params));
-			m_pConstraint->GetConstraintParams( &params );
-			
-			if ( (params.bodyMassScale[0] != 1.0f && params.bodyMassScale[0] != 0.0f) || (params.bodyMassScale[1] != 1.0f && params.bodyMassScale[1] != 0.0f) )
-			{
-				CFmtStr str("mass ratio %.4f:%.4f\n", params.bodyMassScale[0], params.bodyMassScale[1] );
-				NDebugOverlay::EntityTextAtPosition( GetAbsOrigin(), pos, str.Access(), 0, 255, 255, 0, 255 );
-			}
-			pos++;
-		}
-		return pos;
-	}
-
-	void DrawDebugGeometryOverlays()
-	{
-		if ( m_debugOverlays & (OVERLAY_BBOX_BIT|OVERLAY_PIVOT_BIT|OVERLAY_ABSBOX_BIT) )
-		{
-			DrawConstraintObjectsAxes(this, m_pConstraint);
-		}
-		BaseClass::DrawDebugGeometryOverlays();
 	}
 
 	void GetBreakParams( constraint_breakableparams_t &params, const hl_constraint_info_t &info )
@@ -414,14 +310,7 @@ public:
 		params.bodyMassScale[1] = info.massScale[1];
 	}
 
-	// the notify system calls this on the constrained entities - used to detect & follow teleports
 	void NotifySystemEvent( CBaseEntity *pNotify, notify_system_event_t eventType, const notify_system_event_params_t &params );
-	
-	// gets called at setup time on first init and restore
-	virtual void OnConstraintSetup( hl_constraint_info_t &info ); 
-
-	// return the internal constraint object (used by sound gadgets)
-	inline IPhysicsConstraint *GetPhysConstraint() { return m_pConstraint; }
 
 protected:	
 	void GetConstraintObjects( hl_constraint_info_t &info );
@@ -439,7 +328,6 @@ protected:
 	float			m_forceLimit;
 	float			m_torqueLimit;
 	unsigned int	m_teleportTick;
-	float			m_minTeleportDistance;
 
 	COutputEvent	m_OnBreak;
 };
@@ -454,7 +342,6 @@ BEGIN_DATADESC( CPhysConstraint )
 	DEFINE_KEYFIELD( m_breakSound, FIELD_SOUNDNAME, "breaksound" ),
 	DEFINE_KEYFIELD( m_forceLimit, FIELD_FLOAT, "forcelimit" ),
 	DEFINE_KEYFIELD( m_torqueLimit, FIELD_FLOAT, "torquelimit" ),
-	DEFINE_KEYFIELD( m_minTeleportDistance, FIELD_FLOAT, "teleportfollowdistance" ),
 //	DEFINE_FIELD( m_teleportTick, FIELD_INTEGER ),
 
 	DEFINE_OUTPUT( m_OnBreak, "OnBreak" ),
@@ -476,7 +363,6 @@ CPhysConstraint::CPhysConstraint( void )
 	m_forceLimit = 0;
 	m_torqueLimit = 0;
 	m_teleportTick = 0xFFFFFFFF;
-	m_minTeleportDistance = 0.0f;
 }
 
 CPhysConstraint::~CPhysConstraint()
@@ -500,43 +386,7 @@ void CPhysConstraint::Spawn( void )
 	Precache();
 }
 
-// debug function - slow, uses dynamic_cast<> - use this to query the attached objects
-// physics_debug_entity toggles the constraint system for an object using this
-bool GetConstraintAttachments( CBaseEntity *pEntity, CBaseEntity *pAttachOut[2], IPhysicsObject *pAttachVPhysics[2] )
-{
-	CPhysConstraint *pConstraintEntity = dynamic_cast<CPhysConstraint *>(pEntity);
-	if ( pConstraintEntity )
-	{
-		IPhysicsConstraint *pConstraint = pConstraintEntity->GetPhysConstraint();
-		if ( pConstraint )
-		{
-			IPhysicsObject *pRef = pConstraint->GetReferenceObject();
-			pAttachVPhysics[0] = pRef;
-			pAttachOut[0] = pRef ? static_cast<CBaseEntity *>(pRef->GetGameData()) : NULL;
-			IPhysicsObject *pAttach = pConstraint->GetAttachedObject();
-			pAttachVPhysics[1] = pAttach;
-			pAttachOut[1] = pAttach ? static_cast<CBaseEntity *>(pAttach->GetGameData()) : NULL;
-			return true;
-		}
-	}
-	return false;
-}
-
-void DebugConstraint(CBaseEntity *pEntity)
-{
-	CPhysConstraint *pConstraintEntity = dynamic_cast<CPhysConstraint *>(pEntity);
-	if ( pConstraintEntity )
-	{
-		IPhysicsConstraint *pConstraint = pConstraintEntity->GetPhysConstraint();
-		if ( pConstraint )
-		{
-			pConstraint->OutputDebugInfo();
-		}
-	}
-}
-
-
-void FindPhysicsAnchor( string_t name, hl_constraint_info_t &info, int index, CBaseEntity *pErrorEntity )
+void FindPhysicsAnchor( string_t name, hl_constraint_info_t &info, int index )
 {
 	constraint_anchor_t *pAnchor = g_AnchorList.Find( name );
 	if ( pAnchor )
@@ -544,31 +394,9 @@ void FindPhysicsAnchor( string_t name, hl_constraint_info_t &info, int index, CB
 		CBaseEntity *pEntity = pAnchor->hEntity;
 		if ( pEntity )
 		{
+			info.anchorPosition[index] = pAnchor->localOrigin;
+			info.pObjects[index] = pAnchor->hEntity->VPhysicsGetObject();
 			info.massScale[index] = pAnchor->massScale;
-			bool bWroteAttachment = false;
-			if ( pAnchor->parentAttachment > 0 )
-			{
-				CBaseAnimating *pAnim = pAnchor->hEntity->GetBaseAnimating();
-				if ( pAnim )
-				{
-					IPhysicsObject *list[VPHYSICS_MAX_OBJECT_LIST_COUNT];
-					int listCount = pAnchor->hEntity->VPhysicsGetObjectList( list, ARRAYSIZE(list) );
-					int iPhysicsBone = pAnim->GetPhysicsBone( pAnim->GetAttachmentBone( pAnchor->parentAttachment ) );
-					if ( iPhysicsBone < listCount )
-					{
-						Vector pos;
-						info.pObjects[index] = list[iPhysicsBone];
-						pAnim->GetAttachment( pAnchor->parentAttachment, pos );
-						list[iPhysicsBone]->WorldToLocal( &info.anchorPosition[index], pos );
-						bWroteAttachment = true;
-					}
-				}
-			}
-			if ( !bWroteAttachment )
-			{
-				info.anchorPosition[index] = pAnchor->localOrigin;
-				info.pObjects[index] = pAnchor->hEntity->VPhysicsGetObject();
-			}
 		}
 		else
 		{
@@ -578,20 +406,8 @@ void FindPhysicsAnchor( string_t name, hl_constraint_info_t &info, int index, CB
 	if ( !pAnchor )
 	{
 		info.anchorPosition[index] = vec3_origin;
-		info.pObjects[index] = FindPhysicsObjectByName( STRING(name), pErrorEntity );
+		info.pObjects[index] = FindPhysicsObjectByName( STRING(name) );
 		info.massScale[index] = 1.0f;
-	}
-}
-
-void CPhysConstraint::OnConstraintSetup( hl_constraint_info_t &info )
-{
-	if ( info.pObjects[0] && info.pObjects[1] )
-	{
-		SetupTeleportationHandling( info );
-	}
-	if ( m_spawnflags & SF_CONSTRAINT_DISABLE_COLLISION )
-	{
-		PhysDisableEntityCollisions( info.pObjects[0], info.pObjects[1] );
 	}
 }
 
@@ -610,33 +426,19 @@ void CPhysConstraint::SetupTeleportationHandling( hl_constraint_info_t &info )
 	}
 }
 
-static IPhysicsConstraintGroup *GetRagdollConstraintGroup( IPhysicsObject *pObj )
-{
-	if ( pObj )
-	{
-		CBaseEntity *pEntity = static_cast<CBaseEntity *>(pObj->GetGameData());
-		ragdoll_t *pRagdoll = Ragdoll_GetRagdoll(pEntity);
-		if ( pRagdoll )
-			return pRagdoll->pGroup;
-	}
-	return NULL;
-}
-
 void CPhysConstraint::GetConstraintObjects( hl_constraint_info_t &info )
 {
-	FindPhysicsAnchor( m_nameAttach1, info, 0, this );
-	FindPhysicsAnchor( m_nameAttach2, info, 1, this );
+	FindPhysicsAnchor( m_nameAttach1, info, 0 );
+	FindPhysicsAnchor( m_nameAttach2, info, 1 );
 
 	// Missing one object, assume the world instead
 	if ( info.pObjects[0] == NULL && info.pObjects[1] )
 	{
 		if ( Q_strlen(STRING(m_nameAttach1)) )
 		{
-			Warning("Bogus constraint %s (attaches ENTITY NOT FOUND:%s to %s)\n", GetDebugName(), STRING(m_nameAttach1), STRING(m_nameAttach2));
-#if (HL2_EPISODIC && !HL2_LOSTCOAST)
+			Warning("Bogus constraint %s (attaches %s to %s)\n", GetDebugName(), STRING(m_nameAttach1), STRING(m_nameAttach2));
 			info.pObjects[0] = info.pObjects[1] = NULL;
 			return;
-#endif	// HL2_EPISODIC && !HL2_LOSTCOAST
 		}
 		info.pObjects[0] = g_PhysWorldObject;
 		info.massScale[0] = info.massScale[1] = 1.0f; // no mass scale on world constraint
@@ -645,22 +447,18 @@ void CPhysConstraint::GetConstraintObjects( hl_constraint_info_t &info )
 	{
 		if ( Q_strlen(STRING(m_nameAttach2)) )
 		{
-			Warning("Bogus constraint %s (attaches %s to ENTITY NOT FOUND:%s)\n", GetDebugName(), STRING(m_nameAttach1), STRING(m_nameAttach2));
-#if (HL2_EPISODIC && !HL2_LOSTCOAST)
+			Warning("Bogus constraint %s (attaches %s to %s)\n", GetDebugName(), STRING(m_nameAttach1), STRING(m_nameAttach2));
 			info.pObjects[0] = info.pObjects[1] = NULL;
 			return;
-#endif	// HL2_EPISODIC && !HL2_LOSTCOAST
 		}
 		info.pObjects[1] = info.pObjects[0];
 		info.pObjects[0] = g_PhysWorldObject;		// Try to make the world object consistently object0 for ease of implementation
 		info.massScale[0] = info.massScale[1] = 1.0f; // no mass scale on world constraint
 		info.swapped = true;
 	}
-
-	info.pGroup = GetRagdollConstraintGroup(info.pObjects[0]);
-	if ( !info.pGroup )
+	else if ( info.pObjects[0] && info.pObjects[1] )
 	{
-		info.pGroup = GetRagdollConstraintGroup(info.pObjects[1]);
+		SetupTeleportationHandling( info );
 	}
 }
 
@@ -668,12 +466,9 @@ void CPhysConstraint::Activate( void )
 {
 	BaseClass::Activate();
 
-	if ( HasSpawnFlags( SF_CONSTRAINT_NO_CONNECT_UNTIL_ACTIVATED ) == false )
+	if ( !ActivateConstraint() )
 	{
-		if ( !ActivateConstraint() )
-		{
-			UTIL_Remove(this);
-		}
+		UTIL_Remove(this);
 	}
 }
 
@@ -703,7 +498,15 @@ bool CPhysConstraint::ActivateConstraint( void )
 		// already have a constraint, don't make a new one
 		info.pObjects[0] = m_pConstraint->GetReferenceObject();
 		info.pObjects[1] = m_pConstraint->GetAttachedObject();
-		OnConstraintSetup(info);
+		if ( info.pObjects[0] && info.pObjects[1] )
+		{
+			SetupTeleportationHandling( info );
+		}
+
+		if ( m_spawnflags & SF_CONSTRAINT_DISABLE_COLLISION )
+		{
+			PhysDisableEntityCollisions( info.pObjects[0], info.pObjects[1] );
+		}
 		return true;
 	}
 
@@ -723,10 +526,6 @@ bool CPhysConstraint::ActivateConstraint( void )
 		return false;
 	}
 	IPhysicsConstraintGroup *pGroup = GetConstraintGroup( m_nameSystem );
-	if ( !pGroup )
-	{
-		pGroup = info.pGroup;
-	}
 	m_pConstraint = CreateConstraint( pGroup, info );
 	if ( !m_pConstraint )
 		return false;
@@ -738,7 +537,10 @@ bool CPhysConstraint::ActivateConstraint( void )
 		pGroup->Activate();
 	}
 
-	OnConstraintSetup(info);
+	if ( m_spawnflags & SF_CONSTRAINT_DISABLE_COLLISION )
+	{
+		PhysDisableEntityCollisions( info.pObjects[0], info.pObjects[1] );
+	}
 
 	return true;
 }
@@ -749,18 +551,12 @@ void CPhysConstraint::NotifySystemEvent( CBaseEntity *pNotify, notify_system_eve
 	if ( eventType != NOTIFY_EVENT_TELEPORT || (unsigned int)gpGlobals->tickcount == m_teleportTick )
 		return;
 
-	float distance = (params.pTeleport->prevOrigin - pNotify->GetAbsOrigin()).Length();
-	
-	// no need to follow a small teleport
-	if ( distance <= m_minTeleportDistance )
-		return;
-
 	m_teleportTick = gpGlobals->tickcount;
 
 	PhysTeleportConstrainedEntity( pNotify, m_pConstraint->GetReferenceObject(), m_pConstraint->GetAttachedObject(), params.pTeleport->prevOrigin, params.pTeleport->prevAngles, params.pTeleport->physicsRotate );
 }
 
-class CPhysHinge : public CPhysConstraint, public IVPhysicsWatcher
+class CPhysHinge : public CPhysConstraint
 {
 	DECLARE_CLASS( CPhysHinge, CPhysConstraint );
 
@@ -805,9 +601,6 @@ public:
 
 	void InputSetVelocity( inputdata_t &inputdata )
 	{
-		if ( !m_pConstraint || !m_pConstraint->GetReferenceObject() || !m_pConstraint->GetAttachedObject() )
-			return;
-	
 		float speed = inputdata.value.Float();
 		float massLoad = 1;
 		int numMasses = 0;
@@ -827,98 +620,23 @@ public:
 		{
 			massLoad /= (float)numMasses;
 		}
-		
 		float loadscale = m_systemLoadScale != 0 ? m_systemLoadScale : 1;
 		m_pConstraint->SetAngularMotor( speed, speed * loadscale * massLoad * loadscale * (1.0/TICK_INTERVAL) );
-	}
-
-	void InputSetHingeFriction( inputdata_t &inputdata )
-	{
-		m_hingeFriction = inputdata.value.Float();
-		Msg("Setting hinge friction to %f\n", m_hingeFriction );
-		m_hinge.hingeAxis.SetAxisFriction( 0, 0, m_hingeFriction * 1000 );
 	}
 
 	virtual void Deactivate()
 	{
 		if ( HasSpawnFlags( SF_CONSTRAINT_ASSUME_WORLD_GEOMETRY ) )
 		{
-			if ( m_pConstraint && m_pConstraint->GetAttachedObject() )
-			{
-				// NOTE: RemoveHinged() is always safe
-				m_pConstraint->GetAttachedObject()->RemoveHinged();
-			}
+			// NOTE: RemoveHinged() is always safe
+			m_pConstraint->GetAttachedObject()->RemoveHinged();
 		}
 
 		BaseClass::Deactivate();
 	}
-	
-	void NotifyVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake )
-	{
-#if HINGE_NOTIFY
-		Assert(m_pConstraint);
-		if (!m_pConstraint) 
-			return;
 
-		// if something woke up, start thinking. If everything is asleep, stop thinking.
-		if ( bAwake )
-		{
-			// Did something wake up when I was not thinking?
-			if ( GetNextThink() == TICK_NEVER_THINK )
-			{
-				m_soundInfo.StartThinking(this, 
-					VelocitySampler::GetRelativeAngularVelocity(m_pConstraint->GetAttachedObject(), m_pConstraint->GetReferenceObject()) ,
-					m_hinge.worldAxisDirection
-					);
-
-				SetThink(&CPhysHinge::SoundThink);
-				SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
-			}
-		}
-		else
-		{
-			// Is everything asleep? If so, stop thinking.
-			if ( GetNextThink() != TICK_NEVER_THINK				&&
-				m_pConstraint->GetAttachedObject()->IsAsleep() &&
-				m_pConstraint->GetReferenceObject()->IsAsleep() )
-			{
-				m_soundInfo.StopThinking(this);
-				SetNextThink(TICK_NEVER_THINK);
-			}
-		}
-#endif
-	}
-
-
-#if HINGE_NOTIFY
-	virtual void OnConstraintSetup( hl_constraint_info_t &info )
-	{
-		CBaseEntity *pEntity0 = info.pObjects[0] ? static_cast<CBaseEntity *>(info.pObjects[0]->GetGameData()) : NULL;
-		if ( pEntity0 && !info.pObjects[0]->IsStatic()  )
-		{
-			WatchVPhysicsStateChanges( this, pEntity0 );
-		}
-		CBaseEntity *pEntity1 = info.pObjects[1] ? static_cast<CBaseEntity *>(info.pObjects[1]->GetGameData()) : NULL;
-		if ( pEntity1 && !info.pObjects[1]->IsStatic()  )
-		{
-			WatchVPhysicsStateChanges( this, pEntity1 );
-		}
-		BaseClass::OnConstraintSetup(info);
-	}
-
-	void SoundThink( void );
-	// void Spawn( void );
-	void Activate( void );
-	void Precache( void );
-#endif
 
 	DECLARE_DATADESC();
-
-
-#if HINGE_NOTIFY
-protected:
-	ConstraintSoundInfo m_soundInfo;
-#endif
 
 private:
 	constraint_hingeparams_t m_hinge;
@@ -937,24 +655,6 @@ BEGIN_DATADESC( CPhysHinge )
 	DEFINE_KEYFIELD( m_hinge.worldAxisDirection, FIELD_VECTOR, "hingeaxis" ),
 	DEFINE_KEYFIELD( m_systemLoadScale, FIELD_FLOAT, "systemloadscale" ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetAngularVelocity", InputSetVelocity ),
-	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetHingeFriction", InputSetHingeFriction ),
-
-#if HINGE_NOTIFY
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_keyPoints[SimpleConstraintSoundProfile::kMIN_THRESHOLD] , FIELD_FLOAT, "minSoundThreshold" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_keyPoints[SimpleConstraintSoundProfile::kMIN_FULL] , FIELD_FLOAT, "maxSoundThreshold" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszTravelSoundFwd, FIELD_SOUNDNAME, "slidesoundfwd" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszTravelSoundBack, FIELD_SOUNDNAME, "slidesoundback" ),
-
-	DEFINE_KEYFIELD( m_soundInfo.m_iszReversalSounds[0], FIELD_SOUNDNAME, "reversalsoundSmall" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszReversalSounds[1], FIELD_SOUNDNAME, "reversalsoundMedium" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszReversalSounds[2], FIELD_SOUNDNAME, "reversalsoundLarge" ),
-
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_reversalSoundThresholds[0] , FIELD_FLOAT, "reversalsoundthresholdSmall" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_reversalSoundThresholds[1], FIELD_FLOAT, "reversalsoundthresholdMedium" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_reversalSoundThresholds[2] , FIELD_FLOAT, "reversalsoundthresholdLarge" ),
-
-	DEFINE_THINKFUNC( SoundThink ),
-#endif
 
 END_DATADESC()
 
@@ -989,35 +689,7 @@ void CPhysHinge::Spawn( void )
 			RemoveSpawnFlags( SF_CONSTRAINT_ASSUME_WORLD_GEOMETRY );
 		}
 	}
-
-	Precache();
 }
-
-#if HINGE_NOTIFY
-void CPhysHinge::Activate( void )
-{
-	BaseClass::Activate();
-
-	m_soundInfo.OnActivate(this);
-	if (m_pConstraint)
-	{
-		m_soundInfo.StartThinking(this, 
-			VelocitySampler::GetRelativeAngularVelocity(m_pConstraint->GetAttachedObject(), m_pConstraint->GetReferenceObject()) ,
-			m_hinge.worldAxisDirection
-			);
-
-		SetThink(&CPhysHinge::SoundThink);
-		SetNextThink( gpGlobals->curtime + m_soundInfo.getThinkRate() );
-	}
-}
-
-void CPhysHinge::Precache( void )
-{
-	BaseClass::Precache();
-	return m_soundInfo.OnPrecache(this);
-}
-
-#endif
 
 
 static int GetUnitAxisIndex( const Vector &axis )
@@ -1061,30 +733,6 @@ bool CPhysHinge::IsWorldHinge( const hl_constraint_info_t &info, int *pAxisOut )
 	return false;
 }
 
-
-#if HINGE_NOTIFY
-void CPhysHinge::SoundThink( void )
-{
-	Assert(m_pConstraint);
-	if (!m_pConstraint)
-		return;
-
-	IPhysicsObject * pAttached = m_pConstraint->GetAttachedObject(), *pReference = m_pConstraint->GetReferenceObject();
-	Assert( pAttached && pReference );
-	if (pAttached && pReference)
-	{
-		Vector relativeVel = VelocitySampler::GetRelativeAngularVelocity(pAttached,pReference);
-		if (g_debug_constraint_sounds.GetBool())
-		{
-			NDebugOverlay::Line( GetAbsOrigin(), GetAbsOrigin() + (relativeVel), 255, 255, 0, true, 0.1f );
-		}
-		m_soundInfo.OnThink( this, relativeVel );
-
-		SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
-	}
-}
-#endif
-
 class CPhysBallSocket : public CPhysConstraint
 {
 public:
@@ -1099,16 +747,6 @@ public:
 		for ( int i = 0; i < 2; i++ )
 		{
 			info.pObjects[i]->WorldToLocal( &ballsocket.constraintPosition[i], GetAbsOrigin() );
-			// HACKHACK - the mapper forgot to put in some sane physics damping
-			float damping, adamping;
-			info.pObjects[i]->GetDamping(&damping, &adamping);
-			if (damping < .2f) {
-				damping = .2f;
-			}
-			if (adamping < .2f) {
-				adamping = .2f;
-				}
-			info.pObjects[i]->SetDamping(&damping, &adamping);
 		}
 		GetBreakParams( ballsocket.constraint, info );
 		ballsocket.constraint.torqueLimit = 0;
@@ -1119,7 +757,7 @@ public:
 
 LINK_ENTITY_TO_CLASS( phys_ballsocket, CPhysBallSocket );
 
-class CPhysSlideConstraint : public CPhysConstraint, public IVPhysicsWatcher
+class CPhysSlideConstraint : public CPhysConstraint
 {
 public:
 	DECLARE_CLASS( CPhysSlideConstraint, CPhysConstraint );
@@ -1128,9 +766,6 @@ public:
 	IPhysicsConstraint *CreateConstraint( IPhysicsConstraintGroup *pGroup, const hl_constraint_info_t &info );
 	void InputSetVelocity( inputdata_t &inputdata )
 	{
-		if ( !m_pConstraint || !m_pConstraint->GetReferenceObject() || !m_pConstraint->GetAttachedObject() )
-			return;
-
 		float speed = inputdata.value.Float();
 		float massLoad = 1;
 		int numMasses = 0;
@@ -1154,88 +789,10 @@ public:
 		m_pConstraint->SetLinearMotor( speed, speed * loadscale * massLoad * (1.0/TICK_INTERVAL) );
 	}
 
-	void DrawDebugGeometryOverlays()
-	{
-		if ( m_debugOverlays & (OVERLAY_BBOX_BIT|OVERLAY_PIVOT_BIT|OVERLAY_ABSBOX_BIT) )
-		{
-			NDebugOverlay::Box( GetAbsOrigin(), -Vector(8,8,8), Vector(8,8,8), 0, 255, 0, 0, 0 );
-			NDebugOverlay::Box( m_axisEnd, -Vector(4,4,4), Vector(4,4,4), 0, 0, 255, 0, 0 );
-			NDebugOverlay::Line( GetAbsOrigin(), m_axisEnd, 255, 255, 0, false, 0 );
-		}
-		BaseClass::DrawDebugGeometryOverlays();
-	}
-
-	void NotifyVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake )
-	{
-#if HINGE_NOTIFY
-		Assert(m_pConstraint);
-		if (!m_pConstraint) 
-			return;
-
-		// if something woke up, start thinking. If everything is asleep, stop thinking.
-		if ( bAwake )
-		{
-			// Did something wake up when I was not thinking?
-			if ( GetNextThink() == TICK_NEVER_THINK )
-			{
-				Vector axisDirection = m_axisEnd - GetAbsOrigin();
-				VectorNormalize( axisDirection );
-				UTIL_SnapDirectionToAxis( axisDirection );
-
-				m_soundInfo.StartThinking(this, 
-					VelocitySampler::GetRelativeVelocity(m_pConstraint->GetAttachedObject(), m_pConstraint->GetReferenceObject()),
-					axisDirection
-					);
-				SetThink(&CPhysSlideConstraint::SoundThink);
-				SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
-			}
-		}
-		else
-		{
-			// Is everything asleep? If so, stop thinking.
-			if ( GetNextThink() != TICK_NEVER_THINK				&&
-				 m_pConstraint->GetAttachedObject()->IsAsleep() &&
-				 m_pConstraint->GetReferenceObject()->IsAsleep() )
-			{
-				m_soundInfo.StopThinking(this);
-				SetNextThink(TICK_NEVER_THINK);
-			}
-		}
-#endif
-	}
-
-
-#if HINGE_NOTIFY
-	virtual void OnConstraintSetup( hl_constraint_info_t &info )
-	{
-		CBaseEntity *pEntity0 = info.pObjects[0] ? static_cast<CBaseEntity *>(info.pObjects[0]->GetGameData()) : NULL;
-		if ( pEntity0 && !info.pObjects[0]->IsStatic()  )
-		{
-			WatchVPhysicsStateChanges( this, pEntity0 );
-		}
-		CBaseEntity *pEntity1 = info.pObjects[1] ? static_cast<CBaseEntity *>(info.pObjects[1]->GetGameData()) : NULL;
-		if ( pEntity1 && !info.pObjects[1]->IsStatic()  )
-		{
-			WatchVPhysicsStateChanges( this, pEntity1 );
-		}
-		BaseClass::OnConstraintSetup(info);
-	}
-
-
-	void SoundThink( void );
-	// void Spawn( void );
-	void Activate( void );
-	void Precache( void );
-#endif
 
 	Vector	m_axisEnd;
 	float	m_slideFriction;
 	float	m_systemLoadScale;
-
-#if HINGE_NOTIFY
-protected:
-	ConstraintSoundInfo m_soundInfo;
-#endif
 };
 
 LINK_ENTITY_TO_CLASS( phys_slideconstraint, CPhysSlideConstraint );
@@ -1246,23 +803,6 @@ BEGIN_DATADESC( CPhysSlideConstraint )
 	DEFINE_KEYFIELD( m_slideFriction, FIELD_FLOAT, "slidefriction" ),
 	DEFINE_KEYFIELD( m_systemLoadScale, FIELD_FLOAT, "systemloadscale" ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetVelocity", InputSetVelocity ),
-#if HINGE_NOTIFY
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_keyPoints[SimpleConstraintSoundProfile::kMIN_THRESHOLD] , FIELD_FLOAT, "minSoundThreshold" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_keyPoints[SimpleConstraintSoundProfile::kMIN_FULL] , FIELD_FLOAT, "maxSoundThreshold" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszTravelSoundFwd, FIELD_SOUNDNAME, "slidesoundfwd" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszTravelSoundBack, FIELD_SOUNDNAME, "slidesoundback" ),
-
-	DEFINE_KEYFIELD( m_soundInfo.m_iszReversalSounds[0], FIELD_SOUNDNAME, "reversalsoundSmall" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszReversalSounds[1], FIELD_SOUNDNAME, "reversalsoundMedium" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_iszReversalSounds[2], FIELD_SOUNDNAME, "reversalsoundLarge" ),
-
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_reversalSoundThresholds[0] , FIELD_FLOAT, "reversalsoundthresholdSmall" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_reversalSoundThresholds[1], FIELD_FLOAT, "reversalsoundthresholdMedium" ),
-	DEFINE_KEYFIELD( m_soundInfo.m_soundProfile.m_reversalSoundThresholds[2] , FIELD_FLOAT, "reversalsoundthresholdLarge" ),
-
-
-	DEFINE_THINKFUNC( SoundThink ),
-#endif
 
 END_DATADESC()
 
@@ -1290,7 +830,7 @@ IPhysicsConstraint *CPhysSlideConstraint::CreateConstraint( IPhysicsConstraintGr
 		sliding.limitMax = DotProduct( axisDirection, m_axisEnd );
 		if ( sliding.limitMax < sliding.limitMin )
 		{
-			V_swap( sliding.limitMin, sliding.limitMax );
+			swap( sliding.limitMin, sliding.limitMax );
 		}
 
 		// expand limits to make initial position of the attached object valid
@@ -1311,57 +851,6 @@ IPhysicsConstraint *CPhysSlideConstraint::CreateConstraint( IPhysicsConstraintGr
 	return physenv->CreateSlidingConstraint( info.pObjects[0], info.pObjects[1], pGroup, sliding );
 }
 
-
-#if HINGE_NOTIFY
-void CPhysSlideConstraint::SoundThink( void )
-{
-	Assert(m_pConstraint);
-	if (!m_pConstraint)
-		return;
-
-	IPhysicsObject * pAttached = m_pConstraint->GetAttachedObject(), *pReference = m_pConstraint->GetReferenceObject();
-	Assert( pAttached && pReference );
-	if (pAttached && pReference)
-	{
-		Vector relativeVel = VelocitySampler::GetRelativeVelocity(pAttached,pReference);
-		// project velocity onto my primary axis.:
-
-		Vector axisDirection = m_axisEnd - GetAbsOrigin();
-		relativeVel = m_axisEnd * relativeVel.Dot(m_axisEnd)/m_axisEnd.Dot(m_axisEnd);
-
-		m_soundInfo.OnThink( this, relativeVel );
-
-		SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
-	}
-
-}
-
-void CPhysSlideConstraint::Activate( void )
-{
-	BaseClass::Activate();
-
-	m_soundInfo.OnActivate(this);
-
-	Vector axisDirection = m_axisEnd - GetAbsOrigin();
-	VectorNormalize( axisDirection );
-	UTIL_SnapDirectionToAxis( axisDirection );
-	m_soundInfo.StartThinking(this, 
-		VelocitySampler::GetRelativeVelocity(m_pConstraint->GetAttachedObject(), m_pConstraint->GetReferenceObject()),
-		axisDirection
-		);
-
-	SetThink(&CPhysSlideConstraint::SoundThink);
-	SetNextThink(gpGlobals->curtime + m_soundInfo.getThinkRate());
-}
-
-void CPhysSlideConstraint::Precache()
-{
-	m_soundInfo.OnPrecache(this);
-}
-
-#endif
-
-
 //-----------------------------------------------------------------------------
 // Purpose: Fixed breakable constraint
 //-----------------------------------------------------------------------------
@@ -1370,40 +859,6 @@ class CPhysFixed : public CPhysConstraint
 	DECLARE_CLASS( CPhysFixed, CPhysConstraint );
 public:
 	IPhysicsConstraint *CreateConstraint( IPhysicsConstraintGroup *pGroup, const hl_constraint_info_t &info );
-	
-	// just for debugging - move to the position of the reference entity
-	void MoveToRefPosition()
-	{
-		if ( m_pConstraint )
-		{
-			matrix3x4_t xformRef;
-			m_pConstraint->GetConstraintTransform( &xformRef, NULL );
-			IPhysicsObject *pObj = m_pConstraint->GetReferenceObject();
-			if ( pObj && pObj->IsMoveable() )
-			{
-				Vector pos, posWorld;
-				MatrixPosition( xformRef, pos );
-				pObj->LocalToWorld(&posWorld, pos);
-				SetAbsOrigin(posWorld);
-			}
-		}
-	}
-	int DrawDebugTextOverlays()
-	{
-		if ( m_debugOverlays & OVERLAY_TEXT_BIT )
-		{
-			MoveToRefPosition();
-		}
-		return BaseClass::DrawDebugTextOverlays();
-	}
-	void DrawDebugGeometryOverlays()
-	{
-		if ( m_debugOverlays & (OVERLAY_BBOX_BIT|OVERLAY_PIVOT_BIT|OVERLAY_ABSBOX_BIT) )
-		{
-			MoveToRefPosition();
-		}
-		BaseClass::DrawDebugGeometryOverlays();
-	}
 };
 
 LINK_ENTITY_TO_CLASS( phys_constraint, CPhysFixed );
@@ -1458,10 +913,8 @@ public:
 				VectorTransform( m_offset[1], matrix, attachPos );
 			}
 			NDebugOverlay::Line( refPos, origin, 0, 255, 0, false, 0 );
-			NDebugOverlay::Line( origin, m_position2, 128, 128, 128, false, 0 );
+			NDebugOverlay::Line( origin, m_position2, 0, 255, 0, false, 0 );
 			NDebugOverlay::Line( m_position2, attachPos, 0, 255, 0, false, 0 );
-			NDebugOverlay::Box( origin, -Vector(8,8,8), Vector(8,8,8), 128, 255, 128, 32, 0 );
-			NDebugOverlay::Box( m_position2, -Vector(8,8,8), Vector(8,8,8), 255, 128, 128, 32, 0 );
 		}
 		BaseClass::DrawDebugGeometryOverlays();
 	}
@@ -1558,19 +1011,7 @@ public:
 				pAttach->GetPositionMatrix( &matrix );
 				VectorTransform( m_offset[1], matrix, attachPos );
 			}
-			Vector dir = attachPos - refPos;
-
-			float len = VectorNormalize(dir);
-			if ( len > m_totalLength )
-			{
-				Vector mid = refPos + dir * m_totalLength;
-				NDebugOverlay::Line( refPos, mid, 0, 255, 0, false, 0 );
-				NDebugOverlay::Line( mid, attachPos, 255, 0, 0, false, 0 );
-			}
-			else
-			{
-				NDebugOverlay::Line( refPos, attachPos, 0, 255, 0, false, 0 );
-			}
+			NDebugOverlay::Line( refPos, attachPos, 0, 255, 0, false, 0 );
 		}
 		BaseClass::DrawDebugGeometryOverlays();
 	}
@@ -1582,7 +1023,6 @@ private:
 	Vector		m_vecAttach;
 	float		m_addLength;
 	float		m_minLength;
-	float		m_totalLength;
 };
 
 BEGIN_DATADESC( CPhysLength )
@@ -1591,7 +1031,7 @@ BEGIN_DATADESC( CPhysLength )
 	DEFINE_KEYFIELD( m_addLength, FIELD_FLOAT, "addlength" ),
 	DEFINE_KEYFIELD( m_minLength, FIELD_FLOAT, "minlength" ),
 	DEFINE_KEYFIELD( m_vecAttach, FIELD_POSITION_VECTOR, "attachpoint" ),
-	DEFINE_FIELD( m_totalLength, FIELD_FLOAT ),
+
 END_DATADESC()
 
 
@@ -1612,7 +1052,6 @@ IPhysicsConstraint *CPhysLength::CreateConstraint( IPhysicsConstraintGroup *pGro
 	length.InitWorldspace( info.pObjects[0], info.pObjects[1], position[index], position[!index] );
 	length.totalLength += m_addLength;
 	length.minLength = m_minLength;
-	m_totalLength = length.totalLength;
 	if ( HasSpawnFlags(SF_LENGTH_RIGID) )
 	{
 		length.minLength = length.totalLength;
@@ -1736,274 +1175,3 @@ class CPhysConstraintEvents : public IPhysicsConstraintEvent
 static CPhysConstraintEvents constraintevents;
 // registered in physics.cpp
 IPhysicsConstraintEvent *g_pConstraintEvents = &constraintevents;
-
-
-
-
-
-#if HINGE_NOTIFY
-//-----------------------------------------------------------------------------
-// Code for sampler
-//-----------------------------------------------------------------------------
-
-
-/// Call this in spawn(). (Not a constructor because those are difficult to use in entities.)
-void VelocitySampler::Initialize(float samplerate)
-{
-	m_fIdealSampleRate = samplerate;
-}
-
-// This is an old style approach to reversal sounds, from when there was only one.
-#if 0
-bool VelocitySampler::HasReversed(const Vector &relativeVelocity, float thresholdAcceleration)
-{
-	// first, make sure the velocity has reversed (is more than 90deg off) from last time, or is zero now.
-	// float rVsq = relativeVelocity.LengthSqr();
-	float vDot = relativeVelocity.Dot(m_prevSample);
-	if (vDot <= 0) // there is a reversal in direction. compute the magnitude of acceleration.
-	{
-		// find the scalar projection of the relative acceleration this fame onto the previous frame's
-		// velocity, and compare that to the threshold. 
-		Vector accel = relativeVelocity - m_prevSample;
-
-		float prevSampleLength = m_prevSample.Length();
-		float projection = 0;
-		// divide through by dt to get the accel per sec
-		if (prevSampleLength)
-		{
-			projection = -(accel.Dot(m_prevSample) / prevSampleLength) / (gpGlobals->curtime - m_fPrevSampleTime);
-		}
-		else
-		{
-			projection = accel.Length() / (gpGlobals->curtime - m_fPrevSampleTime);
-		}
-
-		if (g_debug_constraint_sounds.GetBool())
-		{
-			Msg("Reversal accel is %f/%f\n",projection,thresholdAcceleration);
-		}
-		return ((projection) > thresholdAcceleration); // the scalar projection is negative because the acceleration is against vel
-	}
-	else
-	{
-		return false;
-	}
-}
-#endif
-
-/// Looks at the force of reversal and compares it to a ladder of thresholds.
-/// Returns the index of the highest threshold exceeded by the reversal velocity. 
-int VelocitySampler::HasReversed(const Vector &relativeVelocity, const float thresholdAcceleration[], const unsigned short numThresholds)
-{
-	// first, make sure the velocity has reversed (is more than 90deg off) from last time, or is zero now.
-	// float rVsq = relativeVelocity.LengthSqr();
-	float vDot = relativeVelocity.Dot(m_prevSample);
-	if (vDot <= 0) // there is a reversal in direction. compute the magnitude of acceleration.
-	{
-		// find the scalar projection of the relative acceleration this fame onto the previous frame's
-		// velocity, and compare that to the threshold. 
-		Vector accel = relativeVelocity - m_prevSample;
-
-		float prevSampleLength = m_prevSample.Length();
-		float projection = 0;
-		// divide through by dt to get the accel per sec
-		if (prevSampleLength)
-		{
-			// the scalar projection is negative because the acceleration is against vel
-			projection = -(accel.Dot(m_prevSample) / prevSampleLength) / (gpGlobals->curtime - m_fPrevSampleTime);
-		}
-		else
-		{
-			projection = accel.Length() / (gpGlobals->curtime - m_fPrevSampleTime);
-		}
-
-		if (g_debug_constraint_sounds.GetBool())
-		{
-			Msg("Reversal accel is %f/%f\n", projection, thresholdAcceleration[0]);
-		}
-
-
-		// now find the threshold crossed.
-		int retval;
-		for (retval = numThresholds - 1; retval >= 0 ; --retval)
-		{
-			if (projection > thresholdAcceleration[retval])
-				break;
-		}
-
-		return retval; 
-	}
-	else
-	{
-		return -1;
-	}
-}
-
-/// small helper function used just below (technique copy-pasted  from sound.cpp)
-inline static bool IsEmpty (const string_t &str)
-{
-	return (!str || strlen(str.ToCStr()) < 1 );
-}
-
-void ConstraintSoundInfo::OnActivate( CPhysConstraint *pOuter )
-{
-	m_pTravelSound = NULL;
-	m_vSampler.Initialize( getThinkRate() );
-
-
-	ValidateInternals( pOuter );
-
-	// make sure sound filenames are not empty 
-	m_bPlayTravelSound   = !IsEmpty(m_iszTravelSoundFwd) || !IsEmpty(m_iszTravelSoundBack);
-	m_bPlayReversalSound = false;
-	for (int i = 0; i < SimpleConstraintSoundProfile::kREVERSAL_SOUND_ARRAY_SIZE ; ++i)
-	{
-		if ( !IsEmpty(m_iszReversalSounds[i]) )
-		{
-			// if there is at least one filled sound field, we should try
-			// to play reversals
-			m_bPlayReversalSound = true;
-			break;
-		}
-	}
-
-
-	/*
-	SetThink(&CPhysSlideConstraint::SoundThink);
-	SetNextThink(gpGlobals->curtime + m_vSampler.getSampleRate());
-	*/
-}
-
-/// Maintain consistency of internal datastructures on start
-void ConstraintSoundInfo::ValidateInternals( CPhysConstraint *pOuter )
-{
-	// Make sure the reversal sound thresholds are strictly increasing.
-	for (int i = 1 ; i < SimpleConstraintSoundProfile::kREVERSAL_SOUND_ARRAY_SIZE ; ++i)
-	{
-		// if decreases from small to medium, promote small to medium and warn.
-		if (m_soundProfile.m_reversalSoundThresholds[i] < m_soundProfile.m_reversalSoundThresholds[i-1])
-		{
-			Warning("Constraint reversal sounds for %s are out of order!", pOuter->GetDebugName() );
-			m_soundProfile.m_reversalSoundThresholds[i] = m_soundProfile.m_reversalSoundThresholds[i-1];
-			m_iszReversalSounds[i] = m_iszReversalSounds[i-1];
-		}
-	}
-}
-
-void ConstraintSoundInfo::OnPrecache( CPhysConstraint *pOuter )
-{
-	pOuter->PrecacheScriptSound( m_iszTravelSoundFwd.ToCStr() ); 
-	pOuter->PrecacheScriptSound( m_iszTravelSoundBack.ToCStr() ); 
-	for (int i = 0 ; i < SimpleConstraintSoundProfile::kREVERSAL_SOUND_ARRAY_SIZE; ++i )
-	{
-		pOuter->PrecacheScriptSound( m_iszReversalSounds[i].ToCStr() );
-	}
-}
-
-void ConstraintSoundInfo::OnThink( CPhysConstraint *pOuter, const Vector &relativeVelocity )
-{
-	// have we had a hard reversal?
-	int playReversal = m_vSampler.HasReversed( relativeVelocity, m_soundProfile.m_reversalSoundThresholds, SimpleConstraintSoundProfile::kREVERSAL_SOUND_ARRAY_SIZE );
-	float relativeVelMag = relativeVelocity.Length(); //< magnitude of relative velocity
-
-	CBaseEntity *pChildEntity = static_cast<CBaseEntity *>(pOuter->GetPhysConstraint()->GetAttachedObject()->GetGameData());
-
-	// compute sound level
-	float soundVol = this->m_soundProfile.GetVolume(relativeVelMag);
-
-	if (g_debug_constraint_sounds.GetBool())
-	{
-		char tempstr[512];
-		Q_snprintf(tempstr,sizeof(tempstr),"Velocity: %.3f", relativeVelMag );
-		pChildEntity->EntityText( 0, tempstr, m_vSampler.getSampleRate() );
-
-		Q_snprintf(tempstr,sizeof(tempstr),"Sound volume: %.3f", soundVol );
-		pChildEntity->EntityText( 1, tempstr, m_vSampler.getSampleRate() );
-
-		if (playReversal >= 0)
-		{
-			Q_snprintf(tempstr,sizeof(tempstr),"Reversal [%d]", playReversal );
-			pChildEntity->EntityText(2,tempstr,m_vSampler.getSampleRate());
-		}
-	}
-
-	// if we loaded a travel sound
-	if (m_bPlayTravelSound)
-	{
-		if (soundVol > 0)
-		{
-			// if we want to play a sound...
-			if ( m_pTravelSound )
-			{	// if a sound exists, modify it
-				CSoundEnvelopeController::GetController().SoundChangeVolume( m_pTravelSound, soundVol, 0.1f );
-			}
-			else
-			{	// if a sound does not exist, create it
-				bool travellingForward = relativeVelocity.Dot(m_forwardAxis) > 0;
-
-				CSoundEnvelopeController &controller = CSoundEnvelopeController::GetController();
-				CPASAttenuationFilter filter( pChildEntity );
-				m_pTravelSound = controller.SoundCreate( filter, pChildEntity->entindex(), 
-					(travellingForward ? m_iszTravelSoundFwd : m_iszTravelSoundBack).ToCStr() );
-				controller.Play( m_pTravelSound, soundVol, 100 );
-			}
-		}
-		else
-		{
-			// if we want to not play sound
-			if ( m_pTravelSound )
-			{	// and it exists, kill it
-				CSoundEnvelopeController::GetController().SoundDestroy( m_pTravelSound );
-				m_pTravelSound = NULL;
-			}
-		}
-	}
-
-	if (m_bPlayReversalSound && (playReversal >= 0))
-	{
-		pChildEntity->EmitSound(m_iszReversalSounds[playReversal].ToCStr());
-	}
-
-	m_vSampler.AddSample( relativeVelocity );
-	
-}
-
-
-void ConstraintSoundInfo::StartThinking( CPhysConstraint *pOuter, const Vector &relativeVelocity, const Vector &forwardVector )
-{
-	m_forwardAxis = forwardVector;
-	m_vSampler.BeginSampling( relativeVelocity );
-
-	/*
-	IPhysicsConstraint *pConstraint = pOuter->GetPhysConstraint();
-	Assert(pConstraint);
-	if (pConstraint)
-	{
-		IPhysicsObject * pAttached = pConstraint->GetAttachedObject(), *pReference = pConstraint->GetReferenceObject();
-		m_vSampler.BeginSampling( VelocitySampler::GetRelativeVelocity(pAttached,pReference) );
-	}
-	*/
-}
-
-void ConstraintSoundInfo::StopThinking( CPhysConstraint *pOuter )
-{
-	DeleteAllSounds();
-}
-
-
-ConstraintSoundInfo::~ConstraintSoundInfo()
-{
-	DeleteAllSounds();
-}
-
-// Any sounds envelopes that are active, kill.
-void ConstraintSoundInfo::DeleteAllSounds()
-{
-	if ( m_pTravelSound )
-	{
-		CSoundEnvelopeController::GetController().SoundDestroy( m_pTravelSound );
-		m_pTravelSound = NULL;
-	}
-}
-
-#endif

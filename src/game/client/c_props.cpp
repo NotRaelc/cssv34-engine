@@ -7,9 +7,10 @@
 
 
 #include "cbase.h"
+#include "c_breakableprop.h"
 #include "c_physicsprop.h"
 #include "c_physbox.h"
-#include "c_props.h"
+#include "props_shared.h"
 
 #define CPhysBox C_PhysBox
 #define CPhysicsProp C_PhysicsProp
@@ -18,11 +19,31 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-IMPLEMENT_NETWORKCLASS_ALIASED( DynamicProp, DT_DynamicProp )
+class C_DynamicProp : public C_BreakableProp
+{
+	DECLARE_CLASS( C_DynamicProp, C_BreakableProp );
+public:
+	DECLARE_CLIENTCLASS();
 
-BEGIN_NETWORK_TABLE( CDynamicProp, DT_DynamicProp )
+	// constructor, destructor
+	C_DynamicProp( void );
+	~C_DynamicProp( void );
+
+	void GetRenderBounds( Vector& theMins, Vector& theMaxs );
+	unsigned int ComputeClientSideAnimationFlags();
+
+private:
+	C_DynamicProp( const C_DynamicProp & );
+
+	bool	m_bUseHitboxesForRenderBox;
+	int		m_iCachedFrameCount;
+	Vector	m_vecCachedRenderMins;
+	Vector	m_vecCachedRenderMaxs;
+};
+
+IMPLEMENT_CLIENTCLASS_DT(C_DynamicProp, DT_DynamicProp, CDynamicProp)
 	RecvPropBool(RECVINFO(m_bUseHitboxesForRenderBox)),
-END_NETWORK_TABLE()
+END_RECV_TABLE()
 
 C_DynamicProp::C_DynamicProp( void )
 {
@@ -31,41 +52,6 @@ C_DynamicProp::C_DynamicProp( void )
 
 C_DynamicProp::~C_DynamicProp( void )
 {
-}
-
-bool C_DynamicProp::TestBoneFollowers( const Ray_t &ray, unsigned int fContentsMask, trace_t& tr )
-{
-	// UNDONE: There is no list of the bone followers that is networked to the client
-	// so instead we do a search for solid stuff here.  This is not really great - a list would be
-	// preferable.
-	CBaseEntity	*pList[128];
-	Vector mins, maxs;
-	CollisionProp()->WorldSpaceAABB( &mins, &maxs );
-	int count = UTIL_EntitiesInBox( pList, ARRAYSIZE(pList), mins, maxs, 0, PARTITION_CLIENT_SOLID_EDICTS );
-	for ( int i = 0; i < count; i++ )
-	{
-		if ( pList[i]->GetOwnerEntity() == this )
-		{
-			if ( pList[i]->TestCollision(ray, fContentsMask, tr) )
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-bool C_DynamicProp::TestCollision( const Ray_t &ray, unsigned int fContentsMask, trace_t& tr )
-{
-	if ( IsSolidFlagSet(FSOLID_NOT_SOLID) )
-	{
-		// if this entity is marked non-solid and custom test it must have bone followers
-		if ( IsSolidFlagSet( FSOLID_CUSTOMBOXTEST ) && IsSolidFlagSet( FSOLID_CUSTOMRAYTEST ))
-		{
-			return TestBoneFollowers( ray, fContentsMask, tr );
-		}
-	}
-	return BaseClass::TestCollision( ray, fContentsMask, tr );
 }
 
 //-----------------------------------------------------------------------------

@@ -175,13 +175,13 @@ CAI_Network::~CAI_Network()
 //			index of the smallest number in the array whose it is set
 //-----------------------------------------------------------------------------
 
-int	CAI_Network::FindBSSmallest(CVarBitVec *bitString, float *float_array, int array_size) 
+int	CAI_Network::FindBSSmallest(CBitString *bitString, float *float_array, int array_size) 
 {
 	int	  winIndex = -1;
 	float winSize  = FLT_MAX;
 	for (int i=0;i<array_size;i++) 
 	{
-		if (bitString->IsBitSet(i) && (float_array[i]<winSize)) 
+		if (bitString->GetBit(i) && (float_array[i]<winSize)) 
 		{
 			winIndex = i;
 			winSize  = float_array[i];

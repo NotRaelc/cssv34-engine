@@ -126,21 +126,17 @@ void CPhysicsNPCSolver::ResetCancelTime()
 
 void CPhysicsNPCSolver::BecomePenetrationSolver()
 {
-	CBaseEntity *pEntity = m_hEntity.Get();
-	if ( pEntity )
+	m_allowIntersection = true;
+	IPhysicsObject *pList[VPHYSICS_MAX_OBJECT_LIST_COUNT];
+	int listCount = m_hEntity->VPhysicsGetObjectList( pList, ARRAYSIZE(pList) );
+	PhysDisableEntityCollisions( m_hNPC, m_hEntity );
+	m_pController = physenv->CreateMotionController( this );
+	for ( int i = 0; i < listCount; i++ )
 	{
-		m_allowIntersection = true;
-		IPhysicsObject *pList[VPHYSICS_MAX_OBJECT_LIST_COUNT];
-		int listCount = pEntity->VPhysicsGetObjectList( pList, ARRAYSIZE(pList) );
-		PhysDisableEntityCollisions( m_hNPC, pEntity );
-		m_pController = physenv->CreateMotionController( this );
-		for ( int i = 0; i < listCount; i++ )
-		{
-			m_pController->AttachObject( pList[i], false );
-			pList[i]->Wake();
-		}
-		m_pController->SetPriority( IPhysicsMotionController::HIGH_PRIORITY );
+		m_pController->AttachObject( pList[i], false );
+		pList[i]->Wake();
 	}
+	m_pController->SetPriority( IPhysicsMotionController::HIGH_PRIORITY );
 }
 
 void CPhysicsNPCSolver::Spawn()
@@ -297,9 +293,7 @@ IMotionEvent::simresult_e CPhysicsNPCSolver::Simulate( IPhysicsMotionController 
 
 		if ( pObject->GetGameFlags() & FVPHYSICS_PLAYER_HELD )
 		{
-			Vector origin;
-			pObject->GetPosition( &origin, NULL );
-			CBasePlayer *pPlayer = UTIL_GetNearestPlayer( origin );
+			CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
 			if ( pPlayer )
 			{
 				pPlayer->ForceDropOfCarriedPhysObjects( m_hEntity );
@@ -309,14 +303,6 @@ IMotionEvent::simresult_e CPhysicsNPCSolver::Simulate( IPhysicsMotionController 
 		ResetCancelTime();
 		angular.Init();
 		linear.Init();
-		
-		// Don't push on vehicles because they won't move
-		if ( pObject->GetGameFlags() & FVPHYSICS_MULTIOBJECT_ENTITY )
-		{
-			if ( m_hEntity->GetServerVehicle() )
-				return SIM_NOTHING;
-		}
-
 		Vector origin, vel;
 		pObject->GetPosition( &origin, NULL );
 		pObject->GetVelocity( &vel, NULL );
@@ -431,10 +417,7 @@ void CPhysicsEntitySolver::Spawn()
 	PhysDisableEntityCollisions( m_hMovingEntity, m_hPhysicsBlocker );
 	m_savedCollisionGroup = m_hPhysicsBlocker->GetCollisionGroup();
 	m_hPhysicsBlocker->SetCollisionGroup( COLLISION_GROUP_DEBRIS );
-	if ( m_hPhysicsBlocker->VPhysicsGetObject() )
-	{
-		m_hPhysicsBlocker->VPhysicsGetObject()->RecheckContactPoints();
-	}
+	m_hPhysicsBlocker->VPhysicsGetObject()->RecheckContactPoints();
 }
 
 void CPhysicsEntitySolver::Think()

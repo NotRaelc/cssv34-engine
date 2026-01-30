@@ -227,7 +227,7 @@ void C_BaseExplosionEffect::CreateCore( void )
 	
 	if ( m_Material_Smoke == NULL )
 	{
-		m_Material_Smoke = g_Mat_DustPuff[1];
+		m_Material_Smoke = pSimple->GetPMaterial( "particle/particle_noisesphere" );
 	}
 
 	//FIXME: Better sampling area
@@ -268,9 +268,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 			{
 				pParticle->m_flLifetime = 0.0f;
 
-	#ifdef INVASION_CLIENT_DLL
-				pParticle->m_flDieTime	= random->RandomFloat( 0.5f, 1.0f );
-	#endif
 	#ifdef _XBOX
 				pParticle->m_flDieTime	= 1.0f;
 	#else
@@ -327,11 +324,7 @@ void C_BaseExplosionEffect::CreateCore( void )
 			{
 				pParticle->m_flLifetime = 0.0f;
 
-	#ifdef INVASION_CLIENT_DLL
 				pParticle->m_flDieTime	= random->RandomFloat( 0.5f, 1.0f );
-	#else
-				pParticle->m_flDieTime	= random->RandomFloat( 0.5f, 1.0f );
-	#endif
 
 				pParticle->m_vecVelocity.Random( -spread, spread );
 				pParticle->m_vecVelocity += ( m_vecDirection * random->RandomFloat( 1.0f, 6.0f ) );
@@ -375,7 +368,6 @@ void C_BaseExplosionEffect::CreateCore( void )
 
 		Vector	forward;
 
-#ifndef INVASION_CLIENT_DLL
 
 #ifndef _XBOX 
 		int	numRingSprites = 32;
@@ -429,7 +421,7 @@ void C_BaseExplosionEffect::CreateCore( void )
 				pParticle->m_flRollDelta	= random->RandomFloat( -8.0f, 8.0f );
 			}
 		}
-#endif
+
 	}
 
 #ifndef _XBOX
@@ -628,13 +620,23 @@ void C_BaseExplosionEffect::CreateDebris( void )
 	//
 
 	Vector	offset;
-	CSmartPtr<CFleckParticles> fleckEmitter = CFleckParticles::Create( "CreateDebris 2", m_vecOrigin, Vector(128,128,128) );
+
+	CSmartPtr<CFleckParticles> fleckEmitter = CFleckParticles::Create( "CreateDebris 2", m_vecOrigin );
 	if ( !fleckEmitter )
 		return;
+
+	fleckEmitter->SetSortOrigin( m_vecOrigin );
 
 	// Setup our collision information
 	fleckEmitter->m_ParticleCollision.Setup( m_vecOrigin, &m_vecDirection, 0.9f, 512, 1024, 800, 0.5f );
 	
+	// Limit our bbox
+	fleckEmitter->GetBinding().SetBBox( m_vecOrigin - Vector(128,128,128), m_vecOrigin + Vector(128,128,128) );
+
+	// FIXME: Cache?
+	PMaterialHandle	hMaterialArray[2];
+	hMaterialArray[0] = fleckEmitter->GetPMaterial( "effects/fleck_cement1" );
+	hMaterialArray[1] = fleckEmitter->GetPMaterial( "effects/fleck_cement2" );
 
 #ifdef _XBOX
 	int	numFlecks = random->RandomInt( 8, 16 );
@@ -652,7 +654,7 @@ void C_BaseExplosionEffect::CreateDebris( void )
 		offset[1] += random->RandomFloat( -8.0f, 8.0f );
 		offset[2] += random->RandomFloat( -8.0f, 8.0f );
 
-		FleckParticle *pParticle = (FleckParticle *) fleckEmitter->AddParticle( sizeof(FleckParticle), g_Mat_Fleck_Cement[random->RandomInt(0,1)], offset );
+		FleckParticle *pParticle = (FleckParticle *) fleckEmitter->AddParticle( sizeof(FleckParticle), hMaterialArray[random->RandomInt(0,1)], offset );
 
 		if ( pParticle == NULL )
 			break;
@@ -1113,12 +1115,7 @@ void C_WaterExplosionEffect::CreateDebris( void )
 		{
 			pParticle->m_flLifetime = 0.0f;
 
-#ifdef INVASION_CLIENT_DLL
-			pParticle->m_flDieTime	= random->RandomFloat( 0.5f, 1.0f );
-#else
 			pParticle->m_flDieTime	= random->RandomFloat( 2.0f, 3.0f );
-#endif
-
 			pParticle->m_vecVelocity.Random( -spread, spread );
 			pParticle->m_vecVelocity += ( m_vecDirection * random->RandomFloat( 1.0f, 6.0f ) );
 			

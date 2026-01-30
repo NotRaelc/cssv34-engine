@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Implements a grab bag of visual effects entities.
 //
@@ -37,7 +37,7 @@
 
 #define	SF_GIBSHOOTER_REPEATABLE	(1<<0)	// allows a gibshooter to be refired
 #define	SF_SHOOTER_FLAMING			(1<<1)	// gib is on fire
-#define SF_SHOOTER_STRICT_REMOVE	(1<<2)	// remove this gib even if it is in the player's view
+#define SF_SHOOTER_STRICT_REMOVE	(1<<2)	// remove this gib even if it is in the player's view	
 
 // UNDONE: This should be client-side and not use TempEnts
 class CBubbling : public CBaseEntity
@@ -47,7 +47,7 @@ public:
 
 	virtual  void	Spawn( void );
 	virtual void	Precache( void );
-
+	
 	void	FizzThink( void );
 
 	// Input handlers.
@@ -117,7 +117,7 @@ void CBubbling::Spawn( void )
 		SetNextThink( gpGlobals->curtime + 2.0 );
 		m_state = 1;
 	}
-	else
+	else 
 	{
 		m_state = 0;
 	}
@@ -157,7 +157,7 @@ void CBubbling::TurnOff()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CBubbling::InputActivate( inputdata_t &inputdata )
 {
@@ -165,7 +165,7 @@ void CBubbling::InputActivate( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CBubbling::InputDeactivate( inputdata_t &inputdata )
 {
@@ -173,7 +173,7 @@ void CBubbling::InputDeactivate( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CBubbling::InputToggle( inputdata_t &inputdata )
 {
@@ -181,8 +181,8 @@ void CBubbling::InputToggle( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : &inputdata -
+// Purpose: 
+// Input  : &inputdata - 
 //-----------------------------------------------------------------------------
 void CBubbling::InputSetCurrent( inputdata_t &inputdata )
 {
@@ -190,8 +190,8 @@ void CBubbling::InputSetCurrent( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : &inputdata -
+// Purpose: 
+// Input  : &inputdata - 
 //-----------------------------------------------------------------------------
 void CBubbling::InputSetDensity( inputdata_t &inputdata )
 {
@@ -199,8 +199,8 @@ void CBubbling::InputSetDensity( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : &inputdata -
+// Purpose: 
+// Input  : &inputdata - 
 //-----------------------------------------------------------------------------
 void CBubbling::InputSetFrequency( inputdata_t &inputdata )
 {
@@ -333,7 +333,7 @@ public:
 	virtual CGib *CreateGib( void );
 
 protected:
-	// Purpose:
+	// Purpose: 
 	CBaseEntity *SpawnGib( const Vector &vecShootDir, float flSpeed );
 
 	DECLARE_DATADESC();
@@ -354,7 +354,7 @@ protected:
 	int		m_nSimulationType;
 	int		m_nMaxGibModelFrame;
 	float	m_flDelay;
-
+	
 	bool	m_bNoGibShadows;
 
 	bool	m_bIsSprite;
@@ -451,8 +451,8 @@ void CGibShooter::Spawn( void )
 
 CGib *CGibShooter::CreateGib ( void )
 {
-	ConVarRef violence_hgibs( "violence_hgibs" );
-	if ( violence_hgibs.IsValid() && !violence_hgibs.GetInt() )
+	ConVar const *hgibs = cvar->FindVar( "violence_hgibs" );
+	if ( hgibs && !hgibs->GetInt() )
 		return NULL;
 
 	CGib *pGib = CREATE_ENTITY( CGib, "gib" );
@@ -492,7 +492,7 @@ void CGibShooter::InitPointGib( CGib *pGib, const Vector &vecShootDir, float flS
 
 		// HL1 gibs always die after a certain time, other games have to opt-in
 #ifndef HL1_DLL
-		if( HasSpawnFlags( SF_SHOOTER_STRICT_REMOVE ) )
+		if( HasSpawnFlags( SF_SHOOTER_STRICT_REMOVE ) ) 
 #endif
 		{
 			pGib->SetNextThink( gpGlobals->curtime + pGib->m_lifeTime );
@@ -526,7 +526,7 @@ void CGibShooter::InitPointGib( CGib *pGib, const Vector &vecShootDir, float flS
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 CBaseEntity *CGibShooter::SpawnGib( const Vector &vecShootDir, float flSpeed )
 {
@@ -552,8 +552,8 @@ CBaseEntity *CGibShooter::SpawnGib( const Vector &vecShootDir, float flSpeed )
 
 				pGib->SetCollisionGroup( COLLISION_GROUP_DEBRIS );
 				IPhysicsObject *pPhysicsObject = pGib->VPhysicsInitNormal( SOLID_VPHYSICS, pGib->GetSolidFlags(), false );
-				pGib->SetMoveType( MOVETYPE_VPHYSICS );
-
+				pGib->SetMoveType( MOVETYPE_VPHYSICS );	  
+                				
 				if ( pPhysicsObject )
 				{
 					// Set gib velocity
@@ -569,7 +569,7 @@ CBaseEntity *CGibShooter::SpawnGib( const Vector &vecShootDir, float flSpeed )
 					pPhysicsObject->ApplyTorqueCenter( torque );
 
 #ifndef HL1_DLL
-					if( HasSpawnFlags( SF_SHOOTER_STRICT_REMOVE ) )
+					if( HasSpawnFlags( SF_SHOOTER_STRICT_REMOVE ) ) 
 #endif
 					{
 						pGib->m_bForceRemove = true;
@@ -593,7 +593,7 @@ CBaseEntity *CGibShooter::SpawnGib( const Vector &vecShootDir, float flSpeed )
 			if ( pGib )
 			{
 				pGib->SetAbsAngles( m_angGibRotation );
-
+			
 				InitPointGib( pGib, vecShootDir, flSpeed );
 				return pGib;
 			}
@@ -605,7 +605,7 @@ CBaseEntity *CGibShooter::SpawnGib( const Vector &vecShootDir, float flSpeed )
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CGibShooter::ShootThink ( void )
 {
@@ -619,7 +619,7 @@ void CGibShooter::ShootThink ( void )
 	vecShootDir = vecShootDir + vUp * random->RandomFloat( -1, 1) * m_flVariance;
 
 	VectorNormalize( vecShootDir );
-
+	
 	SpawnGib( vecShootDir, m_flGibVelocity );
 
 	if ( --m_iGibs <= 0 )
@@ -648,7 +648,7 @@ public:
 	bool		KeyValue( const char *szKeyName, const char *szValue );
 
 	CGib		*CreateGib( void );
-
+	
 	DECLARE_DATADESC();
 
 public:
@@ -656,10 +656,6 @@ public:
 	int m_nSkin;
 	float m_flGibScale;
 	float m_flGibGravityScale;
-
-#if HL2_EPISODIC
-	float m_flMassOverride;	// allow designer to force a mass for gibs in some cases
-#endif
 };
 
 BEGIN_DATADESC( CEnvShooter )
@@ -667,10 +663,6 @@ BEGIN_DATADESC( CEnvShooter )
 	DEFINE_KEYFIELD( m_nSkin, FIELD_INTEGER, "skin" ),
 	DEFINE_KEYFIELD( m_flGibScale, FIELD_FLOAT ,"scale" ),
 	DEFINE_KEYFIELD( m_flGibGravityScale, FIELD_FLOAT, "gibgravityscale" ),
-
-#if HL2_EPISODIC
-	DEFINE_KEYFIELD( m_flMassOverride, FIELD_FLOAT, "massoverride" ),
-#endif
 
 END_DATADESC()
 
@@ -709,7 +701,7 @@ bool CEnvShooter::KeyValue( const char *szKeyName, const char *szValue )
 		case 4:
 			m_iGibMaterial = matRocks;
 			break;
-
+		
 		default:
 		case -1:
 			m_iGibMaterial = matNone;
@@ -744,7 +736,7 @@ CGib *CEnvShooter::CreateGib ( void )
 	{
 		pGib->Spawn( STRING( GetModelName() ) );
 	}
-
+	
 	int bodyPart = 0;
 
 	if ( m_nMaxGibModelFrame > 1 )
@@ -763,7 +755,7 @@ CGib *CEnvShooter::CreateGib ( void )
 	pGib->m_lifeTime = gpGlobals->curtime + m_flGibLife;
 
 	pGib->SetGravity( m_flGibGravityScale );
-
+		
 	// Spawn a flaming gib
 	if ( HasSpawnFlags( SF_SHOOTER_FLAMING ) )
 	{
@@ -786,18 +778,6 @@ CGib *CEnvShooter::CreateGib ( void )
 	{
 		pGib->AddEffects( EF_NOSHADOW );
 	}
-
-#if HL2_EPISODIC
-	// if a mass override is set, apply it to the gib
-	if (m_flMassOverride != 0)
-	{
-		IPhysicsObject *pPhys = pGib->VPhysicsGetObject();
-		if (pPhys)
-		{
-			pPhys->SetMass( m_flMassOverride );
-		}
-	}
-#endif
 
 	return pGib;
 }
@@ -916,7 +896,7 @@ CBaseEntity *CRotorWashShooter::DoWashPush( float flWashStartTime, const Vector 
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 class CTestEffect : public CBaseEntity
 {
@@ -970,7 +950,7 @@ void CTestEffect::Think( void )
 		pbeam->SetColor( 255, 180, 100 );
 		pbeam->SetWidth( 10.0 );
 		pbeam->SetScrollRate( 12 );
-
+		
 		m_flBeamTime[m_iBeam] = gpGlobals->curtime;
 		m_pBeam[m_iBeam] = pbeam;
 		m_iBeam++;
@@ -1027,7 +1007,7 @@ public:
 	inline	float 	BloodAmount( void ) { return m_flAmount; }
 
 	inline	void SetColor( int color ) { m_Color = color; }
-
+	
 	// Input handlers
 	void InputEmitBlood( inputdata_t &inputdata );
 
@@ -1066,7 +1046,7 @@ END_DATADESC()
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CBlood::Spawn( void )
 {
@@ -1081,9 +1061,9 @@ void CBlood::Spawn( void )
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : szKeyName -
-//			szValue -
+// Purpose: 
+// Input  : szKeyName - 
+//			szValue - 
 // Output : Returns true on success, false on failure.
 //-----------------------------------------------------------------------------
 bool CBlood::KeyValue( const char *szKeyName, const char *szValue )
@@ -1113,7 +1093,7 @@ Vector CBlood::Direction( void )
 {
 	if ( HasSpawnFlags( SF_BLOOD_RANDOM ) )
 		return UTIL_RandomBloodVector();
-
+	
 	return m_vecSprayDir;
 }
 
@@ -1130,9 +1110,9 @@ Vector CBlood::BloodPosition( CBaseEntity *pActivator )
 		}
 		else
 		{
-			player = UTIL_GetNearestVisiblePlayer(this);
+			player = UTIL_GetLocalPlayer();
 		}
-
+		
 		if ( player )
 		{
 			return (player->EyePosition()) + Vector( random->RandomFloat(-10,10), random->RandomFloat(-10,10), random->RandomFloat(-10,10) );
@@ -1144,20 +1124,20 @@ Vector CBlood::BloodPosition( CBaseEntity *pActivator )
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void UTIL_BloodSpray( const Vector &pos, const Vector &dir, int color, int amount, int flags )
 {
 	if( color == DONT_BLEED )
 		return;
-
+	
 	CEffectData	data;
 
 	data.m_vOrigin = pos;
 	data.m_vNormal = dir;
 	data.m_flScale = (float)amount;
 	data.m_fFlags = flags;
-	data.m_nColor = color;
+	data.m_nColor = (unsigned char)color;
 
 	DispatchEffect( "bloodspray", data );
 }
@@ -1218,10 +1198,10 @@ void CBlood::InputEmitBlood( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 // Purpose: Console command for emitting the blood spray effect from an NPC.
 //-----------------------------------------------------------------------------
-void CC_BloodSpray( const CCommand &args )
+void CC_BloodSpray( void )
 {
 	CBaseEntity *pEnt = NULL;
-	while ( ( pEnt = gEntList.FindEntityGeneric( pEnt, args[1] ) ) != NULL )
+	while ((pEnt = gEntList.FindEntityGeneric(pEnt, engine->Cmd_Argv(1))) != NULL)
 	{
 		Vector forward;
 		pEnt->GetVectors(&forward, NULL, NULL);
@@ -1233,7 +1213,7 @@ static ConCommand bloodspray( "bloodspray", CC_BloodSpray, "blood", FCVAR_CHEAT 
 
 
 //-----------------------------------------------------------------------------
-//
+// 
 //-----------------------------------------------------------------------------
 class CEnvFunnel : public CBaseEntity
 {
@@ -1344,7 +1324,7 @@ void CEnvBeverage::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE 
 		return;
 	}
 
-	CBaseAnimating *pCan = (CBaseAnimating *)CBaseEntity::Create( "item_sodacan", GetLocalOrigin(), GetLocalAngles(), this );
+	CBaseAnimating *pCan = (CBaseAnimating *)CBaseEntity::Create( "item_sodacan", GetLocalOrigin(), GetLocalAngles(), this );	
 
 	if ( m_nBeverageType == 6 )
 	{
@@ -1423,7 +1403,7 @@ void CItemSoda::Spawn( void )
 
 	SetModel ( "models/can.mdl" );
 	UTIL_SetSize ( this, Vector ( 0, 0, 0 ), Vector ( 0, 0, 0 ) );
-
+	
 	SetThink (&CItemSoda::CanThink);
 	SetNextThink( gpGlobals->curtime + 0.5f );
 }
@@ -1468,7 +1448,7 @@ void CItemSoda::CanTouch ( CBaseEntity *pOther )
 
 #ifndef _XBOX
 //=========================================================
-// func_precipitation - temporary snow solution for first HL2
+// func_precipitation - temporary snow solution for first HL2 
 // technology demo
 //=========================================================
 
@@ -1502,7 +1482,7 @@ CPrecipitation::CPrecipitation()
 	m_nPrecipType = PRECIPITATION_TYPE_RAIN; // default to rain.
 }
 
-void CPrecipitation::Spawn( void )
+void CPrecipitation::Spawn( void )							   
 {
 	PrecacheMaterial( "effects/fleck_ash1" );
 	PrecacheMaterial( "effects/fleck_ash2" );
@@ -1539,11 +1519,7 @@ public:
 	DECLARE_SERVERCLASS();
 
 private:
-#ifdef _LINUX
-	CEnvWindShared m_EnvWindShared; // FIXME - fails to compile as networked var due to operator= problem
-#else
 	CNetworkVarEmbedded( CEnvWindShared, m_EnvWindShared );
-#endif
 };
 
 LINK_ENTITY_TO_CLASS( env_wind, CEnvWind );
@@ -1648,7 +1624,7 @@ public:
 
 	void	Spawn( void );
 	void	Precache( void );
-
+	
 	void	EmberUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
 
 	CNetworkVar( int, m_nDensity );
@@ -1687,7 +1663,7 @@ IMPLEMENT_SERVERCLASS_ST( CEmbers, DT_Embers )
 END_SEND_TABLE()
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CEmbers::Spawn( void )
 {
@@ -1705,18 +1681,18 @@ void CEmbers::Spawn( void )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CEmbers::Precache( void )
 {
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : *pActivator -
-//			*pCaller -
-//			useType -
-//			value -
+// Purpose: 
+// Input  : *pActivator - 
+//			*pCaller - 
+//			useType - 
+//			value - 
 //-----------------------------------------------------------------------------
 void CEmbers::EmberUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
@@ -1750,7 +1726,7 @@ void CEmbers::EmberUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE 
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 class CPhysicsWire : public CBaseEntity
 {
@@ -1785,7 +1761,7 @@ END_DATADESC()
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CPhysicsWire::Spawn( void )
 {
@@ -1798,7 +1774,7 @@ void CPhysicsWire::Spawn( void )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CPhysicsWire::Precache( void )
 {
@@ -1808,7 +1784,7 @@ void CPhysicsWire::Precache( void )
 class CPhysBallSocket;
 
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: 
 //-----------------------------------------------------------------------------
 bool CPhysicsWire::SetupPhysics( void )
 {
@@ -1840,11 +1816,11 @@ bool CPhysicsWire::SetupPhysics( void )
 
 		iAnchorName = MAKE_STRING( anchorName );
 		iFreeName	= MAKE_STRING( freeName );
-
+		
 		//Fake the names
 		//socket->m_nameAttach1 = anchorEnt->m_iGlobalname	= iAnchorName;
 		//socket->m_nameAttach2 = freeEnt->m_iGlobalname	= iFreeName
-
+		
 		//socket->Activate();
 
 		//The free ent is now the anchor for the next link
@@ -1868,7 +1844,7 @@ public:
 
 	// Input handlers
 	void	InputFire( inputdata_t &inputdata );
-
+	
 	DECLARE_DATADESC();
 
 	float	m_flScale;
@@ -1893,7 +1869,7 @@ LINK_ENTITY_TO_CLASS( env_muzzleflash, CEnvMuzzleFlash );
 //-----------------------------------------------------------------------------
 void CEnvMuzzleFlash::Spawn()
 {
-	if ( (m_iszParentAttachment != NULL_STRING) && GetParent() && GetParent()->GetBaseAnimating() )
+	if ( (m_iszParentAttachment != NULL_STRING) && GetParent() && GetParent()->GetBaseAnimating() ) 
 	{
 		CBaseAnimating *pAnim = GetParent()->GetBaseAnimating();
 		int nParentAttachment = pAnim->LookupAttachment( STRING(m_iszParentAttachment) );
@@ -1908,8 +1884,8 @@ void CEnvMuzzleFlash::Spawn()
 
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : &inputdata -
+// Purpose: 
+// Input  : &inputdata - 
 //-----------------------------------------------------------------------------
 void CEnvMuzzleFlash::InputFire( inputdata_t &inputdata )
 {
@@ -1922,14 +1898,14 @@ void CEnvMuzzleFlash::InputFire( inputdata_t &inputdata )
 //=========================================================
 #define SF_ENVSPLASH_FINDWATERSURFACE	0x00000001
 #define SF_ENVSPLASH_DIMINISH			0x00000002
-class CEnvSplash : public CPointEntity
+class CEnvSplash : public CPointEntity 
 {
 	DECLARE_CLASS( CEnvSplash, CPointEntity );
 
 public:
 	// Input handlers
 	void	InputSplash( inputdata_t &inputdata );
-
+	
 protected:
 
 	float	m_flScale;
@@ -1946,8 +1922,8 @@ END_DATADESC()
 LINK_ENTITY_TO_CLASS( env_splash, CEnvSplash );
 
 //-----------------------------------------------------------------------------
-// Purpose:
-// Input  : &inputdata -
+// Purpose: 
+// Input  : &inputdata - 
 //-----------------------------------------------------------------------------
 #define SPLASH_MAX_DEPTH	120.0f
 void CEnvSplash::InputSplash( inputdata_t &inputdata )
@@ -1991,9 +1967,9 @@ void CEnvSplash::InputSplash( inputdata_t &inputdata )
 		UTIL_TraceLine( data.m_vOrigin, data.m_vOrigin - Vector( 0, 0, 4096 ), MASK_SOLID_BRUSHONLY, this, COLLISION_GROUP_NONE, &tr );
 
 		depth = fabs( tr.startpos.z - tr.endpos.z );
-
+		
 		float factor = 1.0f - (depth / SPLASH_MAX_DEPTH);
-
+		
 		if( factor < 0.1 )
 		{
 			// Don't bother making one this small.
@@ -2012,7 +1988,7 @@ void CEnvSplash::InputSplash( inputdata_t &inputdata )
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-class CEnvGunfire : public CPointEntity
+class CEnvGunfire : public CPointEntity 
 {
 public:
 	DECLARE_CLASS( CEnvGunfire, CPointEntity );
@@ -2020,7 +1996,7 @@ public:
 	CEnvGunfire()
 	{
 		// !!!HACKHACK
-		// These fields came along kind of late, so they get
+		// These fields came along kind of late, so they get 
 		// initialized in the constructor for now. (sjb)
 		m_flBias = 1.0f;
 		m_bCollide = false;
@@ -2039,7 +2015,7 @@ public:
 
 	int	m_iMinBurstSize;
 	int m_iMaxBurstSize;
-
+	
 	float m_flMinBurstDelay;
 	float m_flMaxBurstDelay;
 
@@ -2137,8 +2113,8 @@ void CEnvGunfire::Spawn()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-void CEnvGunfire::Activate( void )
-{
+void CEnvGunfire::Activate( void ) 
+{ 
 	// Find my target
 	if (m_target != NULL_STRING)
 	{
@@ -2200,7 +2176,7 @@ void CEnvGunfire::ShootThink()
 	CShotManipulator manipulator( vecDir );
 
 	vecDir = manipulator.ApplySpread( m_vecSpread, m_flBias );
-
+	
 	Vector vecEnd;
 
 	if( m_bCollide )
@@ -2258,7 +2234,7 @@ void CEnvGunfire::InputDisable( inputdata_t &inputdata )
 }
 
 //-----------------------------------------------------------------------------
-// Quadratic spline beam effect
+// Quadratic spline beam effect 
 //-----------------------------------------------------------------------------
 BEGIN_DATADESC( CEnvQuadraticBeam )
 	DEFINE_FIELD( m_targetPosition, FIELD_POSITION_VECTOR ),
@@ -2354,7 +2330,7 @@ void CEnvViewPunch::Spawn( void )
 {
 	SetSolid( SOLID_NONE );
 	SetMoveType( MOVETYPE_NONE );
-
+	
 	if ( GetSpawnFlags() & SF_PUNCH_EVERYONE )
 	{
 		m_flRadius = 0;

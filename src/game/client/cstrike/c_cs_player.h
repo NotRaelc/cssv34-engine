@@ -102,14 +102,14 @@ public:
 	
 	virtual const Vector& GetRenderOrigin( void );
 		
-	bool CreateMove( float flInputSampleTime, CUserCmd *pCmd );
+	virtual void CreateMove( float flInputSampleTime, CUserCmd *pCmd );
 
 	CUtlVector< C_BaseParticleEntity* > m_SmokeGrenades;
 
 	virtual bool ShouldDraw( void );
 	virtual void BuildTransformations( CStudioHdr *pStudioHdr, Vector *pos, Quaternion q[], const matrix3x4_t& cameraTransform, int boneMask, CBoneBitList &boneComputed );
 
-	virtual C_BaseAnimating * BecomeRagdollOnClient();
+	virtual C_BaseAnimating * BecomeRagdollOnClient( bool bCopyEntity = false );
 	virtual IRagdoll* GetRepresentativeRagdoll() const;
 
 	void ImpactTrace( trace_t *pTrace, int iDamageType, char *pCustomImpactName );

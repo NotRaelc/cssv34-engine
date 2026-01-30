@@ -1,27 +1,21 @@
-//====== Copyright © 1996-2007, Valve Corporation, All rights reserved. =======
-//
-// Purpose: 
-//
-//=============================================================================
-
 #include "cbase.h"
 #include "SceneCache.h"
 #include "choreoscene.h"
 #include "choreoevent.h"
 
 extern ISoundEmitterSystemBase *soundemitterbase;
-CChoreoScene *BlockingLoadScene( const char *filename );
+CChoreoScene			*BlockingLoadScene( const char *filename );
 
 CSceneCache::CSceneCache()
 {
-	msecs = 0;
 }
 
 CSceneCache::CSceneCache( const CSceneCache& src )
 {
-	msecs  = src.msecs;
-	sounds = src.sounds;
+	msecs			= src.msecs;
+	sounds			= src.sounds;
 }
+
 
 int	CSceneCache::GetSoundCount() const
 {
@@ -35,7 +29,7 @@ char const *CSceneCache::GetSoundName( int index )
 
 void CSceneCache::Save( CUtlBuffer& buf  )
 {
-	buf.PutUnsignedInt( msecs );
+	buf.PutShort( msecs );
 
 	unsigned short c = GetSoundCount();
 	buf.PutShort( c );
@@ -51,15 +45,15 @@ void CSceneCache::Save( CUtlBuffer& buf  )
 void CSceneCache::Restore( CUtlBuffer& buf  )
 {
 	MEM_ALLOC_CREDIT();
-
-	msecs = buf.GetUnsignedInt();
+	msecs = buf.GetShort();
 
 	unsigned short c = (unsigned short)buf.GetShort();
 
 	for ( int i = 0; i < c; ++i )
 	{
 		char soundname[ 512 ];
-		buf.GetString( soundname );
+
+		buf.GetString( soundname, sizeof( soundname ) );
 
 		int idx = soundemitterbase->GetSoundIndex( soundname );
 		if ( idx != -1 )

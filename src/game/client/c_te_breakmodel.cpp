@@ -10,7 +10,6 @@
 #include "c_basetempentity.h"
 #include "c_te_legacytempents.h"
 #include "tier1/keyvalues.h"
-#include "tier0/vprof.h"
 #include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -142,8 +141,6 @@ void TE_BreakModel( IRecipientFilter& filter, float delay,
 //-----------------------------------------------------------------------------
 void C_TEBreakModel::PostDataUpdate( DataUpdateType_t updateType )
 {
-	VPROF( "C_TEBreakModel::PostDataUpdate" );
-
 	tempents->BreakModel( m_vecOrigin, m_angRotation, m_vecSize, m_vecVelocity,
 		m_nRandomization, m_fTime, m_nCount, m_nModelIndex, m_nFlags );
 	RecordBreakModel( m_vecOrigin, m_angRotation, m_vecSize, m_vecVelocity,

@@ -41,7 +41,6 @@ BEGIN_SIMPLE_DATADESC( CSound )
 	DEFINE_FIELD( m_vecOrigin,			FIELD_POSITION_VECTOR ),
 	DEFINE_FIELD( m_bHasOwner,			FIELD_BOOLEAN ),
 //	DEFINE_FIELD( m_iMyIndex,			FIELD_INTEGER ),
-	DEFINE_FIELD( m_hTarget,			FIELD_EHANDLE ),
 
 END_DATADESC()
 
@@ -279,11 +278,11 @@ void CSoundEnt::Think ( void )
 
 			if( displaysoundlist.GetInt() == 1 )
 			{
-				Msg("  Removed Sound: %d (Time:%f)\n", m_SoundPool[ iSound ].SoundType(), gpGlobals->curtime );
+				Msg("  Removed Sound: %d\n", m_SoundPool[ iSound ].SoundType() );
 			}
 			if( displaysoundlist.GetInt() == 2 && m_SoundPool[ iSound ].IsSoundType( SOUND_DANGER ) )
 			{
-				Msg("  Removed Danger Sound: %d (time:%f)\n", m_SoundPool[ iSound ].SoundType(), gpGlobals->curtime );
+				Msg("  Removed Danger Sound: %d\n", m_SoundPool[ iSound ].SoundType() );
 			}
 
 			// move this sound back into the free list
@@ -400,7 +399,7 @@ int CSoundEnt::IAllocSound( void )
 		// no free sound!
 		if ( developer.GetInt() >= 2 )
 			Msg( "Free Sound List is full!\n" );
-
+	
 		return SOUNDLIST_EMPTY;
 	}
 
@@ -479,11 +478,11 @@ void CSoundEnt::InsertSound ( int iType, const Vector &vecOrigin, int iVolume, f
 
 	if( displaysoundlist.GetInt() == 1 )
 	{
-		Msg("  Added Sound! Type:%d  Duration:%f (Time:%f)\n", pSound->SoundType(), flDuration, gpGlobals->curtime );
+		Msg("  Added Sound! Type:%d  Duration:%f\n", pSound->SoundType(), flDuration );
 	}
 	if( displaysoundlist.GetInt() == 2 && (iType & SOUND_DANGER) )
 	{
-		Msg("  Added Danger Sound! Duration:%f (Time:%f)\n", flDuration, gpGlobals->curtime );
+		Msg("  Added Danger Sound! Duration:%f\n", flDuration );
 	}
 }
 
@@ -520,17 +519,12 @@ void CSoundEnt::Initialize ( void )
 	m_cLastActiveSounds;
 	m_iFreeSound = 0;
 	m_iActiveSound = SOUNDLIST_EMPTY;
-
+	
 	// In SP, we should only use the first 64 slots so save/load works right.
 	// In MP, have one for each player and 32 extras.
 	int nTotalSoundsInPool = MAX_WORLD_SOUNDS_SP;
 	if ( gpGlobals->maxClients > 1 )
 		nTotalSoundsInPool = min( MAX_WORLD_SOUNDS_MP, gpGlobals->maxClients + 32 );
-
-	if ( gpGlobals->maxClients+16 > nTotalSoundsInPool )
-	{
-		Warning( "CSoundEnt pool is low on sounds due to high number of clients.\n" );
-	}
 
 	for ( i = 0 ; i < nTotalSoundsInPool ; i++ )
 	{

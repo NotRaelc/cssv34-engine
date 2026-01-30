@@ -149,7 +149,6 @@ public:
 
 	// Byte functions.
 public:
-
 	void			WriteChar(int val);
 	void			WriteByte(int val);
 	void			WriteShort(int val);

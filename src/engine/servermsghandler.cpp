@@ -44,7 +44,7 @@
 #include "audio_pch.h"
 
 #if defined ( _X360 )
-#include "matchmaking.h"
+//#include "matchmaking.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!

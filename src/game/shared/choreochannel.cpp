@@ -252,7 +252,7 @@ void CChoreoChannel::ReconcileGestureTimes()
 				float decayTime = (1.0 - pExitTag->GetPercentage()) * duration;
 
 				// adjust the previous gestures end time to current apex + existing decay rate
-				previous->RescaleGestureTimes( previous->GetStartTime(), entryTime + decayTime, true );
+				previous->RescaleGestureTimes( previous->GetStartTime(), entryTime + decayTime );
 				previous->SetEndTime( entryTime + decayTime );
 
 				// set the previous gestures end tag to the current apex
@@ -519,35 +519,34 @@ bool CChoreoChannel::GetSortedCombinedEventList( char const *cctoken, CUtlRBTree
 	return ( events.Count() > 0 ) ? true : false;
 }
 
-void CChoreoChannel::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool )
+void CChoreoChannel::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 {
-	buf.PutShort( pStringPool->FindOrAddString( GetName() ) );
-
+	buf.PutString( GetName() );
 	int c = GetNumEvents();
-	Assert( c <= 255 );
-	buf.PutUnsignedChar( c );
+	Assert( c <= 65535 );
 
+	buf.PutShort( c );
 	for ( int i = 0; i < c; i++ )
 	{
 		CChoreoEvent *e = GetEvent( i );
 		Assert( e );
-		e->SaveToBuffer( buf, pScene, pStringPool );
+		e->SaveToBuffer( buf, pScene );
 	}
 
 	buf.PutChar( GetActive() ? 1 : 0 );
 }
 
-bool CChoreoChannel::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, CChoreoActor *pActor, IChoreoStringPool *pStringPool )
+bool CChoreoChannel::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, CChoreoActor *pActor )
 {
 	char sz[ 256 ];
-	pStringPool->GetString( buf.GetShort(), sz, sizeof( sz ) );
+	buf.GetString( sz, sizeof( sz ) );
 	SetName( sz );
 
-	int numEvents = (int)buf.GetUnsignedChar();
+	int numEvents = (int)buf.GetShort();
 	for ( int i = 0 ; i < numEvents; ++i )
 	{
 		CChoreoEvent *e = pScene->AllocEvent();
-		if ( e->RestoreFromBuffer( buf, pScene, pStringPool ) )
+		if ( e->RestoreFromBuffer( buf, pScene ) )
 		{
 			AddEvent( e );
 			e->SetChannel( this );

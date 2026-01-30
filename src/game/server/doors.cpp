@@ -34,18 +34,13 @@ BEGIN_DATADESC( CBaseDoor )
 	DEFINE_FIELD( m_bUnlockedSentence, FIELD_CHARACTER ),	
 	DEFINE_KEYFIELD( m_NoiseMoving, FIELD_SOUNDNAME, "noise1" ),
 	DEFINE_KEYFIELD( m_NoiseArrived, FIELD_SOUNDNAME, "noise2" ),
-	DEFINE_KEYFIELD( m_NoiseMovingClosed, FIELD_SOUNDNAME, "startclosesound" ),
-	DEFINE_KEYFIELD( m_NoiseArrivedClosed, FIELD_SOUNDNAME, "closesound" ),
 	DEFINE_KEYFIELD( m_ChainTarget, FIELD_STRING, "chainstodoor" ),
-	// DEFINE_FIELD( m_isChaining, FIELD_BOOLEAN ),
 	// DEFINE_FIELD( m_ls, locksound_t ),
-//	DEFINE_FIELD( m_isChaining, FIELD_BOOLEAN ),
 	DEFINE_KEYFIELD( m_ls.sLockedSound, FIELD_SOUNDNAME, "locked_sound" ),
 	DEFINE_KEYFIELD( m_ls.sUnlockedSound, FIELD_SOUNDNAME, "unlocked_sound" ),
 	DEFINE_FIELD( m_bLocked, FIELD_BOOLEAN ),
 	DEFINE_KEYFIELD( m_flWaveHeight, FIELD_FLOAT, "WaveHeight" ),
 	DEFINE_KEYFIELD( m_flBlockDamage, FIELD_FLOAT, "dmg" ),
-	DEFINE_KEYFIELD( m_eSpawnPosition, FIELD_INTEGER, "spawnpos" ),
 
 	DEFINE_KEYFIELD( m_bForceClosed, FIELD_BOOLEAN, "forceclosed" ),
 	DEFINE_FIELD( m_bDoorGroup, FIELD_BOOLEAN ),
@@ -74,7 +69,6 @@ BEGIN_DATADESC( CBaseDoor )
 	DEFINE_OUTPUT( m_OnFullyOpen, "OnFullyOpen" ),
 	DEFINE_OUTPUT( m_OnClose, "OnClose" ),
 	DEFINE_OUTPUT( m_OnOpen, "OnOpen" ),
-	DEFINE_OUTPUT( m_OnLockedUse, "OnLockedUse" ),
 
 	// Function Pointers
 	DEFINE_FUNCTION( DoorTouch ),
@@ -267,7 +261,7 @@ void CBaseDoor::Spawn()
 
 	if ( !IsRotatingDoor() )
 	{
-		if ( ( m_eSpawnPosition == FUNC_DOOR_SPAWN_OPEN ) || HasSpawnFlags( SF_DOOR_START_OPEN_OBSOLETE ) )
+		if ( HasSpawnFlags(SF_DOOR_START_OPEN) )
 		{	// swap pos1 and pos2, put door at pos2
 			UTIL_SetOrigin( this, m_vecPosition2);
 			m_toggle_state = TS_AT_TOP;
@@ -304,11 +298,6 @@ void CBaseDoor::Spawn()
 		if ( HasSpawnFlags( SF_DOOR_NONSOLID_TO_PLAYER ) )
 		{
 			SetCollisionGroup( COLLISION_GROUP_PASSABLE_DOOR );
-			// HACKHACK: Set this hoping that any children of the door that get blocked by the player
-			// will get fixed up by vphysics
-			// NOTE: We could decouple this as a separate behavior, but managing player collisions is already complex enough.
-			// NOTE: This is necessary to prevent the player from blocking the wrecked train car in ep2_outland_01
-			AddFlag( FL_UNBLOCKABLE_BY_PLAYER );
 		}
 		if ( m_bIgnoreDebris )
 		{
@@ -326,11 +315,7 @@ void CBaseDoor::Spawn()
 		}
 	}
 
-	if ( ( m_eSpawnPosition == FUNC_DOOR_SPAWN_OPEN ) && HasSpawnFlags( SF_DOOR_START_OPEN_OBSOLETE ) )
-	{
-		Warning("Door %s using obsolete 'Start Open' spawnflag with 'Spawn Position' set to 'Open'. Reverting to old behavior.\n", GetDebugName() );
-	}
-
+	
 	CreateVPhysics();
 }
 
@@ -341,14 +326,7 @@ void CBaseDoor::MovingSoundThink( void )
 
 	EmitSound_t ep;
 	ep.m_nChannel = CHAN_STATIC;
-	if ( m_NoiseMovingClosed == NULL_STRING || m_toggle_state == TS_GOING_DOWN || m_toggle_state == TS_AT_BOTTOM )
-	{
-		ep.m_pSoundName = (char*)STRING(m_NoiseMoving);
-	}
-	else
-	{
-		ep.m_pSoundName = (char*)STRING(m_NoiseMovingClosed);
-	}
+	ep.m_pSoundName = (char*)STRING(m_NoiseMoving);
 	ep.m_flVolume = 1;
 	ep.m_SoundLevel = SNDLVL_NORM;
 
@@ -383,16 +361,8 @@ void CBaseDoor::StartMovingSound( void )
 void CBaseDoor::StopMovingSound(void)
 {
 	SetContextThink( NULL, gpGlobals->curtime, "MovingSound" );
-	char *pSoundName;
-	if ( m_NoiseMovingClosed == NULL_STRING || m_toggle_state == TS_GOING_UP || m_toggle_state == TS_AT_TOP )
-	{
-		pSoundName = (char*)STRING(m_NoiseMoving);
-	}
-	else
-	{
-		pSoundName = (char*)STRING(m_NoiseMovingClosed);
-	}
-	StopSound( entindex(), CHAN_STATIC, pSoundName );
+	
+	StopSound( entindex(), CHAN_STATIC, (char*)STRING(m_NoiseMoving) );
 }
  
 
@@ -551,8 +521,6 @@ void CBaseDoor::Precache( void )
 	//Precache them all
 	PrecacheScriptSound( (char *) STRING(m_NoiseMoving) );
 	PrecacheScriptSound( (char *) STRING(m_NoiseArrived) );
-	PrecacheScriptSound( (char *) STRING(m_NoiseMovingClosed) );
-	PrecacheScriptSound( (char *) STRING(m_NoiseArrivedClosed) );
 	PrecacheScriptSound( (char *) STRING(m_ls.sLockedSound) );
 	PrecacheScriptSound( (char *) STRING(m_ls.sUnlockedSound) );
 
@@ -632,7 +600,6 @@ void CBaseDoor::DoorTouch( CBaseEntity *pOther )
 
 	if (m_bLocked)
 	{
-		m_OnLockedUse.FireOutput( pOther, pOther );
 		PlayLockSounds(this, &m_ls, TRUE, FALSE);
 		return; 
 	}
@@ -675,7 +642,7 @@ void CBaseDoor::UpdateAreaPortals( bool isOpen )
 	// cancel pending close
 	SetContextThink( NULL, gpGlobals->curtime, CLOSE_AREAPORTAL_THINK_CONTEXT );
 
-	if ( IsRotatingDoor() && HasSpawnFlags(SF_DOOR_START_OPEN_OBSOLETE) ) // logic inverted when using rot doors that start open
+	if ( IsRotatingDoor() && HasSpawnFlags(SF_DOOR_START_OPEN) ) // logic inverted when using rot doors that start open
 		isOpen = !isOpen;
 
 	string_t name = GetEntityName();
@@ -715,31 +682,11 @@ void CBaseDoor::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE use
 		return;
 	}
 
-	bool bAllowUse = false;
-
 	// if not ready to be used, ignore "use" command.
-	if( HasSpawnFlags(SF_DOOR_NEW_USE_RULES) )
-	{
-		//New behavior:
-		// If not ready to be used, ignore "use" command.
-		// Allow use in these cases:
-		//		- when the door is closed/closing
-		//		- when the door is open/opening and can be manually closed
-		if ( ( m_toggle_state == TS_AT_BOTTOM || m_toggle_state == TS_GOING_DOWN ) || ( HasSpawnFlags(SF_DOOR_NO_AUTO_RETURN) && ( m_toggle_state == TS_AT_TOP || m_toggle_state == TS_GOING_UP ) ) )
-			bAllowUse = true;
-	}
-	else
-	{
-		// Legacy behavior:
-		if (m_toggle_state == TS_AT_BOTTOM || (HasSpawnFlags(SF_DOOR_NO_AUTO_RETURN) && m_toggle_state == TS_AT_TOP) )
-			bAllowUse = true;
-	}
-
-	if( bAllowUse )
+	if (m_toggle_state == TS_AT_BOTTOM || (HasSpawnFlags(SF_DOOR_NO_AUTO_RETURN) && m_toggle_state == TS_AT_TOP) )
 	{
 		if (m_bLocked)
 		{
-			m_OnLockedUse.FireOutput( pActivator, pCaller );
 			PlayLockSounds(this, &m_ls, TRUE, FALSE);
 		}
 		else
@@ -1032,7 +979,7 @@ void CBaseDoor::DoorHitTop( void )
 		}
 	}
 
-	if (HasSpawnFlags(SF_DOOR_START_OPEN_OBSOLETE) )
+	if (HasSpawnFlags(SF_DOOR_START_OPEN) )
 	{
 		m_OnFullyClosed.FireOutput(this, this);
 	}
@@ -1087,10 +1034,7 @@ void CBaseDoor::DoorHitBottom( void )
 
 		EmitSound_t ep;
 		ep.m_nChannel = CHAN_STATIC;
-		if ( m_NoiseArrivedClosed == NULL_STRING )
-			ep.m_pSoundName = (char*)STRING(m_NoiseArrived);
-		else
-			ep.m_pSoundName = (char*)STRING(m_NoiseArrivedClosed);
+		ep.m_pSoundName = (char*)STRING(m_NoiseArrived);
 		ep.m_flVolume = 1;
 		ep.m_SoundLevel = SNDLVL_NORM;
 
@@ -1103,7 +1047,7 @@ void CBaseDoor::DoorHitBottom( void )
 	// Re-instate touch method, cycle is complete
 	SetTouch( &CBaseDoor::DoorTouch );
 
-	if (HasSpawnFlags(SF_DOOR_START_OPEN_OBSOLETE))
+	if (HasSpawnFlags(SF_DOOR_START_OPEN))
 	{
 		m_OnFullyOpen.FireOutput(m_hActivator, this);
 	}
@@ -1178,11 +1122,7 @@ void CBaseDoor::Blocked( CBaseEntity *pOther )
 	// Hurt the blocker a little.
 	if ( m_flBlockDamage )
 	{
-		// if the door is marked "force closed" or it has a negative wait, then there's nothing to do but 
-		// push/damage the object.
-		// If block damage is set, but this object is a physics prop that can't be damaged, just
-		// give up and disable collisions
-		if ( (m_bForceClosed || m_flWait < 0) && pOther->GetMoveType() == MOVETYPE_VPHYSICS && 
+		if ( m_bForceClosed && pOther->GetMoveType() == MOVETYPE_VPHYSICS && 
 		   (pOther->m_takedamage == DAMAGE_NO || pOther->m_takedamage == DAMAGE_EVENTS_ONLY) )
 		{
 			EntityPhysics_CreateSolver( this, pOther, true, 4.0f );
@@ -1345,13 +1285,10 @@ void CRotDoor::Spawn( void )
 	m_vecAngle2	= GetLocalAngles() + m_vecMoveAng * m_flMoveDistance;
 
 	ASSERTSZ(m_vecAngle1 != m_vecAngle2, "rotating door start/end positions are equal\n");
-
-	// Starting open allows a func_door to be lighted in the closed position but
-	// spawn in the open position
-	//
-	// SF_DOOR_START_OPEN_OBSOLETE is an old broken way of spawning open that has
-	// been deprecated.
-	if ( HasSpawnFlags(SF_DOOR_START_OPEN_OBSOLETE) )
+	
+	// DOOR_START_OPEN is to allow an entity to be lighted in the closed position
+	// but spawn in the open position
+	if ( HasSpawnFlags(SF_DOOR_START_OPEN) )
 	{	
 		// swap pos1 and pos2, put door at pos2, invert movement direction
 		QAngle vecNewAngles = m_vecAngle2;
@@ -1362,20 +1299,9 @@ void CRotDoor::Spawn( void )
 		// We've already had our physics setup in BaseClass::Spawn, so teleport to our
 		// current position. If we don't do this, our vphysics shadow will not update.
 		Teleport( NULL, &m_vecAngle1, NULL );
+	}
 
-		m_toggle_state = TS_AT_BOTTOM;
-	}
-	else if ( m_eSpawnPosition == FUNC_DOOR_SPAWN_OPEN )
-	{	
-		// We've already had our physics setup in BaseClass::Spawn, so teleport to our
-		// current position. If we don't do this, our vphysics shadow will not update.
-		Teleport( NULL, &m_vecAngle2, NULL );
-		m_toggle_state = TS_AT_TOP;
-	}
-	else
-	{
-		m_toggle_state = TS_AT_BOTTOM;
-	}
+	m_toggle_state = TS_AT_BOTTOM;
 
 #ifdef HL1_DLL
 	SetSolid( SOLID_VPHYSICS );

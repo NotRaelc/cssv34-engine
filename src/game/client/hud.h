@@ -44,8 +44,7 @@ public:
 		Q_memset( texCoords, 0, sizeof( texCoords ) );
 		Q_memset( &rc, 0, sizeof( rc ) );
 		textureId = -1;
-		bRenderUsingFont = false;
-		bPrecached = false;
+		bRenderUsingFont = -1;
 		cCharacterInFont = 0;
 		hFont = NULL;
 	}
@@ -77,13 +76,6 @@ public:
 		return rc.bottom - rc.top;
 	}
 
-	// causes the font manager to generate the glyph, prevents run time hitches on platforms that have slow font managers
-	void Precache( void );
-
-	// returns width & height of icon with scale applied (scale is ignored if font is used to render)
-	int EffectiveWidth( float flScale ) const;
-	int EffectiveHeight( float flScale ) const;
-
 	void DrawSelf( int x, int y, Color& clr ) const;
 	void DrawSelf( int x, int y, int w, int h, Color& clr ) const;
 	void DrawSelfCropped( int x, int y, int cropx, int cropy, int cropw, int croph, Color& clr ) const;
@@ -94,7 +86,6 @@ public:
 	char		szTextureFile[ 64 ];
 
 	bool		bRenderUsingFont;
-	bool		bPrecached;
 	char		cCharacterInFont;
 	vgui::HFont hFont;
 
@@ -110,7 +101,6 @@ public:
 #include "hudtexturehandle.h"
 
 class CHudElement;
-class CHudRenderGroup;
 
 //-----------------------------------------------------------------------------
 // Purpose: Main hud manager
@@ -176,17 +166,6 @@ public:
 	void						MsgFunc_ResetHUD(bf_read &msg);
 	void 						MsgFunc_SendAudio(bf_read &msg);
 
-	// Hud Render group
-	int							LookupRenderGroupIndexByName( const char *pszGroupName );
-	bool						LockRenderGroup( int iGroupIndex, CHudElement *pLocker = NULL );
-	bool						UnlockRenderGroup( int iGroupIndex, CHudElement *pLocker = NULL );
-	bool						IsRenderGroupLockedFor( CHudElement *pHudElement, int iGroupIndex );
-	int							RegisterForRenderGroup( const char *pszGroupName );
-	int							AddHudRenderGroup( const char *pszGroupName );
-	bool						DoesRenderGroupExist( int iGroupIndex );
-
-	void						SetScreenShotTime( float flTime ){ m_flScreenShotTime = flTime; }
-
 public:
 
 	int							m_iKeyBits;
@@ -211,11 +190,6 @@ private:
 
 	// Global list of known icons
 	CUtlDict< CHudTexture *, int >		m_Icons;
-
-	CUtlVector< const char * >				m_RenderGroupNames;
-	CUtlMap< int, CHudRenderGroup * >		m_RenderGroups;
-
-	float						m_flScreenShotTime; // used to take end-game screenshots
 };
 
 extern CHud gHUD;

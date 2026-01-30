@@ -36,7 +36,6 @@
 #define SF_PHYSBOX_ALWAYS_PICK_UP		    0x100000		// Physcannon can always pick this up, no matter what mass or constraints may apply.
 #define SF_PHYSBOX_NEVER_PICK_UP			0x200000		// Physcannon will never be able to pick this up.
 #define SF_PHYSBOX_NEVER_PUNT				0x400000		// Physcannon will never be able to punt this object.
-#define SF_PHYSBOX_PREVENT_PLAYER_TOUCH_ENABLE 0x800000		// If set, the player will not cause the object to enable its motion when bumped into
 
 // UNDONE: Hook collisions into the physics system to generate touch functions and take damage on falls
 // UNDONE: Base class PhysBrush
@@ -60,14 +59,12 @@ public:
 	int		OnTakeDamage( const CTakeDamageInfo &info );
 	void		 EnableMotion( void );
 
-	bool CanBePickedUpByPhyscannon();
-
 	// IPlayerPickupVPhysics
 	virtual void OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPickup_t reason );
 	virtual void OnPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t Reason );
 
 	bool		 HasPreferredCarryAnglesForPlayer( CBasePlayer *pPlayer );
-	virtual QAngle PreferredCarryAngles( void ) { return m_angPreferredCarryAngles; }
+	const QAngle &PreferredCarryAngles( void ) { return m_angPreferredCarryAngles; }
 
 	// inputs
 	void InputWake( inputdata_t &inputdata );
@@ -93,7 +90,6 @@ protected:
 	COutputEvent	m_OnAwakened;
 	COutputEvent	m_OnMotionEnabled;
 	COutputEvent	m_OnPhysGunPickup;
-	COutputEvent	m_OnPhysGunPunt;
 	COutputEvent	m_OnPhysGunOnlyPickup;
 	COutputEvent	m_OnPhysGunDrop;
 	COutputEvent	m_OnPlayerUse;
@@ -115,8 +111,6 @@ public:
 	void	Explode( CBaseEntity *pActivator, CBaseEntity *pCaller );
 
 	CBaseEntity *FindEntity( CBaseEntity *pEntity, CBaseEntity *pActivator, CBaseEntity *pCaller );
-
-	int DrawDebugTextOverlays(void);
 
 	// Input handlers
 	void InputExplode( inputdata_t &inputdata );

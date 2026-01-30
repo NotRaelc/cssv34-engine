@@ -63,10 +63,8 @@ void CFXQuad::Draw( double frametime )
 	float alpha = m_FXData.m_flStartAlpha + ( ( m_FXData.m_flEndAlpha - m_FXData.m_flStartAlpha ) * alphaTimePerc );
 	alpha = clamp( alpha, 0.0f, 1.0f );
 	
-	CMatRenderContextPtr pRenderContext( materials );
-
 	//Bind the material
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_FXData.m_pMaterial );
+	IMesh* pMesh = materials->GetDynamicMesh( true, NULL, NULL, m_FXData.m_pMaterial );
 	CMeshBuilder meshBuilder;
 
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
@@ -82,14 +80,6 @@ void CFXQuad::Draw( double frametime )
 	color[0] = m_FXData.m_Color[0];
 	color[1] = m_FXData.m_Color[1];
 	color[2] = m_FXData.m_Color[2];
-
-	if ( m_FXData.m_uiFlags & FXQUAD_COLOR_FADE )
-	{
-		color[0] *= alpha;
-		color[1] *= alpha;
-		color[2] *= alpha;
-	}
-
 	color[3] = alpha;
 
 	VectorVectors( m_FXData.m_vecNormal, vRight, vUp );

@@ -22,7 +22,6 @@ public:
 	ALLOW_DATATABLES_PRIVATE_ACCESS();
 
 	C_AnimationLayer();
-	void Reset();
 
 	void SetOrder( int order );
 
@@ -30,7 +29,7 @@ public:
 
 	bool IsActive( void );
 
-	CRangeCheckedVar<int, -1, 65535, 0>	m_nSequence;
+	CRangeCheckedVar<int, -1, 2048, 0>	m_nSequence;
 	CRangeCheckedVar<float, -2, 2, 0>	m_flPrevCycle;
 	CRangeCheckedVar<float, -5, 5, 0>	m_flWeight;
 	int		m_nOrder;
@@ -50,11 +49,6 @@ public:
 
 
 inline C_AnimationLayer::C_AnimationLayer()
-{
-	Reset();
-}
-
-inline void C_AnimationLayer::Reset()
 {
 	m_nSequence = 0;
 	m_flPrevCycle = 0;
@@ -98,7 +92,7 @@ inline float C_AnimationLayer::GetFadeout( float flCurTime )
 }
 
 
-inline C_AnimationLayer LoopingLerp( float flPercent, C_AnimationLayer& from, C_AnimationLayer& to )
+inline C_AnimationLayer LoopingLerp( float flPercent, C_AnimationLayer from, C_AnimationLayer to )
 {
 	C_AnimationLayer output;
 
@@ -128,7 +122,7 @@ inline C_AnimationLayer Lerp( float flPercent, const C_AnimationLayer& from, con
 	return output;
 }
 
-inline C_AnimationLayer LoopingLerp_Hermite( float flPercent, C_AnimationLayer& prev, C_AnimationLayer& from, C_AnimationLayer& to )
+inline C_AnimationLayer LoopingLerp_Hermite( float flPercent, C_AnimationLayer prev, C_AnimationLayer from, C_AnimationLayer to )
 {
 	C_AnimationLayer output;
 

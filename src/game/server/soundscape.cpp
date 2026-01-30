@@ -1,8 +1,8 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include "soundscape.h"
@@ -14,7 +14,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar soundscape_debug( "soundscape_debug", "0", FCVAR_CHEAT, "When on, draws lines to all env_soundscape entities. Green lines show the active soundscape, red lines show soundscapes that aren't in range, and white lines show soundscapes that are in range, but not the active soundscape." );
+ConVar soundscape_debug( "soundscape_debug", "0", FCVAR_NONE, "When on, draws lines to all env_soundscape entities. Green lines show the active soundscape, red lines show soundscapes that aren't in range, and white lines show soundscapes that are in range, but not the active soundscape." );
 
 // ----------------------------------------------------------------------------- //
 // CEnvSoundscapeProxy stuff.
@@ -241,11 +241,11 @@ void CEnvSoundscape::WriteAudioParamsTo( audioparams_t &audio )
 }
 
 
-bool CEnvSoundscape::UpdatePlayersInPVS()
+void CEnvSoundscape::UpdatePlayersInPVS()
 {
 	// Only update players in PVS every 2 seconds.
 	if ( gpGlobals->curtime < m_flNextUpdatePlayersInPVS )
-		return false;
+		return;
 
 	m_flNextUpdatePlayersInPVS = gpGlobals->curtime + 2.0f + RandomFloat( -0.3, 0.3 );
 
@@ -268,7 +268,6 @@ bool CEnvSoundscape::UpdatePlayersInPVS()
 			m_hPlayersInPVS.AddToTail( pPlayer );
 		}
 	}
-	return true;
 }
 
 
@@ -284,16 +283,10 @@ bool CEnvSoundscape::UpdatePlayersInPVS()
 // CONSIDER: if player in water state, autoset and underwater soundscape? 
 void CEnvSoundscape::Update()
 {
-	bool bUpdated = UpdatePlayersInPVS();
+	UpdatePlayersInPVS();
 
 	if ( !IsEnabled() )
 		return;
-
-	// Only update soundscapes in multiplayer when the PVS gets updated
-	if ( g_pGameRules->IsMultiplayer() && !bUpdated && !soundscape_debug.GetBool() )
-		return;
-
-	bool bDebugThis = soundscape_debug.GetInt() == 1;
 
 	for ( int i=0; i < m_hPlayersInPVS.Count(); i++ )
 	{
@@ -324,21 +317,11 @@ void CEnvSoundscape::Update()
 			// new entity is closer to player, so it wins.
 			WriteAudioParamsTo( audio );
 		}
-
-		if ( !bDebugThis )
-		{
-			bDebugThis = soundscape_debug.GetInt() == 2;
-		}
 	} 
 
-	if ( bDebugThis )
+	if ( soundscape_debug.GetBool() )
 	{
-
-		// draw myself
-		NDebugOverlay::Box(GetAbsOrigin(), Vector(-10,-10,-10), Vector(10,10,10),  255, 0, 255, 64, NDEBUG_PERSIST_TILL_NEXT_SERVER );
-
-		// Don't use GetLocalPlayer(), because that prevents multiplayer games using this for testing with a single client in the game
-		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
  		if ( pPlayer )
 		{
 			audioparams_t &audio = pPlayer->GetAudioParams();
@@ -346,43 +329,26 @@ void CEnvSoundscape::Update()
 			{
 				if ( InRangeOfPlayer( pPlayer ) )
 				{
-					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 255, 255, 255, true, NDEBUG_PERSIST_TILL_NEXT_SERVER );
+					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 255, 255,255, true, 0.1 );
 				}
 				else
 				{
-					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 255, 0, 0, true, NDEBUG_PERSIST_TILL_NEXT_SERVER  );
+					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 255, 0,0, true, 0.1 );
 				}
 			}
 			else
 			{
 				if ( InRangeOfPlayer( pPlayer ) )
 				{
-					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 0, 255, 0, true, NDEBUG_PERSIST_TILL_NEXT_SERVER  );
+					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 0, 255,0, true, 0.1 );
 				}
   				else
 				{
-					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 255, 170, 0, true, NDEBUG_PERSIST_TILL_NEXT_SERVER  );
-				}
-
-				// also draw lines to each sound position.
-				// we don't store the number of local sound positions, just a bitvector of which ones are on.
-				unsigned int soundbits = audio.localBits.Get();
-				float periodic = 2.0f * sin((fmod(gpGlobals->curtime,2.0f) - 1.0f) * M_PI); // = -4f .. 4f
-				for (int ii = 0 ; ii < NUM_AUDIO_LOCAL_SOUNDS ; ++ii )
-				{
-					if ( soundbits & (1 << ii) )
-					{
-						const Vector &soundLoc = audio.localSound.Get(ii);
-						NDebugOverlay::Line( GetAbsOrigin(), soundLoc, 0, 32 , 255 , false, NDEBUG_PERSIST_TILL_NEXT_SERVER );
-						NDebugOverlay::Cross3D( soundLoc, 16.0f + periodic, 0, 0, 255, false, NDEBUG_PERSIST_TILL_NEXT_SERVER );
-					}
+					NDebugOverlay::Line( GetAbsOrigin(), pPlayer->WorldSpaceCenter(), 255, 170,0, true, 0.1 );
 				}
 			}
 		}
-
-		NDebugOverlay::EntityTextAtPosition( GetAbsOrigin(), 0, STRING(m_soundscapeName), NDEBUG_PERSIST_TILL_NEXT_SERVER );
 	}
-
 }
 
 //
@@ -396,7 +362,6 @@ void CEnvSoundscape::Spawn( )
 	// Because the soundscape has no model, need to make sure it doesn't get culled from the PVS for this reason and therefore
 	//  never exist on the client, etc.
 	AddEFlags( EFL_FORCE_CHECK_TRANSMIT );
-
 }
 
 void CEnvSoundscape::Precache()
@@ -408,11 +373,10 @@ void CEnvSoundscape::Precache()
 	}
 
 	m_soundscapeIndex = g_SoundscapeSystem.GetSoundscapeIndex( STRING(m_soundscapeName) );
-	if ( IsX360())
-	{
-		g_SoundscapeSystem.PrecacheSounds( m_soundscapeIndex );
-	}
-	if ( !g_SoundscapeSystem.IsValidIndex( m_soundscapeIndex ) )
+#ifdef _XBOX
+	g_SoundscapeSystem.PrecacheSounds( m_soundscapeIndex );
+#endif
+	if ( !g_SoundscapeSystem.IsValidIndex(m_soundscapeIndex) )
 	{
 		DevWarning("Can't find soundscape: %s\n", STRING(m_soundscapeName) );
 	}
@@ -535,8 +499,7 @@ LINK_ENTITY_TO_CLASS( trigger_soundscape, CTriggerSoundscape );
 BEGIN_DATADESC( CTriggerSoundscape )
 	DEFINE_THINKFUNC( PlayerUpdateThink ),
 	DEFINE_KEYFIELD( m_SoundscapeName, FIELD_STRING, "soundscape" ),
-	DEFINE_FIELD( m_hSoundscape, FIELD_EHANDLE ),
-	DEFINE_UTLVECTOR( m_spectators, FIELD_EHANDLE ), 
+	DEFINE_FIELD( m_hSoundscape, FIELD_EHANDLE )
 END_DATADESC()
 
 

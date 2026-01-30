@@ -31,8 +31,6 @@
 ConVar g_debug_vehiclesound( "g_debug_vehiclesound", "0", FCVAR_CHEAT );
 ConVar g_debug_vehicleexit( "g_debug_vehicleexit", "0", FCVAR_CHEAT );
 
-ConVar sv_vehicle_autoaim_scale("sv_vehicle_autoaim_scale", "8");
-
 bool ShouldVehicleIgnoreEntity( CBaseEntity *pVehicle, CBaseEntity *pCollide );
 
 #define HITBOX_SET	2
@@ -69,12 +67,11 @@ BEGIN_SIMPLE_DATADESC( CPassengerInfo )
 	DEFINE_FIELD( m_hPassenger,		FIELD_EHANDLE ),
 	DEFINE_FIELD( m_strRoleName,	FIELD_STRING ),
 	DEFINE_FIELD( m_strSeatName,	FIELD_STRING ),
-	// NOT SAVED
-	// DEFINE_FIELD( m_nRole,	FIELD_INTEGER ),
+	// DEFINE_FIELD( m_nRole,	FIELD_INTEGER ),	These are not saved or restored
 	// DEFINE_FIELD( m_nSeat,	FIELD_INTEGER ),
 END_DATADESC()
 
-BEGIN_SIMPLE_DATADESC( CBaseServerVehicle )
+BEGIN_DATADESC_NO_BASE( CBaseServerVehicle )
 
 // These are reset every time by the constructor of the owning class 
 //	DEFINE_FIELD( m_pVehicle, FIELD_CLASSPTR ),
@@ -136,9 +133,15 @@ CBaseServerVehicle::CBaseServerVehicle( void )
 	m_pStateSoundFade = NULL;
 	m_soundState = SS_NONE;
 	m_flSpeedPercentage = 0;
-	m_bUseLegacyExitChecks = false;
 
-	m_vehicleSounds.Init();
+	for ( int i = 0; i < VS_NUM_SOUNDS; ++i )
+	{
+		m_vehicleSounds.iszSound[i] = NULL_STRING;
+	}
+	for ( int i = 0; i < SS_NUM_STATES; i++ )
+	{
+		m_vehicleSounds.iszStateSounds[i] = NULL_STRING;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -185,9 +188,26 @@ void CBaseServerVehicle::Precache( void )
 //-----------------------------------------------------------------------------
 bool CBaseServerVehicle::Initialize( const char *pScriptName )
 {
-	// Attempt to parse our vehicle script
-	if ( PhysFindOrAddVehicleScript( pScriptName, NULL, &m_vehicleSounds ) == false )
+	byte *pFile = UTIL_LoadFileForMe( pScriptName, NULL );
+	if ( !pFile )
 		return false;
+
+	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( (char *)pFile );
+	CVehicleSoundsParser soundParser;
+	while ( !pParse->Finished() )
+	{
+		const char *pBlock = pParse->GetCurrentBlockName();
+		if ( !strcmpi( pBlock, "vehicle_sounds" ) )
+		{
+			pParse->ParseCustom( &m_vehicleSounds, &soundParser );
+		}
+		else
+		{
+			pParse->SkipBlock();
+		}
+	}
+	physcollision->VPhysicsKeyParserDestroy( pParse );
+	UTIL_FreeFile( pFile );
 
 	Precache();
 
@@ -381,13 +401,12 @@ bool CBaseServerVehicle::NPC_GetPassengerSeatPositionLocal( CBaseCombatCharacter
 		return false;
 
 	// Figure out which entrypoint hitbox the player is in
-	CBaseAnimating *pAnimating = m_pVehicle->GetBaseAnimating();
+	CBaseAnimating *pAnimating = dynamic_cast< CBaseAnimating * >( m_pVehicle );
 	if ( pAnimating == NULL )
 		return false;
 
 	Vector vecPos;
 	QAngle vecAngles;
-	pAnimating->InvalidateBoneCache(); // NOTE: We're moving with velocity, so we're almost always out of date
 	pAnimating->GetAttachmentLocal( nSeatAttachment, vecPos, vecAngles );
 
 	if ( vecResultPos != NULL )
@@ -501,9 +520,12 @@ void CBaseServerVehicle::SetPassenger( int nRole, CBaseCombatCharacter *pPasseng
 //-----------------------------------------------------------------------------
 // Purpose: Get a position in *world space* inside the vehicle for the player to start at
 //-----------------------------------------------------------------------------
-void CBaseServerVehicle::GetPassengerSeatPoint( int nRole, Vector *pPoint, QAngle *pAngles )
+void CBaseServerVehicle::GetPassengerStartPoint( int nRole, Vector *pPoint, QAngle *pAngles )
 {
 	Assert( nRole == VEHICLE_ROLE_DRIVER ); 
+
+	// NOTE: We don't set the angles, which causes them to remain the same
+	// as they were before entering the vehicle
 
 	CBaseAnimating *pAnimating = dynamic_cast<CBaseAnimating *>(m_pVehicle);
 	if ( pAnimating )
@@ -511,40 +533,15 @@ void CBaseServerVehicle::GetPassengerSeatPoint( int nRole, Vector *pPoint, QAngl
 		char pAttachmentName[32];
 		Q_snprintf( pAttachmentName, sizeof( pAttachmentName ), "vehicle_feet_passenger%d", nRole );
 		int nFeetAttachmentIndex = pAnimating->LookupAttachment(pAttachmentName);
-		int nIdleSequence = pAnimating->SelectWeightedSequence( ACT_IDLE );
-		if ( nFeetAttachmentIndex > 0 && nIdleSequence != -1 )
+		if ( nFeetAttachmentIndex > 0 )
 		{
-			// FIXME: This really wants to be a faster query than this implementation!
-			Vector vecOrigin;
-			QAngle vecAngles;
-			if ( GetLocalAttachmentAtTime( nIdleSequence, nFeetAttachmentIndex, 0.0f, &vecOrigin, &vecAngles ) )
-			{
-				UTIL_ParentToWorldSpace( pAnimating, vecOrigin, vecAngles );
-				if ( pPoint )
-				{
-					*pPoint = vecOrigin;
-				}
-
-				if ( pAngles )
-				{
-					*pAngles = vecAngles;
-				}
-
-				return;
-			}
+			pAnimating->GetAttachment( nFeetAttachmentIndex, *pPoint );
+			return;
 		}
 	}
 
 	// Couldn't find the attachment point, so just use the origin
-	if ( pPoint )
-	{
-		*pPoint = m_pVehicle->GetAbsOrigin();
-	}
-
-	if ( pAngles )
-	{
-		*pAngles = m_pVehicle->GetAbsAngles();
-	}
+	*pPoint = m_pVehicle->GetAbsOrigin();
 }
 
 //---------------------------------------------------------------------------------
@@ -661,6 +658,9 @@ void CBaseServerVehicle::ParseExitAnim( KeyValues *pkvExitList, bool bEscapeExit
 		{
 			m_ExitAnimations[iIndex].bUpright = true;
 		}
+
+		CBaseAnimating *pAnimating = (CBaseAnimating *)m_pVehicle;
+		m_ExitAnimations[iIndex].iAttachment = pAnimating->LookupAttachment( m_ExitAnimations[iIndex].szAnimName );
 
 		pkvExitAnim = pkvExitAnim->GetNextKey();
 	}
@@ -870,104 +870,6 @@ void CBaseServerVehicle::ParseNPCRoles( KeyValues *pkvPassengerList )
 
 	// ======================================================================================================
 }
-//-----------------------------------------------------------------------------
-// Purpose: Get an attachment point at a specified time in its cycle (note: not exactly a speedy query, use sparingly!)
-// Input  : nSequence - sequence to test
-//			nAttachmentIndex - attachment to test
-//			flCyclePoint - 0.0 - 1.0
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CBaseServerVehicle::GetLocalAttachmentAtTime( int nQuerySequence, int nAttachmentIndex, float flCyclePoint, Vector *vecOriginOut, QAngle *vecAnglesOut )
-{
-	CBaseAnimating *pAnimating = m_pVehicle->GetBaseAnimating();
-	if ( pAnimating == NULL )
-		return false;
-
-	// TODO: It's annoying to stomp and restore this off each time when we're just going to stomp it again later, but the function 
-	//		 should really leave the car in an acceptable state to run this query -- jdw
-
-	// Store this off for restoration later
-	int nOldSequence = pAnimating->GetSequence();
-	float flOldCycle = pAnimating->GetCycle();
-
-	// Setup the model for the query
-	pAnimating->SetSequence( nQuerySequence );
-	pAnimating->SetCycle( flCyclePoint );
-	pAnimating->InvalidateBoneCache();
-
-	// Query for the point
-	Vector vecOrigin;
-	QAngle vecAngles;
-	pAnimating->GetAttachmentLocal( nAttachmentIndex, vecOrigin, vecAngles );
-
-	if ( vecOriginOut != NULL )
-	{
-		*vecOriginOut = vecOrigin;
-	}
-
-	if ( vecAnglesOut != NULL )
-	{
-		*vecAnglesOut = vecAngles;
-	}
-
-	// Restore the model after the query
-	pAnimating->SetSequence( nOldSequence );
-	pAnimating->SetCycle( flOldCycle );
-	pAnimating->InvalidateBoneCache();
-
-	return true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Get an attachment point at a specified time in its cycle (note: not exactly a speedy query, use sparingly!)
-// Input  : lpszAnimName - name of the sequence to test
-//			nAttachmentIndex - attachment to test
-//			flCyclePoint - 0.0 - 1.0
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CBaseServerVehicle::GetLocalAttachmentAtTime( const char *lpszAnimName, int nAttachmentIndex, float flCyclePoint, Vector *vecOriginOut, QAngle *vecAnglesOut )
-{
-	CBaseAnimating *pAnimating = m_pVehicle->GetBaseAnimating();
-	if ( pAnimating == NULL )
-		return false;
-
-	int nQuerySequence = pAnimating->LookupSequence( lpszAnimName );
-	if ( nQuerySequence < 0 )
-		return false;
-
-	return GetLocalAttachmentAtTime( nQuerySequence, nAttachmentIndex, flCyclePoint, vecOriginOut, vecAnglesOut );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CBaseServerVehicle::CacheEntryExitPoints( void )
-{
-	CBaseAnimating *pAnimating = m_pVehicle->GetBaseAnimating();
-	if ( pAnimating == NULL )
-		return;
-
-	int nAttachment = pAnimating->LookupAttachment( "vehicle_driver_eyes" );
-	
-	// For each exit animation, determine where the end point is and cache it
-	for ( int i = 0; i < m_ExitAnimations.Count(); i++ )
-	{
-		if ( GetLocalAttachmentAtTime( m_ExitAnimations[i].szAnimName, nAttachment, 1.0f, &m_ExitAnimations[i].vecExitPointLocal, &m_ExitAnimations[i].vecExitAnglesLocal ) == false )
-		{
-			Warning("Exit animation %s failed to cache target points properly!\n", m_ExitAnimations[i].szAnimName );
-		}
-
-		if ( g_debug_vehicleexit.GetBool() )
-		{
-			Vector vecExitPoint = m_ExitAnimations[i].vecExitPointLocal;
-			QAngle vecExitAngles = m_ExitAnimations[i].vecExitAnglesLocal;
-			UTIL_ParentToWorldSpace( pAnimating, vecExitPoint, vecExitAngles );
-
-			NDebugOverlay::Box( vecExitPoint, -Vector(8,8,8), Vector(8,8,8), 0, 255, 0, 0, 20.0f );
-			NDebugOverlay::Axis( vecExitPoint, vecExitAngles, 8.0f, true, 20.0f );
-		}
-	}
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1018,9 +920,6 @@ void CBaseServerVehicle::ParseEntryExitAnims( void )
 	}
 
 	modelKeyValues->deleteThis();
-
-	// Determine the entry and exit points for the 
-	CacheEntryExitPoints();
 }
 
 //-----------------------------------------------------------------------------
@@ -1055,18 +954,14 @@ void CBaseServerVehicle::HandlePassengerEntry( CBaseCombatCharacter *pPassenger,
 		// Check to see if this vehicle can be controlled or if it's locked
 		if ( GetDrivableVehicle()->CanEnterVehicle( pPlayer ) )
 		{
-			// Make sure the passenger can get in as well
-			if ( pPlayer->CanEnterVehicle( this, VEHICLE_ROLE_DRIVER ) )
+			if ( pPlayer->GetInVehicle( this, VEHICLE_ROLE_DRIVER) )
 			{
 				// Setup the "enter" vehicle sequence and skip the animation if it isn't present.
 				pAnimating->SetCycle( 0 );
 				pAnimating->m_flAnimTime = gpGlobals->curtime;
 				pAnimating->ResetSequence( iEntryAnim );
 				pAnimating->ResetClientsideFrame();
-				pAnimating->InvalidateBoneCache();	// This is necessary because we need to query attachment points this frame for blending!
 				GetDrivableVehicle()->SetVehicleEntryAnim( true );
-
-				pPlayer->GetInVehicle( this, VEHICLE_ROLE_DRIVER );
 			}
 		}
 	}
@@ -1108,11 +1003,9 @@ bool CBaseServerVehicle::HandlePassengerExit( CBaseCombatCharacter *pPassenger )
 		{
 			// Animation-driven exit points are all blocked, or we have none. Fall back to the more simple static exit points.
 			if ( !GetPassengerExitPoint( nRole, &vecNewPos, &angNewAngles ) && !GetDrivableVehicle()->AllowBlockedExit( pPlayer, nRole ) )
+			{
 				return false;
-
-			// At this point, the player has exited the vehicle but did so without playing an animation.  We need to give the vehicle a
-			// chance to do any post-animation clean-up it may need to perform.
-			HandleEntryExitFinish( false, true );
+			}
 		}
 
 		// Now we either have an exit sequence to play, a valid static exit position, or we don't care
@@ -1144,11 +1037,6 @@ bool CBaseServerVehicle::HandlePassengerExit( CBaseCombatCharacter *pPassenger )
 				// NOTE: Set the player as the blocker's owner so the player is allowed to intersect it
 				Vector vecExitFeetPoint = vecExitPoint - VEC_VIEW;
 				m_hExitBlocker = CEntityBlocker::Create( vecExitFeetPoint, VEC_HULL_MIN, VEC_HULL_MAX, pPlayer, true );
-
-				// We may as well stand where we're going to get out at and stop being parented
-				pPlayer->SetAbsOrigin( vecExitFeetPoint );
-				pPlayer->SetParent( NULL );
-
 				return true;
 			}
 		}
@@ -1290,26 +1178,13 @@ int CBaseServerVehicle::GetExitAnimToUse( Vector &vecEyeExitEndpoint, bool &bAll
 		// Don't use an escape point if we found a non-escape point already
 		if ( !bBestExitIsEscapePoint && m_ExitAnimations[i].bEscapeExit )
 			continue;
-		
+
+		trace_t tr;
 		Vector vehicleExitOrigin;
 		QAngle vehicleExitAngles;
 
-		// NOTE: HL2 and Ep1 used a method that relied on the animators to place attachment points in the model which marked where
-		//		 the player would exit to.  This was rendered unnecessary in Ep2, but the choreo vehicles of these older products
-		//		 did not have proper exit animations and relied on the exact queries that were happening before.  For choreo vehicles,
-		//		 we now just allow them to perform those older queries to keep those products happy.  - jdw
-
-		// Get the position we think we're going to end up at
-		if ( m_bUseLegacyExitChecks )
-		{
-			pAnimating->GetAttachment( m_ExitAnimations[i].szAnimName, vehicleExitOrigin, vehicleExitAngles );
-		}
-		else
-		{
-			vehicleExitOrigin = m_ExitAnimations[i].vecExitPointLocal;
-			vehicleExitAngles = m_ExitAnimations[i].vecExitAnglesLocal;
-			UTIL_ParentToWorldSpace( pAnimating, vehicleExitOrigin, vehicleExitAngles );
-		}
+		// Ensure the endpoint is clear by dropping a point down from above
+		pAnimating->GetAttachment( m_ExitAnimations[i].iAttachment, vehicleExitOrigin, vehicleExitAngles );
 
 		// Don't bother checking points which are farther from our view direction.
 		Vector vecDelta;
@@ -1333,37 +1208,42 @@ int CBaseServerVehicle::GetExitAnimToUse( Vector &vecEyeExitEndpoint, bool &bAll
 		Vector vecStart = vehicleExitOrigin + vecMove;
 		Vector vecEnd = vehicleExitOrigin - vecMove;
 
-		// Starting at the exit point, trace a flat plane down until we hit ground
-		// NOTE: The hull has no vertical span because we want to test the lateral constraints against the ground, not height (yet)
-		trace_t tr;
-		UTIL_TraceHull( vecStart, vecEnd, VEC_HULL_MIN, Vector( VEC_HULL_MAX.x, VEC_HULL_MAX.y, VEC_HULL_MIN.z ), MASK_PLAYERSOLID, NULL, COLLISION_GROUP_NONE, &tr );
-		
-		if ( g_debug_vehicleexit.GetBool() )
+		// First try a zero-length ray to check for being partially stuck in displacement surface.
+	  	UTIL_TraceHull( vecStart, vecStart, VEC_HULL_MIN, VEC_HULL_MAX, MASK_PLAYERSOLID, NULL, COLLISION_GROUP_NONE, &tr );
+		if ( !tr.startsolid )
 		{
-			NDebugOverlay::SweptBox( vecStart, vecEnd, VEC_HULL_MIN, Vector( VEC_HULL_MAX.x, VEC_HULL_MAX.y, VEC_HULL_MIN.y ), vec3_angle, 255, 255, 255, 8.0f, 20.0f );
+			// Now trace down to find the ground (or water), where we will put the player.
+	  		UTIL_TraceHull( vecStart, vecEnd, VEC_HULL_MIN, VEC_HULL_MAX, MASK_WATER | MASK_PLAYERSOLID, NULL, COLLISION_GROUP_NONE, &tr );
 		}
-		
-		if ( tr.fraction < 1.0f )
+
+		if ( tr.startsolid )
 		{
-			// If we hit the ground, try to now "stand up" at that point to see if we'll fit
-			UTIL_TraceHull( tr.endpos, tr.endpos, VEC_HULL_MIN, VEC_HULL_MAX, MASK_PLAYERSOLID, NULL, COLLISION_GROUP_NONE, &tr );
-			
-			// See if we're unable to stand at this space
-			if ( tr.startsolid )
+			// Started in solid, try again starting at the exit point itself (might be under an overhang).
+			vecStart = vehicleExitOrigin;
+
+			// First try a zero-length ray to check for being partially stuck in displacement surface.
+		  	UTIL_TraceHull( vecStart, vecStart, VEC_HULL_MIN, VEC_HULL_MAX, MASK_PLAYERSOLID, NULL, COLLISION_GROUP_NONE, &tr );
+			if ( !tr.startsolid )
 			{
-				if ( g_debug_vehicleexit.GetBool() )
-				{
-					NDebugOverlay::Box( tr.endpos, VEC_HULL_MIN, VEC_HULL_MAX, 255, 0, 0, 8.0f, 20.0f );
-				}
-				continue;
+				// Now trace down to find the ground (or water), where we will put the player.
+			  	UTIL_TraceHull( vecStart, vecEnd, VEC_HULL_MIN, VEC_HULL_MAX, MASK_WATER | MASK_PLAYERSOLID, NULL, COLLISION_GROUP_NONE, &tr );
 			}
 
 			if ( g_debug_vehicleexit.GetBool() )
 			{
-				NDebugOverlay::Box( tr.endpos, VEC_HULL_MIN, VEC_HULL_MAX, 0, 255, 0, 8.0f, 20.0f );
+				NDebugOverlay::Box( vecStart, VEC_HULL_MIN, VEC_HULL_MAX, 0,255,0, 8, 10 );
+				NDebugOverlay::Box( vecEnd, VEC_HULL_MIN, VEC_HULL_MAX, 255,255,255, 8, 10 );
 			}
 		}
-		else if ( tr.allsolid || ( ( tr.fraction == 1.0 ) && !GetDrivableVehicle()->AllowMidairExit( pPlayer, nRole ) ) )
+		else if ( g_debug_vehicleexit.GetBool() )
+		{
+			NDebugOverlay::Box( vecStart, VEC_HULL_MIN, VEC_HULL_MAX, 0,255,0, 8, 10 );
+			NDebugOverlay::Box( vecEnd, VEC_HULL_MIN, VEC_HULL_MAX, 255,255,255, 8, 10 );
+		}
+
+		// Disallow exits at blocked exit points or where we can't find the ground below the exit point,
+		// so that we don't exit off of a cliff (although some vehicles allow this).
+		if ( tr.startsolid || ( ( tr.fraction == 1.0 ) && !GetDrivableVehicle()->AllowMidairExit( pPlayer, nRole ) ) )
 		{
 			if ( g_debug_vehicleexit.GetBool() )
 			{
@@ -1371,9 +1251,10 @@ int CBaseServerVehicle::GetExitAnimToUse( Vector &vecEyeExitEndpoint, bool &bAll
 			}
 			continue;
 		}
-		
+
 		// Calculate the exit endpoint & viewpoint
-		Vector vecExitEndPoint = tr.endpos;
+		Vector vecExitEndPoint;
+		VectorLerp( vecStart, vecEnd, tr.fraction, vecExitEndPoint );
 
 		// Make sure we can trace to the center of the exit point
 		UTIL_TraceLine( vecViewOrigin, vecExitEndPoint, MASK_PLAYERSOLID, pAnimating, COLLISION_GROUP_NONE, &tr );
@@ -1433,7 +1314,7 @@ void CBaseServerVehicle::HandleEntryExitFinish( bool bExitAnimOn, bool bResetAni
 	}
 
 	// Figure out which entrypoint hitbox the player is in
-	CBaseAnimating *pAnimating = m_pVehicle->GetBaseAnimating();
+	CBaseAnimating *pAnimating = dynamic_cast<CBaseAnimating *>(m_pVehicle);
 	if ( !pAnimating )
 		return;
 		
@@ -1448,10 +1329,7 @@ void CBaseServerVehicle::HandleEntryExitFinish( bool bExitAnimOn, bool bResetAni
 			QAngle vecEyeAng;
 			if ( m_iCurrentExitAnim >= 0 && m_iCurrentExitAnim < m_ExitAnimations.Count() )
 			{
-				// Convert our offset points to worldspace ones
-				vecEyes = m_ExitAnimations[m_iCurrentExitAnim].vecExitPointLocal;
-				vecEyeAng = m_ExitAnimations[m_iCurrentExitAnim].vecExitAnglesLocal;
-				UTIL_ParentToWorldSpace( pAnimating, vecEyes, vecEyeAng );
+				pAnimating->GetAttachment( m_ExitAnimations[m_iCurrentExitAnim].szAnimName, vecEyes, vecEyeAng );
 
 				// Use the endpoint we figured out when we exited
 				vecEyes = m_vecCurrentExitEndPoint;
@@ -1503,7 +1381,7 @@ void CBaseServerVehicle::HandleEntryExitFinish( bool bExitAnimOn, bool bResetAni
 //-----------------------------------------------------------------------------
 // Purpose: Where does the passenger see from?
 //-----------------------------------------------------------------------------
-void CBaseServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles, float *pFOV /*= NULL*/ )
+void CBaseServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles )
 {
 	Assert( nRole == VEHICLE_ROLE_DRIVER );
 	CBaseCombatCharacter *pPassenger = GetPassenger( VEHICLE_ROLE_DRIVER );
@@ -1512,21 +1390,8 @@ void CBaseServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, 
 	CBasePlayer *pPlayer = ToBasePlayer( pPassenger );
 	if ( pPlayer != NULL )
 	{
-		// Call through the player to resolve the actual position (if available)
-		if ( pAbsOrigin != NULL )
-		{
-			*pAbsOrigin = pPlayer->EyePosition();
-		}
-		
-		if ( pAbsAngles != NULL )
-		{
-			*pAbsAngles = pPlayer->EyeAngles();
-		}
-
-		if ( pFOV )
-		{
-			*pFOV = pPlayer->GetFOV();
-		}
+		*pAbsAngles = pPlayer->EyeAngles();
+		*pAbsOrigin = m_pVehicle->GetAbsOrigin();
 	}
 	else
 	{
@@ -1555,7 +1420,7 @@ void CBaseServerVehicle::ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove
 
 	// If our gamematerial has changed, tell any player surface triggers that are watching
 	IPhysicsSurfaceProps *physprops = MoveHelper()->GetSurfaceProps();
-	const surfacedata_t *pSurfaceProp = physprops->GetSurfaceData( tr.surface.surfaceProps );
+	surfacedata_t *pSurfaceProp = physprops->GetSurfaceData( tr.surface.surfaceProps );
 	char cCurrGameMaterial = pSurfaceProp->game.material;
 
 	// Changed?
@@ -1854,6 +1719,7 @@ bool CBaseServerVehicle::PlayCrashSound( float speed )
 		delta = fabs(m_lastSpeed - speed);
 	}
 	
+#ifdef _XBOX // Controller rumble for vehicle impacts
 	float rumble = delta / 8.0f;
 
 	if( rumble > 60.0f )
@@ -1866,6 +1732,7 @@ bool CBaseServerVehicle::PlayCrashSound( float speed )
 			UTIL_ScreenShake( GetDriver()->GetAbsOrigin(), rumble, 150.0f, 1.0f, 240.0f, SHAKE_START_RUMBLEONLY, true );
 		}
 	}
+#endif//_XBOX
 
 	for ( i = 0; i < m_vehicleSounds.crashSounds.Count(); i++ )
 	{
@@ -1989,9 +1856,7 @@ sound_states CBaseServerVehicle::SoundState_ChooseState( vbs_sound_update_t &par
 	switch( m_soundState )
 	{
 	case SS_START_IDLE:
-		if ( bInStateForMinTime || params.bThrottleDown )
-			return SS_IDLE;
-		break;
+		return SS_IDLE;
 	case SS_IDLE:
 		if ( bInStateForMinTime && params.bThrottleDown )
 		{
@@ -2556,32 +2421,6 @@ void CBaseServerVehicle::RestorePassengerInfo( void )
 	}
 }
 
-void CBaseServerVehicle::ReloadScript()
-{
-	if ( m_pDrivableVehicle )
-	{
-		string_t script = m_pDrivableVehicle->GetVehicleScriptName();
-		IPhysicsVehicleController *pController = GetVehicleController();
-		vehicleparams_t *pVehicleParams = pController ? &(pController->GetVehicleParamsForChange()) : NULL;
-		PhysFindOrAddVehicleScript( script.ToCStr(), pVehicleParams, &m_vehicleSounds );
-		if ( pController )
-		{
-			pController->VehicleDataReload();
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Passes this call down into the server vehicle where the tests are done
-//-----------------------------------------------------------------------------
-bool CBaseServerVehicle::PassengerShouldReceiveDamage( CTakeDamageInfo &info )
-{ 
-	if ( GetDrivableVehicle() )
-		return GetDrivableVehicle()->PassengerShouldReceiveDamage( info );
-
-	return true;
-}
-
 //===========================================================================================================
 // Vehicle Sounds
 //===========================================================================================================
@@ -2742,6 +2581,37 @@ void CVehicleSoundsParser::ParseKeyValue( void *pData, const char *pKey, const c
 void CVehicleSoundsParser::SetDefaults( void *pData ) 
 {
 	vehiclesounds_t *pSounds = (vehiclesounds_t *)pData;
-	pSounds->Init();
+	for ( int i = 0; i < VS_NUM_SOUNDS; i++ )
+	{
+		pSounds->iszSound[i] = NULL_STRING;
+	}
+
+	pSounds->pGears.Purge();
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Parse just the vehicle_sound section of a vehicle file.
+//-----------------------------------------------------------------------------
+void CVehicleSoundsParser::ParseVehicleSounds( const char *pScriptName, vehiclesounds_t *pSounds )
+{
+	byte *pFile = UTIL_LoadFileForMe( pScriptName, NULL );
+	if ( !pFile )
+		return;
+
+	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( (char *)pFile );
+	while ( !pParse->Finished() )
+	{
+		const char *pBlock = pParse->GetCurrentBlockName();
+		if ( !strcmpi( pBlock, "vehicle_sounds" ) )
+		{
+			pParse->ParseCustom( &pSounds, this );
+		}
+		else
+		{
+			pParse->SkipBlock();
+		}
+	}
+	physcollision->VPhysicsKeyParserDestroy( pParse );
+
+	UTIL_FreeFile( pFile );
+}

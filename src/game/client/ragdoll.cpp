@@ -1,12 +1,12 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
-#include "mathlib/vmatrix.h"
+#include "vmatrix.h"
 #include "ragdoll_shared.h"
 #include "bone_setup.h"
 #include "materialsystem/imesh.h"
@@ -40,7 +40,6 @@ BEGIN_SIMPLE_DATADESC( CRagdoll )
 
 	DEFINE_AUTO_ARRAY( m_ragdoll.boneIndex,	FIELD_INTEGER ),
 	DEFINE_FIELD( m_ragdoll.listCount, FIELD_INTEGER ),
-	DEFINE_FIELD( m_ragdoll.allowStretch, FIELD_BOOLEAN ),
 	DEFINE_PHYSPTR( m_ragdoll.pGroup ),
 
 	DEFINE_RAGDOLL_ELEMENT( 0 ),
@@ -91,9 +90,8 @@ void CRagdoll::Init(
 	CStudioHdr *pstudiohdr, 
 	const Vector &forceVector, 
 	int forceBone, 
-	const matrix3x4_t *pDeltaBones0, 
-	const matrix3x4_t *pDeltaBones1, 
-	const matrix3x4_t *pCurrentBonePosition, 
+	const CBoneAccessor &pPrevBones, 
+	const CBoneAccessor &pBoneToWorld, 
 	float dt )
 {
 	ragdollparams_t params;
@@ -104,16 +102,11 @@ void CRagdoll::Init(
 	params.forceVector = forceVector;
 	params.forceBoneIndex = forceBone;
 	params.forcePosition.Init();
-	params.pCurrentBones = pCurrentBonePosition;
+	params.pPrevBones = pPrevBones;
+	params.pCurrentBones = pBoneToWorld;
+	params.boneDt = dt;
 	params.jointFrictionScale = 1.0;
-	params.allowStretch = false;
 	RagdollCreate( m_ragdoll, params, physenv );
-	ent->VPhysicsSetObject( NULL );
-	ent->VPhysicsSetObject( m_ragdoll.list[0].pObject );
-	// Mark the ragdoll as debris.
-	ent->SetCollisionGroup( COLLISION_GROUP_DEBRIS );
-
-	RagdollApplyAnimationAsVelocity( m_ragdoll, pDeltaBones0, pDeltaBones1, dt );
 	RagdollActivate( m_ragdoll, params.pCollide, ent->GetModelIndex() );
 
 	// It's moving now...
@@ -125,6 +118,8 @@ void CRagdoll::Init(
 	if ( !m_ragdoll.listCount )
 		return;
 
+	ent->VPhysicsSetObject( NULL );
+	ent->VPhysicsSetObject( m_ragdoll.list[0].pObject );
 	BuildRagdollBounds( ent );
 
 	for ( int i = 0; i < m_ragdoll.listCount; i++ )
@@ -133,9 +128,8 @@ void CRagdoll::Init(
 	}
 
 #if RAGDOLL_VISUALIZE
-	memcpy( m_savedBone1, &pDeltaBones0[0], sizeof(matrix3x4_t) * pstudiohdr->numbones() );
-	memcpy( m_savedBone2, &pDeltaBones1[0], sizeof(matrix3x4_t) * pstudiohdr->numbones() );
-	memcpy( m_savedBone3, &pCurrentBonePosition[0], sizeof(matrix3x4_t) * pstudiohdr->numbones() );
+	memcpy( m_savedBone1, &pPrevBones[0], sizeof(matrix3x4_t) * pstudiohdr->numbones() );
+	memcpy( m_savedBone2, &pBoneToWorld[0], sizeof(matrix3x4_t) * pstudiohdr->numbones() );
 #endif
 }
 
@@ -143,14 +137,9 @@ CRagdoll::~CRagdoll( void )
 {
 	for ( int i = 0; i < m_ragdoll.listCount; i++ )
 	{
-		IPhysicsObject *pObject = m_ragdoll.list[i].pObject;
-		if ( pObject )
+		if ( m_ragdoll.list[i].pObject )
 		{
 			g_pPhysSaveRestoreManager->ForgetModel( m_ragdoll.list[i].pObject );
-			// Disable collision on all ragdoll parts before calling RagdollDestroy
-			// (which might cause touch callbacks on the ragdoll otherwise, which is
-			// very bad for a half deleted ragdoll).
-			pObject->EnableCollisions( false );
 		}
 	}
 
@@ -230,7 +219,7 @@ void CRagdoll::PhysForceRagdollToSleep()
 }
 
 #define RAGDOLL_SLEEP_TOLERANCE	1.0f
-static ConVar ragdoll_sleepaftertime( "ragdoll_sleepaftertime", "5.0f", 0, "After this many seconds of being basically stationary, the ragdoll will go to sleep." );
+static ConVar ragdoll_sleepaftertime( "ragdoll_sleepaftertime", "3.5f", 0, "After this many seconds of being basically stationary, the ragdoll will go to sleep." );
 
 void CRagdoll::CheckSettleStationaryRagdoll()
 {
@@ -311,26 +300,42 @@ void CRagdoll::DrawWireframe()
 #endif
 }
 
+void CRagdoll::SetInitialBonePosition( CStudioHdr *pstudiohdr, const CBoneAccessor &pDesiredBonePosition )
+{
+	for ( int i = 0; i < m_ragdoll.listCount; i++ )
+	{
+		int iBoneIndex = m_ragdoll.boneIndex[i];
+		m_ragdoll.list[i].pObject->SetPositionMatrix( pDesiredBonePosition.GetBone( iBoneIndex ), true );
+	}
+
+#if RAGDOLL_VISUALIZE
+	memcpy( m_savedBone3, &pDesiredBonePosition[0], sizeof(matrix3x4_t) * pstudiohdr->numbones() );
+#endif
+}
 
 CRagdoll *CreateRagdoll( 
 	C_BaseEntity *ent, 
 	CStudioHdr *pstudiohdr, 
 	const Vector &forceVector, 
 	int forceBone, 
-	const matrix3x4_t *pDeltaBones0, 
-	const matrix3x4_t *pDeltaBones1, 
-	const matrix3x4_t *pCurrentBonePosition,
+	const CBoneAccessor &pPrevBones, 
+	const CBoneAccessor &pBoneToWorld, 
+	const CBoneAccessor &pDesiredBonePosition,
 	float dt )
 {
 	CRagdoll *pRagdoll = new CRagdoll;
-	pRagdoll->Init( ent, pstudiohdr, forceVector, forceBone, pDeltaBones0, pDeltaBones1, pCurrentBonePosition, dt );
+	pRagdoll->Init( ent, pstudiohdr, forceVector, forceBone, pPrevBones, pBoneToWorld, dt );
 
 	if ( !pRagdoll->IsValid() )
 	{
 		Msg("Bad ragdoll for %s\n", pstudiohdr->pszName() );
 		delete pRagdoll;
 		pRagdoll = NULL;
+		return pRagdoll;
 	}
+
+	pRagdoll->SetInitialBonePosition( pstudiohdr, pDesiredBonePosition );
+
 	return pRagdoll;
 }
 
@@ -342,7 +347,7 @@ class C_ServerRagdoll : public C_BaseAnimating
 public:
 	DECLARE_CLASS( C_ServerRagdoll, C_BaseAnimating );
 	DECLARE_CLIENTCLASS();
-	DECLARE_INTERPOLATION();
+
 
 	C_ServerRagdoll( void );
 
@@ -351,7 +356,7 @@ public:
 	virtual int InternalDrawModel( int flags );
 	virtual CStudioHdr *OnNewModel( void );
 	virtual unsigned char GetClientSideFade();
-	virtual void	SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWeightCount, float *pFlexWeights, float *pFlexDelayedWeights );
+	virtual void	SetupWeights( void );
 
 	void GetRenderBounds( Vector& theMins, Vector& theMaxs );
 	virtual void AddEntity( void );
@@ -359,7 +364,6 @@ public:
 	virtual void BuildTransformations( CStudioHdr *pStudioHdr, Vector *pos, Quaternion q[], const matrix3x4_t &cameraTransform, int boneMask, CBoneBitList &boneComputed );
 	IPhysicsObject *GetElement( int elementNum );
 	virtual void UpdateOnRemove();
-	virtual float LastBoneChangedTime();
 
 	// Incoming from network
 	Vector		m_ragPos[RAGDOLL_MAX_ELEMENTS];
@@ -379,7 +383,6 @@ private:
 	CNetworkVar( float, m_flBlendWeight );
 	float m_flBlendWeightCurrent;
 	CNetworkVar( int, m_nOverlaySequence );
-	float m_flLastBoneChangeTime;
 };
 
 
@@ -398,10 +401,9 @@ C_ServerRagdoll::C_ServerRagdoll( void ) :
 	m_iv_ragAngles("C_ServerRagdoll::m_iv_ragAngles")
 {
 	m_elementCount = 0;
-	m_flLastBoneChangeTime = -FLT_MAX;
 
-	AddVar( m_ragPos, &m_iv_ragPos, LATCH_SIMULATION_VAR  );
-	AddVar( m_ragAngles, &m_iv_ragAngles, LATCH_SIMULATION_VAR );
+	AddVar( m_ragPos, &m_iv_ragPos, LATCH_SIMULATION_VAR | EXCLUDE_AUTO_LATCH );
+	AddVar( m_ragAngles, &m_iv_ragAngles, LATCH_SIMULATION_VAR | EXCLUDE_AUTO_LATCH );
 
 	m_flBlendWeight = 0.0f;
 	m_flBlendWeightCurrent = 0.0f;
@@ -413,20 +415,12 @@ void C_ServerRagdoll::PostDataUpdate( DataUpdateType_t updateType )
 {
 	BaseClass::PostDataUpdate( updateType );
 
-	m_iv_ragPos.NoteChanged( gpGlobals->curtime, true );
-	m_iv_ragAngles.NoteChanged( gpGlobals->curtime, true );
-	// this is the local client time at which this update becomes stale
-	m_flLastBoneChangeTime = gpGlobals->curtime + GetInterpolationAmount(m_iv_ragPos.GetType());
-}
-
-float C_ServerRagdoll::LastBoneChangedTime()
-{
-	return m_flLastBoneChangeTime;
+	m_iv_ragPos.NoteChanged( gpGlobals->curtime );
+	m_iv_ragAngles.NoteChanged( gpGlobals->curtime );
 }
 
 int C_ServerRagdoll::InternalDrawModel( int flags )
 {
-	int ret = BaseClass::InternalDrawModel( flags );
 	if ( vcollide_wireframe.GetBool() )
 	{
 		vcollide_t *pCollide = modelinfo->GetVCollide( GetModelIndex() );
@@ -441,7 +435,7 @@ int C_ServerRagdoll::InternalDrawModel( int flags )
 			engine->DebugDrawPhysCollide( pCollide->solids[i], pWireframe, matrix, debugColor );
 		}
 	}
-	return ret;
+	return BaseClass::InternalDrawModel( flags );
 }
 
 
@@ -459,9 +453,7 @@ CStudioHdr *C_ServerRagdoll::OnNewModel( void )
 			m_elementCount = 0;
 		}
 		else
-		{
 			m_elementCount = RagdollExtractBoneIndices( m_boneIndex, hdr, pCollide );
-		}
 		m_iv_ragPos.SetMaxCount( m_elementCount );
 		m_iv_ragAngles.SetMaxCount( m_elementCount );
 	}
@@ -472,22 +464,34 @@ CStudioHdr *C_ServerRagdoll::OnNewModel( void )
 //-----------------------------------------------------------------------------
 // Purpose: clear out any face/eye values stored in the material system
 //-----------------------------------------------------------------------------
-void C_ServerRagdoll::SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWeightCount, float *pFlexWeights, float *pFlexDelayedWeights )
+void C_ServerRagdoll::SetupWeights( void )
 {
-	BaseClass::SetupWeights( pBoneToWorld, nFlexWeightCount, pFlexWeights, pFlexDelayedWeights );
+	BaseClass::SetupWeights( );
+
+	static float destweight[MAXSTUDIOFLEXDESC];
+	static bool bIsInited = false;
 
 	CStudioHdr *hdr = GetModelPtr();
 	if ( !hdr )
-		return;
-
-	int nFlexDescCount = hdr->numflexdesc();
-	if ( nFlexDescCount )
 	{
-		Assert( !pFlexDelayedWeights );
-		memset( pFlexWeights, 0, nFlexWeightCount * sizeof(float) );
+		return;
 	}
 
-	if ( m_iEyeAttachment > 0 )
+	if (hdr->numflexdesc() > 0)
+	{
+		if (!bIsInited)
+		{
+			int i;
+			for (i = 0; i < MAXSTUDIOFLEXDESC; i++)
+			{
+				destweight[i] = 0.0f;
+			}
+			bIsInited = true;
+		}
+		modelrender->SetFlexWeights( hdr->numflexdesc(), destweight );
+	}
+
+	if (m_iEyeAttachment > 0)
 	{
 		matrix3x4_t attToWorld;
 		if (GetAttachment( m_iEyeAttachment, attToWorld ))
@@ -495,7 +499,7 @@ void C_ServerRagdoll::SetupWeights( const matrix3x4_t *pBoneToWorld, int nFlexWe
 			Vector local, tmp;
 			local.Init( 1000.0f, 0.0f, 0.0f );
 			VectorTransform( local, attToWorld, tmp );
-			modelrender->SetViewTarget( GetModelPtr(), GetBody(), tmp );
+			modelrender->SetViewTarget( tmp );
 		}
 	}
 }
@@ -555,7 +559,7 @@ void C_ServerRagdoll::BuildTransformations( CStudioHdr *hdr, Vector *pos, Quater
 		int index = m_boneIndex[i];
 		if ( index >= 0 )
 		{
-			if ( hdr->boneFlags(index) & boneMask )
+			if ( pbones[index].flags & boneMask )
 			{
 				boneSimulated[index] = true;
 				matrix3x4_t &matrix = GetBoneForWrite( index );
@@ -577,7 +581,7 @@ void C_ServerRagdoll::BuildTransformations( CStudioHdr *hdr, Vector *pos, Quater
 
 	for ( i = 0; i < hdr->numbones(); i++ ) 
 	{
-		if ( !( hdr->boneFlags( i ) & boneMask ) )
+		if ( !( hdr->pBone( i )->flags & boneMask ) )
 			continue;
 
 		// BUGBUG: Merge this code with the code in c_baseanimating somehow!!!
@@ -626,8 +630,9 @@ void C_ServerRagdoll::UpdateOnRemove()
 		( anim->GetModel() == GetModel() ) )
 	{
 		// Need to tell C_BaseAnimating to blend out of the ragdoll data that we received last
-		C_BaseAnimating::AutoAllowBoneAccess boneaccess( true, false );
+		C_BaseAnimating::PushAllowBoneAccess( true, false );
 		anim->CreateUnragdollInfo( this );
+		C_BaseAnimating::PopBoneAccess();
 	}
 
 	// Do last to mimic destrictor order
@@ -670,7 +675,7 @@ public:
 		{
 			// HACKHACK: Force the attached bone to be set up
 			int index = m_boneIndex[m_ragdollAttachedObjectIndex];
-			int boneFlags = GetModelPtr()->boneFlags(index);
+			int boneFlags = GetModelPtr()->pBone(index)->flags;
 			if ( !(boneFlags & boneMask) )
 			{
 				// BUGBUG: The attached bone is required and this call is going to skip it, so force it
@@ -723,7 +728,7 @@ public:
 
 		for ( int i = 0; i < hdr->numbones(); i++ )
 		{
-			if ( !( hdr->boneFlags( i ) & boneMask ) )
+			if ( !( hdr->pBone( i )->flags & boneMask ) )
 				continue;
 
 			Vector pos;
@@ -734,7 +739,6 @@ public:
 		}
 	}
 	void OnDataChanged( DataUpdateType_t updateType );
-	virtual float LastBoneChangedTime() { return FLT_MAX; }
 
 	Vector		m_attachmentPointBoneSpace;
 	Vector		m_vecOffset;

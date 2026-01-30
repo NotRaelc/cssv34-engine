@@ -37,7 +37,7 @@ CON_COMMAND( showinfo, "Shows a info panel: <type> <title> <message> [<command>]
 	if ( !gViewPortInterface )
 		return;
 	
-	if ( args.ArgC() < 4 )
+	if ( engine->Cmd_Argc() < 4 )
 		return;
 		
 	IViewPortPanel * panel = gViewPortInterface->FindPanelByName( PANEL_INFO );
@@ -45,12 +45,12 @@ CON_COMMAND( showinfo, "Shows a info panel: <type> <title> <message> [<command>]
 	 if ( panel )
 	 {
 		 KeyValues *kv = new KeyValues("data");
-		 kv->SetInt( "type", Q_atoi(args[ 1 ]) );
-		 kv->SetString( "title", args[ 2 ] );
-		 kv->SetString( "message", args[ 3 ] );
+		 kv->SetInt( "type", Q_atoi(engine->Cmd_Argv( 1 )) );
+		 kv->SetString( "title", engine->Cmd_Argv( 2 ) );
+		 kv->SetString( "message", engine->Cmd_Argv( 3 ) );
 
-		 if ( args.ArgC() == 5 )
-			 kv->SetString( "command", args[ 4 ] );
+		 if ( engine->Cmd_Argc() == 5 )
+			 kv->SetString( "command", engine->Cmd_Argv( 4 ) );
 
 		 panel->SetData( kv );
 
@@ -74,10 +74,6 @@ CTextWindow::CTextWindow(IViewPort *pViewPort) : Frame(NULL, PANEL_INFO	)
 
 //	SetTitle("", true);
 
-	m_szTitle[0] = '\0';
-	m_szMessage[0] = '\0';
-	m_szExitCommand[0] = '\0';
-	
 	// load the new scheme early!!
 	SetScheme("ClientScheme");
 	SetMoveable(false);
@@ -88,26 +84,15 @@ CTextWindow::CTextWindow(IViewPort *pViewPort) : Frame(NULL, PANEL_INFO	)
 	SetTitleBarVisible( false );
 
 	m_pTextMessage = new TextEntry(this, "TextMessage");
-#if defined( ENABLE_HTMLWINDOW )
 	m_pHTMLMessage = new HTML(this,"HTMLMessage");;
-#endif
-	m_pTitleLabel  = new Label( this, "MessageTitle", "Message Title" );
+	m_pTitleLable  = new Label( this, "MessageTitle", "Message Title" );
 	m_pOK		   = new Button(this, "ok", "#PropertyDialog_OK");
 
 	m_pOK->SetCommand("okay");
 	m_pTextMessage->SetMultiline( true );
-	m_nContentType = TYPE_TEXT;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CTextWindow::ApplySchemeSettings( IScheme *pScheme )
-{
-	BaseClass::ApplySchemeSettings( pScheme );
-
+	
 	LoadControlSettings("Resource/UI/TextWindow.res");
-
+	
 	Reset();
 }
 
@@ -117,7 +102,7 @@ void CTextWindow::ApplySchemeSettings( IScheme *pScheme )
 CTextWindow::~CTextWindow()
 {
 	// remove temp file again
-	g_pFullFileSystem->RemoveFile( TEMP_HTML_FILE, "DEFAULT_WRITE_PATH" );
+	vgui::filesystem()->RemoveFile( TEMP_HTML_FILE, "GAME" );
 }
 
 void CTextWindow::Reset( void )
@@ -138,20 +123,14 @@ void CTextWindow::ShowText( const char *text)
 
 void CTextWindow::ShowURL( const char *URL)
 {
-#if defined( ENABLE_HTMLWINDOW )
 	m_pHTMLMessage->SetVisible( true );
 	m_pHTMLMessage->OpenURL( URL );
-#endif
 }
 
 void CTextWindow::ShowIndex( const char *entry)
 {
 	const char *data = NULL;
 	int length = 0;
-
-	if ( NULL == g_pStringTableInfoPanel )
-		return;
-
 	int index = g_pStringTableInfoPanel->FindStringIndex( m_szMessage );
 		
 	if ( index != ::INVALID_STRING_INDEX )
@@ -175,15 +154,15 @@ void CTextWindow::ShowIndex( const char *entry)
 	}
 
 	// data is a HTML, we have to write to a file and then load the file
-	FileHandle_t hFile = g_pFullFileSystem->Open( TEMP_HTML_FILE, "wb", "DEFAULT_WRITE_PATH" );
+	FileHandle_t hFile = vgui::filesystem()->Open( TEMP_HTML_FILE, "wb", "GAME" );
 
 	if ( hFile == FILESYSTEM_INVALID_HANDLE )
 		return;
 
-	g_pFullFileSystem->Write( data, length, hFile );
-	g_pFullFileSystem->Close( hFile );
+	vgui::filesystem()->Write( data, length, hFile );
+	vgui::filesystem()->Close( hFile );
 
-	if ( g_pFullFileSystem->Size( TEMP_HTML_FILE ) != (unsigned int)length )
+	if ( vgui::filesystem()->Size( TEMP_HTML_FILE ) != (unsigned int)length )
 		return; // something went wrong while writing
 
 	ShowFile( TEMP_HTML_FILE );
@@ -198,7 +177,7 @@ void CTextWindow::ShowFile( const char *filename )
 		Q_strncpy( localURL, "file://", sizeof( localURL ) );
 		
 		char pPathData[ _MAX_PATH ];
-		g_pFullFileSystem->GetLocalPath( filename, pPathData, sizeof(pPathData) );
+		vgui::filesystem()->GetLocalPath( filename, pPathData, sizeof(pPathData) );
 		Q_strncat( localURL, pPathData, sizeof( localURL ), COPY_ALL_CHARACTERS );
 
 		ShowURL( localURL );
@@ -206,17 +185,17 @@ void CTextWindow::ShowFile( const char *filename )
 	else
 	{
 		// read from local text from file
-		FileHandle_t f = g_pFullFileSystem->Open( m_szMessage, "rb", "GAME" );
+		FileHandle_t f = vgui::filesystem()->Open( m_szMessage, "rb", "GAME" );
 
 		if ( !f )
 			return;
 
 		char buffer[2048];
 			
-		int size = min( g_pFullFileSystem->Size( f ), sizeof(buffer)-1 ); // just allow 2KB
+		int size = min( vgui::filesystem()->Size( f ), sizeof(buffer)-1 ); // just allow 2KB
 
-		g_pFullFileSystem->Read( buffer, size, f );
-		g_pFullFileSystem->Close( f );
+		vgui::filesystem()->Read( buffer, size, f );
+		vgui::filesystem()->Close( f );
 
 		buffer[size]=0; //terminate string
 
@@ -228,11 +207,9 @@ void CTextWindow::Update( void )
 {
 	SetTitle( m_szTitle, false );
 
-	m_pTitleLabel->SetText( m_szTitle );
+	m_pTitleLable->SetText( m_szTitle );
 
-#if defined( ENABLE_HTMLWINDOW )
 	m_pHTMLMessage->SetVisible( false );
-#endif
 	m_pTextMessage->SetVisible( false );
 
 	if ( m_nContentType == TYPE_INDEX )
@@ -245,7 +222,7 @@ void CTextWindow::Update( void )
 	}
 	else if ( m_nContentType == TYPE_FILE )
 	{
-		ShowFile( m_szMessage );
+		ShowFile( m_szMessage )		;
 	}
 	else if ( m_nContentType == TYPE_TEXT )
 	{
@@ -279,8 +256,8 @@ void CTextWindow::SetData(KeyValues *data)
 
 void CTextWindow::SetData( int type, const char *title, const char *message, const char *command )
 {
-	Q_strncpy(  m_szTitle, title, sizeof( m_szTitle ) );
-	Q_strncpy(  m_szMessage, message, sizeof( m_szMessage ) );
+	Q_strncpy(  m_szTitle, title, sizeof( m_szTitle) );
+	Q_strncpy(  m_szMessage, message, sizeof( m_szTitle) );
 	
 	if ( command )
 	{

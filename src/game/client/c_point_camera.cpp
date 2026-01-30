@@ -1,16 +1,11 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//===========================================================================//
-
+//=============================================================================//
 #include "cbase.h"
 #include "C_Point_Camera.h"
-#include "toolframework/itoolframework.h"
-#include "toolframework_client.h"
-#include "tier1/keyvalues.h"
-
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -22,7 +17,6 @@ IMPLEMENT_CLIENTCLASS_DT( C_PointCamera, DT_PointCamera, CPointCamera )
 	RecvPropInt( RECVINFO( m_FogColor ) ),
 	RecvPropFloat( RECVINFO( m_flFogStart ) ), 
 	RecvPropFloat( RECVINFO( m_flFogEnd ) ), 
-	RecvPropFloat( RECVINFO( m_flFogMaxDensity ) ), 
 	RecvPropInt( RECVINFO( m_bActive ) ),
 	RecvPropInt( RECVINFO( m_bUseScreenAspectRatio ) ),
 END_RECV_TABLE()
@@ -85,32 +79,8 @@ float C_PointCamera::GetFogEnd()
 	return m_flFogEnd;
 }
 
-float C_PointCamera::GetFogMaxDensity()
-{
-	return m_flFogMaxDensity;
-}
-
 bool C_PointCamera::IsActive()
 {
 	return m_bActive;
 }
-
-
-void C_PointCamera::GetToolRecordingState( KeyValues *msg )
-{
-	BaseClass::GetToolRecordingState( msg );
-
-	unsigned char r, g, b;
-	static MonitorRecordingState_t state;
-	state.m_bActive = IsActive() && !IsDormant();
-	state.m_flFOV = GetFOV();
-	state.m_bFogEnabled = IsFogEnabled();
-	state.m_flFogStart = GetFogStart();
-	state.m_flFogEnd = GetFogEnd();
-	GetFogColor( r, g, b );
-	state.m_FogColor.SetColor( r, g, b, 255 );
-					  
-	msg->SetPtr( "monitor", &state );
-}
-
 

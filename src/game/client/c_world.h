@@ -33,7 +33,7 @@ public:
 	virtual void Spawn();
 
 	// Don't worry about adding the world to the collision list; it's already there
-	virtual CollideType_t	GetCollideType( void )	{ return ENTITY_SHOULD_NOT_COLLIDE; }
+	virtual CollideType_t	ShouldCollide( )	{ return ENTITY_SHOULD_NOT_COLLIDE; }
 
 	virtual void OnDataChanged( DataUpdateType_t updateType );
 	virtual void PreDataUpdate( DataUpdateType_t updateType );

@@ -12,7 +12,6 @@
 #include "text_message.h"
 #include "vguicenterprint.h"
 #include "vgui/ILocalize.h"
-#include "ihudlcd.h"
 
 ConVar cl_showtextmsg( "cl_showtextmsg", "1", 0, "Enable/disable text messages printing on the screen." );
 
@@ -247,7 +246,7 @@ wchar_t* ReadLocalizedRadioCommandString( bf_read &msg, wchar_t *pOut, int outSi
 	char szString[2048];
 	msg.ReadString( szString, sizeof(szString) );
 
-	const wchar_t *pBuf = g_pVGuiLocalize->Find( szString );
+	const wchar_t *pBuf = vgui::localize()->Find( szString );
 	if ( pBuf )
 	{
 		wcsncpy( pOut, pBuf, outSize/sizeof(wchar_t) );
@@ -255,7 +254,7 @@ wchar_t* ReadLocalizedRadioCommandString( bf_read &msg, wchar_t *pOut, int outSi
 	}
 	else
 	{
-		g_pVGuiLocalize->ConvertANSIToUnicode( szString, pOut, outSize );
+		vgui::localize()->ConvertANSIToUnicode( szString, pOut, outSize );
 	}
 
 	if ( bStripNewline )
@@ -288,7 +287,7 @@ void CHudChat::MsgFunc_TextMsg( bf_read &msg )
 	{
 		msg.ReadString( szString, sizeof(szString) );
 		char *tmpStr = hudtextmessage->LookupString( szString, &msg_dest );
-		const wchar_t *pBuf = g_pVGuiLocalize->Find( tmpStr );
+		const wchar_t *pBuf = vgui::localize()->Find( tmpStr );
 		if ( pBuf )
 		{
 			// Copy pBuf into szBuf[i].
@@ -302,7 +301,7 @@ void CHudChat::MsgFunc_TextMsg( bf_read &msg )
 			{
 				StripEndNewlineFromString( tmpStr );  // these strings are meant for subsitution into the main strings, so cull the automatic end newlines
 			}
-			g_pVGuiLocalize->ConvertANSIToUnicode( tmpStr, szBuf[i], sizeof(szBuf[i]) );
+			vgui::localize()->ConvertANSIToUnicode( tmpStr, szBuf[i], sizeof(szBuf[i]) );
 		}
 	}
 
@@ -313,13 +312,14 @@ void CHudChat::MsgFunc_TextMsg( bf_read &msg )
 	switch ( msg_dest )
 	{
 	case HUD_PRINTCENTER:
-		g_pVGuiLocalize->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		vgui::localize()->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
 		internalCenterPrint->Print( ConvertCRtoNL( outputBuf ) );
 		break;
 
 	case HUD_PRINTNOTIFY:
-		g_pVGuiLocalize->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
-		g_pVGuiLocalize->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
+		szString[0] = 1;  // mark this message to go into the notify buffer
+		vgui::localize()->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		vgui::localize()->ConvertUnicodeToANSI( outputBuf, szString+1, sizeof(szString)-1 );
 		len = strlen( szString );
 		if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 		{
@@ -329,8 +329,8 @@ void CHudChat::MsgFunc_TextMsg( bf_read &msg )
 		break;
 
 	case HUD_PRINTTALK:
-		g_pVGuiLocalize->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
-		g_pVGuiLocalize->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
+		vgui::localize()->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		vgui::localize()->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
 		len = strlen( szString );
 		if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 		{
@@ -340,8 +340,8 @@ void CHudChat::MsgFunc_TextMsg( bf_read &msg )
 		break;
 
 	case HUD_PRINTCONSOLE:
-		g_pVGuiLocalize->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
-		g_pVGuiLocalize->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
+		vgui::localize()->ConstructString( outputBuf, sizeof(outputBuf), szBuf[0], 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+		vgui::localize()->ConvertUnicodeToANSI( outputBuf, szString, sizeof(szString) );
 		len = strlen( szString );
 		if ( len && szString[len-1] != '\n' && szString[len-1] != '\r' )
 		{
@@ -382,15 +382,6 @@ void CHudChat::ChatPrintf( int iPlayerIndex, const char *fmt, ... )
 	
 	if ( !*pmsg )
 		return;
-
-	if ( *pmsg < 32 )
-	{
-		hudlcd->AddChatLine( pmsg + 1 );
-	}
-	else
-	{
-		hudlcd->AddChatLine( pmsg );
-	}
 
 	CHudChatLine *line = (CHudChatLine *)FindUnusedChatLine();
 	if ( !line )
@@ -449,7 +440,7 @@ void CHudChat::ChatPrintf( int iPlayerIndex, const char *fmt, ... )
 		Q_strncpy( buf, pmsg + iNameLength, strlen( pmsg ));
 		buf[ strlen( pmsg + iNameLength ) ] = '\0';
 		line->InsertColorChange( Color( g_ColorYellow[0], g_ColorYellow[1], g_ColorYellow[2], 255 ) );
-		g_pVGuiLocalize->ConvertANSIToUnicode( buf, wbuf, strlen(pmsg)*sizeof(wchar_t));
+		vgui::localize()->ConvertANSIToUnicode( buf, wbuf, strlen(pmsg)*sizeof(wchar_t));
 		line->InsertString( wbuf );
 		line->SetVisible( true );
 		line->SetNameLength( iNameLength );

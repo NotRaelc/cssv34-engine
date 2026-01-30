@@ -22,7 +22,7 @@
 #endif
 
 #include "game/client/iclientrendertargets.h"		// base class with interfaces called by the engine
-#include "materialsystem\imaterialsystem.h"		// for material system classes and interfaces
+#include "materialsystem/imaterialsystem.h"		// for material system classes and interfaces
 
 
 // Externs
@@ -35,7 +35,7 @@ class CBaseClientRenderTargets : public IClientRenderTargets
 	DECLARE_CLASS_GAMEROOT( CBaseClientRenderTargets, IClientRenderTargets );
 public:
 	// Interface called by engine during material system startup.
-	virtual void InitClientRenderTargets ( IMaterialSystem* pMaterialSystem, IMaterialSystemHardwareConfig* pHardwareConfig, int iWaterTextureSize = 1024, int iCameraTextureSize = 256 );
+	virtual void InitClientRenderTargets ( IMaterialSystem* pMaterialSystem, IMaterialSystemHardwareConfig* pHardwareConfig );
 	// Shutdown all custom render targets here.
 	virtual void ShutdownClientRenderTargets ( void );
 
@@ -52,9 +52,9 @@ protected:
 	CTextureReference		m_CameraTexture;
 
 	// Init functions for the common render targets
-	ITexture* CreateWaterReflectionTexture( IMaterialSystem* pMaterialSystem, int iSize = 1024 );
-	ITexture* CreateWaterRefractionTexture( IMaterialSystem* pMaterialSystem, int iSize = 1024 );
-	ITexture* CreateCameraTexture( IMaterialSystem* pMaterialSystem, int iSize = 256 );
+	ITexture* CreateWaterReflectionTexture( IMaterialSystem* pMaterialSystem );
+	ITexture* CreateWaterRefractionTexture( IMaterialSystem* pMaterialSystem );
+	ITexture* CreateCameraTexture( IMaterialSystem* pMaterialSystem );
 
 };
 

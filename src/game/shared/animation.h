@@ -42,7 +42,6 @@ int GetAnimationEvent( CStudioHdr *pstudiohdr, int sequence, animevent_t *pNPCEv
 bool HasAnimationEventOfType( CStudioHdr *pstudiohdr, int sequence, int type );
 
 int FindTransitionSequence( CStudioHdr *pstudiohdr, int iCurrentSequence, int iGoalSequence, int *piDir );
-bool GotoSequence( CStudioHdr *pstudiohdr, int iCurrentSequence, float flCurrentCycle, float flCurrentRate, int iGoalSequence, int &nNextSequence, float &flNextCycle, int &iNextDir );
 
 void SetBodygroup( CStudioHdr *pstudiohdr, int& body, int iGroup, int iValue );
 int GetBodygroup( CStudioHdr *pstudiohdr, int body, int iGroup );

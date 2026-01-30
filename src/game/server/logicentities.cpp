@@ -8,7 +8,7 @@
 #include "entityinput.h"
 #include "entityoutput.h"
 #include "eventqueue.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "globalstate.h"
 #include "ndebugoverlay.h"
 #include "saverestore_utlvector.h"
@@ -148,8 +148,6 @@ public:
 	void Disable( void );
 	void FireTimer( void );
 
-	int DrawDebugTextOverlays(void);
-
 	// outputs
 	COutputEvent m_OnTimer;
 	COutputEvent m_OnTimerHigh;
@@ -161,9 +159,6 @@ public:
 	void InputDisable( inputdata_t &inputdata );
 	void InputFireTimer( inputdata_t &inputdata );
 	void InputRefireTime( inputdata_t &inputdata );
-	void InputResetTimer( inputdata_t &inputdata );
-	void InputAddToTimer( inputdata_t &inputdata );
-	void InputSubtractFromTimer( inputdata_t &inputdata );
 
 	int m_iDisabled;
 	float m_flRefireTime;
@@ -195,14 +190,10 @@ BEGIN_DATADESC( CTimerEntity )
 	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Toggle", InputToggle ),
-	DEFINE_INPUTFUNC( FIELD_FLOAT, "AddToTimer", InputAddToTimer ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "ResetTimer", InputResetTimer ),
-	DEFINE_INPUTFUNC( FIELD_FLOAT, "SubtractFromTimer", InputSubtractFromTimer ),
 
 	DEFINE_INPUT( m_iUseRandomTime, FIELD_INTEGER, "UseRandomTime" ),
 	DEFINE_INPUT( m_flLowerRandomBound, FIELD_FLOAT, "LowerRandomBound" ),
 	DEFINE_INPUT( m_flUpperRandomBound, FIELD_FLOAT, "UpperRandomBound" ),
-
 
 	// Outputs
 	DEFINE_OUTPUT( m_OnTimer, "OnTimer" ),
@@ -383,84 +374,6 @@ void CTimerEntity::InputRefireTime( inputdata_t &inputdata )
 		m_flRefireTime = flRefireInterval;
 		ResetTimer();
 	}
-}
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CTimerEntity::InputResetTimer( inputdata_t &inputdata )
-{
-	// don't reset the timer if it isn't enabled
-	if ( m_iDisabled )
-		return;
-
-	ResetTimer();
-}
-
-
-//-----------------------------------------------------------------------------
-// Purpose: Adds to the time interval if the timer is enabled
-// Input  : Float time to add in seconds
-//-----------------------------------------------------------------------------
-void CTimerEntity::InputAddToTimer( inputdata_t &inputdata )
-{
-	// don't add time if the timer isn't enabled
-	if ( m_iDisabled )
-		return;
-	
-	// Add time to timer
- 	float flNextThink = GetNextThink();	
-	SetNextThink( flNextThink += inputdata.value.Float() );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Subtract from the time interval if the timer is enabled
-// Input  : Float time to subtract in seconds
-//-----------------------------------------------------------------------------
-void CTimerEntity::InputSubtractFromTimer( inputdata_t &inputdata )
-{
-	// don't add time if the timer isn't enabled
-	if ( m_iDisabled )
-		return;
-
-	// Subtract time from the timer but don't let the timer go negative
-	float flNextThink = GetNextThink();
-	if ( ( flNextThink - gpGlobals->curtime ) <= inputdata.value.Float() )
-	{
-		SetNextThink( gpGlobals->curtime );
-	}
-	else
-	{
-		SetNextThink( flNextThink -= inputdata.value.Float() );
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Draw any debug text overlays
-// Output : Current text offset from the top
-//-----------------------------------------------------------------------------
-int CTimerEntity::DrawDebugTextOverlays( void ) 
-{
-	int text_offset = BaseClass::DrawDebugTextOverlays();
-
-	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
-	{
-		char tempstr[512];
-
-		// print refire time
-		Q_snprintf(tempstr,sizeof(tempstr),"refire interval: %.2f sec", m_flRefireTime);
-		EntityText(text_offset,tempstr,0);
-		text_offset++;
-
-		// print seconds to next fire
-		if ( !m_iDisabled )
-		{
-			float flNextThink = GetNextThink();
-			Q_snprintf( tempstr, sizeof( tempstr ), "      firing in: %.2f sec", flNextThink - gpGlobals->curtime );
-			EntityText( text_offset, tempstr, 0);
-			text_offset++;
-		}
-	}
-	return text_offset;
 }
 
 
@@ -811,10 +724,10 @@ void CMathColorBlend::InputValue( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 // Console command to set the state of a global
 //-----------------------------------------------------------------------------
-void CC_Global_Set( const CCommand &args )
+void CC_Global_Set()
 {
-	const char *szGlobal = args[1];
-	const char *szState = args[2];
+	const char *szGlobal = engine->Cmd_Argv(1);
+	const char *szState = engine->Cmd_Argv(2);
 
 	if ( szGlobal == NULL || szState == NULL )
 	{
@@ -857,20 +770,14 @@ public:
 	void InputTurnOff( inputdata_t &inputdata );
 	void InputRemove( inputdata_t &inputdata );
 	void InputToggle( inputdata_t &inputdata );
-	void InputSetCounter( inputdata_t &inputdata );
-	void InputAddToCounter( inputdata_t &inputdata );
-	void InputGetCounter( inputdata_t &inputdata );
 
 	int DrawDebugTextOverlays(void);
 
 	DECLARE_DATADESC();
-
-	COutputInt m_outCounter;
-		
+	
 	string_t	m_globalstate;
 	int			m_triggermode;
 	int			m_initialstate;
-	int			m_counter;			// A counter value associated with this global.
 };
 
 
@@ -879,19 +786,12 @@ BEGIN_DATADESC( CEnvGlobal )
 	DEFINE_KEYFIELD( m_globalstate, FIELD_STRING, "globalstate" ),
 	DEFINE_FIELD( m_triggermode, FIELD_INTEGER ),
 	DEFINE_KEYFIELD( m_initialstate, FIELD_INTEGER, "initialstate" ),
-	DEFINE_KEYFIELD( m_counter, FIELD_INTEGER, "counter" ),
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOn",	InputTurnOn ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOff", InputTurnOff ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Remove",	InputRemove ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Toggle",	InputToggle ),
-
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetCounter",	InputSetCounter ),
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "AddToCounter",	InputAddToCounter ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "GetCounter",	InputGetCounter ),
-	
-	DEFINE_OUTPUT( m_outCounter, "Counter" ),
 
 END_DATADESC()
 
@@ -921,14 +821,7 @@ void CEnvGlobal::Spawn( void )
 	if ( FBitSet( m_spawnflags, SF_GLOBAL_SET ) )
 	{
 		if ( !GlobalEntity_IsInTable( m_globalstate ) )
-		{
 			GlobalEntity_Add( m_globalstate, gpGlobals->mapname, (GLOBALESTATE)m_initialstate );
-		}
-		
-		if ( m_counter != 0 )
-		{
-			GlobalEntity_SetCounter( m_globalstate, m_counter );
-		}
 	}
 }
 
@@ -964,7 +857,6 @@ void CEnvGlobal::InputTurnOff( inputdata_t &inputdata )
 	}
 }
 
-
 //------------------------------------------------------------------------------
 // Purpose:
 //------------------------------------------------------------------------------
@@ -978,45 +870,6 @@ void CEnvGlobal::InputRemove( inputdata_t &inputdata )
 	{
 		GlobalEntity_Add( m_globalstate, gpGlobals->mapname, GLOBAL_DEAD );
 	}
-}
-
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-void CEnvGlobal::InputSetCounter( inputdata_t &inputdata )
-{
-	if ( !GlobalEntity_IsInTable( m_globalstate ) )
-	{
-		GlobalEntity_Add( m_globalstate, gpGlobals->mapname, GLOBAL_ON );
-	}
-
-	GlobalEntity_SetCounter( m_globalstate, inputdata.value.Int() );
-}
-
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-void CEnvGlobal::InputAddToCounter( inputdata_t &inputdata )
-{
-	if ( !GlobalEntity_IsInTable( m_globalstate ) )
-	{
-		GlobalEntity_Add( m_globalstate, gpGlobals->mapname, GLOBAL_ON );
-	}
-
-	GlobalEntity_AddToCounter( m_globalstate, inputdata.value.Int() );
-}
-
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-void CEnvGlobal::InputGetCounter( inputdata_t &inputdata )
-{
-	if ( !GlobalEntity_IsInTable( m_globalstate ) )
-	{
-		GlobalEntity_Add( m_globalstate, gpGlobals->mapname, GLOBAL_ON );
-	}
-
-	m_outCounter.Set( GlobalEntity_GetCounter( m_globalstate ), inputdata.pActivator, this );
 }
 
 
@@ -1297,8 +1150,6 @@ private:
 	bool m_bHitMin;		// Set when we reach or go below our minimum value, cleared if we go above it again.
 	bool m_bHitMax;		// Set when we reach or exceed our maximum value, cleared if we fall below it again.
 
-	bool m_bDisabled;
-
 	bool KeyValue(const char *szKeyName, const char *szValue);
 	void Spawn(void);
 
@@ -1315,13 +1166,9 @@ private:
 	void InputSubtract( inputdata_t &inputdata );
 	void InputSetHitMax( inputdata_t &inputdata );
 	void InputSetHitMin( inputdata_t &inputdata );
-	void InputGetValue( inputdata_t &inputdata );
-	void InputEnable( inputdata_t &inputdata );
-	void InputDisable( inputdata_t &inputdata );
 
 	// Outputs
 	COutputFloat m_OutValue;
-	COutputFloat m_OnGetValue;	// Used for polling the counter value.
 	COutputEvent m_OnHitMin;
 	COutputEvent m_OnHitMax;
 
@@ -1340,8 +1187,6 @@ BEGIN_DATADESC( CMathCounter )
 	DEFINE_KEYFIELD(m_flMin, FIELD_FLOAT, "min"),
 	DEFINE_KEYFIELD(m_flMax, FIELD_FLOAT, "max"),
 
-	DEFINE_KEYFIELD(m_bDisabled, FIELD_BOOLEAN, "StartDisabled" ),
-
 	// Inputs
 	DEFINE_INPUTFUNC(FIELD_FLOAT, "Add", InputAdd),
 	DEFINE_INPUTFUNC(FIELD_FLOAT, "Divide", InputDivide),
@@ -1351,15 +1196,11 @@ BEGIN_DATADESC( CMathCounter )
 	DEFINE_INPUTFUNC(FIELD_FLOAT, "Subtract", InputSubtract),
 	DEFINE_INPUTFUNC(FIELD_FLOAT, "SetHitMax", InputSetHitMax),
 	DEFINE_INPUTFUNC(FIELD_FLOAT, "SetHitMin", InputSetHitMin),
-	DEFINE_INPUTFUNC(FIELD_VOID, "GetValue", InputGetValue),
-	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
 
 	// Outputs
 	DEFINE_OUTPUT(m_OutValue, "OutValue"),
 	DEFINE_OUTPUT(m_OnHitMin, "OnHitMin"),
 	DEFINE_OUTPUT(m_OnHitMax, "OnHitMax"),
-	DEFINE_OUTPUT(m_OnGetValue, "OnGetValue"),
 
 END_DATADESC()
 
@@ -1433,18 +1274,6 @@ int CMathCounter::DrawDebugTextOverlays( void )
 		Q_snprintf(tempstr,sizeof(tempstr),"current value: %f", m_OutValue.Get());
 		EntityText(text_offset,tempstr,0);
 		text_offset++;
-
-		if( m_bDisabled )
-		{	
-			Q_snprintf(tempstr,sizeof(tempstr),"*DISABLED*");		
-		}
-		else
-		{
-			Q_snprintf(tempstr,sizeof(tempstr),"Enabled.");
-		}
-		EntityText(text_offset,tempstr,0);
-		text_offset++;
-
 	}
 	return text_offset;
 }
@@ -1479,12 +1308,6 @@ void CMathCounter::InputSetHitMin( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CMathCounter::InputAdd( inputdata_t &inputdata )
 {
-	if( m_bDisabled )
-	{
-		DevMsg("Math Counter %s ignoring ADD because it is disabled\n", GetDebugName() );
-		return;
-	}
-
 	float fNewValue = m_OutValue.Get() + inputdata.value.Float();
 	UpdateOutValue( inputdata.pActivator, fNewValue );
 }
@@ -1496,12 +1319,6 @@ void CMathCounter::InputAdd( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CMathCounter::InputDivide( inputdata_t &inputdata )
 {
-	if( m_bDisabled )
-	{
-		DevMsg("Math Counter %s ignoring DIVIDE because it is disabled\n", GetDebugName() );
-		return;
-	}
-
 	if (inputdata.value.Float() != 0)
 	{
 		float fNewValue = m_OutValue.Get() / inputdata.value.Float();
@@ -1521,12 +1338,6 @@ void CMathCounter::InputDivide( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CMathCounter::InputMultiply( inputdata_t &inputdata )
 {
-	if( m_bDisabled )
-	{
-		DevMsg("Math Counter %s ignoring MULTIPLY because it is disabled\n", GetDebugName() );
-		return;
-	}
-
 	float fNewValue = m_OutValue.Get() * inputdata.value.Float();
 	UpdateOutValue( inputdata.pActivator, fNewValue );
 }
@@ -1538,12 +1349,6 @@ void CMathCounter::InputMultiply( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CMathCounter::InputSetValue( inputdata_t &inputdata )
 {
-	if( m_bDisabled )
-	{
-		DevMsg("Math Counter %s ignoring SETVALUE because it is disabled\n", GetDebugName() );
-		return;
-	}
-
 	UpdateOutValue( inputdata.pActivator, inputdata.value.Float() );
 }
 
@@ -1554,12 +1359,6 @@ void CMathCounter::InputSetValue( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CMathCounter::InputSetValueNoFire( inputdata_t &inputdata )
 {
-	if( m_bDisabled )
-	{
-		DevMsg("Math Counter %s ignoring SETVALUENOFIRE because it is disabled\n", GetDebugName() );
-		return;
-	}
-
 	float flNewValue = inputdata.value.Float();
 	if (( m_flMin != 0 ) || (m_flMax != 0 ))
 	{
@@ -1576,38 +1375,10 @@ void CMathCounter::InputSetValueNoFire( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CMathCounter::InputSubtract( inputdata_t &inputdata )
 {
-	if( m_bDisabled )
-	{
-		DevMsg("Math Counter %s ignoring SUBTRACT because it is disabled\n", GetDebugName() );
-		return;
-	}
-
 	float fNewValue = m_OutValue.Get() - inputdata.value.Float();
 	UpdateOutValue( inputdata.pActivator, fNewValue );
 }
 
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CMathCounter::InputGetValue( inputdata_t &inputdata )
-{
-	float flOutValue = m_OutValue.Get();
-	m_OnGetValue.Set( flOutValue, inputdata.pActivator, inputdata.pCaller );
-}
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CMathCounter::InputEnable( inputdata_t &inputdata )
-{
-	m_bDisabled = false;
-}
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-void CMathCounter::InputDisable( inputdata_t &inputdata )
-{
-	m_bDisabled = true;
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: Sets the value to the new value, clamping and firing the output value.
@@ -1906,10 +1677,6 @@ void CLogicCase::InputPickRandomShuffle( inputdata_t &inputdata )
 class CLogicCompare : public CLogicalEntity
 {
 	DECLARE_CLASS( CLogicCompare, CLogicalEntity );
-
-public:
-	int DrawDebugTextOverlays(void);
-
 private:
 	// Inputs
 	void InputSetValue( inputdata_t &inputdata );
@@ -2018,30 +1785,6 @@ void CLogicCompare::DoCompare(CBaseEntity *pActivator, float flInValue)
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: Draw any debug text overlays
-// Output : Current text offset from the top
-//-----------------------------------------------------------------------------
-int CLogicCompare::DrawDebugTextOverlays( void ) 
-{
-	int text_offset = BaseClass::DrawDebugTextOverlays();
-
-	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
-	{
-		char tempstr[512];
-
-		// print duration
-		Q_snprintf(tempstr,sizeof(tempstr),"    Initial Value: %f", m_flInValue);
-		EntityText(text_offset,tempstr,0);
-		text_offset++;
-
-		// print hold time
-		Q_snprintf(tempstr,sizeof(tempstr),"    Compare Value: %f", m_flCompareValue);
-		EntityText(text_offset,tempstr,0);
-		text_offset++;
-	}
-	return text_offset;
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: Tests a boolean value, firing an output to indicate whether the
@@ -2057,7 +1800,6 @@ public:
 
 	void AddLogicBranchListener( CBaseEntity *pEntity );
 	inline bool GetLogicBranchState();
-	virtual int DrawDebugTextOverlays( void );
 
 private:
 
@@ -2231,54 +1973,28 @@ void CLogicBranch::AddLogicBranchListener( CBaseEntity *pEntity )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int CLogicBranch::DrawDebugTextOverlays( void )
-{
-	int text_offset = BaseClass::DrawDebugTextOverlays();
-
-	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
-	{
-		char tempstr[512];
-
-		// print refire time
-		Q_snprintf( tempstr, sizeof(tempstr), "Branch value: %s", (m_bInValue) ? "TRUE" : "FALSE" );
-		EntityText( text_offset, tempstr, 0 );
-		text_offset++;
-	}
-
-	return text_offset;
-}
-
-//-----------------------------------------------------------------------------
 // Purpose: Autosaves when triggered
 //-----------------------------------------------------------------------------
 class CLogicAutosave : public CLogicalEntity
 {
 	DECLARE_CLASS( CLogicAutosave, CLogicalEntity );
 
-protected:
+private:
 	// Inputs
 	void InputSave( inputdata_t &inputdata );
 	void InputSaveDangerous( inputdata_t &inputdata );
-	void InputSetMinHitpointsThreshold( inputdata_t &inputdata );
 
 	DECLARE_DATADESC();
 	bool m_bForceNewLevelUnit;
-	int m_minHitPoints;
-	int m_minHitPointsToCommit;
 };
 
 LINK_ENTITY_TO_CLASS(logic_autosave, CLogicAutosave);
 
 BEGIN_DATADESC( CLogicAutosave )
 	DEFINE_KEYFIELD( m_bForceNewLevelUnit, FIELD_BOOLEAN, "NewLevelUnit" ),
-	DEFINE_KEYFIELD( m_minHitPoints, FIELD_INTEGER, "MinimumHitPoints" ),
-	DEFINE_KEYFIELD( m_minHitPointsToCommit, FIELD_INTEGER, "MinHitPointsToCommit" ),
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID, "Save", InputSave ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SaveDangerous", InputSaveDangerous ),
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetMinHitpointsThreshold", InputSetMinHitpointsThreshold ),
 END_DATADESC()
 
 //-----------------------------------------------------------------------------
@@ -2299,11 +2015,10 @@ void CLogicAutosave::InputSave( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CLogicAutosave::InputSaveDangerous( inputdata_t &inputdata )
 {
-	CBasePlayer *pPlayer = UTIL_PlayerByIndex( 1 );
-
 	if ( g_ServerGameDLL.m_fAutoSaveDangerousTime != 0.0f && g_ServerGameDLL.m_fAutoSaveDangerousTime >= gpGlobals->curtime )
 	{
 		// A previous dangerous auto save was waiting to become safe
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( 1 );
 
 		if ( pPlayer->GetDeathTime() == 0.0f || pPlayer->GetDeathTime() > gpGlobals->curtime )
 		{
@@ -2317,119 +2032,9 @@ void CLogicAutosave::InputSaveDangerous( inputdata_t &inputdata )
 		engine->ClearSaveDir();
 	}
 
-	if ( pPlayer->GetHealth() >= m_minHitPoints )
-	{
-		engine->ServerCommand( "autosavedangerous\n" );
-		g_ServerGameDLL.m_fAutoSaveDangerousTime = gpGlobals->curtime + inputdata.value.Float();
+	engine->ServerCommand( "autosavedangerous\n" );
 
-		// Player must have this much health when we go to commit, or we don't commit.
-		g_ServerGameDLL.m_fAutoSaveDangerousMinHealthToCommit = m_minHitPointsToCommit;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Autosaves when triggered
-//-----------------------------------------------------------------------------
-class CLogicActiveAutosave : public CLogicAutosave
-{
-	DECLARE_CLASS( CLogicActiveAutosave, CLogicAutosave );
-
-	void InputEnable( inputdata_t &inputdata )
-	{
-		m_flStartTime = -1;
-		SetThink( &CLogicActiveAutosave::SaveThink );
-		SetNextThink( gpGlobals->curtime );
-	}
-
-	void InputDisable( inputdata_t &inputdata )
-	{
-		SetThink( NULL );
-	}
-
-	void SaveThink()
-	{
-		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
-		if ( pPlayer )
-		{
-			if ( m_flStartTime < 0 )
-			{
-				if ( pPlayer->GetHealth() <= m_minHitPoints )
-				{
-					m_flStartTime = gpGlobals->curtime;
-				}
-			}
-			else
-			{
-				if ( pPlayer->GetHealth() >= m_TriggerHitPoints )
-				{
-					inputdata_t inputdata;
-					DevMsg( 2, "logic_active_autosave (%s, %d) triggered\n", STRING( GetEntityName() ), entindex() );
-					if ( !m_flDangerousTime )
-					{
-						InputSave( inputdata );
-					}
-					else
-					{
-						inputdata.value.SetFloat( m_flDangerousTime );
-						InputSaveDangerous( inputdata );
-					}
-					m_flStartTime = -1;
-				}
-				else if ( m_flTimeToTrigger > 0 && gpGlobals->curtime - m_flStartTime > m_flTimeToTrigger )
-				{
-					m_flStartTime = -1;
-				}
-			}
-		}
-
-		float thinkInterval = ( m_flStartTime < 0 ) ? 1.0 : 0.5;
-		SetNextThink( gpGlobals->curtime + thinkInterval );
-	}
-
-	DECLARE_DATADESC();
-
-	int m_TriggerHitPoints;
-	float m_flTimeToTrigger;
-	float m_flStartTime;
-	float m_flDangerousTime;
-};
-
-LINK_ENTITY_TO_CLASS(logic_active_autosave, CLogicActiveAutosave);
-
-BEGIN_DATADESC( CLogicActiveAutosave )
-	DEFINE_KEYFIELD( m_TriggerHitPoints, FIELD_INTEGER, "TriggerHitPoints" ),
-	DEFINE_KEYFIELD( m_flTimeToTrigger, FIELD_FLOAT, "TimeToTrigger" ),
-	DEFINE_KEYFIELD( m_flDangerousTime, FIELD_FLOAT, "DangerousTime" ),
-	DEFINE_FIELD( m_flStartTime, FIELD_TIME ),
-	DEFINE_THINKFUNC( SaveThink ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
-END_DATADESC()
-
-
-//-----------------------------------------------------------------------------
-// Purpose: Keyfield set func
-//-----------------------------------------------------------------------------
-void CLogicAutosave::InputSetMinHitpointsThreshold( inputdata_t &inputdata )
-{
-	int setTo = inputdata.value.Int();
-	AssertMsg1(setTo >= 0 && setTo <= 100, "Tried to set autosave MinHitpointsThreshold to %d!\n", setTo);
-	m_minHitPoints = setTo;
-}
-
-// Finds the named physics object.  If no name, returns the world
-// If a name is specified and an object not found - errors are reported
-IPhysicsObject *FindPhysicsObjectByNameOrWorld( string_t name, CBaseEntity *pErrorEntity )
-{
-	if ( !name )
-		return g_PhysWorldObject;
-
-	IPhysicsObject *pPhysics = FindPhysicsObjectByName( name.ToCStr(), pErrorEntity );
-	if ( !pPhysics )
-	{
-		DevWarning("%s: can't find %s\n", pErrorEntity->GetClassname(), name.ToCStr());
-	}
-	return pPhysics;
+	g_ServerGameDLL.m_fAutoSaveDangerousTime = gpGlobals->curtime + inputdata.value.Float();
 }
 
 class CLogicCollisionPair : public CLogicalEntity
@@ -2439,14 +2044,21 @@ public:
 
 	void EnableCollisions( bool bEnable )
 	{
-		IPhysicsObject *pPhysics0 = FindPhysicsObjectByNameOrWorld( m_nameAttach1, this );
-		IPhysicsObject *pPhysics1 = FindPhysicsObjectByNameOrWorld( m_nameAttach2, this );
+		IPhysicsObject *pPhysics0 = FindPhysicsObjectByName( STRING(m_nameAttach1) );
+		IPhysicsObject *pPhysics1 = FindPhysicsObjectByName( STRING(m_nameAttach2) );
 
-		// need two different objects to do anything
-		if ( pPhysics0 && pPhysics1 && pPhysics0 != pPhysics1 )
+		if ( !pPhysics0 )
+		{
+			pPhysics0 = g_PhysWorldObject;
+		}
+		if ( !pPhysics1 )
+		{
+			pPhysics1 = g_PhysWorldObject;
+		}
+
+		if ( pPhysics0 != pPhysics1 )
 		{
 			m_disabled = !bEnable;
-			m_succeeded = true;
 			if ( bEnable )
 			{
 				PhysEnableEntityCollisions( pPhysics0, pPhysics1 );
@@ -2455,10 +2067,6 @@ public:
 			{
 				PhysDisableEntityCollisions( pPhysics0, pPhysics1 );
 			}
-		}
-		else
-		{
-			m_succeeded = false;
 		}
 	}
 
@@ -2473,14 +2081,14 @@ public:
 
 	void InputDisableCollisions( inputdata_t &inputdata )
 	{
-		if ( m_succeeded && m_disabled )
+		if ( m_disabled )
 			return;
 		EnableCollisions( false );
 	}
 
 	void InputEnableCollisions( inputdata_t &inputdata )
 	{
-		if ( m_succeeded && !m_disabled )
+		if ( !m_disabled )
 			return;
 		EnableCollisions( true );
 	}
@@ -2493,14 +2101,12 @@ private:
 	string_t		m_nameAttach1;
 	string_t		m_nameAttach2;
 	bool			m_disabled;
-	bool			m_succeeded;
 };
 
 BEGIN_DATADESC( CLogicCollisionPair )
 	DEFINE_KEYFIELD( m_nameAttach1, FIELD_STRING, "attach1" ),
 	DEFINE_KEYFIELD( m_nameAttach2, FIELD_STRING, "attach2" ),
 	DEFINE_KEYFIELD( m_disabled, FIELD_BOOLEAN, "startdisabled" ),
-	DEFINE_FIELD( m_succeeded, FIELD_BOOLEAN ),
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_VOID, "DisableCollisions", InputDisableCollisions ),
@@ -2518,9 +2124,8 @@ class CLogicBranchList : public CLogicalEntity
 {
 	DECLARE_CLASS( CLogicBranchList, CLogicalEntity );
 
-	virtual void Spawn();
-	virtual void Activate();
-	virtual int DrawDebugTextOverlays( void );
+	void Spawn();
+	void Activate();
 
 private:
 
@@ -2557,7 +2162,7 @@ LINK_ENTITY_TO_CLASS(logic_branch_listener, CLogicBranchList);
 BEGIN_DATADESC( CLogicBranchList )
 
 	// Silence, classcheck!
-	//DEFINE_ARRAY( m_nLogicBranchNames, FIELD_STRING, MAX_LOGIC_BRANCH_NAMES ),
+	//DEFINE_ARRAY( m_nCase, FIELD_STRING, MAX_LOGIC_BRANCH_NAMES ),
 
 	// Keys
 	DEFINE_KEYFIELD( m_nLogicBranchNames[0], FIELD_STRING, "Branch01" ),
@@ -2678,7 +2283,7 @@ void CLogicBranchList::DoTest( CBaseEntity *pActivator )
 	for ( int i = 0; i < m_LogicBranchList.Count(); i++ )
 	{
 		CLogicBranch *pBranch = (CLogicBranch *)m_LogicBranchList.Element( i ).Get();
-		if ( pBranch && pBranch->GetLogicBranchState() )
+		if ( pBranch->GetLogicBranchState() )
 		{
 			bOneTrue = true;
 		}
@@ -2713,30 +2318,4 @@ void CLogicBranchList::DoTest( CBaseEntity *pActivator )
 			m_eLastState = LOGIC_BRANCH_LISTENER_MIXED;
 		}
 	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int CLogicBranchList::DrawDebugTextOverlays( void )
-{
-	int text_offset = BaseClass::DrawDebugTextOverlays();
-
-	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
-	{
-		char tempstr[512];
-
-		for ( int i = 0; i < m_LogicBranchList.Count(); i++ )
-		{
-			CLogicBranch *pBranch = (CLogicBranch *)m_LogicBranchList.Element( i ).Get();
-			if ( pBranch )
-			{
-				Q_snprintf( tempstr, sizeof(tempstr), "Branch (%s): %s", pBranch->GetEntityName(), (pBranch->GetLogicBranchState()) ? "TRUE" : "FALSE" );
-				EntityText( text_offset, tempstr, 0 );
-				text_offset++;
-			}
-		}
-	}
-
-	return text_offset;
 }

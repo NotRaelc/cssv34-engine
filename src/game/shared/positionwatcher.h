@@ -12,14 +12,33 @@
 
 #include "ehandle.h"
 
-// inherit from this interface to be able to call WatchPositionChanges
-abstract_class IWatcherCallback
+class IPositionWatcher;
+
+struct positionwatcher_t
 {
-public:
-	virtual ~IWatcherCallback() {}
+	EHANDLE				hWatcher;
+	IPositionWatcher	*pWatcherCallback;
 };
 
-abstract_class IPositionWatcher : public IWatcherCallback
+class CPositionWatcherList
+{
+public:
+	//CPositionWatcherList(); NOTE: Dataobj doesn't support constructors - it zeros the memory
+	~CPositionWatcherList();	// frees the positionwatcher_t's to the pool
+	void Init();
+
+	void NotifyWatchers( CBaseEntity *pEntity );
+	void AddToList( CBaseEntity *pWatcher );
+	void RemoveWatcher( CBaseEntity *pWatcher );
+
+private:
+	unsigned short Find( CBaseEntity *pEntity );
+
+	unsigned short m_list;
+};
+
+// inherit from this interface to be able to call WatchPositionChanges
+abstract_class IPositionWatcher
 {
 public:
 	virtual void NotifyPositionChanged( CBaseEntity *pEntity ) = 0;
@@ -29,19 +48,6 @@ public:
 void ReportPositionChanged( CBaseEntity *pMovedEntity );
 void WatchPositionChanges( CBaseEntity *pWatcher, CBaseEntity *pMovingEntity );
 void RemovePositionWatcher( CBaseEntity *pWatcher, CBaseEntity *pMovingEntity );
-
-
-// inherit from this interface to be able to call WatchPositionChanges
-abstract_class IVPhysicsWatcher : public IWatcherCallback
-{
-public:
-	virtual void NotifyVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake ) = 0;
-};
-
-// NOTE: The table of watchers is NOT saved/loaded!  Recreate these links on restore
-void ReportVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake );
-void WatchVPhysicsStateChanges( CBaseEntity *pWatcher, CBaseEntity *pPhysicsEntity );
-void RemoveVPhysicsStateWatcher( CBaseEntity *pWatcher, CBaseEntity *pPhysicsEntity );
 
 
 #endif // POSITIONWATCHER_H

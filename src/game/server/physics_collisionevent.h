@@ -1,6 +1,6 @@
 //========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
-// Purpose: Pulling CCollisionEvent's definition out of physics.cpp so it can be abstracted upon (for the portal mod)
+// Purpose: Pulling CCollisionEvent's definition out of physics.cpp so it can be abstracted upon 
 //			
 //
 // $Workfile:     $
@@ -16,9 +16,6 @@
 #endif
 
 #include "physics.h"
-#include "tier1/callqueue.h"
-
-extern CCallQueue g_PostSimulationQueue;
 
 struct damageevent_t
 {
@@ -38,13 +35,25 @@ struct inflictorstate_t
 	short			restored;
 };
 
+struct impulseevent_t
+{
+	IPhysicsObject	*pObject;
+	Vector vecCenterForce;
+	Vector vecCenterTorque;
+};
+
+struct velocityevent_t
+{
+	IPhysicsObject	*pObject;
+	Vector vecVelocity;
+};
+
 enum
 {
 	COLLSTATE_ENABLED = 0,
 	COLLSTATE_TRYDISABLE = 1,
 	COLLSTATE_TRYNPCSOLVER = 2,
-	COLLSTATE_TRYENTITYSOLVER = 3,
-	COLLSTATE_DISABLED = 4
+	COLLSTATE_DISABLED = 3
 };
 
 struct penetrateevent_t
@@ -79,36 +88,33 @@ public:
 	
 	bool GetTriggerEvent( triggerevent_t *pEvent, CBaseEntity *pTriggerEntity );
 	void BufferTouchEvents( bool enable ) { m_bBufferTouchEvents = enable; }
-	virtual void AddDamageEvent( CBaseEntity *pEntity, const CTakeDamageInfo &info, IPhysicsObject *pInflictorPhysics, bool bRestoreVelocity, const Vector &savedVel, const AngularImpulse &savedAngVel );
+	void AddDamageEvent( CBaseEntity *pEntity, const CTakeDamageInfo &info, IPhysicsObject *pInflictorPhysics, bool bRestoreVelocity, const Vector &savedVel, const AngularImpulse &savedAngVel );
 	void AddImpulseEvent( IPhysicsObject *pPhysicsObject, const Vector &vecCenterForce, const AngularImpulse &vecCenterTorque );
 	void AddSetVelocityEvent( IPhysicsObject *pPhysicsObject, const Vector &vecVelocity );
 	void AddRemoveObject(IServerNetworkable *pRemove);
-	void FlushQueuedOperations();
 
 	// IPhysicsCollisionSolver
 	int		ShouldCollide( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1 );
 	int		ShouldSolvePenetration( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1, float dt );
-	bool	ShouldFreezeObject( IPhysicsObject *pObject );
-	static const char *ModuleName() { return CBaseEntity::IsServer() ? "SERVER" : "CLIENT"; }
+	bool	ShouldFreezeObject( IPhysicsObject *pObject ) { return true; }
 	int		AdditionalCollisionChecksThisTick( int currentChecksDone ) 
 	{
 		//CallbackContext check(this);
 		if ( currentChecksDone < 1200 )
 		{
-			DevMsg(1,"%s: VPhysics Collision detection getting expensive, check for too many convex pieces!\n", ModuleName());
+			DevMsg(1,"VPhysics Collision detection getting expensive, check for too many convex pieces!\n");
 			return 1200 - currentChecksDone;
 		}
-		DevMsg(1,"%s: VPhysics exceeded collision check limit (%d)!!!\nInterpenetration may result!\n", ModuleName(), currentChecksDone );
+		DevMsg(1,"VPhysics exceeded collision check limit (%d)!!!\nInterpenetration may result!\n", currentChecksDone );
 		return 0; 
 	}
-	bool ShouldFreezeContacts( IPhysicsObject **pObjectList, int objectCount );
 
 	// IPhysicsObjectEvent
 	// these can be used to optimize out queries on sleeping objects
 	// Called when an object is woken after sleeping
-	virtual void ObjectWake( IPhysicsObject *pObject );
+	virtual void ObjectWake( IPhysicsObject *pObject ) {}
 	// called when an object goes to sleep (no longer simulating)
-	virtual void ObjectSleep( IPhysicsObject *pObject );
+	virtual void ObjectSleep( IPhysicsObject *pObject ) {}
 
 
 	// locals
@@ -118,13 +124,11 @@ public:
 	bool IsInCallback() { return m_inCallback > 0 ? true : false; }
 
 private:
-#if _DEBUG
-	int		ShouldCollide_2( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1 );
-#endif
-
 	void UpdateFrictionSounds();
 	void UpdateTouchEvents();
 	void UpdateDamageEvents();
+	void UpdateImpulseEvents();
+	void UpdateSetVelocityEvents();
 	void UpdatePenetrateEvents( void );
 	void UpdateFluidEvents();
 	void UpdateRemoveObjects();
@@ -167,9 +171,10 @@ private:
 	CUtlVector<inflictorstate_t>	m_damageInflictors;
 	CUtlVector<penetrateevent_t> m_penetrateEvents;
 	CUtlVector<fluidevent_t>	m_fluidEvents;
+	CUtlVector<impulseevent_t>	m_impulseEvents;
+	CUtlVector<velocityevent_t>	m_setVelocityEvents;
 	CUtlVector<IServerNetworkable *> m_removeObjects;
 	int							m_inCallback;
-	int							m_lastTickFrictionError;	// counter to control printing of the dev warning for large contact systems
 	bool						m_bBufferTouchEvents;
 };
 

@@ -9,6 +9,7 @@
 #include "fourwheelvehiclephysics.h"
 #include "engine/IEngineSound.h"
 #include "soundenvelope.h"
+#include "vcollide_parse.h"
 #include "in_buttons.h"
 #include "player.h"
 #include "IEffects.h"
@@ -17,7 +18,6 @@
 #include "isaverestore.h"
 #include "movevars_shared.h"
 #include "te_effect_dispatch.h"
-#include "particle_parse.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -32,13 +32,12 @@
 
 #define BRAKE_MAX_VALUE				1.0f
 #define BRAKE_BACK_FORWARD_SCALAR	2.0f
-
+ConVar r_vehicleDrawDebug( "r_vehicleDrawDebug", "0", FCVAR_CHEAT );
 ConVar r_vehicleBrakeRate( "r_vehicleBrakeRate", "1.5", FCVAR_CHEAT );
 
 ConVar xbox_throttlebias("xbox_throttlebias", "100", FCVAR_ARCHIVE );
 ConVar xbox_throttlespoof("xbox_throttlespoof", "200", FCVAR_ARCHIVE );
 ConVar xbox_autothrottle("xbox_autothrottle", "1", FCVAR_ARCHIVE );
-ConVar xbox_steering_deadzone( "xbox_steering_deadzone", "0.0" );
 
 // remaps an angular variable to a 3 band function:
 // 0 <= t < start :		f(t) = 0
@@ -120,6 +119,7 @@ BEGIN_DATADESC_NO_BASE( CFourWheelVehiclePhysics )
 
 	DEFINE_FIELD( m_maxThrottle, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flMaxRevThrottle, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flThrottleReduction, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flMaxSpeed, FIELD_FLOAT ),
 	DEFINE_FIELD( m_actionSpeed, FIELD_FLOAT ),
 
@@ -146,6 +146,10 @@ BEGIN_DATADESC_NO_BASE( CFourWheelVehiclePhysics )
 	DEFINE_FIELD( m_bLastThrottle, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bLastBoost, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bLastSkid, FIELD_BOOLEAN ),
+
+	DEFINE_FIELD( m_nTurnLeftCount, FIELD_INTEGER ),
+	DEFINE_FIELD( m_nTurnRightCount, FIELD_INTEGER ),
+
 END_DATADESC()
 
 
@@ -158,6 +162,7 @@ CFourWheelVehiclePhysics::CFourWheelVehiclePhysics( CBaseAnimating *pOuter )
 	m_pOuter = NULL;
 	m_pOuterServerVehicle = NULL;
 	m_flMaxSpeed = 30;
+	m_flThrottleReduction = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -183,7 +188,6 @@ inline float CFourWheelVehiclePhysics::GetPoseParameter( int iParameter )
 
 inline float CFourWheelVehiclePhysics::SetPoseParameter( int iParameter, float flValue )
 {
-	Assert(IsFinite(flValue));
 	return m_pOuter->SetPoseParameter( iParameter, flValue );
 }
 
@@ -225,8 +229,26 @@ void CFourWheelVehiclePhysics::InitializePoseParameters()
 //-----------------------------------------------------------------------------
 bool CFourWheelVehiclePhysics::ParseVehicleScript( const char *pScriptName, solid_t &solid, vehicleparams_t &vehicle)
 {
-	// Physics keeps a cache of these to share among spawns of vehicles or flush for debugging
-	PhysFindOrAddVehicleScript( pScriptName, &vehicle, NULL );
+	byte *pFile = UTIL_LoadFileForMe( pScriptName, NULL );
+	if ( !pFile )
+		return false;
+
+	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( (char *)pFile );
+	while ( !pParse->Finished() )
+	{
+		const char *pBlock = pParse->GetCurrentBlockName();
+		if ( !strcmpi( pBlock, "vehicle" ) )
+		{
+			pParse->ParseVehicle( &vehicle, NULL );
+		}
+		else
+		{
+			pParse->SkipBlock();
+		}
+	}
+	physcollision->VPhysicsKeyParserDestroy( pParse );
+
+	UTIL_FreeFile( pFile );
 
 	m_debugRadius = vehicle.axles[0].wheels.radius;
 	CalcWheelData( vehicle );
@@ -251,7 +273,6 @@ bool CFourWheelVehiclePhysics::ParseVehicleScript( const char *pScriptName, soli
 
 void CFourWheelVehiclePhysics::CalcWheelData( vehicleparams_t &vehicle )
 {
-	const char *pWheelAttachments[4] = { "wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr" };
 	Vector left, right;
 	QAngle dummy;
 	SetPoseParameter( m_poseParameters[VEH_FL_WHEEL_HEIGHT], 0 );
@@ -306,15 +327,6 @@ void CFourWheelVehiclePhysics::CalcWheelData( vehicleparams_t &vehicle )
 		m_wheelTotalHeight[3] = m_wheelBaseHeight[1] - right.z;
 		vehicle.axles[1].wheels.springAdditionalLength = m_wheelTotalHeight[2];
 	}
-	for ( int i = 0; i < 4; i++ )
-	{
-		if ( m_wheelTotalHeight[i] == 0.0f )
-		{
-			DevWarning("Vehicle %s has invalid wheel attachment for %s - no movement\n", STRING(m_pOuter->GetModelName()), pWheelAttachments[i]);
-			m_wheelTotalHeight[i] = 1.0f;
-		}
-	}
-
 	SetPoseParameter( m_poseParameters[VEH_FL_WHEEL_HEIGHT], 0 );
 	SetPoseParameter( m_poseParameters[VEH_FR_WHEEL_HEIGHT], 0 );
 	SetPoseParameter( m_poseParameters[VEH_RL_WHEEL_HEIGHT], 0 );
@@ -357,8 +369,6 @@ void CFourWheelVehiclePhysics::Spawn( )
 	m_controls.handbrakeLeft = false;
 	m_controls.handbrakeRight = false;
 	m_controls.bHasBrakePedal = true;
-	m_controls.bAnalogSteering = false;
-	
 	SetMaxThrottle( 1.0 );
 	SetMaxReverseThrottle( -1.0f );
 
@@ -456,8 +466,7 @@ void CFourWheelVehiclePhysics::SetSteering( float flSteering, float flSteeringRa
 void CFourWheelVehiclePhysics::SetSteeringDegrees( float flDegrees )
 {
 	vehicleparams_t &vehicleParams = m_pVehicle->GetVehicleParamsForChange();
-	vehicleParams.steering.degreesSlow = flDegrees;
-	vehicleParams.steering.degreesFast = flDegrees;
+	vehicleParams.steering.degrees = flDegrees;
 }
 
 //-----------------------------------------------------------------------------
@@ -545,16 +554,7 @@ void CFourWheelVehiclePhysics::Teleport( matrix3x4_t& relativeTransform )
 		ConcatTransforms( relativeTransform, matrix, newMatrix );
 		m_pWheels[i]->SetPositionMatrix( newMatrix, true );
 	}
-	
-	// Wake the vehicle back up after a teleport
-	if ( m_pOuterServerVehicle && m_pOuterServerVehicle->GetFourWheelVehicle() )
-	{
-		IPhysicsObject *pObj = m_pOuterServerVehicle->GetFourWheelVehicle()->VPhysicsGetObject();
-		if ( pObj )
-		{
-			pObj->Wake();
-		}
-	}
+
 }
 
 #if 1
@@ -569,20 +569,24 @@ void CFourWheelVehiclePhysics::Teleport( matrix3x4_t& relativeTransform )
 //-----------------------------------------------------------------------------
 void CFourWheelVehiclePhysics::DrawDebugGeometryOverlays()
 {
+	Vector vecRad(m_debugRadius,m_debugRadius,m_debugRadius);
+	for ( int i = 0; i < m_wheelCount; i++ )
+	{
+		NDebugOverlay::BoxAngles(m_wheelPosition[i], -vecRad, vecRad, m_wheelRotation[i], 0, 255, 45, 0 ,0);
+	}
+
 	for ( int iWheel = 0; iWheel < m_wheelCount; iWheel++ )
 	{
 		IPhysicsObject *pWheel = m_pVehicle->GetWheel( iWheel );
-		float radius = pWheel->GetSphereRadius();
 		
 		Vector vecPos;
 		QAngle vecRot;
 		pWheel->GetPosition( &vecPos, &vecRot );
-		// draw the physics object position/orientation
-		NDebugOverlay::Sphere( vecPos, vecRot, radius, 0, 255, 0, 0, false, 0 );
-		// draw the animation position/orientation
-		NDebugOverlay::Sphere(m_wheelPosition[iWheel], m_wheelRotation[iWheel], radius, 255, 255, 0, 0, false, 0);
+
+		NDebugOverlay::BoxAngles( vecPos, -vecRad, vecRad, vecRot, 0, 255, 45, 0 ,0 );
 	}
 
+#if 1
 	// Render vehicle data.
 	IPhysicsObject *pBody = m_pOuter->VPhysicsGetObject();
 	if ( pBody )
@@ -608,6 +612,31 @@ void CFourWheelVehiclePhysics::DrawDebugGeometryOverlays()
 
 		NDebugOverlay::BoxAngles( vecAxlePositionsHL[0], Vector( -3, -3, -3 ), Vector( 3, 3, 3 ), angBodyDirection, 0, 255, 0, 0 ,0 );
 		NDebugOverlay::BoxAngles( vecAxlePositionsHL[1], Vector( -3, -3, -3 ), Vector( 3, 3, 3 ), angBodyDirection, 0, 255, 0, 0 ,0 );
+
+		// Draw blue cubes at wheel centers.
+		Vector vecWheelPositions[4], vecWheelPositionsHL[4];
+		vecWheelPositions[0] = vehicleParams.axles[0].offset;
+		vecWheelPositions[0] += vehicleParams.axles[0].wheelOffset;
+		vecWheelPositions[1] = vehicleParams.axles[0].offset;
+		vecWheelPositions[1] -= vehicleParams.axles[0].wheelOffset;
+		vecWheelPositions[2] = vehicleParams.axles[1].offset;
+		vecWheelPositions[2] += vehicleParams.axles[1].wheelOffset;
+		vecWheelPositions[3] = vehicleParams.axles[1].offset;
+		vecWheelPositions[3] -= vehicleParams.axles[1].wheelOffset;
+
+		VectorTransform( vecWheelPositions[0], matrix, vecWheelPositionsHL[0] );
+		VectorTransform( vecWheelPositions[1], matrix, vecWheelPositionsHL[1] );
+		VectorTransform( vecWheelPositions[2], matrix, vecWheelPositionsHL[2] );
+		VectorTransform( vecWheelPositions[3], matrix, vecWheelPositionsHL[3] );
+
+		float flWheelRadius = vehicleParams.axles[0].wheels.radius;
+		flWheelRadius = IVP2HL( flWheelRadius );
+		Vector vecWheelRadius( flWheelRadius, flWheelRadius, flWheelRadius );
+
+		NDebugOverlay::BoxAngles( vecWheelPositionsHL[0], -vecWheelRadius, vecWheelRadius, angBodyDirection, 0, 0, 255, 0 ,0 );
+		NDebugOverlay::BoxAngles( vecWheelPositionsHL[1], -vecWheelRadius, vecWheelRadius, angBodyDirection, 0, 0, 255, 0 ,0 );
+		NDebugOverlay::BoxAngles( vecWheelPositionsHL[2], -vecWheelRadius, vecWheelRadius, angBodyDirection, 0, 0, 255, 0 ,0 );
+		NDebugOverlay::BoxAngles( vecWheelPositionsHL[3], -vecWheelRadius, vecWheelRadius, angBodyDirection, 0, 0, 255, 0 ,0 );
 
 		// Draw wheel raycasts in yellow
 		vehicle_debugcarsystem_t debugCarSystem;
@@ -637,9 +666,9 @@ void CFourWheelVehiclePhysics::DrawDebugGeometryOverlays()
 			NDebugOverlay::BoxAngles( vecEnd, Vector( -1, -1, -1 ), Vector( 1, 1, 1 ), angBodyDirection, 255, 0, 0, 0, 0 );
 
 			NDebugOverlay::BoxAngles( vecImpact, Vector( -0.5f , -0.5f, -0.5f ), Vector( 0.5f, 0.5f, 0.5f ), angBodyDirection, 0, 0, 255, 0, 0  );
-			DebugDrawContactPoints( m_pVehicle->GetWheel(iWheel) );
 		}
 	}
+#endif
 }
 
 int CFourWheelVehiclePhysics::DrawDebugTextOverlays( int nOffset )
@@ -664,17 +693,12 @@ int CFourWheelVehiclePhysics::DrawDebugTextOverlays( int nOffset )
 //----------------------------------------------------
 void CFourWheelVehiclePhysics::PlaceWheelDust( int wheelIndex, bool ignoreSpeed )
 {
-	// New vehicles handle this deeper into the base class
-	if ( hl2_episodic.GetBool() )
-		return;
-
-	// Old dust
 	Vector	vecPos, vecVel;
-	m_pVehicle->GetWheelContactPoint( wheelIndex, &vecPos, NULL );
+	m_pVehicle->GetWheelContactPoint( wheelIndex, vecPos );
 
 	vecVel.Random( -1.0f, 1.0f );
 	vecVel.z = random->RandomFloat( 0.3f, 1.0f );
-
+	
 	VectorNormalize( vecVel );
 
 	// Higher speeds make larger dust clouds
@@ -742,17 +766,8 @@ bool CFourWheelVehiclePhysics::Think()
 	// Only check wheels if we're not being carried by a dropship
 	if ( m_pOuter->VPhysicsGetObject() && !m_pOuter->VPhysicsGetObject()->GetShadowController() )
 	{
-		const float skidFactor = 0.15f;
-		const float minSpeed = DEFAULT_SKID_THRESHOLD / skidFactor;
-		// we have to slide at least 15% of our speed at higher speeds to make the skid sound (otherwise it can be too frequent)
-		float skidThreshold = m_bLastSkid ? DEFAULT_SKID_THRESHOLD : (carState.speed * 0.15f);
-		if ( skidThreshold < DEFAULT_SKID_THRESHOLD )
-		{
-			// otherwise, ramp in the skid threshold to avoid the sound at really low speeds unless really skidding
-			skidThreshold = RemapValClamped( fabs(carState.speed), 0, minSpeed, DEFAULT_SKID_THRESHOLD*8, DEFAULT_SKID_THRESHOLD );
-		}
 		// check for skidding, if we're skidding, need to play the sound
-		if ( carState.skidSpeed > skidThreshold && m_bIsOn )
+		if ( carState.skidding && m_bIsOn )
 		{
 			if ( !m_bLastSkid )	// only play sound once
 			{
@@ -786,8 +801,7 @@ bool CFourWheelVehiclePhysics::Think()
 	// Make the steering wheel match the input, with a little dampening.
 	#define STEER_DAMPING	0.8
 	float flSteer = GetPoseParameter( m_poseParameters[VEH_STEER] );
-	float flPhysicsSteer = carState.steeringAngle / vehicleData.steering.degreesSlow;
-	SetPoseParameter( m_poseParameters[VEH_STEER], (STEER_DAMPING * flSteer) + ((1 - STEER_DAMPING) * flPhysicsSteer) );
+	SetPoseParameter( m_poseParameters[VEH_STEER], (STEER_DAMPING * flSteer) + ((1 - STEER_DAMPING) * m_controls.steering) );
 
 	m_actionValue += m_actionSpeed * m_actionScale * gpGlobals->frametime;
 	SetPoseParameter( m_poseParameters[VEH_ACTION], m_actionValue );
@@ -807,6 +821,11 @@ bool CFourWheelVehiclePhysics::Think()
 //-----------------------------------------------------------------------------
 bool CFourWheelVehiclePhysics::VPhysicsUpdate( IPhysicsObject *pPhysics )
 {
+	if ( r_vehicleDrawDebug.GetInt() )
+	{
+		DrawDebugGeometryOverlays();
+	}
+
 	// must be a wheel
 	if ( pPhysics == m_pOuter->VPhysicsGetObject() )
 		return true;
@@ -942,77 +961,68 @@ float CFourWheelVehiclePhysics::GetSteering() const
 float CFourWheelVehiclePhysics::GetSteeringDegrees() const
 {
 	const vehicleparams_t vehicleParams = m_pVehicle->GetVehicleParams();
-	return vehicleParams.steering.degreesSlow;
+	return vehicleParams.steering.degrees;
 }
+
+#define STEERING_BASE_RATE	2.0f
+#define STEERING_REST_DECAY	0.5f
+#define STEERING_REST_EPS	0.001f	
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 void CFourWheelVehiclePhysics::SteeringRest( float carSpeed, const vehicleparams_t &vehicleData )
 {
-	float flSteeringRate = RemapValClamped( carSpeed, vehicleData.steering.speedSlow, vehicleData.steering.speedFast, 
-		vehicleData.steering.steeringRestRateSlow, vehicleData.steering.steeringRestRateFast );
-	m_controls.steering = Approach(0, m_controls.steering, flSteeringRate * gpGlobals->frametime );
+	float flSteeringRate = STEERING_BASE_RATE;
+	flSteeringRate *= gpGlobals->frametime;
+
+	// At rest.
+	float flSteering = m_controls.steering;
+
+	if ( fabsf( flSteering ) < STEERING_REST_EPS )
+	{
+		m_controls.steering = 0.0f;
+		return;
+	}
+
+	// Left and right reduce by 1/2 each time.
+	m_controls.steering *= ( STEERING_REST_DECAY * vehicleData.steering.steeringRestFactor );
+
+	m_nTurnLeftCount = 2;
+	m_nTurnRightCount = 2;
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CFourWheelVehiclePhysics::SteeringTurn( float carSpeed, const vehicleparams_t &vehicleData, bool bTurnLeft, bool bBrake, bool bThrottle )
+void CFourWheelVehiclePhysics::SteeringTurn( float carSpeed, const vehicleparams_t &vehicleData, bool bTurnLeft )
 {
-	float flTargetSteering = bTurnLeft ? -1.0f : 1.0f;
-	// steering speeds are stored in MPH
-	float flSteeringRestRate = RemapValClamped( carSpeed, vehicleData.steering.speedSlow, vehicleData.steering.speedFast, 
-		vehicleData.steering.steeringRestRateSlow, vehicleData.steering.steeringRestRateFast );
+	float flSteeringRate = STEERING_BASE_RATE;
 
-	float carSpeedIns = MPH2INS(carSpeed);
-	// engine speeds are stored in in/s
-	if ( carSpeedIns > vehicleData.engine.maxSpeed )
-	{
-		flSteeringRestRate = RemapValClamped( carSpeedIns, vehicleData.engine.maxSpeed, vehicleData.engine.boostMaxSpeed, vehicleData.steering.steeringRestRateFast, vehicleData.steering.steeringRestRateFast*0.5f );
-	}
+	if ( bTurnLeft )
+	{		
+		// TODO: change the log function to an approx. 
+		m_nTurnLeftCount = clamp( m_nTurnLeftCount, 2, 30 );
+		flSteeringRate *= log( (float) m_nTurnLeftCount );
+		flSteeringRate *= gpGlobals->frametime;
 
-	const vehicle_operatingparams_t &carState = m_pVehicle->GetOperatingParams();
-	bool bIsBoosting = carState.isTorqueBoosting;
+		SetSteering( -1, flSteeringRate );
 
-	// if you're recovering from a boost and still going faster than max, use the boost steering values
-	bool bIsBoostRecover = (carState.boostTimeLeft == 100 || carState.boostTimeLeft == 0) ? false : true;
-	float boostMinSpeed = vehicleData.engine.maxSpeed * vehicleData.engine.autobrakeSpeedGain;
-	if ( !bIsBoosting && bIsBoostRecover && carSpeedIns > boostMinSpeed )
-	{
-		bIsBoosting = true;
+		m_nTurnLeftCount++;
+		m_nTurnRightCount = 2;
 	}
+	else
+	{
+		// TODO: change the log function to an approx. 
+		m_nTurnRightCount = clamp( m_nTurnRightCount, 2, 30 );
+		flSteeringRate *= log( (float) m_nTurnRightCount );
+		flSteeringRate *= gpGlobals->frametime;
 
-	if ( bIsBoosting )
-	{
-		flSteeringRestRate *= vehicleData.steering.boostSteeringRestRateFactor;
-	}
-	else if ( bThrottle )
-	{
-		flSteeringRestRate *= vehicleData.steering.throttleSteeringRestRateFactor;
-	}
+		SetSteering( 1, flSteeringRate );
 
-	float flSteeringRate = RemapValClamped( carSpeed, vehicleData.steering.speedSlow, vehicleData.steering.speedFast, 
-		vehicleData.steering.steeringRateSlow, vehicleData.steering.steeringRateFast );
-
-	if ( fabs(flSteeringRate) < flSteeringRestRate )
-	{
-		if ( Sign(flTargetSteering) != Sign(m_controls.steering) )
-		{
-			flSteeringRate = flSteeringRestRate;
-		}
+		m_nTurnLeftCount = 2;
+		m_nTurnRightCount++;
 	}
-	if ( bIsBoosting )
-	{
-		flSteeringRate *= vehicleData.steering.boostSteeringRateFactor;
-	}
-	else if ( bBrake )
-	{
-		flSteeringRate *= vehicleData.steering.brakeSteeringRateFactor;
-	}
-	flSteeringRate *= gpGlobals->frametime;
-	m_controls.steering = Approach( flTargetSteering, m_controls.steering, flSteeringRate );
-	m_controls.bAnalogSteering = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1033,19 +1043,16 @@ void CFourWheelVehiclePhysics::SteeringTurnAnalog( float carSpeed, const vehicle
 
 	SetSteering( sidemove < 0.0f ? -1 : 1, flSteeringRate );
 #else
-	// This is tested with gamepads with analog sticks.  It gives full analog control allowing the player to hold shallow turns.
-	float steering = ( sidemove / STICK_EXTENTS );
-
-	float flSign = ( steering > 0 ) ? 1.0f : -1.0f;
-	float flSteerAdj = RemapValClamped( fabs( steering ), xbox_steering_deadzone.GetFloat(), 1.0f, 0.0f, 1.0f );
-
-	float flSteeringRate = RemapValClamped( carSpeed, vehicleData.steering.speedSlow, vehicleData.steering.speedFast, 
-		vehicleData.steering.steeringRateSlow, vehicleData.steering.steeringRateFast );
-	flSteeringRate *= vehicleData.steering.throttleSteeringRestRateFactor;
-
-	m_controls.bAnalogSteering = true;
-	SetSteering( flSign * flSteerAdj, flSteeringRate * gpGlobals->frametime );
+	// This is tested with gamepads with analog sticks.  It gives full analog control
+	// allowing the player to hold shallow turns.
+	float steering = sidemove / STICK_EXTENTS;
+	steering = clamp( steering, -1.0f, 1.0f );
+	SetSteering( steering, 0 );
 #endif
+
+	// Neutralize
+	m_nTurnLeftCount = 2;
+	m_nTurnRightCount = 2;
 }
 
 //-----------------------------------------------------------------------------
@@ -1053,7 +1060,6 @@ void CFourWheelVehiclePhysics::SteeringTurnAnalog( float carSpeed, const vehicle
 //-----------------------------------------------------------------------------
 void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFrameTime )
 {
-	const float SPEED_THROTTLE_AS_BRAKE = 2.0f;
 	int nButtons = cmd->buttons;
 
 	// Get vehicle data.
@@ -1061,16 +1067,34 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 	const vehicleparams_t &vehicleData = m_pVehicle->GetVehicleParams();
 
 	// Get current speed in miles/hour.
-	float flCarSign = 0.0f;
-	if (carState.speed >= SPEED_THROTTLE_AS_BRAKE) 
-	{
-		flCarSign = 1.0f;
-	}
-	else if ( carState.speed <= -SPEED_THROTTLE_AS_BRAKE )
-	{
-		flCarSign = -1.0f;
-	}
+	float flCarSign = carState.speed >= 0.0f ? 1.0f : -1.0f;
 	float carSpeed = fabs(INS2MPH(carState.speed));
+
+#ifdef _XBOX
+	float in = cmd->sidemove;
+	float out;
+
+	if( cmd->forwardmove >= 0.0f )
+	{
+		bool negative = (in < 0);
+		in = fabs(in);
+
+		if( in <= 150 )
+		{
+			out = RemapVal( in, 0, 150, 0, 100 );
+		}
+		else
+		{
+			out = RemapVal( in, 150, 400, 100, 400 );
+		}
+
+		if( negative )
+		{
+			out = -out;
+		}
+
+		cmd->sidemove = out;
+	}
 
 	// If going forward and turning hard, keep the throttle applied.
 	if( xbox_autothrottle.GetBool() && cmd->forwardmove > 0.0f )
@@ -1083,15 +1107,20 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 			}
 		}
 	}
+#endif//XBOX
 
-	//Msg("F: %4.1f \tS: %4.1f!\tSTEER: %3.1f\n", cmd->forwardmove, cmd->sidemove, carState.steeringAngle);
+#if 0
+	// Set save data.
+	m_nLastSpeed = m_nSpeed;
+	m_nSpeed = (int)carSpeed;
+	m_nRPM = (int)carState.engineRPM;
+	m_nHasBoost = vehicleData.engine.boostDelay;	// if we have any boost delay, vehicle has boost ability
+#endif
+
 	// If changing direction, use default "return to zero" speed to more quickly transition.
 	if ( ( nButtons & IN_MOVELEFT ) || ( nButtons & IN_MOVERIGHT ) )
 	{
-		bool bTurnLeft = ( (nButtons & IN_MOVELEFT) != 0 );
-		bool bBrake = ((nButtons & IN_BACK) != 0);
-		bool bThrottleDown = ( (nButtons & IN_FORWARD) != 0 ) && !bBrake;
-		SteeringTurn( carSpeed, vehicleData, bTurnLeft, bBrake, bThrottleDown );
+		SteeringTurn( carSpeed, vehicleData, ( ( nButtons & IN_MOVELEFT ) != 0 ) );
 	}
 	else if ( cmd->sidemove != 0.0f )
 	{
@@ -1175,8 +1204,8 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 		}
 	}
 
+#ifdef _XBOX
 	//=========================
-	// analog control
 	//=========================
 	if( cmd->forwardmove > 0.0f )
 	{
@@ -1190,29 +1219,7 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 			m_controls.throttle = 0;
 		}
 
-		float flMaxThrottle = max( 0.1, m_maxThrottle );
-		if ( m_controls.steering != 0 )
-		{
-			float flThrottleReduce = 0;
-
-			// ramp this in, don't just start at the slow speed reduction (helps accelerate from a stop)
-			if ( carSpeed < vehicleData.steering.speedSlow )
-			{
-				flThrottleReduce = RemapValClamped( carSpeed, 0, vehicleData.steering.speedSlow, 
-					0, vehicleData.steering.turnThrottleReduceSlow );
-			}
-			else
-			{
-				flThrottleReduce = RemapValClamped( carSpeed, vehicleData.steering.speedSlow, vehicleData.steering.speedFast, 
-					vehicleData.steering.turnThrottleReduceSlow, vehicleData.steering.turnThrottleReduceFast );
-			}
-
-			float limit = 1.0f - (flThrottleReduce * fabs(m_controls.steering));
-			if ( limit < 0 )
-				limit = 0;
-			flMaxThrottle = min( flMaxThrottle, limit );
-		}
-
+		float flMaxThrottle = max( 0.1, m_maxThrottle - ( m_maxThrottle * m_flThrottleReduction ) );
 		m_controls.throttle = Approach( flMaxThrottle * flAnalogThrottle, m_controls.throttle, flFrameTime * m_throttleRate );
 
 		// Apply the brake.
@@ -1240,7 +1247,7 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 			m_controls.throttle = 0;
 		}
 
-		float flMaxThrottle = min( -0.1, m_flMaxRevThrottle  );
+		float flMaxThrottle = min( -0.1, m_flMaxRevThrottle - ( m_flMaxRevThrottle * m_flThrottleReduction ) );
 		m_controls.throttle = Approach( flMaxThrottle * flAnalogBrake, m_controls.throttle, flFrameTime * m_throttleRate );
 
 		// Apply the brake.
@@ -1256,8 +1263,17 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 			m_controls.brake = 0.0f;
 		}
 	}
-	// digital control
-	else if ( nButtons & IN_FORWARD )
+	else
+	{
+		bThrottle = false;
+		m_controls.throttle = 0;
+		m_controls.brake = 0.0f;
+	}
+
+	//=========================
+	//=========================
+#else
+	if ( nButtons & IN_FORWARD )
 	{
 		bThrottle = true;
 		if ( m_controls.throttle < 0 )
@@ -1265,30 +1281,7 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 			m_controls.throttle = 0;
 		}
 
-		float flMaxThrottle = max( 0.1, m_maxThrottle );
-
-		if ( m_controls.steering != 0 )
-		{
-			float flThrottleReduce = 0;
-
-			// ramp this in, don't just start at the slow speed reduction (helps accelerate from a stop)
-			if ( carSpeed < vehicleData.steering.speedSlow )
-			{
-				flThrottleReduce = RemapValClamped( carSpeed, 0, vehicleData.steering.speedSlow, 
-					0, vehicleData.steering.turnThrottleReduceSlow );
-			}
-			else
-			{
-				flThrottleReduce = RemapValClamped( carSpeed, vehicleData.steering.speedSlow, vehicleData.steering.speedFast, 
-					vehicleData.steering.turnThrottleReduceSlow, vehicleData.steering.turnThrottleReduceFast );
-			}
-			
-			float limit = 1.0f - (flThrottleReduce * fabs(m_controls.steering));
-			if ( limit < 0 )
-				limit = 0;
-			flMaxThrottle = min( flMaxThrottle, limit );
-		}
-
+		float flMaxThrottle = max( 0.1, m_maxThrottle - ( m_maxThrottle * m_flThrottleReduction ) );
 		m_controls.throttle = Approach( flMaxThrottle, m_controls.throttle, flFrameTime * m_throttleRate );
 
 		// Apply the brake.
@@ -1312,7 +1305,7 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 			m_controls.throttle = 0;
 		}
 
-		float flMaxThrottle = min( -0.1, m_flMaxRevThrottle );
+		float flMaxThrottle = min( -0.1, m_flMaxRevThrottle - ( m_flMaxRevThrottle * m_flThrottleReduction ) );
 		m_controls.throttle = Approach( flMaxThrottle, m_controls.throttle, flFrameTime * m_throttleRate );
 
 		// Apply the brake.
@@ -1334,8 +1327,9 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 		m_controls.throttle = 0;
 		m_controls.brake = 0.0f;
 	}
+#endif//_XBOX
 
-	if ( ( nButtons & IN_SPEED ) && !IsEngineDisabled() && bThrottle )
+	if ( ( nButtons & IN_SPEED ) && !IsEngineDisabled() )
 	{
 		m_controls.boost = 1.0f;
 	}
@@ -1345,11 +1339,11 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 	{
 		m_controls.handbrake = true;	
 
-		if ( cmd->sidemove < -100 )
+		if ( nButtons & IN_MOVELEFT )
 		{
 			m_controls.handbrakeLeft = true;
 		}
-		else if ( cmd->sidemove > 100 )
+		else if ( nButtons & IN_MOVERIGHT )
 		{
 			m_controls.handbrakeRight = true;
 		}
@@ -1396,6 +1390,27 @@ void CFourWheelVehiclePhysics::UpdateDriverControls( CUserCmd *cmd, float flFram
 	params.flFrameTime = flFrameTime;
 	params.flWorldSpaceSpeed = carState.speed;
 	m_pOuterServerVehicle->SoundUpdate( params );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CFourWheelVehiclePhysics::AddThrottleReduction( float flPercentage )
+{
+	// We allow the speed reduction to go over 1, but extras have no effect.
+	m_flThrottleReduction = m_flThrottleReduction + flPercentage;
+
+	//Msg("Added speed reduction. Now %.2f\n", m_flThrottleReduction );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CFourWheelVehiclePhysics::RemoveThrottleReduction( float flPercentage )
+{
+	m_flThrottleReduction = max( 0, m_flThrottleReduction - flPercentage );
+
+	//Msg("Removed speed reduction. Now %.2f\n", m_flThrottleReduction );
 }
 
 //-----------------------------------------------------------------------------

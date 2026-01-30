@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -13,7 +13,6 @@
 #define _FISH_H_
 
 #include "baseanimating.h"
-#include "GameEventListener.h"
 
 class CFishPool;
 
@@ -51,7 +50,7 @@ private:
 	friend void SendProxy_FishOriginX( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
 	friend void SendProxy_FishOriginY( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
 
-	CHandle<CFishPool> m_pool;							///< the pool we are in
+	CFishPool *m_pool;									///< the pool we are in
 	unsigned int m_id;									///< our unique ID
 
 	CNetworkVar( float, m_x );							///< have to send position coordinates separately since Z is unused
@@ -90,13 +89,14 @@ private:
 /**
  * This class defines a volume of water where a number of CFish swim
  */
-class CFishPool : public CBaseEntity, public CGameEventListener
+class CFishPool : public CBaseEntity, public IGameEventListener2
 {
 public:
 	DECLARE_CLASS( CFishPool, CBaseEntity );
 	DECLARE_DATADESC();
 
 	CFishPool( void );
+	~CFishPool();
 
 	virtual void Spawn();
 
@@ -118,7 +118,7 @@ private:
 
 	bool m_isDormant;
 
-	CUtlVector< CHandle<CFish> > m_fishes;	///< vector of all fish in this pool
+	CUtlVector< CFish * > m_fishes;			///< vector of all fish in this pool
 
 	CountdownTimer m_visTimer;				///< for throttling line of sight checks between all fish
 };

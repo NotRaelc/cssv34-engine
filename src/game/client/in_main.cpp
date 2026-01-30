@@ -23,8 +23,6 @@
 #include <voice_status.h>
 
 extern ConVar in_joystick;
-extern ConVar cam_idealpitch;
-extern ConVar cam_idealyaw;
 
 // For showing/hiding the scoreboard
 #include <game/client/iviewport.h>
@@ -49,16 +47,13 @@ ConVar cl_yawspeed( "cl_yawspeed", "210", 0 );
 ConVar cl_pitchspeed( "cl_pitchspeed", "225", 0 );
 ConVar cl_pitchdown( "cl_pitchdown", "89", FCVAR_CHEAT );
 ConVar cl_pitchup( "cl_pitchup", "89", FCVAR_CHEAT );
-ConVar cl_sidespeed( "cl_sidespeed", "450", FCVAR_CHEAT );
-ConVar cl_upspeed( "cl_upspeed", "320", FCVAR_CHEAT );
-ConVar cl_forwardspeed( "cl_forwardspeed", "450", FCVAR_CHEAT );
-ConVar cl_backspeed( "cl_backspeed", "450", FCVAR_CHEAT );
+ConVar cl_sidespeed( "cl_sidespeed", "400", 0 );
+ConVar cl_upspeed( "cl_upspeed", "320", FCVAR_ARCHIVE );
+ConVar cl_forwardspeed( "cl_forwardspeed", "400", FCVAR_ARCHIVE );
+ConVar cl_backspeed( "cl_backspeed", "400", FCVAR_ARCHIVE );
 ConVar lookspring( "lookspring", "0", FCVAR_ARCHIVE );
 ConVar lookstrafe( "lookstrafe", "0", FCVAR_ARCHIVE );
 ConVar in_joystick( "joystick","0", FCVAR_ARCHIVE );
-
-ConVar thirdperson_platformer( "thirdperson_platformer", "0", 0, "Player will aim in the direction they are moving." );
-ConVar thirdperson_screenspace( "thirdperson_screenspace", "0", 0, "Movement will be relative to the camera, eg: left means screen-left" );
 
 ConVar sv_noclipduringpause( "sv_noclipduringpause", "0", FCVAR_REPLICATED | FCVAR_CHEAT, "If cheats are enabled, then you can noclip with the game paused (for doing screenshots, etc.)." );
 static ConVar cl_lagcomp_errorcheck( "cl_lagcomp_errorcheck", "0", 0, "Player index of other player to check for position errors." );
@@ -120,7 +115,6 @@ static	kbutton_t	in_break;
 static	kbutton_t	in_zoom;
 static  kbutton_t   in_grenade1;
 static  kbutton_t   in_grenade2;
-kbutton_t	in_ducktoggle;
 
 /*
 ===========
@@ -286,7 +280,6 @@ void CInput::AddKeyButton( const char *name, kbutton_t *pkb )
 CInput::CInput( void )
 {
 	m_pCommands = NULL;
-	m_pCameraThirdData = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -336,12 +329,16 @@ void CInput::Shutdown_Keyboard( void )
 KeyDown
 ============
 */
-void KeyDown( kbutton_t *b, const char *c )
+void KeyDown( kbutton_t *b, bool bIgnoreKey )
 {
 	int		k = -1;
-	if ( c && c[0] )
+	const char	*c = NULL;
+
+	if ( !bIgnoreKey )
 	{
-		k = atoi(c);
+		c = engine->Cmd_Argv(1);
+		if (c[0])
+			k = atoi(c);
 	}
 
 	if (k == b->down[0] || k == b->down[1])
@@ -370,16 +367,27 @@ void KeyDown( kbutton_t *b, const char *c )
 KeyUp
 ============
 */
-void KeyUp( kbutton_t *b, const char *c )
-{	
-	if ( !c || !c[0] )
+void KeyUp( kbutton_t *b, bool bIgnoreKey )
+{
+	int		k;
+	const char	*c;
+	
+	if ( bIgnoreKey )
 	{
 		b->down[0] = b->down[1] = 0;
 		b->state = 4;	// impulse up
 		return;
 	}
 
-	int k = atoi(c);
+	c = engine->Cmd_Argv(1);
+	if (c[0])
+		k = atoi(c);
+	else
+	{ // typed manually at the console, assume for unsticking, so clear all
+		b->down[0] = b->down[1] = 0;
+		b->state = 4;	// impulse up
+		return;
+	}
 
 	if (b->down[0] == k)
 		b->down[0] = 0;
@@ -387,7 +395,6 @@ void KeyUp( kbutton_t *b, const char *c )
 		b->down[1] = 0;
 	else
 		return;		// key up without coresponding down (menu pass through)
-
 	if (b->down[0] || b->down[1])
 	{
 		//Msg ("Keys down for button: '%c' '%c' '%c' (%d,%d,%d)!\n", b->down[0], b->down[1], c, b->down[0], b->down[1], c);
@@ -401,116 +408,107 @@ void KeyUp( kbutton_t *b, const char *c )
 	b->state |= 4; 		// impulse up
 }
 
-void IN_CommanderMouseMoveDown( const CCommand &args ) {KeyDown(&in_commandermousemove, args[1] );}
-void IN_CommanderMouseMoveUp( const CCommand &args ) {KeyUp(&in_commandermousemove, args[1] );}
-void IN_BreakDown( const CCommand &args ) { KeyDown( &in_break , args[1] );}
-void IN_BreakUp( const CCommand &args )
+void IN_CommanderMouseMoveDown() {KeyDown(&in_commandermousemove);}
+void IN_CommanderMouseMoveUp() {KeyUp(&in_commandermousemove);}
+void IN_BreakDown( void ) { KeyDown( &in_break );};
+void IN_BreakUp( void )
 { 
-	KeyUp( &in_break, args[1] ); 
+	KeyUp( &in_break ); 
 #if defined( _DEBUG )
-	DebuggerBreak();
+	_asm
+	{
+		int 3;
+	}
 #endif
 };
-void IN_KLookDown ( const CCommand &args ) {KeyDown(&in_klook, args[1] );}
-void IN_KLookUp ( const CCommand &args ) {KeyUp(&in_klook, args[1] );}
-void IN_JLookDown ( const CCommand &args ) {KeyDown(&in_jlook, args[1] );}
-void IN_JLookUp ( const CCommand &args ) {KeyUp(&in_jlook, args[1] );}
-void IN_UpDown( const CCommand &args ) {KeyDown(&in_up, args[1] );}
-void IN_UpUp( const CCommand &args ) {KeyUp(&in_up, args[1] );}
-void IN_DownDown( const CCommand &args ) {KeyDown(&in_down, args[1] );}
-void IN_DownUp( const CCommand &args ) {KeyUp(&in_down, args[1] );}
-void IN_LeftDown( const CCommand &args ) {KeyDown(&in_left, args[1] );}
-void IN_LeftUp( const CCommand &args ) {KeyUp(&in_left, args[1] );}
-void IN_RightDown( const CCommand &args ) {KeyDown(&in_right, args[1] );}
-void IN_RightUp( const CCommand &args ) {KeyUp(&in_right, args[1] );}
-void IN_ForwardDown( const CCommand &args ) {KeyDown(&in_forward, args[1] );}
-void IN_ForwardUp( const CCommand &args ) {KeyUp(&in_forward, args[1] );}
-void IN_BackDown( const CCommand &args ) {KeyDown(&in_back, args[1] );}
-void IN_BackUp( const CCommand &args ) {KeyUp(&in_back, args[1] );}
-void IN_LookupDown( const CCommand &args ) {KeyDown(&in_lookup, args[1] );}
-void IN_LookupUp( const CCommand &args ) {KeyUp(&in_lookup, args[1] );}
-void IN_LookdownDown( const CCommand &args ) {KeyDown(&in_lookdown, args[1] );}
-void IN_LookdownUp( const CCommand &args ) {KeyUp(&in_lookdown, args[1] );}
-void IN_MoveleftDown( const CCommand &args ) {KeyDown(&in_moveleft, args[1] );}
-void IN_MoveleftUp( const CCommand &args ) {KeyUp(&in_moveleft, args[1] );}
-void IN_MoverightDown( const CCommand &args ) {KeyDown(&in_moveright, args[1] );}
-void IN_MoverightUp( const CCommand &args ) {KeyUp(&in_moveright, args[1] );}
-void IN_WalkDown( const CCommand &args ) {KeyDown(&in_walk, args[1] );}
-void IN_WalkUp( const CCommand &args ) {KeyUp(&in_walk, args[1] );}
-void IN_SpeedDown( const CCommand &args ) {KeyDown(&in_speed, args[1] );}
-void IN_SpeedUp( const CCommand &args ) {KeyUp(&in_speed, args[1] );}
-void IN_StrafeDown( const CCommand &args ) {KeyDown(&in_strafe, args[1] );}
-void IN_StrafeUp( const CCommand &args ) {KeyUp(&in_strafe, args[1] );}
-void IN_Attack2Down( const CCommand &args ) { KeyDown(&in_attack2, args[1] );}
-void IN_Attack2Up( const CCommand &args ) {KeyUp(&in_attack2, args[1] );}
-void IN_UseDown ( const CCommand &args ) {KeyDown(&in_use, args[1] );}
-void IN_UseUp ( const CCommand &args ) {KeyUp(&in_use, args[1] );}
-void IN_JumpDown ( const CCommand &args ) {KeyDown(&in_jump, args[1] );}
-void IN_JumpUp ( const CCommand &args ) {KeyUp(&in_jump, args[1] );}
-void IN_DuckDown( const CCommand &args ) {KeyDown(&in_duck, args[1] );}
-void IN_DuckUp( const CCommand &args ) {KeyUp(&in_duck, args[1] );}
-void IN_ReloadDown( const CCommand &args ) {KeyDown(&in_reload, args[1] );}
-void IN_ReloadUp( const CCommand &args ) {KeyUp(&in_reload, args[1] );}
-void IN_Alt1Down( const CCommand &args ) {KeyDown(&in_alt1, args[1] );}
-void IN_Alt1Up( const CCommand &args ) {KeyUp(&in_alt1, args[1] );}
-void IN_Alt2Down( const CCommand &args ) {KeyDown(&in_alt2, args[1] );}
-void IN_Alt2Up( const CCommand &args ) {KeyUp(&in_alt2, args[1] );}
-void IN_GraphDown( const CCommand &args ) {KeyDown(&in_graph, args[1] );}
-void IN_GraphUp( const CCommand &args ) {KeyUp(&in_graph, args[1] );}
-void IN_ZoomDown( const CCommand &args ) {KeyDown(&in_zoom, args[1] );}
-void IN_ZoomUp( const CCommand &args ) {KeyUp(&in_zoom, args[1] );}
-void IN_Grenade1Up( const CCommand &args ) { KeyUp( &in_grenade1, args[1] ); }
-void IN_Grenade1Down( const CCommand &args ) { KeyDown( &in_grenade1, args[1] ); }
-void IN_Grenade2Up( const CCommand &args ) { KeyUp( &in_grenade2, args[1] ); }
-void IN_Grenade2Down( const CCommand &args ) { KeyDown( &in_grenade2, args[1] ); }
-void IN_XboxStub( const CCommand &args ) { /*do nothing*/ }
+void IN_KLookDown (void) {KeyDown(&in_klook);}
+void IN_KLookUp (void) {KeyUp(&in_klook);}
+void IN_JLookDown (void) {KeyDown(&in_jlook);}
+void IN_JLookUp (void) {KeyUp(&in_jlook);}
+void IN_UpDown(void) {KeyDown(&in_up);}
+void IN_UpUp(void) {KeyUp(&in_up);}
+void IN_DownDown(void) {KeyDown(&in_down);}
+void IN_DownUp(void) {KeyUp(&in_down);}
+void IN_LeftDown(void) {KeyDown(&in_left);}
+void IN_LeftUp(void) {KeyUp(&in_left);}
+void IN_RightDown(void) {KeyDown(&in_right);}
+void IN_RightUp(void) {KeyUp(&in_right);}
+void IN_ForwardDown(void) {KeyDown(&in_forward);}
+void IN_ForwardUp(void) {KeyUp(&in_forward);}
+void IN_BackDown(void) {KeyDown(&in_back);}
+void IN_BackUp(void) {KeyUp(&in_back);}
+void IN_LookupDown(void) {KeyDown(&in_lookup);}
+void IN_LookupUp(void) {KeyUp(&in_lookup);}
+void IN_LookdownDown(void) {KeyDown(&in_lookdown);}
+void IN_LookdownUp(void) {KeyUp(&in_lookdown);}
+void IN_MoveleftDown(void) {KeyDown(&in_moveleft);}
+void IN_MoveleftUp(void) {KeyUp(&in_moveleft);}
+void IN_MoverightDown(void) {KeyDown(&in_moveright);}
+void IN_MoverightUp(void) {KeyUp(&in_moveright);}
+void IN_WalkDown(void) {KeyDown(&in_walk);}
+void IN_WalkUp(void) {KeyUp(&in_walk);}
+void IN_SpeedDown(void) {KeyDown(&in_speed);}
+void IN_SpeedUp(void) {KeyUp(&in_speed);}
+void IN_StrafeDown(void) {KeyDown(&in_strafe);}
+void IN_StrafeUp(void) {KeyUp(&in_strafe);}
+void IN_Attack2Down(void) { KeyDown(&in_attack2);}
+void IN_Attack2Up(void) {KeyUp(&in_attack2);}
+void IN_UseDown (void) {KeyDown(&in_use);}
+void IN_UseUp (void) {KeyUp(&in_use);}
+void IN_JumpDown (void) {KeyDown(&in_jump);}
+void IN_JumpUp (void) {KeyUp(&in_jump);}
+void IN_DuckDown(void) {KeyDown(&in_duck);}
+void IN_DuckUp(void) {KeyUp(&in_duck);}
+void IN_ReloadDown(void) {KeyDown(&in_reload);}
+void IN_ReloadUp(void) {KeyUp(&in_reload);}
+void IN_Alt1Down(void) {KeyDown(&in_alt1);}
+void IN_Alt1Up(void) {KeyUp(&in_alt1);}
+void IN_Alt2Down(void) {KeyDown(&in_alt2);}
+void IN_Alt2Up(void) {KeyUp(&in_alt2);}
+void IN_GraphDown(void) {KeyDown(&in_graph);}
+void IN_GraphUp(void) {KeyUp(&in_graph);}
+void IN_ZoomDown(void) {KeyDown(&in_zoom);}
+void IN_ZoomUp(void) {KeyUp(&in_zoom);}
+void IN_Grenade1Up(void) { KeyUp( &in_grenade1 ); }
+void IN_Grenade1Down(void) { KeyDown( &in_grenade1 ); }
+void IN_Grenade2Up(void) { KeyUp( &in_grenade2 ); }
+void IN_Grenade2Down(void) { KeyDown( &in_grenade2 ); }
 
-void IN_DuckToggle( const CCommand &args ) 
-{ 
-	if ( ::input->KeyState(&in_ducktoggle) )
-	{
-		KeyUp( &in_ducktoggle, args[1] ); 
-	}
-	else
-	{
-		KeyDown( &in_ducktoggle, args[1] ); 
-	}
+
+void IN_AttackDown(void)
+{
+	KeyDown( &in_attack );
 }
 
-void IN_AttackDown( const CCommand &args )
+void IN_AttackUp(void)
 {
-	KeyDown( &in_attack, args[1] );
-}
-
-void IN_AttackUp( const CCommand &args )
-{
-	KeyUp( &in_attack, args[1] );
+	KeyUp( &in_attack );
 	in_cancel = 0;
 }
 
 // Special handling
-void IN_Cancel( const CCommand &args )
+void IN_Cancel(void)
 {
 	in_cancel = 1;
 }
 
-void IN_Impulse( const CCommand &args )
+void IN_Impulse (void)
 {
-	in_impulse = atoi( args[1] );
+	in_impulse = atoi( engine->Cmd_Argv(1) );
 }
 
-void IN_ScoreDown( const CCommand &args )
+void IN_ScoreDown(void)
 {
-	KeyDown( &in_score, args[1] );
+	KeyDown(&in_score);
 	if ( gViewPortInterface )
 	{
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, true );
 	}
 }
 
-void IN_ScoreUp( const CCommand &args )
+void IN_ScoreUp(void)
 {
-	KeyUp( &in_score, args[1] );
+	KeyUp(&in_score);
 	if ( gViewPortInterface )
 	{
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, false );
@@ -526,17 +524,10 @@ KeyEvent
 Return 1 to allow engine to process the key, otherwise, act on it as needed
 ============
 */
-int CInput::KeyEvent( int down, ButtonCode_t code, const char *pszCurrentBinding )
+int CInput::KeyEvent( int down, int keynum, const char *pszCurrentBinding )
 {
-	// Deal with camera intercepting the mouse
-	if ( ( code == MOUSE_LEFT ) || ( code == MOUSE_RIGHT ) )
-	{
-		if ( m_fCameraInterceptingMouse )
-			return 0;
-	}
-
 	if ( g_pClientMode )
-		return g_pClientMode->KeyInput(down, code, pszCurrentBinding);
+		return g_pClientMode->KeyInput(down, keynum, pszCurrentBinding);
 
 	return 1;
 }
@@ -599,31 +590,14 @@ float CInput::KeyState ( kbutton_t *key )
 	return val;
 }
 
-void CInput::IN_SetSampleTime( float frametime )
-{
-	m_flKeyboardSampleTime = frametime;
-}
-
 /*
 ==============================
 DetermineKeySpeed
 
 ==============================
 */
-static ConVar in_usekeyboardsampletime( "in_usekeyboardsampletime", "1", 0, "Use keyboard sample time smoothing." );
-
 float CInput::DetermineKeySpeed( float frametime )
 {
-
-	if ( in_usekeyboardsampletime.GetBool() )
-	{
-		if ( m_flKeyboardSampleTime <= 0 )
-			return 0.0f;
-	
-		frametime = min( m_flKeyboardSampleTime, frametime );
-		m_flKeyboardSampleTime -= frametime;
-	}
-	
 	float speed;
 
 	speed = frametime;
@@ -648,23 +622,6 @@ void CInput::AdjustYaw( float speed, QAngle& viewangles )
 	{
 		viewangles[YAW] -= speed*cl_yawspeed.GetFloat() * KeyState (&in_right);
 		viewangles[YAW] += speed*cl_yawspeed.GetFloat() * KeyState (&in_left);
-	}
-
-	// thirdperson platformer mode
-	// use movement keys to aim the player relative to the thirdperson camera
-	if ( CAM_IsThirdPerson() && thirdperson_platformer.GetInt() )
-	{
-		float side = KeyState(&in_moveleft) - KeyState(&in_moveright);
-		float forward = KeyState(&in_forward) - KeyState(&in_back);
-
-		if ( side || forward )
-		{
-			viewangles[YAW] = RAD2DEG(atan2(side, forward)) + m_vecCameraOffset[ YAW ];
-		}
-		if ( side || forward || KeyState (&in_right) || KeyState (&in_left) )
-		{
-			cam_idealyaw.SetValue( m_vecCameraOffset[ YAW ] - viewangles[ YAW ] );
-		}
 	}
 }
 
@@ -718,7 +675,6 @@ void CInput::ClampAngles( QAngle& viewangles )
 		viewangles[PITCH] = -cl_pitchup.GetFloat();
 	}
 
-#ifndef PORTAL	// Don't constrain Roll in Portal because the player can be upside down! -Jeep
 	if ( viewangles[ROLL] > 50 )
 	{
 		viewangles[ROLL] = 50;
@@ -727,7 +683,6 @@ void CInput::ClampAngles( QAngle& viewangles )
 	{
 		viewangles[ROLL] = -50;
 	}
-#endif
 }
 
 /*
@@ -744,10 +699,6 @@ void CInput::AdjustAngles ( float frametime )
 	
 	// Determine control scaling factor ( multiplies time )
 	speed = DetermineKeySpeed( frametime );
-	if ( speed <= 0.0f )
-	{
-		return;
-	}
 
 	// Retrieve latest view direction from engine
 	engine->GetViewAngles( viewangles );
@@ -773,30 +724,6 @@ ComputeSideMove
 */
 void CInput::ComputeSideMove( CUserCmd *cmd )
 {
-	// thirdperson platformer movement
-	if ( CAM_IsThirdPerson() && thirdperson_platformer.GetInt() )
-	{
-		// no sideways movement in this mode
-		return;
-	}
-
-	// thirdperson screenspace movement
-	if ( CAM_IsThirdPerson() && thirdperson_screenspace.GetInt() )
-	{
-		float ideal_yaw = cam_idealyaw.GetFloat();
-		float ideal_sin = sin(DEG2RAD(ideal_yaw));
-		float ideal_cos = cos(DEG2RAD(ideal_yaw));
-		
-		float movement = ideal_cos*KeyState(&in_moveright)
-			+  ideal_sin*KeyState(&in_back)
-			+ -ideal_cos*KeyState(&in_moveleft)
-			+ -ideal_sin*KeyState(&in_forward);
-
-		cmd->sidemove += cl_sidespeed.GetFloat() * movement;
-
-		return;
-	}
-
 	// If strafing, check left and right keys and act like moveleft and moveright keys
 	if ( in_strafe.state & 1 )
 	{
@@ -829,37 +756,6 @@ ComputeForwardMove
 */
 void CInput::ComputeForwardMove( CUserCmd *cmd )
 {
-	// thirdperson platformer movement
-	if ( CAM_IsThirdPerson() && thirdperson_platformer.GetInt() )
-	{
-		// movement is always forward in this mode
-		float movement = KeyState(&in_forward)
-			|| KeyState(&in_moveright)
-			|| KeyState(&in_back)
-			|| KeyState(&in_moveleft);
-
-		cmd->forwardmove += cl_forwardspeed.GetFloat() * movement;
-
-		return;
-	}
-
-	// thirdperson screenspace movement
-	if ( CAM_IsThirdPerson() && thirdperson_screenspace.GetInt() )
-	{
-		float ideal_yaw = cam_idealyaw.GetFloat();
-		float ideal_sin = sin(DEG2RAD(ideal_yaw));
-		float ideal_cos = cos(DEG2RAD(ideal_yaw));
-		
-		float movement = ideal_cos*KeyState(&in_forward)
-			+  ideal_sin*KeyState(&in_moveright)
-			+ -ideal_cos*KeyState(&in_back)
-			+ -ideal_sin*KeyState(&in_moveleft);
-
-		cmd->forwardmove += cl_forwardspeed.GetFloat() * movement;
-
-		return;
-	}
-
 	if ( !(in_klook.state & 1 ) )
 	{	
 		cmd->forwardmove += cl_forwardspeed.GetFloat() * KeyState (&in_forward);
@@ -991,12 +887,12 @@ void CInput::ExtraMouseSample( float frametime, bool active )
 	}
 
 	// Let the move manager override anything it wants to.
-	if ( g_pClientMode->CreateMove( frametime, cmd ) )
-	{
-		// Get current view angles after the client mode tweaks with it
-		engine->SetViewAngles( cmd->viewangles );
-		prediction->SetLocalViewAngles( cmd->viewangles );
-	}
+	g_pClientMode->CreateMove( frametime, cmd );
+
+	// Get current view angles after the client mode tweaks with it
+	engine->SetViewAngles( cmd->viewangles );
+
+	prediction->SetLocalViewAngles( cmd->viewangles );
 }
 
 void CInput::CreateMove ( int sequence_number, float input_sample_frametime, bool active )
@@ -1088,11 +984,10 @@ void CInput::CreateMove ( int sequence_number, float input_sample_frametime, boo
 	}
 
 	// Let the move manager override anything it wants to.
-	if ( g_pClientMode->CreateMove( input_sample_frametime, cmd ) )
-	{
-		// Get current view angles after the client mode tweaks with it
-		engine->SetViewAngles( cmd->viewangles );
-	}
+	g_pClientMode->CreateMove( input_sample_frametime, cmd );
+
+	// Get current view angles after the client mode tweaks with it
+	engine->SetViewAngles( cmd->viewangles );
 
 	m_flLastForwardMove = cmd->forwardmove;
 
@@ -1278,11 +1173,6 @@ int CInput::GetButtonBits( int bResetState )
 	CalcButtonBits( bits, IN_GRENADE1, s_ClearInputState, &in_grenade1, bResetState );
 	CalcButtonBits( bits, IN_GRENADE2, s_ClearInputState, &in_grenade2, bResetState );
 
-	if ( KeyState(&in_ducktoggle) )
-	{
-		bits |= IN_DUCK;
-	}
-
 	// Cancel is a special flag
 	if (in_cancel)
 	{
@@ -1416,8 +1306,8 @@ static ConCommand startalt1("+alt1", IN_Alt1Down);
 static ConCommand endalt1("-alt1", IN_Alt1Up);
 static ConCommand startalt2("+alt2", IN_Alt2Down);
 static ConCommand endalt2("-alt2", IN_Alt2Up);
-static ConCommand startscore("+splatform", IN_ScoreDown);
-static ConCommand endscore("-splatform", IN_ScoreUp);
+static ConCommand startscore("+score", IN_ScoreDown);
+static ConCommand endscore("-score", IN_ScoreUp);
 static ConCommand startshowscores("+showscores", IN_ScoreDown);
 static ConCommand endshowscores("-showscores", IN_ScoreUp);
 static ConCommand startgraph("+graph", IN_GraphDown);
@@ -1425,21 +1315,13 @@ static ConCommand endgraph("-graph", IN_GraphUp);
 static ConCommand startbreak("+break",IN_BreakDown);
 static ConCommand endbreak("-break",IN_BreakUp);
 static ConCommand force_centerview("force_centerview", IN_CenterView_f);
-static ConCommand joyadvancedupdate("joyadvancedupdate", IN_Joystick_Advanced_f, "", FCVAR_CLIENTCMD_CAN_EXECUTE);
+static ConCommand joyadvancedupdate("joyadvancedupdate", IN_Joystick_Advanced_f);
 static ConCommand startzoom("+zoom", IN_ZoomDown);
 static ConCommand endzoom("-zoom", IN_ZoomUp);
 static ConCommand endgrenade1( "-grenade1", IN_Grenade1Up );
 static ConCommand startgrenade1( "+grenade1", IN_Grenade1Down );
 static ConCommand endgrenade2( "-grenade2", IN_Grenade2Up );
 static ConCommand startgrenade2( "+grenade2", IN_Grenade2Down );
-
-#ifdef TF_CLIENT_DLL
-static ConCommand toggle_duck( "toggle_duck", IN_DuckToggle );
-#endif
-
-// Xbox 360 stub commands
-static ConCommand xboxmove("xmove", IN_XboxStub);
-static ConCommand xboxlook("xlook", IN_XboxStub);
 
 /*
 ============

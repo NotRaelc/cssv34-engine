@@ -31,109 +31,6 @@ bool CSingleplayRules::IsMultiplayer( void )
 	return false;
 }
 
-// Needed during the conversion, but once DMG_* types have been fixed, this isn't used anymore.
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int CSingleplayRules::Damage_GetTimeBased( void )
-{
-	int iDamage = ( DMG_PARALYZE | DMG_NERVEGAS | DMG_POISON | DMG_RADIATION | DMG_DROWNRECOVER | DMG_ACID | DMG_SLOWBURN );
-	return iDamage;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int	CSingleplayRules::Damage_GetShouldGibCorpse( void )
-{
-	int iDamage = ( DMG_CRUSH | DMG_FALL | DMG_BLAST | DMG_SONIC | DMG_CLUB );
-	return iDamage;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int CSingleplayRules::Damage_GetShowOnHud( void )
-{
-	int iDamage = ( DMG_POISON | DMG_ACID | DMG_DROWN | DMG_BURN | DMG_SLOWBURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK );
-	return iDamage;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int	CSingleplayRules::Damage_GetNoPhysicsForce( void )
-{
-	int iTimeBasedDamage = Damage_GetTimeBased();
-	int iDamage = ( DMG_FALL | DMG_BURN | DMG_PLASMA | DMG_DROWN | iTimeBasedDamage | DMG_CRUSH | DMG_PHYSGUN | DMG_PREVENT_PHYSICS_FORCE );
-	return iDamage;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int	CSingleplayRules::Damage_GetShouldNotBleed( void )
-{
-	int iDamage = ( DMG_POISON | DMG_ACID );
-	return iDamage;
-}
-
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : iDmgType - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CSingleplayRules::Damage_IsTimeBased( int iDmgType )
-{
-	// Damage types that are time-based.
-	return ( ( iDmgType & ( DMG_PARALYZE | DMG_NERVEGAS | DMG_POISON | DMG_RADIATION | DMG_DROWNRECOVER | DMG_ACID | DMG_SLOWBURN ) ) != 0 );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : iDmgType - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CSingleplayRules::Damage_ShouldGibCorpse( int iDmgType )
-{
-	// Damage types that gib the corpse.
-	return ( ( iDmgType & ( DMG_CRUSH | DMG_FALL | DMG_BLAST | DMG_SONIC | DMG_CLUB ) ) != 0 );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : iDmgType - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CSingleplayRules::Damage_ShowOnHUD( int iDmgType )
-{
-	// Damage types that have client HUD art.
-	return ( ( iDmgType & ( DMG_POISON | DMG_ACID | DMG_DROWN | DMG_BURN | DMG_SLOWBURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK ) ) != 0 );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : iDmgType - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CSingleplayRules::Damage_NoPhysicsForce( int iDmgType )
-{
-	// Damage types that don't have to supply a physics force & position.
-	int iTimeBasedDamage = Damage_GetTimeBased();
-	return ( ( iDmgType & ( DMG_FALL | DMG_BURN | DMG_PLASMA | DMG_DROWN | iTimeBasedDamage | DMG_CRUSH | DMG_PHYSGUN | DMG_PREVENT_PHYSICS_FORCE ) ) != 0 );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : iDmgType - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CSingleplayRules::Damage_ShouldNotBleed( int iDmgType )
-{
-	// Damage types that don't make the player bleed.
-	return ( ( iDmgType & ( DMG_POISON | DMG_ACID ) ) != 0 );
-}
 
 #ifdef CLIENT_DLL
 
@@ -311,13 +208,6 @@ bool CSingleplayRules::Damage_ShouldNotBleed( int iDmgType )
 	bool CSingleplayRules::AllowAutoTargetCrosshair( void )
 	{
 		return ( IsSkillLevel(SKILL_EASY) );
-	}
-
-	//=========================================================
-	//=========================================================
-	int	CSingleplayRules::GetAutoAimMode()
-	{
-		return sk_autoaim_mode.GetInt();
 	}
 
 	//=========================================================

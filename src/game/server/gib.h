@@ -18,7 +18,7 @@
 #include "player_pickup.h"
 #include "Sprite.h"
 
-extern CBaseEntity *CreateRagGib( const char *szModel, const Vector &vecOrigin, const QAngle &vecAngles, const Vector &vecForce, float flFadeTime = 0.0, bool bShouldIgnite = false );
+extern CBaseEntity *CreateRagGib( const char *szModel, const Vector &vecOrigin, const QAngle &vecAngles, const Vector &vecForce, float flFadeTime = 0.0 );
 
 #define GERMAN_GIB_COUNT		4
 #define	HUMAN_GIB_COUNT			6
@@ -37,8 +37,6 @@ public:
 	DECLARE_CLASS( CGib, CBaseAnimating );
 
 	void Spawn( const char *szGibModel );
-	void Spawn( const char *szGibModel, float flLifetime );
-
 	void InitGib( CBaseEntity *pVictim, float fMaxVelocity, float fMinVelocity );
 	void BounceGibTouch ( CBaseEntity *pOther );
 	void StickyGibTouch ( CBaseEntity *pOther );

@@ -183,8 +183,6 @@ protected:
 
 	CFireOverlay		*m_pFireOverlay;
 
-	// New Particle Fire Effect
-	CNewParticleEffect *m_hEffect;
 private:
 	C_FireSmoke( const C_FireSmoke & );
 };
@@ -284,19 +282,41 @@ public:
 	C_EntityFlame( void );
 	~C_EntityFlame( void );
 
-	virtual void	Simulate( void );
-	virtual void	UpdateOnRemove( void );
-	virtual void	OnDataChanged( DataUpdateType_t updateType );
+	void UpdateOnRemove( void );
+	void CleanUpRagdollOnRemove( void );
+	void OnDataChanged( DataUpdateType_t updateType );
+	RenderGroup_t GetRenderGroup();
+	void Simulate( void );
+
+	EHANDLE			m_hEntAttached;				// The entity that we are burning (attached to).
+	bool			m_bUseHitboxes;
+	bool			m_bCreatedClientside;
 	virtual void	ClientThink( void );
 
-	CNewParticleEffect *m_hEffect;
-	EHANDLE				m_hEntAttached;		// The entity that we are burning (attached to).
-	EHANDLE				m_hOldAttached;
+	C_FireSmoke *m_pFireSmoke[NUM_HITBOX_FIRES];
 
 protected:
 
-	void	CreateEffect( void );
-	void	StopEffect( void );
+	void AttachToHitBoxes( void );
+	void UpdateHitBoxFlames( void );
+	void DeleteHitBoxFlames( void );
+
+	float			m_flSize;
+	CSmartPtr<CEmberEffect> m_pEmitter;
+	TimedEvent		m_ParticleSpawn;
+	bool			m_bAttachedToHitboxes;
+	float			m_flLifetime;
+	bool			m_bStartedFading;
+
+	const model_t	*m_pCachedModel;				// Holds the model pointer to detect when it changes
+
+	Vector			m_vecLastPosition;
+
+	PMaterialHandle	m_MaterialHandle[NUM_FLAMELETS];
+
+	// For attaching to the hitboxes of an animating model.
+	Vector m_vecFireOrigin[NUM_HITBOX_FIRES];
+	int m_nHitbox[NUM_HITBOX_FIRES];
 };
 
 #endif //C_FIRE_SMOKE_H

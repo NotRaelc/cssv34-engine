@@ -13,7 +13,7 @@
 #include "entityinput.h"
 #include "entityoutput.h"
 #include "eventqueue.h"
-#include "mathlib/mathlib.h"
+#include "mathlib.h"
 #include "soundent.h"
 #include "envmicrophone.h"
 #include "soundflags.h"
@@ -24,6 +24,13 @@
 #include "tier0/memdbgon.h"
 
 //#define DEBUG_MICROPHONE
+
+const int SF_MICROPHONE_SOUND_COMBAT			= 0x01;
+const int SF_MICROPHONE_SOUND_WORLD				= 0x02;
+const int SF_MICROPHONE_SOUND_PLAYER			= 0x04;
+const int SF_MICROPHONE_SOUND_BULLET_IMPACT		= 0x08;
+const int SF_MICROPHONE_SWALLOW_ROUTED_SOUNDS	= 0x10;
+const int SF_MICROPHONE_SOUND_EXPLOSION			= 0x20;
 
 const float MICROPHONE_SETTLE_EPSILON = 0.005;
 
@@ -167,17 +174,17 @@ void CEnvMicrophone::ActivateSpeaker( void )
 	// If we're enabled, set the dsp_speaker preset to my specified one
 	if ( !m_bDisabled )
 	{
-		ConVarRef dsp_speaker( "dsp_speaker" );
-		if ( dsp_speaker.IsValid() )
+		ConVar *dsp_speaker = ( ConVar * )cvar->FindVar( "dsp_speaker" );
+		if ( dsp_speaker )
 		{
 			int iDSPPreset = m_iSpeakerDSPPreset;
 			if ( !iDSPPreset )
 			{
 				// Reset it to the default
-				iDSPPreset = atoi( dsp_speaker.GetDefault() );
+				iDSPPreset = atoi(dsp_speaker->GetDefault());
 			}
 			DevMsg( 2, "Microphone %s set dsp_speaker to %d.\n", STRING(GetEntityName()), iDSPPreset);
-			dsp_speaker.SetValue( m_iSpeakerDSPPreset );
+			dsp_speaker->SetValue( m_iSpeakerDSPPreset );
 		}
 	}
 
@@ -231,7 +238,11 @@ void CEnvMicrophone::InputDisable( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 void CEnvMicrophone::InputSetSpeakerName( inputdata_t &inputdata )
 {
-	SetSpeakerName( inputdata.value.StringID() );
+	m_iszSpeakerName = inputdata.value.StringID();
+
+	// Set the speaker to null. This will force it to find the speaker next time a sound is routed.
+	m_hSpeaker = NULL;
+	ActivateSpeaker();
 }
 
 //-----------------------------------------------------------------------------
@@ -296,11 +307,6 @@ bool CEnvMicrophone::CanHearSound( int entindex, soundlevel_t soundlevel, float 
 		return false;
 	}
 
-	if ( ( m_spawnflags & SF_MICROPHONE_IGNORE_NONATTENUATED ) && soundlevel == SNDLVL_NONE )
-	{
-		return false;
-	}
-
 	// Sound might be coming from an origin or from an entity.
 	CBaseEntity *pEntity = NULL;
 	if ( entindex )
@@ -359,20 +365,6 @@ bool CEnvMicrophone::CanHearSound( int entindex, soundlevel_t soundlevel, float 
 #endif
 
 	return ( flVolume > 0 );
-}
-
-void CEnvMicrophone::SetSensitivity( float flSensitivity )
-{
-	m_flSensitivity = flSensitivity;
-}
-
-void CEnvMicrophone::SetSpeakerName( string_t iszSpeakerName )
-{
-	m_iszSpeakerName = iszSpeakerName;
-
-	// Set the speaker to null. This will force it to find the speaker next time a sound is routed.
-	m_hSpeaker = NULL;
-	ActivateSpeaker();
 }
 
 //-----------------------------------------------------------------------------

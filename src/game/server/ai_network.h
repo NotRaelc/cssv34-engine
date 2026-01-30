@@ -18,7 +18,7 @@
 // ------------------------------------
 
 class CAI_Node;
-class CVarBitVec;
+class CBitString;
 class INodeListFilter;
 
 struct AI_Waypoint_t;
@@ -100,7 +100,7 @@ public:
 	Vector			GetNodePosition( Hull_t hull, int nodeID );
 	float			GetNodeYaw( int nodeID );
 
-	static int		FindBSSmallest(CVarBitVec *bitString, float *float_array, int array_size); 
+	static int		FindBSSmallest(CBitString *bitString, float *float_array, int array_size); 
 
 	int				NearestNodeToPoint( CAI_BaseNPC* pNPC, const Vector &vecOrigin, bool bCheckVisiblity, INearestNodeFilter *pFilter );
 	int				NearestNodeToPoint( CAI_BaseNPC* pNPC, const Vector &vecOrigin, bool bCheckVisiblity = true ) { return NearestNodeToPoint( pNPC, vecOrigin, bCheckVisiblity, NULL ); }

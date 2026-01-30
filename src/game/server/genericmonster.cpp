@@ -16,7 +16,6 @@
 #include "engine/IEngineSound.h"
 #include "physics_bone_follower.h"
 #include "ai_baseactor.h"
-#include "ai_senses.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -232,7 +231,7 @@ public:
 
 private:
 	// Contained Bone Follower manager
-	CBoneFollowerManager	m_BoneFollowerManager;
+	CBoneFollowerManager	*m_pBoneFollowerManager;
 };
 
 LINK_ENTITY_TO_CLASS( monster_furniture, CNPC_Furniture );
@@ -243,7 +242,8 @@ LINK_ENTITY_TO_CLASS( npc_furniture, CNPC_Furniture );
 //-----------------------------------------------------------------------------
 
 BEGIN_DATADESC( CNPC_Furniture )
-	DEFINE_EMBEDDED( m_BoneFollowerManager ),
+	// 	This is reconstructed in CreateVPhysics
+	// DEFINE_EMBEDDED( m_pBoneFollowerManager ),
 	DEFINE_INPUTFUNC( FIELD_VOID,	"DisablePlayerCollision", InputDisablePlayerCollision ),
 	DEFINE_INPUTFUNC( FIELD_VOID,	"EnablePlayerCollision", InputEnablePlayerCollision ),
 	
@@ -286,9 +286,6 @@ void CNPC_Furniture::Spawn( )
 
 	// Furniture needs to block LOS
 	SetBlocksLOS( true );
-
-	// Furniture just wastes CPU doing sensing code, since all they do is idle and play scripts
-	GetSenses()->AddSensingFlags( SENSING_FLAGS_DONT_LOOK | SENSING_FLAGS_DONT_LISTEN );
 }
 
 //-----------------------------------------------------------------------------
@@ -338,27 +335,34 @@ bool CNPC_Furniture::CreateVPhysics( void )
 	return false;
 #endif
 
-	if ( !m_BoneFollowerManager.GetNumBoneFollowers() )
+	KeyValues *modelKeyValues = new KeyValues("");
+	if ( modelKeyValues->LoadFromBuffer( modelinfo->GetModelName( GetModel() ), modelinfo->GetModelKeyValueText( GetModel() ) ) )
 	{
-		KeyValues *modelKeyValues = new KeyValues("");
-		if ( modelKeyValues->LoadFromBuffer( modelinfo->GetModelName( GetModel() ), modelinfo->GetModelKeyValueText( GetModel() ) ) )
+		// Do we have a bone follower section?
+		KeyValues *pkvBoneFollowers = modelKeyValues->FindKey("bone_followers");
+		if ( pkvBoneFollowers )
 		{
-			// Do we have a bone follower section?
-			KeyValues *pkvBoneFollowers = modelKeyValues->FindKey("bone_followers");
-			if ( pkvBoneFollowers )
+			// Create our bone manager if we don't have one already
+			if ( !m_pBoneFollowerManager )
 			{
-				// Loop through the list and create the bone followers
-				KeyValues *pBone = pkvBoneFollowers->GetFirstSubKey();
-				while ( pBone )
-				{
-					// Add it to the list
-					const char *pBoneName = pBone->GetString();
-					m_BoneFollowerManager.AddBoneFollower( this, pBoneName );
-
-					pBone = pBone->GetNextKey();
-				}
+				m_pBoneFollowerManager = new CBoneFollowerManager();
 			}
+
+			// Loop through the list and create the bone followers
+			KeyValues *pBone = pkvBoneFollowers->GetFirstSubKey();
+			while ( pBone )
+			{
+				// Add it to the list
+				const char *pBoneName = pBone->GetString();
+				m_pBoneFollowerManager->AddBoneFollower( this, pBoneName );
+
+				pBone = pBone->GetNextKey();
+			}
+
+			modelKeyValues->deleteThis();
+			return true;
 		}
+
 		modelKeyValues->deleteThis();
 	}
 
@@ -379,15 +383,15 @@ void CNPC_Furniture::InputEnablePlayerCollision( inputdata_t &inputdata )
 
 void CNPC_Furniture::UpdateBoneFollowerState( void )
 {
-	if ( m_BoneFollowerManager.GetNumBoneFollowers() )
+	if ( m_pBoneFollowerManager )
 	{
-		physfollower_t* pBone = m_BoneFollowerManager.GetBoneFollower( 0 );
+		physfollower_t* pBone = m_pBoneFollowerManager->GetBoneFollower( 0 );
 
 		if ( pBone && pBone->hFollower && pBone->hFollower->GetCollisionGroup() != GetCollisionGroup() )
 		{
-			for ( int i = 0; i < m_BoneFollowerManager.GetNumBoneFollowers(); i++ )
+			for ( int i = 0; i < m_pBoneFollowerManager->GetNumBoneFollowers(); i++ )
 			{
-				pBone = m_BoneFollowerManager.GetBoneFollower( i );
+				pBone = m_pBoneFollowerManager->GetBoneFollower( i );
 
 				if ( pBone && pBone->hFollower )
 				{
@@ -410,7 +414,10 @@ void CNPC_Furniture::NPCThink( void )
 	BaseClass::NPCThink();
 	
 	// Update follower bones
-	m_BoneFollowerManager.UpdateBoneFollowers(this);
+	if ( m_pBoneFollowerManager )
+	{
+		m_pBoneFollowerManager->UpdateBoneFollowers();
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -418,7 +425,12 @@ void CNPC_Furniture::NPCThink( void )
 //-----------------------------------------------------------------------------
 void CNPC_Furniture::UpdateOnRemove( void )
 {
-	m_BoneFollowerManager.DestroyBoneFollowers();
+	if ( m_pBoneFollowerManager )
+	{
+		m_pBoneFollowerManager->DestroyBoneFollowers();
+		delete m_pBoneFollowerManager;
+		m_pBoneFollowerManager = NULL;
+	}
 
 	BaseClass::UpdateOnRemove();
 }

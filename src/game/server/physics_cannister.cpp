@@ -43,7 +43,7 @@ LINK_ENTITY_TO_CLASS( physics_cannister, CPhysicsCannister );
 BEGIN_DATADESC( CPhysicsCannister )
 
 	DEFINE_OUTPUT( m_onActivate, "OnActivate" ),
-	DEFINE_OUTPUT( m_OnAwakened, "OnAwakened" ),
+
 	DEFINE_FIELD( m_thrustOrigin, FIELD_VECTOR ),	// this is a position, but in local space
 	DEFINE_EMBEDDED( m_thruster ),
 	DEFINE_PHYSPTR( m_pController ),
@@ -447,10 +447,6 @@ void CPhysicsCannister::OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPicku
 void CPhysicsCannister::OnPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t Reason )
 {
 	SetPhysicsAttacker( pPhysGunUser, gpGlobals->curtime );
-	if ( Reason == LAUNCHED_BY_CANNON )
-	{
-		CannisterActivate( pPhysGunUser, vec3_origin );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -463,21 +459,4 @@ CBasePlayer *CPhysicsCannister::HasPhysicsAttacker( float dt )
 		return m_hPhysicsAttacker;
 	}
 	return NULL;
-}
-//-----------------------------------------------------------------------------
-// Purpose: Update the visible representation of the physic system's representation of this object
-//-----------------------------------------------------------------------------
-void CPhysicsCannister::VPhysicsUpdate( IPhysicsObject *pPhysics )
-{
-	BaseClass::VPhysicsUpdate( pPhysics );
-
-	// if this is the first time we have moved, fire our target
-	if ( HasSpawnFlags( SF_CANNISTER_ASLEEP ) )
-	{
-		if ( !pPhysics->IsAsleep() )
-		{
-			m_OnAwakened.FireOutput(this, this);
-			RemoveSpawnFlags( SF_CANNISTER_ASLEEP );
-		}
-	}
 }

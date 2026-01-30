@@ -40,7 +40,7 @@
 	}
 
 // Commands
-#define HOOK_COMMAND(x, y) static ConCommand x( #x, __CmdFunc_##y, "", FCVAR_SERVER_CAN_EXECUTE );
+#define HOOK_COMMAND(x, y) static ConCommand x( #x, __CmdFunc_##y );
 // Command declaration for non CHudElement classes
 #define DECLARE_COMMAND(y, x) void __CmdFunc_##x( void ) \
 	{							\

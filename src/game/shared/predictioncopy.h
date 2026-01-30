@@ -14,7 +14,6 @@
 #include <memory.h>
 #include "datamap.h"
 #include "ehandle.h"
-#include "tier1/utlstring.h"
 
 #if defined( CLIENT_DLL )
 class C_BaseEntity;
@@ -201,93 +200,5 @@ private:
 	FN_FIELD_DESCRIPTION	m_FieldDescFunc;
 };
 
-#if defined( CLIENT_DLL )
-class CValueChangeTracker
-{
-public:
-	CValueChangeTracker();
 
-	void Reset();
-
-	void StartTrack( char const *pchContext );
-	void EndTrack();
-
-	bool IsActive() const;
-
-	void SetupTracking( C_BaseEntity *ent, char const *pchFieldName );
-	void ClearTracking();
-
-	void Spew();
-
-	C_BaseEntity *GetEntity();
-
-private:
-
-	enum
-	{
-		eChangeTrackerBufSize = 128,
-	};
-
-	// Returns field size
-	void				GetValue( char *buf, size_t bufsize );
-
-	bool				m_bActive : 1;
-	bool				m_bTracking : 1;
-	EHANDLE				m_hEntityToTrack;
-	CUtlVector< typedescription_t * > m_FieldStack;
-	CUtlString			m_strFieldName;
-	CUtlString			m_strContext;
-	// First 128 bytes of data is all we will consider
-	char				m_OrigValueBuf[ eChangeTrackerBufSize ];
-	CUtlVector< CUtlString >	 m_History;
-};
-
-extern CValueChangeTracker *g_pChangeTracker;
-
-class CValueChangeTrackerScope
-{
-public:
-	CValueChangeTrackerScope( char const *pchContext )
-	{
-		m_bCallEndTrack = true;
-		g_pChangeTracker->StartTrack( pchContext );
-	}
-
-	// Only calls Start/End if passed in entity matches entity to track
-	CValueChangeTrackerScope( C_BaseEntity *pEntity, char const *pchContext )
-	{
-		m_bCallEndTrack = g_pChangeTracker->GetEntity() == pEntity;
-		if ( m_bCallEndTrack )
-		{
-			g_pChangeTracker->StartTrack( pchContext );
-		}
-	}
-
-	~CValueChangeTrackerScope()
-	{
-		if ( m_bCallEndTrack )
-		{
-			g_pChangeTracker->EndTrack();
-		}
-	}
-private:
-
-	bool		m_bCallEndTrack;
-};
-
-#if defined( _DEBUG )
-#define PREDICTION_TRACKVALUECHANGESCOPE( context )		CValueChangeTrackerScope scope( context );
-#define PREDICTION_TRACKVALUECHANGESCOPE_ENTITY( entity, context ) CValueChangeTrackerScope scope( entity, context );
-#define PREDICTION_STARTTRACKVALUE( context )			g_pChangeTracker->StartTrack( context );
-#define PREDICTION_ENDTRACKVALUE()						g_pChangeTracker->EndTrack();
-#define PREDICTION_SPEWVALUECHANGES()					g_pChangeTracker->Spew();
-#else
-#define PREDICTION_TRACKVALUECHANGESCOPE( context )
-#define PREDICTION_TRACKVALUECHANGESCOPE_ENTITY( entity, context )
-#define PREDICTION_STARTTRACKVALUE( context )
-#define PREDICTION_ENDTRACKVALUE()	
-#define PREDICTION_SPEWVALUECHANGES() 
-#endif
-
-#endif // !CLIENT_DLL
 #endif // PREDICTIONCOPY_H

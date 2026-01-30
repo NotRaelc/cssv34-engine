@@ -43,7 +43,7 @@ public:
 		int nLen = pRestore->ReadInt();
 		char *pTemp = (char *)stackalloc( nLen );
 		pRestore->ReadString( pTemp, nLen, nLen );
-		*pStringIndex = m_pStringTable->AddString( CBaseEntity::IsServer(), pTemp );
+		*pStringIndex = m_pStringTable->AddString( pTemp );
 	}
 	
 	virtual void MakeEmpty( const SaveRestoreFieldInfo_t &fieldInfo )

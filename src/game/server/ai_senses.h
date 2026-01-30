@@ -36,9 +36,6 @@ enum seentype_t
 	SEEN_MISC
 };
 
-#define SENSING_FLAGS_NONE			0x00000000
-#define SENSING_FLAGS_DONT_LOOK		0x00000001 // Effectively makes the NPC blind
-#define SENSING_FLAGS_DONT_LISTEN	0x00000002 // Effectively makes the NPC deaf
 
 //-----------------------------------------------------------------------------
 // class CAI_ScriptConditions
@@ -61,7 +58,6 @@ public:
 		m_SeenArrays[0] = &m_SeenHighPriority;
 		m_SeenArrays[1] = &m_SeenNPCs;
 		m_SeenArrays[2] = &m_SeenMisc;
-		m_iSensingFlags = SENSING_FLAGS_NONE;
 	}
 	
 	float			GetDistLook() const				{ return m_LookDist; }
@@ -74,9 +70,6 @@ public:
 
 	bool			ShouldSeeEntity( CBaseEntity *pEntity ); // logical query
 	bool			CanSeeEntity( CBaseEntity *pSightEnt ); // more expensive cone & raycast test
-#ifdef PORTAL
-	bool			CanSeeEntityThroughPortal( const CProp_Portal *pPortal, CBaseEntity *pSightEnt ); // more expensive cone & raycast test
-#endif
 	
 	bool			DidSeeEntity( CBaseEntity *pSightEnt ) const; //  a less expensive query that looks at cached results from recent conditionsa gathering
 
@@ -95,10 +88,6 @@ public:
 
 	//---------------------------------
 
-	void			AddSensingFlags( int iFlags )		{ m_iSensingFlags |= iFlags; }
-	void			RemoveSensingFlags( int iFlags )	{ m_iSensingFlags &= ~iFlags; }
-	bool			HasSensingFlags( int iFlags )		{ return (m_iSensingFlags & iFlags) == iFlags; }
-
 	DECLARE_SIMPLE_DATADESC();
 
 private:
@@ -111,10 +100,6 @@ private:
 	void			EndGather( int nSeen, CUtlVector<EHANDLE> *pResult );
 	
 	bool 			Look( CBaseEntity *pSightEnt );
-#ifdef PORTAL
-	bool 			LookThroughPortal( const CProp_Portal *pPortal, CBaseEntity *pSightEnt );
-#endif
-
 	int 			LookForHighPriorityEntities( int iDistance );
 	int 			LookForNPCs( int iDistance );
 	int 			LookForObjects( int iDistance );
@@ -136,8 +121,6 @@ private:
 	float			m_TimeLastLookHighPriority;
 	float			m_TimeLastLookNPCs;
 	float			m_TimeLastLookMisc;
-
-	int				m_iSensingFlags;
 };
 
 //-----------------------------------------------------------------------------

@@ -13,7 +13,7 @@
 
 #include "networkvar.h"
 #include "engine/ICollideable.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 #include "ispatialpartition.h"
 
 
@@ -26,12 +26,6 @@ class QAngle;
 class Vector;
 struct Ray_t;
 class IPhysicsObject;
-
-
-//-----------------------------------------------------------------------------
-// Force spatial partition updates (to avoid threading problems caused by lazy update)
-//-----------------------------------------------------------------------------
-void UpdateDirtySpatialPartitionEntities();
 
 
 //-----------------------------------------------------------------------------
@@ -87,7 +81,7 @@ public:
 	virtual IClientUnknown*	GetIClientUnknown();
 	virtual int				GetCollisionGroup() const;
 	virtual void			WorldSpaceSurroundingBounds( Vector *pVecMins, Vector *pVecMaxs );
-	virtual bool			ShouldTouchTrigger( int triggerSolidFlags ) const;
+	virtual bool			ShouldTouchTriggers() const;
 	virtual const matrix3x4_t *GetRootParentToWorldTransform() const;
 
 public:

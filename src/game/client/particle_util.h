@@ -322,8 +322,8 @@ inline void RenderParticle_ColorSizeAngle(
 	ubColor[2] = (unsigned char)RoundFloatToInt( color.z * 254.9f );
 	ubColor[3] = (unsigned char)RoundFloatToInt( alpha * 254.9f );
 
-	float sa, ca;
-	SinCos(angle, &sa, &ca );
+	float ca = (float)cos(angle);
+	float sa = (float)sin(angle);
 
 	pBuilder->Position3f( pos.x + (-ca + sa) * size, pos.y + (-sa - ca) * size, pos.z );
 	pBuilder->Color4ubv( ubColor );

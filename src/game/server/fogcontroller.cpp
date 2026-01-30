@@ -1,11 +1,11 @@
-//========= Copyright © 1996-2007, Valve Corporation, All rights reserved. ====
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
-// An entity that allows level designer control over the fog parameters.
+// Purpose: Definitions of all the entities that control logic flow within a map
 //
-//=============================================================================
+// $NoKeywords: $
+//=============================================================================//
 
 #include "cbase.h"
-#include "fogcontroller.h"
 #include "entityinput.h"
 #include "entityoutput.h"
 #include "eventqueue.h"
@@ -16,23 +16,65 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-CFogSystem s_FogSystem( "FogSystem" );
-
 //-----------------------------------------------------------------------------
-// Purpose:
+// Purpose: Compares a set of integer inputs to the one main input
+//			Outputs true if they are all equivalant, false otherwise
 //-----------------------------------------------------------------------------
-CFogSystem *FogSystem( void )
+class CFogController : public CLogicalEntity
 {
-	return &s_FogSystem;
-}
+public:
+	DECLARE_CLASS( CFogController, CLogicalEntity );
+
+	CFogController();
+	~CFogController();
+
+	// Parse data from a map file
+	virtual void Activate( );
+
+	// Input handlers
+	void InputSetStartDist(inputdata_t &data);
+	void InputSetEndDist(inputdata_t &data);
+	void InputTurnOn(inputdata_t &data);
+	void InputTurnOff(inputdata_t &data);
+	void InputSetColor(inputdata_t &data);
+	void InputSetColorSecondary(inputdata_t &data);
+	void InputSetFarZ( inputdata_t &data );
+	void InputSetAngles( inputdata_t &inputdata );
+
+	void InputSetColorLerpTo(inputdata_t &data);
+	void InputSetColorSecondaryLerpTo(inputdata_t &data);
+	void InputSetStartDistLerpTo(inputdata_t &data);
+	void InputSetEndDistLerpTo(inputdata_t &data);
+
+	void InputStartFogTransition(inputdata_t &data);
+
+	int CFogController::DrawDebugTextOverlays(void);
+
+	void SetLerpValues( void );
+	void Spawn( void );
+
+	DECLARE_DATADESC();
+
+
+public:
+	fogparams_t	m_fog;
+	bool m_bUseAngles;
+	int   m_iChangedVariables;
+
+	static CFogController *s_pFogController;
+};
+
+
+CFogController *CFogController::s_pFogController = NULL;
+
 
 LINK_ENTITY_TO_CLASS( env_fog_controller, CFogController );
+
 
 BEGIN_DATADESC( CFogController )
 
 	DEFINE_INPUTFUNC( FIELD_FLOAT,		"SetStartDist",	InputSetStartDist ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT,		"SetEndDist",	InputSetEndDist ),
-	DEFINE_INPUTFUNC( FIELD_FLOAT,		"SetMaxDensity",	InputSetMaxDensity ),
 	DEFINE_INPUTFUNC( FIELD_VOID,		"TurnOn",		InputTurnOn ),
 	DEFINE_INPUTFUNC( FIELD_VOID,		"TurnOff",		InputTurnOff ),
 	DEFINE_INPUTFUNC( FIELD_COLOR32,	"SetColor",		InputSetColor ),
@@ -57,7 +99,6 @@ BEGIN_DATADESC( CFogController )
 	DEFINE_KEYFIELD( m_fog.blend,			FIELD_BOOLEAN,	"fogblend" ),
 	DEFINE_KEYFIELD( m_fog.start,			FIELD_FLOAT,	"fogstart" ),
 	DEFINE_KEYFIELD( m_fog.end,				FIELD_FLOAT,	"fogend" ),
-	DEFINE_KEYFIELD( m_fog.maxdensity,		FIELD_FLOAT,	"fogmaxdensity" ),
 	DEFINE_KEYFIELD( m_fog.farz,			FIELD_FLOAT,	"farz" ),
 	DEFINE_KEYFIELD( m_fog.duration,		FIELD_FLOAT,	"foglerptime" ),
 
@@ -73,36 +114,38 @@ BEGIN_DATADESC( CFogController )
 
 END_DATADESC()
 
-IMPLEMENT_SERVERCLASS_ST_NOBASE( CFogController, DT_FogController )
-// fog data
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.enable ), 1, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.blend ), 1, SPROP_UNSIGNED ),
-	SendPropVector( SENDINFO_STRUCTELEM(m_fog.dirPrimary), -1, SPROP_COORD),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimary ), 32, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondary ), 32, SPROP_UNSIGNED ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.start ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.end ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.maxdensity ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.farz ), 0, SPROP_NOSCALE ),
 
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimaryLerpTo ), 32, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondaryLerpTo ), 32, SPROP_UNSIGNED ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.startLerpTo ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.endLerpTo ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.lerptime ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.duration ), 0, SPROP_NOSCALE ),
-END_SEND_TABLE()
 
 CFogController::CFogController()
 {
 	// Make sure that old maps without fog fields don't get wacked out fog values.
 	m_fog.enable = false;
-	m_fog.maxdensity = 1.0f;
+
+	if ( s_pFogController )
+	{
+		// There should only be one fog controller in the level. Not a fatal error, but
+		// the level designer should fix it.
+		Warning( "Found multiple fog controllers in the same level.\n" );
+	}
+	else
+	{
+		s_pFogController = this;
+	}
 }
 
 
 CFogController::~CFogController()
 {
+	if ( s_pFogController == this )
+	{
+		s_pFogController = NULL;
+	}
+	else
+	{
+		// There should only be one fog controller in the level. Not a fatal error, but
+		// the level designer should fix it.
+		Warning( "Found multiple fog controllers in the same level.\n" );
+	}
 }
 
 void CFogController::Spawn( void )
@@ -127,13 +170,6 @@ void CFogController::Activate( )
 	}	    
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int CFogController::UpdateTransmitState()
-{
-	return SetTransmitState( FL_EDICT_ALWAYS );
-}
 
 //------------------------------------------------------------------------------
 // Purpose: Input handler for setting the fog start distance.
@@ -151,15 +187,6 @@ void CFogController::InputSetEndDist(inputdata_t &inputdata)
 {
 	// Get the world entity.
 	m_fog.end = inputdata.value.Float();
-}
-
-//------------------------------------------------------------------------------
-// Input handler for setting the maximum density of the fog. This lets us bring
-// the start distance in without the scene fogging too much.
-//------------------------------------------------------------------------------
-void CFogController::InputSetMaxDensity( inputdata_t &inputdata )
-{
-	m_fog.maxdensity = inputdata.value.Float();
 }
 
 //------------------------------------------------------------------------------
@@ -342,51 +369,35 @@ void CFogController::SetLerpValues( void )
 
 
 //-----------------------------------------------------------------------------
-// Purpose: Clear out the fog controller.
+// Purpose: 
+// Input  : fogEnable - 
+//			fogColorPrimary - 
+//			fogColorSecondary - 
+//			fogDirPrimary - 
+//			fogStart - 
+//			fogEnd - 
 //-----------------------------------------------------------------------------
-void CFogSystem::LevelInitPreEntity( void )
+bool GetWorldFogParams( fogparams_t &fog )
 {
-	m_pMasterController = NULL;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: On level load find the master fog controller.  If no controller is 
-//			set as Master, use the first fog controller found.
-//-----------------------------------------------------------------------------
-void CFogSystem::LevelInitPostEntity( void )
-{
-	CFogController *pFogController = NULL;
-	do
+	if ( CFogController::s_pFogController )
 	{
-		pFogController = static_cast<CFogController*>( gEntList.FindEntityByClassname( pFogController, "env_fog_controller" ) );
-		if ( pFogController )
+		if ( Q_memcmp( &fog, CFogController::s_pFogController, sizeof(fog) ))
 		{
-			if ( m_pMasterController == NULL )
-			{
-				m_pMasterController = pFogController;
-			}
-			else
-			{
-				if ( pFogController->IsMaster() )
-				{
-					m_pMasterController = pFogController;
-				}
-			}
-		}
-	} while ( pFogController );
-
-	// HACK: Coop and Singleplayer games don't get a call to CBasePlayer::Spawn on level transitions.
-	// CBasePlayer::Activate is called before this is called so that's too soon to set up the fog controller.
-	// We don't have a hook similar to Activate that happens after LevelInitPostEntity
-	// is called, or we could just do this in the player itself.
-	if ( gpGlobals->maxClients == 1 || gpGlobals->coop )
-	{
-		for (int i = 1; i <= gpGlobals->maxClients; i++)
-		{
-			CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-			if ( pPlayer && ( pPlayer->m_Local.m_PlayerFog.m_hCtrl.Get() == NULL ) )
-				pPlayer->InitFogController();
+			fog = CFogController::s_pFogController->m_fog;
+			return true;
 		}
 	}
+	else
+	{
+		if ( fog.farz != -1 || fog.enable != false )
+		{
+			// No fog controller in this level. Use default fog parameters.
+			fog.farz = -1;
+			fog.enable = false;
+			return true;
+		}
+	}
+
+	return false;
 }
 

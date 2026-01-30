@@ -5,7 +5,6 @@
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
-#include "fx.h"
 #include "c_func_dust.h"
 #include "func_dust_shared.h"
 #include "c_te_particlesystem.h"
@@ -13,7 +12,10 @@
 #include "engine/IEngineTrace.h"
 #include "tier0/vprof.h"
 #include "ClientEffectPrecacheSystem.h"
+
+#ifdef _XBOX
 #include "particles_ez.h"
+#endif // XBOX
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -150,6 +152,10 @@ C_Func_Dust::~C_Func_Dust()
 {
 }
 
+CLIENTEFFECT_REGISTER_BEGIN( PrecacheFuncDust )
+CLIENTEFFECT_MATERIAL( "particle/sparkles" )
+CLIENTEFFECT_REGISTER_END()
+
 void C_Func_Dust::OnDataChanged( DataUpdateType_t updateType )
 {
 	BaseClass::OnDataChanged( updateType );
@@ -252,6 +258,12 @@ void C_Func_Dust::AttemptSpawnNewParticle()
 //-----------------------------------------------------------------------------
 void FX_Dust( const Vector &vecOrigin, const Vector &vecDirection, float flSize, float flSpeed )
 {
+#ifdef _XBOX
+
+	//
+	// XBox Version
+	//
+
 	VPROF_BUDGET( "FX_Dust", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
 	
 	int	numPuffs = (flSize*0.5f);
@@ -273,6 +285,11 @@ void FX_Dust( const Vector &vecOrigin, const Vector &vecDirection, float flSize,
 
 	//Find area ambient light color and use it to tint smoke
 	Vector	worldLight = WorldGetLightForPoint( offset, true );
+
+	// FIXME: Reduce
+	PMaterialHandle	hMaterial[2];
+	hMaterial[0] = ParticleMgr()->GetPMaterial("particle/particle_smokegrenade");
+	hMaterial[1] = ParticleMgr()->GetPMaterial("particle/particle_noisesphere");
 
 	// Throw puffs
 	SimpleParticle particle;
@@ -301,8 +318,81 @@ void FX_Dust( const Vector &vecOrigin, const Vector &vecDirection, float flSize,
 		particle.m_flRoll		= random->RandomInt( 0, 360 );
 		particle.m_flRollDelta	= random->RandomFloat( -0.5f, 0.5f );
 
-		AddSimpleParticle( &particle, g_Mat_DustPuff[random->RandomInt(0,1)] );
+		AddSimpleParticle( &particle, hMaterial[random->RandomInt(0,1)] );
 	}
+#else
+	
+	//
+	// PC Version
+	//
+
+	VPROF_BUDGET( "FX_Dust", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
+	CSmartPtr<CSimpleEmitter> pSimple = CSimpleEmitter::Create( "dust" );
+	pSimple->SetSortOrigin( vecOrigin );
+	pSimple->SetNearClip( 32, 64 );
+
+	SimpleParticle	*pParticle;
+
+	Vector	offset;
+
+	int	numPuffs = (flSize*0.5f);
+
+	if ( numPuffs < 1 )
+		numPuffs = 1;
+	if ( numPuffs > 32 )
+		numPuffs = 32;
+
+	float speed = flSpeed * 0.1f;
+
+	if ( speed < 0 )
+		speed = 1.0f;
+
+	if (speed > 48.0f )
+		speed = 48.0f;
+
+	//FIXME: Better sampling area
+	offset = vecOrigin + ( vecDirection * flSize );
+
+	//Find area ambient light color and use it to tint smoke
+	Vector	worldLight = WorldGetLightForPoint( offset, true );
+
+	PMaterialHandle	hMaterial[2];
+
+	hMaterial[0] = pSimple->GetPMaterial("particle/particle_smokegrenade");
+	hMaterial[1] = pSimple->GetPMaterial("particle/particle_noisesphere");
+
+	//Throw puffs
+	for ( int i = 0; i < numPuffs; i++ )
+	{
+		offset.Random( -(flSize*0.25f), flSize*0.25f );
+		offset += vecOrigin + ( vecDirection * flSize );
+
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof(SimpleParticle), hMaterial[random->RandomInt(0,1)], offset );
+
+		if ( pParticle != NULL )
+		{			
+			pParticle->m_flLifetime		= 0.0f;
+			pParticle->m_flDieTime		= random->RandomFloat( 0.4f, 1.5f );
+
+			pParticle->m_vecVelocity = vecDirection * random->RandomFloat( speed*0.5f, speed ) * i;
+
+			pParticle->m_vecVelocity[2] = 0.0f;
+
+			int	color = random->RandomInt( 48, 64 );
+
+			pParticle->m_uchColor[0] = (color+16) + ( worldLight[0] * (float) color );
+			pParticle->m_uchColor[1] = (color+8) + ( worldLight[1] * (float) color );
+			pParticle->m_uchColor[2] = color + ( worldLight[2] * (float) color );
+
+			pParticle->m_uchStartAlpha	= random->RandomInt( 32, 128 );
+			pParticle->m_uchEndAlpha	= 0;
+			pParticle->m_uchStartSize	= random->RandomInt( 2, 8 );
+			pParticle->m_uchEndSize		= random->RandomInt( 24, 48 );
+			pParticle->m_flRoll			= random->RandomInt( 0, 360 );
+			pParticle->m_flRollDelta	= random->RandomFloat( -1.0f, 1.0f );
+		}
+	}
+#endif // _XBOX
 }
 
 

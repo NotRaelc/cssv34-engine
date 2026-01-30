@@ -235,25 +235,27 @@ void CCredits::InputRollOutroCredits( inputdata_t &inputdata )
 
 	// In case we save restore
 	m_bRolledOutroCredits = true;
-
-	gamestats->Event_Credits();
+	
+	gamestats->LogEvent( true, LOGEVENT_CREDITS, "" );
 }
 
-void CCredits::InputShowLogo(inputdata_t& inputdata)
+void CCredits::InputShowLogo( inputdata_t &inputdata )
 {
-	CReliableBroadcastRecipientFilter user;
+	CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+
+	CSingleUserRecipientFilter user( pPlayer );
 	user.MakeReliable();
 
-	if (m_flLogoLength)
+	if ( m_flLogoLength )
 	{
-		UserMessageBegin(user, "LogoTimeMsg");
-		WRITE_FLOAT(m_flLogoLength);
+		UserMessageBegin( user, "LogoTimeMsg" );
+			WRITE_FLOAT( m_flLogoLength );
 		MessageEnd();
 	}
 	else
 	{
-		UserMessageBegin(user, "CreditsMsg");
-		WRITE_BYTE(1);
+		UserMessageBegin( user, "CreditsMsg" );
+			WRITE_BYTE( 1 );
 		MessageEnd();
 	}
 }

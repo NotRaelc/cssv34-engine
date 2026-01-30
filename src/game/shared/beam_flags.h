@@ -31,8 +31,7 @@ enum
 	FBEAM_ISACTIVE			= 0x00002000,
 	FBEAM_FOREVER			= 0x00004000,
 	FBEAM_HALOBEAM			= 0x00008000,		// When drawing a beam with a halo, don't ignore the segments and endwidth
-	FBEAM_REVERSED			= 0x00010000,
-	NUM_BEAM_FLAGS = 17	// KEEP THIS UPDATED!
+	NUM_BEAM_FLAGS = 16	// KEEP THIS UPDATED!
 };
 
 #endif // BEAM_FLAGS_H

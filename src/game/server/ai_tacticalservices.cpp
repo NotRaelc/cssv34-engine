@@ -1,6 +1,8 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ====
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
-//=============================================================================
+// Purpose:
+//
+//=============================================================================//
 
 #include "cbase.h"
 
@@ -20,10 +22,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar ai_find_lateral_cover( "ai_find_lateral_cover", "1" );
-ConVar ai_find_lateral_los( "ai_find_lateral_los", "1" );
-
-#ifdef _DEBUG
+#ifdef DEBUG
 ConVar ai_debug_cover( "ai_debug_cover", "0" );
 int g_AIDebugFindCoverNode = -1;
 #define DebugFindCover( node, from, to, r, g, b ) \
@@ -41,15 +40,11 @@ int g_AIDebugFindCoverNode = -1;
 		; \
 	else \
 		NDebugOverlay::Line( from, to, r, g, b, false, 1 )
-
-ConVar ai_debug_tactical_los( "ai_debug_tactical_los", "0" );
-int g_AIDebugFindLosNode = -1;
-#define ShouldDebugLos( node ) ( ai_debug_tactical_los.GetBool() && ( g_AIDebugFindLosNode == -1 || g_AIDebugFindLosNode == ( node ) ) && GetOuter()->m_bSelected )
 #else
 #define DebugFindCover( node, from, to, r, g, b ) ((void)0)
 #define DebugFindCover2( node, from, to, r, g, b ) ((void)0)
-#define ShouldDebugLos( node ) false
 #endif
+
 
 //-----------------------------------------------------------------------------
 
@@ -72,15 +67,13 @@ void CAI_TacticalServices::Init( CAI_Network *pNetwork )
 	
 //-------------------------------------
 
-bool CAI_TacticalServices::FindLos(const Vector &threatPos, const Vector &threatEyePos, float minThreatDist, float maxThreatDist, float blockTime, FlankType_t eFlankType, const Vector &vecFlankRefPos, float flFlankParam, Vector *pResult)
+bool CAI_TacticalServices::FindLos(const Vector &threatPos, const Vector &threatEyePos, float minThreatDist, float maxThreatDist, float blockTime, const Vector &threatFacing, Vector *pResult)
 {
 	AI_PROFILE_SCOPE( CAI_TacticalServices_FindLos );
 
-	MARK_TASK_EXPENSIVE();
-
 	int node = FindLosNode( threatPos, threatEyePos, 
 											 minThreatDist, maxThreatDist, 
-											 blockTime, eFlankType, vecFlankRefPos, flFlankParam );
+											 blockTime, threatFacing );
 	
 	if (node == NO_NODE)
 		return false;
@@ -93,15 +86,13 @@ bool CAI_TacticalServices::FindLos(const Vector &threatPos, const Vector &threat
 
 bool CAI_TacticalServices::FindLos(const Vector &threatPos, const Vector &threatEyePos, float minThreatDist, float maxThreatDist, float blockTime, Vector *pResult)
 {
-	return FindLos( threatPos, threatEyePos, minThreatDist, maxThreatDist, blockTime, FLANKTYPE_NONE, vec3_origin, 0, pResult );
+	return FindLos(threatPos, threatEyePos, minThreatDist, maxThreatDist, blockTime, vec3_origin, pResult );
 }
 
 //-------------------------------------
 
 bool CAI_TacticalServices::FindBackAwayPos( const Vector &vecThreat, Vector *pResult )
 {
-	MARK_TASK_EXPENSIVE();
-
 	Vector vMoveAway = GetAbsOrigin() - vecThreat;
 	vMoveAway.NormalizeInPlace();
 
@@ -134,8 +125,6 @@ bool CAI_TacticalServices::FindCoverPos( const Vector &vThreatPos, const Vector 
 bool CAI_TacticalServices::FindCoverPos( const Vector &vNearPos, const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinDist, float flMaxDist, Vector *pResult )
 {
 	AI_PROFILE_SCOPE( CAI_TacticalServices_FindCoverPos );
-
-	MARK_TASK_EXPENSIVE();
 
 	int node = FindCoverNode( vNearPos, vThreatPos, vThreatEyePos, flMinDist, flMaxDist );
 	
@@ -198,8 +187,6 @@ bool CAI_TacticalServices::FindLateralCover( const Vector &vNearPos, const Vecto
 {
 	AI_PROFILE_SCOPE( CAI_TacticalServices_FindLateralCover );
 
-	MARK_TASK_EXPENSIVE();
-
 	Vector	vecLeftTest;
 	Vector	vecRightTest;
 	Vector	vecStepRight;
@@ -210,14 +197,6 @@ bool CAI_TacticalServices::FindLateralCover( const Vector &vNearPos, const Vecto
 	{
 		*pResult = GetLocalOrigin();
 		return true;
-	}
-
-	if( !ai_find_lateral_cover.GetBool() )
-	{
-		// Force the NPC to use the nodegraph to find cover. NOTE: We let the above code run
-		// to detect the case where the NPC may already be standing in cover, but we don't 
-		// make any additional lateral checks.
-		return false;
 	}
 
 	Vector right =  vecThreat - vNearPos;
@@ -345,16 +324,13 @@ int CAI_TacticalServices::FindCoverNode(const Vector &vNearPos, const Vector &vT
 
 	AI_PROFILE_SCOPE( CAI_TacticalServices_FindCoverNode );
 
-	MARK_TASK_EXPENSIVE();
-
 	DebugFindCover( g_AIDebugFindCoverNode, GetOuter()->EyePosition(), vThreatEyePos, 0, 255, 255 );
 
 	int iMyNode = GetPathfinder()->NearestNodeToPoint( vNearPos );
 
 	if ( iMyNode == NO_NODE )
 	{
-		Vector pos = GetOuter()->GetAbsOrigin();
-		DevWarning( 2, "FindCover() - %s has no nearest node! (Check near %f %f %f)\n", GetEntClassname(), pos.x, pos.y, pos.z);
+		DevWarning( 2, "FindCover() - %s has no nearest node!\n", GetEntClassname());
 		return NO_NODE;
 	}
 
@@ -375,11 +351,11 @@ int CAI_TacticalServices::FindCoverNode(const Vector &vNearPos, const Vector &vT
 	// ------------------------------------------------------------------------------------
 	AI_NearNode_t *pBuffer = (AI_NearNode_t *)stackalloc( sizeof(AI_NearNode_t) * GetNetwork()->NumNodes() );
 	CNodeList list( pBuffer, GetNetwork()->NumNodes() );
-	CVarBitVec wasVisited(GetNetwork()->NumNodes());	// Nodes visited
+	CBitString wasVisited(GetNetwork()->NumNodes());	// Nodes visited
 
 	// mark start as visited
 	list.Insert( AI_NearNode_t(iMyNode, 0) ); 
-	wasVisited.Set( iMyNode );
+	wasVisited.SetBit( iMyNode );
 	float flMinDistSqr = flMinDist*flMinDist;
 	float flMaxDistSqr = flMaxDist*flMaxDist;
 
@@ -452,7 +428,7 @@ int CAI_TacticalServices::FindCoverNode(const Vector &vNearPos, const Vector &vT
 			int newID = nodeLink->DestNodeID(nodeIndex);
 
 			// If not already on the closed list, add to it and set its distance
-			if (!wasVisited.IsBitSet(newID))
+			if (!wasVisited.GetBit(newID))
 			{
 				// Don't accept climb nodes or nodes that aren't ready to use yet
 				if ( GetNetwork()->GetNode(newID)->GetType() != NODE_CLIMB && !GetNetwork()->GetNode(newID)->IsLocked() )
@@ -473,7 +449,7 @@ int CAI_TacticalServices::FindCoverNode(const Vector &vNearPos, const Vector &vT
 					}
 				}
 				// mark visited
-				wasVisited.Set(newID);
+				wasVisited.SetBit(newID);
 			}
 		}
 	}
@@ -500,20 +476,17 @@ int CAI_TacticalServices::FindCoverNode(const Vector &vNearPos, const Vector &vT
 // Output :	int				- ID number of node that meets qualifications
 //-------------------------------------
 
-int CAI_TacticalServices::FindLosNode(const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinThreatDist, float flMaxThreatDist, float flBlockTime, FlankType_t eFlankType, const Vector &vecFlankRefPos, float flFlankParam )
+int CAI_TacticalServices::FindLosNode(const Vector &vThreatPos, const Vector &vThreatEyePos, float flMinThreatDist, float flMaxThreatDist, float flBlockTime, const Vector &vThreatFacing)
 {
 	if ( !CAI_NetworkManager::NetworksLoaded() )
 		return NO_NODE;
 
 	AI_PROFILE_SCOPE( CAI_TacticalServices_FindLosNode );
 
-	MARK_TASK_EXPENSIVE();
-
 	int iMyNode	= GetPathfinder()->NearestNodeToNPC();
 	if ( iMyNode == NO_NODE )
 	{
-		Vector pos = GetOuter()->GetAbsOrigin();
-		DevWarning( 2, "FindCover() - %s has no nearest node! (Check near %f %f %f)\n", GetEntClassname(), pos.x, pos.y, pos.z);
+		DevWarning( 2, "FindCover() - %s has no nearest node!\n", GetEntClassname());
 		return NO_NODE;
 	}
 
@@ -523,10 +496,10 @@ int CAI_TacticalServices::FindLosNode(const Vector &vThreatPos, const Vector &vT
 	// ------------------------------------------------------------------------------------
 	AI_NearNode_t *pBuffer = (AI_NearNode_t *)stackalloc( sizeof(AI_NearNode_t) * GetNetwork()->NumNodes() );
 	CNodeList list( pBuffer, GetNetwork()->NumNodes() );
-	CVarBitVec wasVisited(GetNetwork()->NumNodes());	// Nodes visited
+	CBitString wasVisited(GetNetwork()->NumNodes());	// Nodes visited
 
 	// mark start as visited
-	wasVisited.Set( iMyNode );
+	wasVisited.SetBit( iMyNode );
 	list.Insert( AI_NearNode_t(iMyNode, 0) );
 
 	static int nSearchRandomizer = 0;		// tries to ensure the links are searched in a different order each time;
@@ -545,39 +518,14 @@ int CAI_TacticalServices::FindLosNode(const Vector &vThreatPos, const Vector &vT
 		{
 			bool skip = false;
 
-			// See if the node satisfies the flanking criteria.
-			switch ( eFlankType )
+			// If threat facing direction was given, reject if not flanking the threat
+			if (vThreatFacing != vec3_origin)
 			{
-				case FLANKTYPE_NONE:
-					break;
-					
-				case FLANKTYPE_RADIUS:
+				Vector nodeToThreat;
+				VectorSubtract(vThreatPos, nodeOrigin, nodeToThreat );
+				if (DotProduct(nodeToThreat, vThreatFacing)<0)
 				{
-					Vector vecDist = nodeOrigin - vecFlankRefPos;
-					if ( vecDist.Length() < flFlankParam )
-					{
-						skip = true;
-					}
-					
-					break;
-				}
-				
-				case FLANKTYPE_ARC:
-				{
-					Vector vecEnemyToRef = vecFlankRefPos - vThreatPos;
-					VectorNormalize( vecEnemyToRef );
-
-					Vector vecEnemyToNode = nodeOrigin - vThreatPos;
-					VectorNormalize( vecEnemyToNode );
-					
-					float flDot = DotProduct( vecEnemyToRef, vecEnemyToNode );
-					
-					if ( RAD2DEG( acos( flDot ) ) < flFlankParam )
-					{
-						skip = true;
-					}
-					
-					break;
+					skip = true;
 				}
 			}
 
@@ -616,37 +564,11 @@ int CAI_TacticalServices::FindLosNode(const Vector &vThreatPos, const Vector &vT
 							// or task decide to set the hint node
 							GetOuter()->SetHintNode( GetNetwork()->GetNode(nodeIndex)->GetHint() );
 #endif
-							if ( ShouldDebugLos( nodeIndex ) )
-							{
-								NDebugOverlay::Text( nodeOrigin, CFmtStr( "%d:los!", nodeIndex), false, 1 );
-							}
 
 							// The next NPC who searches should use a slight different pattern
 							nSearchRandomizer = nodeIndex;
 							return nodeIndex;
 						}
-						else
-						{
-							if ( ShouldDebugLos( nodeIndex ) )
-							{
-								NDebugOverlay::Text( nodeOrigin, CFmtStr( "%d:!shoot", nodeIndex), false, 1 );
-							}
-						}
-					}
-					else
-					{
-						if ( ShouldDebugLos( nodeIndex ) )
-						{
-							NDebugOverlay::Text( nodeOrigin, CFmtStr( "%d:!valid", nodeIndex), false, 1 );
-						}
-					}
-				}
-				else
-				{
-					if ( ShouldDebugLos( nodeIndex ) )
-					{
-						CFmtStr msg( "%d:%s", nodeIndex, ( flThreatDist < flMaxThreatDist ) ? "too close" : "too far" );
-						NDebugOverlay::Text( nodeOrigin, msg, false, 1 );
 					}
 				}
 			}
@@ -664,11 +586,11 @@ int CAI_TacticalServices::FindLosNode(const Vector &vThreatPos, const Vector &vT
 			int newID = nodeLink->DestNodeID(nodeIndex);
 
 			// If not already visited, add to the list
-			if (!wasVisited.IsBitSet(newID))
+			if (!wasVisited.GetBit(newID))
 			{
 				float dist = (GetLocalOrigin() - GetNetwork()->GetNode(newID)->GetPosition(GetHullType())).LengthSqr();
 				list.Insert( AI_NearNode_t(newID, dist) );
-				wasVisited.Set( newID );
+				wasVisited.SetBit( newID );
 			}
 		}
 	}
@@ -717,8 +639,6 @@ bool CAI_TacticalServices::FindLateralLos( const Vector &vecThreat, Vector *pRes
 		return false;
 	}
 
-	MARK_TASK_EXPENSIVE();
-
 	Vector	vecLeftTest;
 	Vector	vecRightTest;
 	Vector	vecStepRight;
@@ -726,8 +646,7 @@ bool CAI_TacticalServices::FindLateralLos( const Vector &vecThreat, Vector *pRes
 	bool	bLookingForEnemy = GetEnemy() && VectorsAreEqual(vecThreat, GetEnemy()->EyePosition(), 0.1f);
 	int		i;
 
-	if(  !bLookingForEnemy || GetOuter()->HasCondition(COND_SEE_ENEMY) || GetOuter()->HasCondition(COND_HAVE_ENEMY_LOS) || 
-		 GetOuter()->GetTimeScheduleStarted() == gpGlobals->curtime ) // Conditions get nuked before tasks run, assume should try
+	if(  !bLookingForEnemy || GetOuter()->HasCondition(COND_SEE_ENEMY) )
 	{
 		// My current position might already be valid.
 		if ( TestLateralLos(vecThreat, GetLocalOrigin()) )
@@ -735,13 +654,6 @@ bool CAI_TacticalServices::FindLateralLos( const Vector &vecThreat, Vector *pRes
 			*pResult = GetLocalOrigin();
 			return true;
 		}
-	}
-
-	if( !ai_find_lateral_los.GetBool() )
-	{
-		// Allows us to turn off lateral LOS at the console. Allow the above code to run 
-		// just in case the NPC has line of sight to begin with.
-		return false;
 	}
 
 	int iChecks = COVER_CHECKS;

@@ -28,10 +28,6 @@ class CStringTableSaveRestoreOps;
 #define MAX_CHOREO_SCENES_STRINGS		( 1 << MAX_CHOREO_SCENES_STRING_BITS )
 #define CHOREO_SCENES_INVALID_STRING	( MAX_CHOREO_SCENES_STRINGS - 1 )
 
-#define MAX_PARTICLESYSTEMS_STRING_BITS		10
-#define MAX_PARTICLESYSTEMS_STRINGS			( 1 << MAX_PARTICLESYSTEMS_STRING_BITS )
-#define PARTICLESYSTEMS_INVALID_STRING	( MAX_PARTICLESYSTEMS_STRINGS - 1 )
-
 extern INetworkStringTableContainer *networkstringtable;
 extern INetworkStringTable *g_pStringTableVguiScreen;
 extern INetworkStringTable *g_pStringTableEffectDispatch;

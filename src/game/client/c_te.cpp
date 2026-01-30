@@ -125,8 +125,7 @@ void TE_PhysicsProp( IRecipientFilter& filter, float delay,
 	int modelindex, int skin, const Vector& pos, const QAngle &angles, const Vector& vel, bool breakmodel, int effects );
 void TE_PhysicsProp( IRecipientFilter& filter, float delay, KeyValues *pKeyValues );
 void TE_ConcussiveExplosion( IRecipientFilter& filter, float delay, KeyValues *pKeyValues );
-void TE_ClientProjectile( IRecipientFilter& filter, float delay,
-	 const Vector* vecOrigin, const Vector* vecVelocity, int modelindex, int lifetime, CBaseEntity *pOwner );
+
 
 class C_TempEntsSystem : public ITempEntsSystem
 {
@@ -516,20 +515,11 @@ public:
 			TE_PhysicsProp( filter, delay, modelindex, skin, pos, angles, vel, flags, effects );
 		}
 	}
-	virtual void ClientProjectile( IRecipientFilter& filter, float delay,
-		const Vector* vecOrigin, const Vector* vecVelocity, int modelindex, int lifetime, CBaseEntity *pOwner )
-	{
-		if ( !SuppressTE( filter ) )
-		{
-			TE_ClientProjectile( filter, delay, vecOrigin, vecVelocity, modelindex, lifetime, pOwner );
-		}
-	}
 
 	// For playback from external tools
 	virtual void TriggerTempEntity( KeyValues *pKeyValues )
 	{
 		g_pEffects->SuppressEffectsSounds( true );
-		SuppressParticleEffects( true );
 
 		// While playing back, suppress recording
 		bool bIsRecording = clienttools->IsInRecordingMode();
@@ -675,7 +665,6 @@ public:
 #endif
 		}
 
-		SuppressParticleEffects( false );
 		g_pEffects->SuppressEffectsSounds( false );
 		clienttools->EnableRecordingMode( bIsRecording );
 	}

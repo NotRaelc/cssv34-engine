@@ -155,7 +155,7 @@ void CBaseHudWeaponSelection::ProcessInput()
 		return;
 
 	// Check to see if the player is in VGUI mode...
-	if ( pPlayer->IsInVGuiInputMode() && !pPlayer->IsInViewModelVGuiInputMode() )
+	if ( pPlayer->IsInVGuiInputMode() )
 	{
 		// If so, close weapon selection when they press fire
 		if ( gHUD.m_iKeyBits & IN_ATTACK )
@@ -177,9 +177,7 @@ void CBaseHudWeaponSelection::ProcessInput()
 	{
 		if ( IsWeaponSelectable() )
 		{
-#ifndef TF_CLIENT_DLL
 			if ( HUDTYPE_PLUS != hud_fastswitch.GetInt() )
-#endif
 			{
 				// Swallow the button
 				gHUD.m_iKeyBits &= ~(IN_ATTACK | IN_ATTACK2);
@@ -228,11 +226,6 @@ bool CBaseHudWeaponSelection::CanBeSelectedInHUD( C_BaseCombatWeapon *pWeapon )
 		return pWeapon->VisibleInWeaponSelection();
 	}
 
-	if ( !pWeapon->VisibleInWeaponSelection() )
-	{
-		return false;
-	}
-
 	// All other current hud types
 	return pWeapon->CanBeSelected();
 }
@@ -240,7 +233,7 @@ bool CBaseHudWeaponSelection::CanBeSelectedInHUD( C_BaseCombatWeapon *pWeapon )
 //-----------------------------------------------------------------------------
 // Purpose: handles keyboard input
 //-----------------------------------------------------------------------------
-int	CBaseHudWeaponSelection::KeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding ) 
+int	CBaseHudWeaponSelection::KeyInput( int down, int keynum, const char *pszCurrentBinding ) 
 {
 	if (IsInSelectionMode() && pszCurrentBinding && !stricmp(pszCurrentBinding, "cancelselect"))
 	{
@@ -377,6 +370,17 @@ bool CBaseHudWeaponSelection::IsHudMenuPreventingWeaponSelection()
 	return IsHudMenuTakingInput();
 }
 
+bool CBaseHudWeaponSelection::ShouldDraw()
+{
+	if ( IsHudMenuPreventingWeaponSelection() )
+	{ 
+		HideSelection();
+		return false;
+	}
+
+	return BaseClass::ShouldDraw();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Menu Selection Code
 //-----------------------------------------------------------------------------
@@ -417,6 +421,11 @@ void CBaseHudWeaponSelection::UserCmd_NextWeapon(void)
 	if ( !BaseClass::ShouldDraw() )
 		return;
 
+	if ( IsHudMenuPreventingWeaponSelection() )	
+	{ 
+		return;
+	}
+
 	CycleToNextWeapon();
 	if( hud_fastswitch.GetInt() > 0 )
 	{
@@ -433,6 +442,11 @@ void CBaseHudWeaponSelection::UserCmd_PrevWeapon(void)
 	// If we're not allowed to draw, ignore weapon selections
 	if ( !BaseClass::ShouldDraw() )
 		return;
+
+	if ( IsHudMenuPreventingWeaponSelection() )	
+	{ 
+		return;
+	}
 
 	CycleToPrevWeapon();
 
@@ -453,12 +467,10 @@ void CBaseHudWeaponSelection::UserCmd_LastWeapon(void)
 	if ( !BaseClass::ShouldDraw() )
 		return;
 
-	/*
 	if ( IsHudMenuPreventingWeaponSelection() )	
 	{ 
 		return;
 	}
-	*/
 
 	SwitchToLastWeapon();
 }

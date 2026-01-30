@@ -148,21 +148,20 @@ bool CResultProxy::Init( IMaterial *pMaterial, KeyValues *pKeyValues )
 void CResultProxy::SetFloatResult( float result )
 {
 	if (m_pResult->GetType() == MATERIAL_VAR_TYPE_VECTOR)
-	{		
+	{
+		float v[4];
+		int vecSize = m_pResult->VectorSize();
 		if ( m_ResultVecComp >= 0 )
 		{
-			m_pResult->SetVecComponentValue( result, m_ResultVecComp );
+			m_pResult->GetVecValue( v, vecSize );
+			v[m_ResultVecComp] = result;
 		}
 		else
 		{
-			float v[4];
-			int vecSize = m_pResult->VectorSize();
-
 			for (int i = 0; i < vecSize; ++i)
 				v[i] = result;
-
-			m_pResult->SetVecValue( v, vecSize );
-		}		
+		}
+		m_pResult->SetVecValue( v, vecSize );
 	}
 	else
 	{
@@ -174,11 +173,6 @@ C_BaseEntity *CResultProxy::BindArgToEntity( void *pArg )
 {
 	IClientRenderable *pRend = (IClientRenderable *)pArg;
 	return pRend->GetIClientUnknown()->GetBaseEntity();
-}
-
-IMaterial *CResultProxy::GetMaterial()
-{
-	return m_pResult->GetOwningMaterial();
 }
 
 

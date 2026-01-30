@@ -32,12 +32,6 @@ public:
 	void	AttachToEntity( CBaseEntity *pTarget );
 	void	SetLifetime( float lifetime );
 	void	SetUseHitboxes( bool use );
-	void	SetNumHitboxFires( int iNumHitBoxFires );
-	void	SetHitboxFireScale( float flHitboxFireScale );
-
-	float	GetRemainingLife( void );
-	int		GetNumHitboxFires( void );
-	float	GetHitboxFireScale( void );
 
 	virtual void Precache();
 	virtual void UpdateOnRemove();
@@ -56,8 +50,6 @@ protected:
 
 	CNetworkVar( float, m_flSize );
 	CNetworkVar( bool, m_bUseHitboxes );
-	CNetworkVar( int, m_iNumHitboxFires );
-	CNetworkVar( float, m_flHitboxFireScale );
 
 	CNetworkVar( float, m_flLifetime );
 	bool	m_bPlayingSound;

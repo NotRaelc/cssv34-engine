@@ -191,7 +191,7 @@ void CTargetID::Paint()
 				c = GetColorForTargetTeam( pPlayer->GetTeamNumber() );
 
 				bShowPlayerName = true;
-				g_pVGuiLocalize->ConvertANSIToUnicode( pPlayer->GetPlayerName(),  wszPlayerName, sizeof(wszPlayerName) );
+				vgui::localize()->ConvertANSIToUnicode( pPlayer->GetPlayerName(),  wszPlayerName, sizeof(wszPlayerName) );
 				
 				if ( pPlayer->InSameTeam(pLocalPlayer) )
 				{
@@ -276,7 +276,7 @@ void CTargetID::Paint()
 			{
 				// Don't check validity if it's sent by the server
 				c = m_cHostageColor;
-				g_pVGuiLocalize->ConvertANSIToUnicode( pEnt->GetIDString(), sIDString, sizeof(sIDString) );
+				vgui::localize()->ConvertANSIToUnicode( pEnt->GetIDString(), sIDString, sizeof(sIDString) );
 				m_iLastEntIndex = iEntIndex;
 			}
 		}
@@ -285,19 +285,19 @@ void CTargetID::Paint()
 		{
 			if ( bShowPlayerName && bShowHealth )
 			{
-				g_pVGuiLocalize->ConstructString( sIDString, sizeof(sIDString), g_pVGuiLocalize->Find(printFormatString), 2, wszPlayerName, wszHealthText );
+				vgui::localize()->ConstructString( sIDString, sizeof(sIDString), vgui::localize()->Find(printFormatString), 2, wszPlayerName, wszHealthText );
 			}
 			else if ( bShowPlayerName )
 			{
-				g_pVGuiLocalize->ConstructString( sIDString, sizeof(sIDString), g_pVGuiLocalize->Find(printFormatString), 1, wszPlayerName );
+				vgui::localize()->ConstructString( sIDString, sizeof(sIDString), vgui::localize()->Find(printFormatString), 1, wszPlayerName );
 			}
 			else if ( bShowHealth )
 			{
-				g_pVGuiLocalize->ConstructString( sIDString, sizeof(sIDString), g_pVGuiLocalize->Find(printFormatString), 1, wszHealthText );
+				vgui::localize()->ConstructString( sIDString, sizeof(sIDString), vgui::localize()->Find(printFormatString), 1, wszHealthText );
 			}
 			else
 			{
-				g_pVGuiLocalize->ConstructString( sIDString, sizeof(sIDString), g_pVGuiLocalize->Find(printFormatString), 0 );
+				vgui::localize()->ConstructString( sIDString, sizeof(sIDString), vgui::localize()->Find(printFormatString), 0 );
 			}
 		}
 

@@ -62,8 +62,6 @@ public:
 	// Blood color (see BLOOD_COLOR_* macros in baseentity.h)
 	void SetBloodColor( int nBloodColor );
 
-	virtual void DoMuzzleFlash();
-
 public:
 
 	float			m_flNextAttack;
@@ -84,32 +82,6 @@ private:
 
 
 //-----------------------
-#ifdef INVASION_CLIENT_DLL
-public:
-	virtual void	Release( void );
-	virtual void	SetDormant( bool bDormant );
-	virtual void	OnPreDataChanged( DataUpdateType_t updateType );
-	virtual void	OnDataChanged( DataUpdateType_t updateType );
-	virtual void	ClientThink( void );
-
-	// TF2 Powerups
-	virtual bool	CanBePoweredUp( void ) { return true; }
-	bool			HasPowerup( int iPowerup ) { return ( m_iPowerups & (1 << iPowerup) ) != 0; };
-	virtual void	PowerupStart( int iPowerup, bool bInitial );
-	virtual void	PowerupEnd( int iPowerup );
-	void			RemoveAllPowerups( void );
-
-	// Powerup effects
-	void			AddEMPEffect( float flSize );
-	void			AddBuffEffect( float flSize );
-
-	C_WeaponCombatShield		*GetShield( void );
-
-public:
-	int				m_iPowerups;
-	int				m_iPrevPowerups;
-#endif
-
 };
 
 inline C_BaseCombatCharacter *ToBaseCombatCharacter( C_BaseEntity *pEntity )
@@ -122,24 +94,6 @@ inline C_BaseCombatCharacter *ToBaseCombatCharacter( C_BaseEntity *pEntity )
 #else
 	return static_cast<C_BaseCombatCharacter *>( pEntity );
 #endif
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-inline int	C_BaseCombatCharacter::WeaponCount() const
-{
-	return MAX_WEAPONS;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : i - 
-//-----------------------------------------------------------------------------
-inline C_BaseCombatWeapon *C_BaseCombatCharacter::GetWeapon( int i ) const
-{
-	Assert( (i >= 0) && (i < MAX_WEAPONS) );
-	return m_hMyWeapons[i].Get();
 }
 
 EXTERN_RECV_TABLE(DT_BaseCombatCharacter);

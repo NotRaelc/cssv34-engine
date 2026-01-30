@@ -10,8 +10,6 @@
 #include "c_basetempentity.h"
 #include "iefx.h"
 #include "fx.h"
-#include "tier0/vprof.h"
-
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -82,8 +80,6 @@ void C_TEFootprintDecal::Precache( void )
 
 void C_TEFootprintDecal::PostDataUpdate( DataUpdateType_t updateType )
 {
-	VPROF( "C_TEFootprintDecal::PostDataUpdate" );
-
 	// FIXME: Make this choose the decal based on material type
 	if ( r_decals.GetInt() )
 	{

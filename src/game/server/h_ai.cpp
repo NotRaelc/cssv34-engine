@@ -15,8 +15,6 @@
 #define		NUM_LATERAL_CHECKS		13  // how many checks are made on each side of a NPC looking for lateral cover
 #define		NUM_LATERAL_LOS_CHECKS		6  // how many checks are made on each side of a NPC looking for lateral cover
 
-#define		TOSS_HEIGHT_MAX		300 // altitude of initial trace done to see how high something can be tossed
-
 //float flRandom = random->RandomFloat(0,1);
 
 bool g_fDrawLines = FALSE;
@@ -44,7 +42,7 @@ bool FBoxVisible( CBaseEntity *pLooker, CBaseEntity *pTarget, Vector &vecTargetO
 		vecTarget.y += random->RandomFloat( pTarget->WorldAlignMins().y + flSize, pTarget->WorldAlignMaxs().y - flSize);
 		vecTarget.z += random->RandomFloat( pTarget->WorldAlignMins().z + flSize, pTarget->WorldAlignMaxs().z - flSize);
 
-		UTIL_TraceLine(vecLookerOrigin, vecTarget, MASK_BLOCKLOS, pLooker, COLLISION_GROUP_NONE, &tr);
+		UTIL_TraceLine(vecLookerOrigin, vecTarget, MASK_OPAQUE, pLooker, COLLISION_GROUP_NONE, &tr);
 		
 		if (tr.fraction == 1.0)
 		{
@@ -56,15 +54,9 @@ bool FBoxVisible( CBaseEntity *pLooker, CBaseEntity *pTarget, Vector &vecTargetO
 }
 
 
-
 //-----------------------------------------------------------------------------
-// Purpose: Returns the correct toss velocity to throw a given object at a point. 
-//			Like the other version of VecCheckToss, but allows you to filter for any 
-//			number of entities to ignore.
-// Input  : pEntity - The object doing the throwing. Is *NOT* automatically included in the
-//					  filter below.
-//			pFilter - A trace filter of entities to ignore in the object's collision sweeps. 
-//					  It is recommended to include at least the thrower.
+// Purpose: Returns the correct toss velocity to throw a given object at a point.
+// Input  : pEntity - The entity that is throwing the object.
 //			vecSpot1 - The point from which the object is being thrown.
 //			vecSpot2 - The point TO which the object is being thrown.
 //			flHeightMaxRatio - A scale factor indicating the maximum ratio of height
@@ -75,7 +67,7 @@ bool FBoxVisible( CBaseEntity *pLooker, CBaseEntity *pTarget, Vector &vecTargetO
 //			bRandomize - when true, introduces a little fudge to the throw
 // Output : Velocity to throw the object with.
 //-----------------------------------------------------------------------------
-Vector VecCheckToss( CBaseEntity *pEntity, ITraceFilter *pFilter, Vector vecSpot1, Vector vecSpot2, float flHeightMaxRatio, float flGravityAdj, bool bRandomize, Vector *vecMins, Vector *vecMaxs )
+Vector VecCheckToss( CBaseEntity *pEntity, Vector vecSpot1, Vector vecSpot2, float flHeightMaxRatio, float flGravityAdj, bool bRandomize, Vector *vecMins, Vector *vecMaxs )
 {
 	trace_t			tr;
 	Vector			vecMidPoint;// halfway point between Spot1 and Spot2
@@ -105,9 +97,9 @@ Vector VecCheckToss( CBaseEntity *pEntity, ITraceFilter *pFilter, Vector vecSpot
 	// UNDONE: normalize any Z position differences between spot1 and spot2 so that triangle is always RIGHT
 	// get a rough idea of how high it can be thrown
 	vecMidPoint = vecSpot1 + (vecSpot2 - vecSpot1) * 0.5;
-	UTIL_TraceLine(vecMidPoint, vecMidPoint + Vector(0,0,TOSS_HEIGHT_MAX), MASK_SOLID_BRUSHONLY, pFilter, &tr);
+	UTIL_TraceLine(vecMidPoint, vecMidPoint + Vector(0,0,300), MASK_SOLID_BRUSHONLY, pEntity, COLLISION_GROUP_NONE, &tr);
 	vecMidPoint = tr.endpos;
-
+	
 	if( tr.fraction != 1.0 )
 	{
 		// (subtract 15 so the object doesn't hit the ceiling)
@@ -157,7 +149,7 @@ Vector VecCheckToss( CBaseEntity *pEntity, ITraceFilter *pFilter, Vector vecSpot
 	vecApex.z = vecMidPoint.z;
 
 	// JAY: Repro behavior from HL1 -- toss check went through gratings
-	UTIL_TraceLine(vecSpot1, vecApex, (MASK_SOLID&(~CONTENTS_GRATE)), pFilter, &tr);
+	UTIL_TraceLine(vecSpot1, vecApex, (MASK_SOLID&(~CONTENTS_GRATE)), pEntity, COLLISION_GROUP_NONE, &tr);
 	if (tr.fraction != 1.0)
 	{
 		// fail!
@@ -165,17 +157,17 @@ Vector VecCheckToss( CBaseEntity *pEntity, ITraceFilter *pFilter, Vector vecSpot
 	}
 
 	// UNDONE: either ignore NPCs or change it to not care if we hit our enemy
-	UTIL_TraceLine(vecSpot2, vecApex, (MASK_SOLID_BRUSHONLY&(~CONTENTS_GRATE)), pFilter, &tr); 
+	UTIL_TraceLine(vecSpot2, vecApex, (MASK_SOLID_BRUSHONLY&(~CONTENTS_GRATE)), pEntity, COLLISION_GROUP_NONE, &tr); 
 	if (tr.fraction != 1.0)
 	{
 		// fail!
 		return vec3_origin;
 	}
-
+	
 	if ( vecMins && vecMaxs )
 	{
 		// Check to ensure the entity's hull can travel the first half of the grenade throw
-		UTIL_TraceHull( vecSpot1, vecApex, *vecMins, *vecMaxs, (MASK_SOLID&(~CONTENTS_GRATE)), pFilter, &tr);		
+		UTIL_TraceHull( vecSpot1, vecApex, *vecMins, *vecMaxs, (MASK_SOLID&(~CONTENTS_GRATE)), pEntity, COLLISION_GROUP_NONE, &tr);		
 		if ( tr.fraction < 1.0 )
 			return vec3_origin;
 	}
@@ -183,29 +175,6 @@ Vector VecCheckToss( CBaseEntity *pEntity, ITraceFilter *pFilter, Vector vecSpot
 	return vecTossVel;
 }
 
-
-
-//-----------------------------------------------------------------------------
-// Purpose: Returns the correct toss velocity to throw a given object at a point.
-// Input  : pEntity - The entity that is throwing the object.
-//			vecSpot1 - The point from which the object is being thrown.
-//			vecSpot2 - The point TO which the object is being thrown.
-//			flHeightMaxRatio - A scale factor indicating the maximum ratio of height
-//				to total throw distance, measured from the higher of the two endpoints to
-//				the apex. -1 indicates that there is no maximum.
-//			flGravityAdj - Scale factor for gravity - should match the gravity scale
-//				that the object will use in midair.
-//			bRandomize - when true, introduces a little fudge to the throw
-// Output : Velocity to throw the object with.
-//-----------------------------------------------------------------------------
-Vector VecCheckToss( CBaseEntity *pEntity, Vector vecSpot1, Vector vecSpot2, float flHeightMaxRatio, float flGravityAdj, bool bRandomize, Vector *vecMins, Vector *vecMaxs )
-{
-	// construct a filter and call through to the other version of this function.
-	CTraceFilterSimple traceFilter( pEntity, COLLISION_GROUP_NONE );
-	return VecCheckToss( pEntity, &traceFilter, vecSpot1, vecSpot2, 
-						 flHeightMaxRatio, flGravityAdj, bRandomize, 
-						 vecMins, vecMaxs );
-}
 
 //
 // VecCheckThrow - returns the velocity vector at which an object should be thrown from vecspot1 to hit vecspot2.

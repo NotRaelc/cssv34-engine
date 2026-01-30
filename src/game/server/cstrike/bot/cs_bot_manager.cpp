@@ -463,7 +463,7 @@ void CCSBotManager::ClientDisconnect( CBaseEntity *entity )
 /**
 * Parses out bot name/template/etc params from the current ConCommand
 */
-void BotArgumentsFromArgv( const CCommand &args, const char **name, CSWeaponType *weaponType, BotDifficultyType *difficulty, int *team = NULL, bool *all = NULL )
+void BotArgumentsFromArgv( const char **name, CSWeaponType *weaponType, BotDifficultyType *difficulty, int *team = NULL, bool *all = NULL )
 {
 	static char s_name[MAX_PLAYER_NAME_LENGTH];
 
@@ -481,11 +481,11 @@ void BotArgumentsFromArgv( const CCommand &args, const char **name, CSWeaponType
 
 	*weaponType = WEAPONTYPE_UNKNOWN;
 
-	for ( int arg=1; arg<args.ArgC(); ++arg )
+	for ( int arg=1; arg<engine->Cmd_Argc(); ++arg )
 	{
 		bool found = false;
 
-		const char *token = args[arg];
+		const char *token = engine->Cmd_Argv( arg );
 		if ( all && FStrEq( token, "all" ) )
 		{
 			*all = true;
@@ -538,7 +538,7 @@ CON_COMMAND_F( bot_add, "bot_add <t|ct> <type> <difficulty> <name> - Adds a bot 
 	BotDifficultyType difficulty;
 	CSWeaponType weaponType;
 	int team;
-	BotArgumentsFromArgv( args, &name, &weaponType, &difficulty, &team );
+	BotArgumentsFromArgv( &name, &weaponType, &difficulty, &team );
 	TheCSBots()->BotAddCommand( team, FROM_CONSOLE, name, weaponType, difficulty );
 }
 
@@ -552,7 +552,7 @@ CON_COMMAND_F( bot_add_t, "bot_add_t <type> <difficulty> <name> - Adds a terrori
 	const char *name;
 	BotDifficultyType difficulty;
 	CSWeaponType weaponType;
-	BotArgumentsFromArgv( args, &name, &weaponType, &difficulty );
+	BotArgumentsFromArgv( &name, &weaponType, &difficulty );
 	TheCSBots()->BotAddCommand( TEAM_TERRORIST, FROM_CONSOLE, name, weaponType, difficulty );
 }
 
@@ -566,7 +566,7 @@ CON_COMMAND_F( bot_add_ct, "bot_add_ct <type> <difficulty> <name> - Adds a Count
 	const char *name;
 	BotDifficultyType difficulty;
 	CSWeaponType weaponType;
-	BotArgumentsFromArgv( args, &name, &weaponType, &difficulty );
+	BotArgumentsFromArgv( &name, &weaponType, &difficulty );
 	TheCSBots()->BotAddCommand( TEAM_CT, FROM_CONSOLE, name, weaponType, difficulty );
 }
 
@@ -675,7 +675,7 @@ CON_COMMAND_F( bot_kill, "bot_kill <all> <t|ct> <type> <difficulty> <name> - Kil
 	int team;
 	bool all;
 
-	BotArgumentsFromArgv( args, &name, &weaponType, &difficulty, &team, &all );
+	BotArgumentsFromArgv( &name, &weaponType, &difficulty, &team, &all );
 	if ( (!name || !*name) && team == TEAM_UNASSIGNED && difficulty == NUM_DIFFICULTY_LEVELS )
 	{
 		all = true;
@@ -711,7 +711,7 @@ CON_COMMAND_F( bot_kick, "bot_kick <all> <t|ct> <type> <difficulty> <name> - Kic
 	int team;
 	bool all;
 
-	BotArgumentsFromArgv( args, &name, &weaponType, &difficulty, &team, &all );
+	BotArgumentsFromArgv( &name, &weaponType, &difficulty, &team, &all );
 	if ( (!name || !*name) && team == TEAM_UNASSIGNED && difficulty == NUM_DIFFICULTY_LEVELS )
 	{
 		all = true;
@@ -903,7 +903,7 @@ bool CCSBotManager::ServerCommand( const char *cmd )
 }
 
 
-bool CCSBotManager::ClientCommand( CBasePlayer *player, const CCommand &args )
+bool CCSBotManager::ClientCommand( CBasePlayer *player, const char* command )
 {
 	return false;
 }

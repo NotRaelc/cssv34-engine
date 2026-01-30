@@ -1,8 +1,8 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
-//===========================================================================//
+//=============================================================================//
 
 #ifndef PLAYER_H
 #define PLAYER_H
@@ -14,15 +14,21 @@
 #include "usercmd.h"
 #include "playerlocaldata.h"
 #include "PlayerState.h"
-#include "game/server/iplayerinfo.h"
-#include "hintsystem.h"
-#include "SoundEmitterSystem/isoundemittersystembase.h"
+#include "game\server\iplayerinfo.h"
+
+#ifndef BUGFIXED
+#define CMD_MAXBACKUP 30
+#endif
 
 // For queuing and processing usercmds
 class CCommandContext
 {
 public:
+#ifdef BUGFIXED
 	CUtlVector< CUserCmd > cmds;
+#else
+	CUserCmd		cmds[ CMD_MAXBACKUP ];
+#endif
 
 	int				numcmds;
 	int				totalcmds;
@@ -30,44 +36,6 @@ public:
 	bool			paused;
 };
 
-// Info about last 20 or so updates to the
-class CPlayerCmdInfo
-{
-public:
-	CPlayerCmdInfo() : 
-	  m_flTime( 0.0f ), m_nNumCmds( 0 ), m_nDroppedPackets( 0 )
-	{
-	}
-
-	// realtime of sample
-	float		m_flTime;
-	// # of CUserCmds in this update
-	int			m_nNumCmds;
-	// # of dropped packets on the link
-	int			m_nDroppedPackets;
-};
-
-class CPlayerSimInfo
-{
-public:
-	CPlayerSimInfo() : 
-	  m_flTime( 0.0f ), m_nNumCmds( 0 ), m_nTicksCorrected( 0 ), m_flFinalSimulationTime( 0.0f ), m_flGameSimulationTime( 0.0f ), m_flServerFrameTime( 0.0f ), m_vecAbsOrigin( 0, 0, 0 )
-	{
-	}
-
-	// realtime of sample
-	float		m_flTime;
-	// # of CUserCmds in this update
-	int			m_nNumCmds;
-	// If clock needed correction, # of ticks added/removed
-	int			m_nTicksCorrected; // +ve or -ve
-	// player's m_flSimulationTime at end of frame
-	float		m_flFinalSimulationTime;
-	float		m_flGameSimulationTime;
-	// estimate of server perf
-	float		m_flServerFrameTime;  
-	Vector		m_vecAbsOrigin;
-};
 //-----------------------------------------------------------------------------
 // Forward declarations: 
 //-----------------------------------------------------------------------------
@@ -79,8 +47,6 @@ class IServerVehicle;
 class CUserCmd;
 class CFuncLadder;
 class CNavArea;
-class CHintSystem;
-class CAI_Expresser;
 
 // for step sounds
 struct surfacedata_t;
@@ -98,10 +64,9 @@ enum PlayerPhysFlag_e
 	PFLAG_USING			= ( 1<<2 ),		// Using a continuous entity
 	PFLAG_OBSERVER		= ( 1<<3 ),		// player is locked in stationary cam mode. Spectators can move, observers can't.
 	PFLAG_VPHYSICS_MOTIONCONTROLLER = ( 1<<4 ),	// player is physically attached to a motion controller
-	PFLAG_GAMEPHYSICS_ROTPUSH = (1<<5), // game physics did a rotating push that we may want to override with vphysics
 
 	// If you add another flag here check that you aren't 
-	// overwriting phys flags in the HL2 of TF2 player classes
+	// overwriting phys flags in the HL2 player classes
 };
 
 //
@@ -243,13 +208,6 @@ public:
 	IPlayerInfo *GetPlayerInfo() { return &m_PlayerInfo; }
 	IBotController *GetBotController() { return &m_PlayerInfo; }
 
-	// Allows the game to save each players progress over a map change. Create the booleans required for transitions to work.
-	bool m_bTransition;
-	bool m_bTransitionTeleported;
-
-	virtual void			SetModel( const char *szModelName );
-	void					SetBodyPitch( float flPitch );
-
 	virtual void			UpdateOnRemove( void );
 
 	static CBasePlayer		*CreatePlayer( const char *className, edict_t *ed );
@@ -281,7 +239,6 @@ public:
 	virtual void			Spawn( void );
 	virtual void			Activate( void );
 	virtual void			SharedSpawn(); // Shared between client and server.
-	virtual void			ForceRespawn( void );
 
 	virtual void			InitialSpawn( void );
 	virtual void			InitHUD( void ) {}
@@ -305,10 +262,6 @@ public:
 
 	// Physics simulation (player executes it's usercmd's here)
 	virtual void			PhysicsSimulate( void );
-
-	// Forces processing of usercmds (e.g., even if game is paused, etc.)
-	void					ForceSimulation();
-
 	virtual unsigned int	PhysicsSolidMaskForEntity( void ) const;
 
 	virtual void			PreThink( void );
@@ -321,19 +274,11 @@ public:
 
 	virtual void			OnDamagedByExplosion( const CTakeDamageInfo &info );
 
-	void					PauseBonusProgress( bool bPause = true );
-	void					SetBonusProgress( int iBonusProgress );
-	void					SetBonusChallenge( int iBonusChallenge );
-
-	int						GetBonusProgress() const { return m_iBonusProgress; }
-	int						GetBonusChallenge() const { return m_iBonusChallenge; }
-
 	virtual Vector			EyePosition( );			// position of eyes
 	const QAngle			&EyeAngles( );
 	void					EyePositionAndVectors( Vector *pPosition, Vector *pForward, Vector *pRight, Vector *pUp );
 	virtual const QAngle	&LocalEyeAngles();		// Direction of eyes
 	void					EyeVectors( Vector *pForward, Vector *pRight = NULL, Vector *pUp = NULL );
-	void					CacheVehicleView( void );	// Calculate and cache the position of the player in the vehicle
 
 	// Sets the view angles
 	void					SnapEyeAngles( const QAngle &viewAngles );
@@ -342,12 +287,8 @@ public:
 	virtual Vector			BodyTarget( const Vector &posSrc, bool bNoisy);
 	virtual bool			ShouldFadeOnDeath( void ) { return FALSE; }
 	
-	virtual const impactdamagetable_t &GetPhysicsImpactDamageTable();
 	virtual int				OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	virtual void			Event_Killed( const CTakeDamageInfo &info );
-	// Notifier that I've killed some other entity. (called from Victim's Event_Killed).
-	virtual void			Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info );
-
 	void					Event_Dying( void );
 
 	bool					IsHLTV( void ) const { return pl.hltv; }
@@ -408,7 +349,6 @@ public:
 	virtual bool			Weapon_ShouldSetLast( CBaseCombatWeapon *pOldWeapon, CBaseCombatWeapon *pNewWeapon ) { return true; }
 	virtual bool			Weapon_ShouldSelectItem( CBaseCombatWeapon *pWeapon );
 	void					Weapon_DropSlot( int weaponSlot );
-	CBaseCombatWeapon		*Weapon_GetLast( void ) { return m_hLastWeapon.Get(); }
 
 	bool					HasAnyAmmoOfType( int nAmmoIndex );
 
@@ -421,9 +361,7 @@ public:
 	virtual void			Precache( void );
 	bool					IsOnLadder( void );
 	virtual void			ExitLadder() {}
-	virtual surfacedata_t	*GetLadderSurface( const Vector &origin );
 
-	virtual void			SetFlashlightEnabled( bool bState ) { };
 	virtual int				FlashlightIsOn( void ) { return false; }
 	virtual void			FlashlightTurnOn( void ) { };
 	virtual void			FlashlightTurnOff( void ) { };
@@ -432,8 +370,6 @@ public:
 	void					UpdatePlayerSound ( void );
 	virtual void			UpdateStepSound( surfacedata_t *psurface, const Vector &vecOrigin, const Vector &vecVelocity );
 	virtual void			PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, float fvol, bool force );
-	virtual void			GetStepSoundVelocities( float *velwalk, float *velrun );
-	virtual void			SetStepSoundTime( stepsoundtimes_t iStepSoundTime, bool bWalking );
 	virtual void			DeathSound( const CTakeDamageInfo &info );
 
 	Class_T					Classify ( void );
@@ -443,7 +379,7 @@ public:
 	// custom player functions
 	virtual void			ImpulseCommands( void );
 	virtual void			CheatImpulseCommands( int iImpulse );
-	virtual bool			ClientCommand( const CCommand &args );
+	virtual bool			ClientCommand(const char *cmd);
 
 	void					NotifySinglePlayerGameEnding() { m_bSinglePlayerGameEnding = true; }
 	bool					IsSinglePlayerGameEnding() { return m_bSinglePlayerGameEnding == true; }
@@ -451,7 +387,6 @@ public:
 	// Observer functions
 	virtual bool			StartObserverMode(int mode); // true, if successful
 	virtual void			StopObserverMode( void );	// stop spectator mode
-	virtual bool			ModeWantsSpectatorGUI( int iMode ) { return true; }
 	virtual bool			SetObserverMode(int mode); // sets new observer mode, returns true if successful
 	virtual int				GetObserverMode( void ); // returns observer mode or OBS_NONE
 	virtual bool			SetObserverTarget(CBaseEntity * target);
@@ -464,8 +399,6 @@ public:
 	virtual void			JumptoPosition(const Vector &origin, const QAngle &angles);
 	virtual void			ForceObserverMode(int mode); // sets a temporary mode, force because of invalid targets
 	virtual void			ResetObserverMode(); // resets all observer related settings
-	virtual void			ValidateCurrentObserverTarget( void ); // Checks the current observer target, and moves on if it's not valid anymore
-	virtual void			AttemptToExitFreezeCam( void );
 
 	virtual bool			StartReplayMode( float fDelay, float fDuration, int iEntity );
 	virtual void			StopReplayMode();
@@ -476,8 +409,7 @@ public:
 	virtual CBaseEntity		*EntSelectSpawnPoint( void );
 
 	// Vehicles
-	virtual bool			IsInAVehicle( void ) const;
-			bool			CanEnterVehicle( IServerVehicle *pVehicle, int nRole );
+	bool					IsInAVehicle( void ) const;
 	virtual bool			GetInVehicle( IServerVehicle *pVehicle, int nRole );
 	virtual void			LeaveVehicle( const Vector &vecExitPoint = vec3_origin, const QAngle &vecExitAngles = vec3_angle );
 	int						GetVehicleAnalogControlBias() { return m_iVehicleAnalogBias; }
@@ -514,9 +446,7 @@ public:
 	void					SetSwimSoundTime( float flSwimSoundTime );
 
 	virtual void			SetPlayerUnderwater( bool state );
-	void					UpdateUnderwaterState( void );
 	bool					IsPlayerUnderwater( void ) { return m_bPlayerUnderwater; }
-
 	virtual bool			CanBreatheUnderwater() const { return false; }
 	virtual void			PlayerUse( void );
 	virtual void			PlayUseDenySound() {}
@@ -545,7 +475,7 @@ public:
 	virtual Vector			GetAutoaimVector( float flScale, float flMaxDist );
 	virtual void			GetAutoaimVector( autoaim_params_t &params );
 
-	float					GetAutoaimScore( const Vector &eyePosition, const Vector &viewDir, const Vector &vecTarget, CBaseEntity *pTarget, float fScale, CBaseCombatWeapon *pActiveWeapon );
+	float					GetAutoaimScore( const Vector &eyePosition, const Vector &viewDir, const Vector &vecTarget, CBaseEntity *pTarget, float fScale );
 	QAngle					AutoaimDeflection( Vector &vecSrc, autoaim_params_t &params );
 	virtual bool			ShouldAutoaim( void );
 	void					SetTargetInfo( Vector &vecSrc, float flDist );
@@ -567,14 +497,16 @@ public:
 	virtual void			PlayerRunCommand(CUserCmd *ucmd, IMoveHelper *moveHelper);
 	void					RunNullCommand();
 	CUserCmd *				GetCurrentCommand( void )	{ return m_pCurrentCommand; }
+#ifdef BUGFIXED
+	float					GetTimeSinceLastUserCommand( void ) { return ( !IsConnected() || IsFakeClient() || IsBot() ) ? 0.f : gpGlobals->curtime - m_flLastUserCommandTime; }
+#endif
 
 	// Team Handling
 	virtual void			ChangeTeam( int iTeamNum );
 
 	// say/sayteam allowed?
-	virtual bool		CanHearAndReadChatFrom( CBasePlayer *pPlayer ) { return true; }
-	virtual bool		CanSpeak( void ) { return true; }
-
+	virtual bool			CanSpeak( void ) { return true; }
+	virtual bool			CanHearChatFrom( CBasePlayer *pPlayer ) { return true; }
 	audioparams_t			&GetAudioParams() { return m_Local.m_audio; }
 
 	virtual void 			ModifyOrAppendPlayerCriteria( AI_CriteriaSet& set );
@@ -589,15 +521,9 @@ public:
 
 	virtual void			CheckChatText( char *p, int bufsize ) {}
 
-	virtual void			CreateRagdollEntity( void ) { return; }
-
-	virtual void			HandleAnimEvent( animevent_t *pEvent );
-
-	virtual bool			ShouldAnnouceAchievement( void ){ return true; }
-
 public:
 	// Player Physics Shadow
-	void					SetupVPhysicsShadow( const Vector &vecAbsOrigin, const Vector &vecAbsVelocity, CPhysCollide *pStandModel, const char *pStandHullName, CPhysCollide *pCrouchModel, const char *pCrouchHullName );
+	void					SetupVPhysicsShadow( CPhysCollide *pStandModel, const char *pStandHullName, CPhysCollide *pCrouchModel, const char *pCrouchHullName );
 	IPhysicsPlayerController* GetPhysicsController() { return m_pPhysicsController; }
 	virtual void			VPhysicsCollision( int index, gamevcollisionevent_t *pEvent );
 	void					VPhysicsUpdate( IPhysicsObject *pPhysics );
@@ -611,23 +537,12 @@ public:
 	bool					TouchedPhysics( void );
 	Vector					GetSmoothedVelocity( void );
 
-	virtual void			InitVCollision( const Vector &vecAbsOrigin, const Vector &vecAbsVelocity );
+	virtual void			InitVCollision( void );
 	virtual void			VPhysicsDestroyObject();
-	void					SetVCollisionState( const Vector &vecAbsOrigin, const Vector &vecAbsVelocity, int collisionState );
+	void					SetVCollisionState( int collisionState );
 	void					PostThinkVPhysics( void );
 	virtual void			UpdatePhysicsShadowToCurrentPosition();
-	void					UpdatePhysicsShadowToPosition( const Vector &vecAbsOrigin );
 	void					UpdateVPhysicsPosition( const Vector &position, const Vector &velocity, float secondsToArrival );
-
-	// Hint system
-	virtual CHintSystem		*Hints( void ) { return NULL; }
-	bool					ShouldShowHints( void ) { return Hints() ? Hints()->ShouldShowHints() : false; }
-	void					SetShowHints( bool bShowHints ) { if (Hints()) Hints()->SetShowHints( bShowHints ); }
-	bool 					HintMessage( int hint, bool bForce = false ) { return Hints() ? Hints()->HintMessage( hint, bForce ) : false; }
-	void 					HintMessage( const char *pMessage ) { if (Hints()) Hints()->HintMessage( pMessage ); }
-	void					StartHintTimer( int iHintID ) { if (Hints()) Hints()->StartHintTimer( iHintID ); }
-	void					StopHintTimer( int iHintID ) { if (Hints()) Hints()->StopHintTimer( iHintID ); }
-	void					RemoveHintTimer( int iHintID ) { if (Hints()) Hints()->RemoveHintTimer( iHintID ); }
 
 	// Accessor methods
 	int		FragCount() const		{ return m_iFrags; }
@@ -649,14 +564,6 @@ public:
 	int		GetObserverMode() const	{ return m_iObserverMode; }
 	CBaseEntity *GetObserverTarget() const	{ return m_hObserverTarget; }
 
-	// Round gamerules
-	virtual bool	IsReadyToPlay( void ) { return true; }
-	virtual bool	IsReadyToSpawn( void ) { return true; }
-	virtual bool	ShouldGainInstantSpawn( void ) { return false; }
-	virtual void	ResetPerRoundStats( void ) { return; }
-	void			AllowInstantSpawn( void ) { m_bAllowInstantSpawn = true; }
-
-	virtual void	ResetScores( void ) { ResetFragCount(); ResetDeathCount(); }
 	void	ResetFragCount();
 	void	IncrementFragCount( int nCount );
 
@@ -681,14 +588,13 @@ public:
 	void	SetUseEntity( CBaseEntity *pUseEntity );
 	CBaseEntity *GetUseEntity();
 
-	// Used to set private physics flags PFLAG_*
+	// Only used by the physics gun... is there a better interface?
 	void	SetPhysicsFlag( int nFlag, bool bSet );
 
 	void	AllowImmediateDecalPainting();
 
 	// Suicide...
-	virtual void CommitSuicide( bool bExplode = false, bool bForce = false );
-	virtual void CommitSuicide( const Vector &vecForce, bool bExplode = false, bool bForce = false );
+	virtual void CommitSuicide();
 
 	// For debugging...
 	void	ForceOrigin( const Vector &vecOrigin );
@@ -703,15 +609,18 @@ public:
 	bool	IsPredictingWeapons( void ) const; 
 	int		CurrentCommandNumber() const;
 	const CUserCmd *GetCurrentUserCommand() const;
-
-	int		GetFOV( void );														// Get the current FOV value
+	
+#ifdef BUGFIXED
+	int		GetLockViewanglesTickNumber() const { return m_iLockViewanglesTickNumber; }
+	QAngle	GetLockViewanglesData() const { return m_qangLockViewangles; }
+#endif
+	
+	int		GetFOV( void ) const;												// Get the current FOV value
 	int		GetDefaultFOV( void ) const;										// Default FOV if not specified otherwise
-	int		GetFOVForNetworking( void );										// Get the current FOV used for network computations
-	bool	SetFOV( CBaseEntity *pRequester, int FOV, float zoomRate = 0.0f, int iZoomStart = 0 );	// Alters the base FOV of the player (must have a valid requester)
+	bool	SetFOV( CBaseEntity *pRequester, int FOV, float zoomRate = 0.0f );	// Alters the base FOV of the player (must have a valid requester)
 	void	SetDefaultFOV( int FOV );											// Sets the base FOV if nothing else is affecting it by zooming
 	CBaseEntity *GetFOVOwner( void ) { return m_hZoomOwner; }
 	float	GetFOVDistanceAdjustFactor(); // shared between client and server
-	float	GetFOVDistanceAdjustFactorForNetworking();
 
 	int		GetImpulse( void ) const { return m_nImpulse; }
 
@@ -723,11 +632,6 @@ public:
 	void	NotePlayerTalked() { m_fLastPlayerTalkTime = gpGlobals->curtime; }
 	float	LastTimePlayerTalked() { return m_fLastPlayerTalkTime; }
 
-	void	DisableButtons( int nButtons );
-	void	EnableButtons( int nButtons );
-	void	ForceButtons( int nButtons );
-	void	UnforceButtons( int nButtons );
-
 	//---------------------------------
 	// Inputs
 	//---------------------------------
@@ -737,22 +641,37 @@ public:
 	surfacedata_t *GetSurfaceData( void ) { return m_pSurfaceData; }
 	void SetLadderNormal( Vector vecLadderNormal ) { m_vecLadderNormal = vecLadderNormal; }
 
-	// Here so that derived classes can use the expresser
-	virtual CAI_Expresser *GetExpresser() { return NULL; };
+#ifdef BUGFIXED
+	int GetRemainingMovementTicksForUserCmdProcessing() const { return m_nMovementTicksForUserCmdProcessingRemaining; }
+	bool ConsumeMovementTicksForUserCmdProcessing()
+	{
+		if ( m_nMovementTicksForUserCmdProcessingRemaining > 0 )
+		{
+			m_nMovementTicksForUserCmdProcessingRemaining--;
+			
+			return true;
+		}
+		else
+		{
+			if ( m_nMovementTicksForUserCmdProcessingRemaining < 0 )
+				m_nMovementTicksForUserCmdProcessingRemaining = 0;
 
-	void					IncrementEFNoInterpParity();
-	int						GetEFNoInterpParity() const;
-
-private:
+			return false;
+		}
+	}
+#endif	
 	
+private:
+#ifdef BUGFIXED
+	int					m_nMovementTicksForUserCmdProcessingRemaining;
+#endif	
+
 	// For queueing up CUserCmds and running them from PhysicsSimulate
 	int					GetCommandContextCount( void ) const;
 	CCommandContext		*GetCommandContext( int index );
 	CCommandContext		*AllocCommandContext( void );
 	void				RemoveCommandContext( int index );
 	void				RemoveAllCommandContexts( void );
-	CCommandContext		*RemoveAllCommandContextsExceptNewest( void );
-	void				ReplaceContextCommands( CCommandContext *ctx, CUserCmd *pCommands, int nCommands );
 
 	int					DetermineSimulationTicks( void );
 	void				AdjustPlayerTimeBase( int simulation_ticks );
@@ -767,8 +686,6 @@ public:
 	// This player's data that should only be replicated to 
 	//  the player and not to other players.
 	CNetworkVarEmbedded( CPlayerLocalData, m_Local );
-	void InitFogController( void );
-	void InputSetFogController( inputdata_t &inputdata );
 
 	// Used by env_soundscape_triggerable to manage when the player is touching multiple
 	// soundscape triggers simultaneously.
@@ -777,8 +694,6 @@ public:
 
 	// Player data that's sometimes needed by the engine
 	CNetworkVarEmbedded( CPlayerState, pl );
-
-	IMPLEMENT_NETWORK_VAR_FOR_DERIVED( m_fFlags );
 
 	IMPLEMENT_NETWORK_VAR_FOR_DERIVED( m_vecViewOffset );
 	IMPLEMENT_NETWORK_VAR_FOR_DERIVED( m_flFriction );
@@ -797,8 +712,6 @@ public:
 	int						m_afButtonPressed;
 	int						m_afButtonReleased;
 	int						m_afButtonLast;
-	int						m_afButtonDisabled;	// A mask of input flags that are cleared automatically
-	int						m_afButtonForced;	// These are forced onto the player's inputs
 
 	CNetworkVar( bool, m_fOnTarget );		//Is the crosshair on a target?
 
@@ -810,12 +723,6 @@ public:
 	bool					m_bPredictWeapons; //  user has client side predicted weapons
 	
 	float		GetDeathTime( void ) { return m_flDeathTime; }
-
-	void		ClearZoomOwner( void );
-
-	void		SetPreviouslyPredictedOrigin( const Vector &vecAbsOrigin );
-	const Vector &GetPreviouslyPredictedOrigin() const;
-	float		GetFOVTime( void ){ return m_flFOVTime; }
 
 private:
 
@@ -851,10 +758,6 @@ protected:
 
 	void					UpdateButtonState( int nUserCmdButtonMask );
 
-	bool	m_bPauseBonusProgress;
-	CNetworkVar( int, m_iBonusProgress );
-	CNetworkVar( int, m_iBonusChallenge );
-
 	int						m_lastDamageAmount;		// Last damage taken
 
 	Vector					m_DmgOrigin;
@@ -864,20 +767,17 @@ protected:
 	int						m_bitsHUDDamage;	// Damage bits for the current fame. These get sent to the hud via gmsgDamage
 
 	CNetworkVar( float, m_flDeathTime );		// the time at which the player died  (used in PlayerDeathThink())
-	float					m_flDeathAnimTime;	// the time at which the player finished their death anim (used in PlayerDeathThink() and ShouldTransmit())
 
 	CNetworkVar( int, m_iObserverMode );	// if in spectator mode != 0
 	CNetworkVar( int,	m_iFOV );			// field of view
 	CNetworkVar( int,	m_iDefaultFOV );	// default field of view
-	CNetworkVar( int,	m_iFOVStart );		// What our FOV started at
-	CNetworkVar( float,	m_flFOVTime );		// Time our FOV change started
-	
+
 	int						m_iObserverLastMode; // last used observer mode
 	CNetworkHandle( CBaseEntity, m_hObserverTarget );	// entity handle to m_iObserverTarget
 	bool					m_bForcedObserverMode; // true, player was forced by invalid targets to switch mode
 	
-	CNetworkHandle( CBaseEntity, m_hZoomOwner );	//This is a pointer to the entity currently controlling the player's zoom
-													//Only this entity can change the zoom state once it has ownership
+	EHANDLE					m_hZoomOwner;		//This is a pointer to the entity currently controlling the player's zoom
+												//Only this entity can change the zoom state once it has ownership
 
 	float					m_tbdPrev;				// Time-based damage timer
 	int						m_idrowndmg;			// track drowning damage taken
@@ -893,7 +793,6 @@ protected:
 	virtual int SpawnArmorValue( void ) const { return 0; }
 
 	float					m_fNextSuicideTime; // the time after which the player can next use the suicide command
-	int						m_iSuicideCustomKillFlags;
 
 	// Replay mode	
 	float					m_fDelay;			// replay delay in seconds
@@ -908,14 +807,13 @@ private:
 	CUtlVector< CCommandContext > m_CommandContext;
 	// Player Physics Shadow
 
-protected: //used to be private, but need access for portal mod (Dave Kircher)
+protected: 
 	IPhysicsPlayerController	*m_pPhysicsController;
 	IPhysicsObject				*m_pShadowStand;
 	IPhysicsObject				*m_pShadowCrouch;
 	Vector						m_oldOrigin;
 	Vector						m_vecSmoothedVelocity;
 	bool						m_touchedPhysObject;
-	bool						m_bPhysicsWasFrozen;
 
 private:
 
@@ -925,6 +823,7 @@ private:
 	int						m_rgItems[MAX_ITEMS];
 
 	// these are time-sensitive things that we keep track of
+	float					m_flTimeStepSound;	// when the last stepping sound was made
 	float					m_flSwimTime;		// how long player has been underwater
 	float					m_flDuckTime;		// how long we've been ducking
 	float					m_flDuckJumpTime;	
@@ -980,9 +879,12 @@ protected:
 	CUserCmd				m_LastCmd;
 	CUserCmd				*m_pCurrentCommand;
 
+#ifdef BUGFIXED
+	int						m_iLockViewanglesTickNumber;
+	QAngle					m_qangLockViewangles;
+#endif
+	
 	float					m_flStepSoundTime;	// time to check for next footstep sound
-
-	bool					m_bAllowInstantSpawn;
 
 private:
 
@@ -1050,7 +952,6 @@ private:
 	char					m_szNetname[MAX_PLAYER_NAME_LENGTH];
 
 protected:
-	// HACK FOR TF2 Prediction
 	friend class CTFGameMovementRecon;
 	friend class CGameMovement;
 	friend class CTFGameMovement;
@@ -1058,26 +959,18 @@ protected:
 	friend class CCSGameMovement;	
 	friend class CHL2GameMovement;
 	friend class CDODGameMovement;
-	friend class CPortalGameMovement;
 	
 	// Accessors for gamemovement
 	bool IsDucked( void ) const { return m_Local.m_bDucked; }
 	bool IsDucking( void ) const { return m_Local.m_bDucking; }
 	float GetStepSize( void ) const { return m_Local.m_flStepSize; }
 
+
 	CNetworkVar( float,  m_flLaggedMovementValue );
 
 	// These are generated while running usercmds, then given to UpdateVPhysicsPosition after running all queued commands.
 	Vector m_vNewVPhysicsPosition;
 	Vector m_vNewVPhysicsVelocity;
-	
-	Vector	m_vecVehicleViewOrigin;		// Used to store the calculated view of the player while riding in a vehicle
-	QAngle	m_vecVehicleViewAngles;		// Vehicle angles
-	float	m_flVehicleViewFOV;			// FOV of the vehicle driver
-	int		m_nVehicleViewSavedFrame;	// Used to mark which frame was the last one the view was calculated for
-
-	Vector m_vecPreviouslyPredictedOrigin; // Used to determine if non-gamemovement game code has teleported, or tweaked the player's origin
-	int		m_nBodyPitchPoseParam;
 
 	// last known navigation area of player - NULL if unknown
 	CNavArea *m_lastNavArea;
@@ -1095,8 +988,6 @@ protected:
 
 	bool			m_bSinglePlayerGameEnding;
 
-	CNetworkVar( int, m_ubEFNoInterpParity );
-
 public:
 
 	float  GetLaggedMovementValue( void ){ return m_flLaggedMovementValue;	}
@@ -1105,21 +996,17 @@ public:
 	inline bool IsAutoKickDisabled( void ) const;
 	inline void DisableAutoKick( bool disabled );
 
-	void	DumpPerfToRecipient( CBasePlayer *pRecipient, int nMaxRecords );
+	virtual bool HasHaptics(){return m_bhasHaptics;}
+	virtual void SetHaptics(bool has) { m_bhasHaptics = has;}
+	
 private:
+	bool m_bhasHaptics;
+
 	bool m_autoKickDisabled;
-
-	struct StepSoundCache_t
-	{
-		StepSoundCache_t() : m_usSoundNameIndex( 0 ) {}
-		CSoundParameters	m_SoundParameters;
-		unsigned short		m_usSoundNameIndex;
-	};
-	// One for left and one for right side of step
-	StepSoundCache_t		m_StepSoundCache[ 2 ];
-
-	CUtlLinkedList< CPlayerSimInfo >  m_vecPlayerSimInfo;
-	CUtlLinkedList< CPlayerCmdInfo >  m_vecPlayerCmdInfo;
+	
+#ifdef BUGFIXED
+	float m_flLastUserCommandTime;
+#endif
 };
 
 typedef CHandle<CBasePlayer> CBasePlayerHandle;

@@ -44,7 +44,7 @@
 #include "materialsystem/materialsystem_config.h"
 #include "tier1/fmtstr.h"
 #include "steam/steam_api.h"
-#include "matchmaking.h"
+//#include "matchmaking.h"
 
 #include "tier0/platform.h"
 #include "tier0/systeminformation.h"
@@ -57,7 +57,7 @@ static ConVar cl_logofile( "cl_logofile", "materials/decals/spraylogo.vtf", FCVA
 static ConVar cl_soundfile( "cl_soundfile", "sound/player/jingle.wav", FCVAR_ARCHIVE, "Jingle sound file." );
 static ConVar cl_forcepreload( "cl_forcepreload", "0", FCVAR_ARCHIVE, "Whether we should force preloading.");
 static ConVar cl_allowdownload ( "cl_allowdownload", "1", FCVAR_ARCHIVE, "Client downloads customization files" );
-static ConVar cl_downloadfilter( "cl_downloadfilter", "all", FCVAR_ARCHIVE, "Determines which files can be downloaded from the server (all, none, nosounds)" );
+static ConVar cl_downloadfilter( "cl_downloadfilter", "all", FCVAR_ARCHIVE, "Determines which files can be downloaded from the server (all, none, nosounds, mapsonly)" );
 
 extern ConVar sv_downloadurl;
 extern ConVar sv_consistency;
@@ -278,11 +278,6 @@ bool CClientState::SetSignonState ( int state, int count )
 				m_NetChannel->SetMaxBufferSize( true, NET_MAX_DATAGRAM_PAYLOAD );
 
 				HostState_OnClientConnected();
-				
-				if ( m_nMaxClients > 1 )
-				{
-					g_pMatchmaking->AddLocalPlayersToTeams();
-				}
 			}
 			break;
 
@@ -1338,6 +1333,7 @@ void CClientState::CheckUpdatingSteamResources()
 			{
 				bool allowDownloads = true;
 				bool allowSoundDownloads = true;
+				bool mapsOnly = false;
 				if ( !Q_strcasecmp( cl_downloadfilter.GetString(), "none" ) )
 				{
 					allowDownloads = allowSoundDownloads = false;
@@ -1345,6 +1341,10 @@ void CClientState::CheckUpdatingSteamResources()
 				else if ( !Q_strcasecmp( cl_downloadfilter.GetString(), "nosounds" ) )
 				{
 					allowSoundDownloads = false;
+				}
+				else if (!Q_strcasecmp(cl_downloadfilter.GetString(), "mapsonly"))
+				{
+					mapsOnly = true;
 				}
 
 				if ( allowDownloads )
@@ -1358,6 +1358,14 @@ void CClientState::CheckUpdatingSteamResources()
 						{
 							Q_ExtractFileExtension( fname, extension, sizeof( extension ) );
 							if ( !Q_strcasecmp( extension, "wav" ) || !Q_strcasecmp( extension, "mp3" ) )
+							{
+								continue;
+							}
+						}
+
+						if (mapsOnly) {
+							Q_ExtractFileExtension(fname, extension, sizeof(extension));
+							if (Q_strcasecmp(extension, "bsp"))
 							{
 								continue;
 							}

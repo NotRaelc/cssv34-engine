@@ -78,11 +78,11 @@ void CBoneMergeCache::UpdateCache()
 
 				m_BoneMergeBits[i>>3] |= ( 1 << ( i & 7 ) );
 
-				if ( ( m_pFollowHdr->boneFlags( parentBoneIndex ) & BONE_USED_BY_BONE_MERGE ) == 0 )
+				if ( ( m_pFollowHdr->pBone( parentBoneIndex )->flags & BONE_USED_BY_BONE_MERGE ) == 0 )
 				{
 					m_nFollowBoneSetupMask = BONE_USED_BY_ANYTHING;
-					Warning("Performance warning: Merge with '%s'. Mark bone '%s' in model '%s' as being used by bone merge in the .qc!\n",
-						pOwnerHdr->pszName(), m_pFollowHdr->pBone( parentBoneIndex )->pszName(), m_pFollowHdr->pszName() ); 
+					Warning("Performance warning: Mark bone '%s' in model '%s' as being used by bone merge in the .qc!\n",
+						m_pFollowHdr->pBone( parentBoneIndex )->pszName(), m_pFollowHdr->pszName() ); 
 				}
 			}
 
@@ -120,7 +120,7 @@ void CBoneMergeCache::MergeMatchingBones( int boneMask )
 		int iParentBone = m_MergedBones[i].m_iParentBone;
 		
 		// Only update bones reference by the bone mask.
-		if ( !( m_pOwnerHdr->boneFlags( iOwnerBone ) & boneMask ) )
+		if ( !( m_pOwnerHdr->pBone( iOwnerBone )->flags & boneMask ) )
 			continue;
 
 		MatrixCopy( m_pFollow->GetBone( iParentBone ), m_pOwner->GetBoneForWrite( iOwnerBone ) );

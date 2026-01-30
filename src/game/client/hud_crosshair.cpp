@@ -60,30 +60,17 @@ bool CHudCrosshair::ShouldDraw( void )
 {
 	bool bNeedsDraw;
 
-	if ( m_bHideCrosshair )
-		return false;
-
 	C_BasePlayer* pPlayer = C_BasePlayer::GetLocalPlayer();
 	if ( !pPlayer )
 		return false;
 
-	C_BaseCombatWeapon *pWeapon = pPlayer->GetActiveWeapon();
-	if ( pWeapon && !pWeapon->ShouldDrawCrosshair() )
-		return false;
-
-	/* disabled to avoid assuming it's an HL2 player.
-	// suppress crosshair in zoom.
-	if ( pPlayer->m_HL2Local.m_bZooming )
-		return false;
-	*/
-
 	// draw a crosshair only if alive or spectating in eye
-	if ( IsX360() )
+	if ( IsXbox() )
 	{
 		bNeedsDraw = m_pCrosshair && 
 			!engine->IsDrawingLoadingImage() &&
 			!engine->IsPaused() && 
-			( !pPlayer->IsSuitEquipped() || g_pGameRules->IsMultiplayer() ) &&
+			!pPlayer->IsSuitEquipped() &&
 			g_pClientMode->ShouldDrawCrosshair() &&
 			!( pPlayer->GetFlags() & FL_FROZEN ) &&
 			( pPlayer->entindex() == render->GetViewEntity() ) &&
@@ -98,7 +85,6 @@ bool CHudCrosshair::ShouldDraw( void )
 			g_pClientMode->ShouldDrawCrosshair() &&
 			!( pPlayer->GetFlags() & FL_FROZEN ) &&
 			( pPlayer->entindex() == render->GetViewEntity() ) &&
-			!pPlayer->IsInVGuiInputMode() &&
 			( pPlayer->IsAlive() ||	( pPlayer->GetObserverMode() == OBS_MODE_IN_EYE ) || ( cl_observercrosshair.GetBool() && pPlayer->GetObserverMode() == OBS_MODE_ROAMING ) );
 	}
 

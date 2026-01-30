@@ -21,9 +21,6 @@
 #include "Color.h"
 #include "collisionutils.h"
 
-// memdbgon must be the last include file in a .cpp file!!!
-#include <tier0/memdbgon.h>
-
 #ifdef _WIN32
 #pragma warning (disable:4701)				// disable warning that variable *may* not be initialized 
 #endif
@@ -214,7 +211,7 @@ CNavArea::CNavArea( CNavNode *nwNode, CNavNode *neNode, CNavNode *seNode, CNavNo
 CNavArea::~CNavArea()
 {
 	m_spotEncounterList.PurgeAndDeleteElements();
-
+	
 	// if we are resetting the system, don't bother cleaning up - all areas are being destroyed
 	if (m_isReset)
 		return;

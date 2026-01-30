@@ -24,8 +24,7 @@
 #if !defined( CLIENT_DLL )
 extern void OnBaseCombatWeaponCreated( CBaseCombatWeapon * );
 extern void OnBaseCombatWeaponDestroyed( CBaseCombatWeapon * );
-
-void *SendProxy_SendLocalWeaponDataTable( const SendProp *pProp, const void *pStruct, const void *pVarData, CSendProxyRecipients *pRecipients, int objectID );
+void CreateWeaponManager( const char *pWeaponName, int iMaxPieces );
 #endif
 
 class CBasePlayer;
@@ -33,9 +32,8 @@ class CBaseCombatCharacter;
 class IPhysicsConstraint;
 class CUserCmd;
 
-// How many times to display altfire hud hints (per weapon)
+// How many times to display altfire hud hints
 #define WEAPON_ALTFIRE_HUD_HINT_COUNT	1
-#define WEAPON_RELOAD_HUD_HINT_COUNT	1
 
 //Start with a constraint in place (don't drop to floor)
 #define	SF_WEAPON_START_CONSTRAINED	(1<<0)	
@@ -151,15 +149,8 @@ public:
 	// Weapon Pickup For Player
 	virtual void			SetPickupTouch( void );
 	virtual void 			DefaultTouch( CBaseEntity *pOther );	// default weapon touch
-
-	// HUD Hints
-	virtual bool			ShouldDisplayAltFireHUDHint();
-	virtual void			DisplayAltFireHudHint();	
-	virtual void			RescindAltFireHudHint(); ///< undisplay the hud hint and pretend it never showed.
-
-	virtual bool			ShouldDisplayReloadHUDHint();
-	virtual void			DisplayReloadHudHint();
-	virtual void			RescindReloadHudHint();
+	virtual bool			ShouldDisplayHUDHint();
+	virtual void			DisplayAltFireHudHint();					
 
 	// Weapon client handling
 	virtual void			SetViewModelIndex( int index = 0 );
@@ -180,7 +171,6 @@ public:
 	virtual bool			HasSecondaryAmmo( void );					// Returns true is weapon has ammo
 	bool					UsesPrimaryAmmo( void );					// returns true if the weapon actually uses primary ammo
 	bool					UsesSecondaryAmmo( void );					// returns true if the weapon actually uses secondary ammo
-	void					GiveDefaultAmmo( void );
 	
 	virtual bool			CanHolster( void ) { return TRUE; };		// returns true if the weapon can be holstered
 	virtual bool			DefaultDeploy( char *szViewModel, char *szWeaponModel, int iActivity, char *szAnimExt );
@@ -241,7 +231,6 @@ public:
 
 	// Autoaim
 	virtual float			GetMaxAutoAimDeflection() { return 0.99f; }
-	virtual float			WeaponAutoAimScale() { return 1.0f; } // allows a weapon to influence the perceived size of the target's autoaim radius.
 
 	// TF Sprinting functions
 	virtual bool			StartSprinting( void ) { return false; };
@@ -361,7 +350,7 @@ public:
 	virtual int				CapabilitiesGet( void ) { return 0; }
 	virtual	int				ObjectCaps( void );
 
-	bool					IsRemoveable() { return m_bRemoveable; }
+	virtual bool			IsRemoveable() { return m_bRemoveable; }
 	void					SetRemoveable( bool bRemoveable ) { m_bRemoveable = bRemoveable; }
 	
 	// Returns bits for	weapon conditions
@@ -401,7 +390,6 @@ public:
 	// for first person and third person.
 	bool					GetShootPosition( Vector &vOrigin, QAngle &vAngles );
 	virtual void			DrawCrosshair( void );
-	virtual bool			ShouldDrawCrosshair( void ) { return true; }
 	
 	// Weapon state checking
 	virtual bool			IsCarriedByLocalPlayer( void );
@@ -418,7 +406,7 @@ public:
 	virtual bool			ShouldDrawPickup( void );
 	virtual void			HandleInput( void ) { return; };
 	virtual void			OverrideMouseInput( float *x, float *y ) { return; };
-	virtual int				KeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding ) { return 1; }
+	virtual int				KeyInput( int down, int keynum, const char *pszCurrentBinding ) { return 1; }
 	virtual bool			AddLookShift( void ) { return true; };
 
 	virtual void			GetViewmodelBoneControllers(C_BaseViewModel *pViewModel, float controllers[MAXSTUDIOBONECTRLS]) { return; }
@@ -429,15 +417,8 @@ public:
 	virtual int				GetWorldModelIndex( void );
 
 	virtual void			GetToolRecordingState( KeyValues *msg );
-	void					EnsureCorrectRenderingModel();
 
 #endif // End client-only methods
-
-	virtual bool			CanLower( void ) { return false; }
-	virtual bool			Ready( void ) { return false; }
-	virtual bool			Lower( void ) { return false; }
-
-	virtual void			HideThink( void );
 
 private:
 	typedef CHandle< CBaseCombatCharacter > CBaseCombatCharacterHandle;
@@ -515,12 +496,9 @@ private:
 	WEAPON_FILE_INFO_HANDLE	m_hWeaponFileInfo;
 	IPhysicsConstraint		*m_pConstraint;
 
-	int						m_iAltFireHudHintCount;		// How many times has this weapon displayed its alt-fire HUD hint?
-	int						m_iReloadHudHintCount;		// How many times has this weapon displayed its reload HUD hint?
-	bool					m_bAltFireHudHintDisplayed;	// Have we displayed an alt-fire HUD hint since this weapon was deployed?
-	bool					m_bReloadHudHintDisplayed;	// Have we displayed a reload HUD hint since this weapon was deployed?
+	int						m_iHudHintCount;		// How many times has this weapon displayed its HUD hint?
+	bool					m_bHudHintDisplayed;	// Have we displayed a HUD hint since this weapon was deployed?
 	float					m_flHudHintPollTime;	// When to poll the weapon again for whether it should display a hud hint.
-	float					m_flHudHintMinDisplayTime; // if the hint is squelched before this, reset my counter so we'll display it again.
 	
 	// Server only
 #if !defined( CLIENT_DLL )
@@ -529,7 +507,6 @@ private:
 	COutputEvent			m_OnPlayerUse;		// Fired when the player uses the weapon.
 	COutputEvent			m_OnPlayerPickup;	// Fired when the player picks up the weapon.
 	COutputEvent			m_OnNPCPickup;		// Fired when an NPC picks up the weapon.
-	COutputEvent			m_OnCacheInteraction;	// For awarding lambda cache achievements in HL2 on 360. See .FGD file for details 
 
 #else // Client .dll only
 	bool					m_bJustRestored;

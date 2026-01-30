@@ -262,17 +262,3 @@ void CAI_GoalEntity::OnEntityDeleted( CBaseEntity *pEntity )
 }
 
 //-----------------------------------------------------------------------------
-
-int CAI_GoalEntity::DrawDebugTextOverlays()
-{
-	char tempstr[512];
-	int offset = BaseClass::DrawDebugTextOverlays();
-
-	Q_snprintf( tempstr, sizeof(tempstr), "Active: %s", IsActive() ? "yes" : "no" );
-	EntityText( offset, tempstr, 0 );
-	offset++;
-		
-	return offset;
-}
-
-

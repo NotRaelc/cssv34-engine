@@ -19,7 +19,6 @@ public:
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pC_BaseEntity );
 	virtual void Release( void ) { delete this; }
-	virtual IMaterial *GetMaterial() { return NULL; }
 };
 
 CDummyMaterialProxy::CDummyMaterialProxy()

@@ -43,7 +43,6 @@ public:
 	
 	virtual void	Spawn();
 	virtual void	OnRestore();
-	virtual int		DrawDebugTextOverlays();
 	
 	virtual void 	InputActivate( inputdata_t &inputdata );
 	virtual void 	InputUpdateActors( inputdata_t &inputdata );

@@ -1,8 +1,8 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ====
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
-//=============================================================================
+//=============================================================================//
 
 #ifndef BUTTONS_H
 #define BUTTONS_H
@@ -22,7 +22,6 @@ public:
 	bool CreateVPhysics();
 	void RotSpawn( void );
 	bool KeyValue( const char *szKeyName, const char *szValue );
-	int DrawDebugTextOverlays();
 
 protected:
 
@@ -45,15 +44,11 @@ protected:
 	void InputLock( inputdata_t &inputdata );
 	void InputUnlock( inputdata_t &inputdata );
 	void InputPress( inputdata_t &inputdata );
-	void InputPressIn( inputdata_t &inputdata );
-	void InputPressOut( inputdata_t &inputdata );
 
 	virtual int OnTakeDamage( const CTakeDamageInfo &info );
 	
-	enum BUTTON_CODE { BUTTON_NOTHING, BUTTON_ACTIVATE, BUTTON_RETURN, BUTTON_PRESS };
-
+	enum BUTTON_CODE { BUTTON_NOTHING, BUTTON_ACTIVATE, BUTTON_RETURN };
 	BUTTON_CODE	ButtonResponseToTouch( void );
-	void Press( CBaseEntity *pActivator, BUTTON_CODE eCode );
 	
 	DECLARE_DATADESC();
 
@@ -155,6 +150,7 @@ public:
 	QAngle		m_start;
 	QAngle		m_end;
 	float		m_IdealYaw;
+	float		m_flTimeDelta;			// Think interval while handling a SetPosition input.
 	string_t	m_sNoise;
 
 	bool		m_bUpdateTarget;		// Used when jiggling so that we don't jiggle the target (door, etc)

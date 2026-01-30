@@ -79,10 +79,6 @@ BEGIN_DATADESC( CSun )
 	DEFINE_KEYFIELD( m_nOverlaySize, FIELD_INTEGER, "overlaysize" ),
 	DEFINE_KEYFIELD( m_strMaterial, FIELD_STRING, "material" ),
 	DEFINE_KEYFIELD( m_strOverlayMaterial, FIELD_STRING, "overlaymaterial" ),
-	
-	// NOT SAVED
-	// m_nOverlayMaterial
-	// m_nMaterial
 
 	DEFINE_FIELD( m_bOn, FIELD_BOOLEAN ),
 
@@ -142,32 +138,10 @@ void CSun::Activate()
 	{
 		m_strMaterial = AllocPooledString( "sprites/light_glow02_add_noz.vmt" );
 	}
-	else 
-	{
-		const char *pExtension = V_GetFileExtension( STRING( m_strMaterial ) );
-		if ( !pExtension )
-		{
-			char szFixedString[MAX_PATH];
-			V_strncpy( szFixedString, STRING( m_strMaterial ), sizeof( szFixedString ) );
-			V_strncat( szFixedString, ".vmt", sizeof( szFixedString ) );
-			m_strMaterial = AllocPooledString( szFixedString );
-		}
-	}
 
 	if ( m_strOverlayMaterial == NULL_STRING )
 	{
 		m_strOverlayMaterial = AllocPooledString( "sprites/light_glow02_add_noz.vmt" );
-	}
-	else 
-	{
-		const char *pExtension = V_GetFileExtension( STRING( m_strOverlayMaterial ) );
-		if ( !pExtension )
-		{
-			char szFixedString[MAX_PATH];
-			V_strncpy( szFixedString, STRING( m_strOverlayMaterial ), sizeof( szFixedString ) );
-			V_strncat( szFixedString, ".vmt", sizeof( szFixedString ) );
-			m_strOverlayMaterial = AllocPooledString( szFixedString );
-		}
 	}
 
 	m_nMaterial = PrecacheModel( STRING( m_strMaterial ) );

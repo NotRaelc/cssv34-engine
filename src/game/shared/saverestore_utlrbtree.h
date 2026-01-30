@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -52,7 +52,7 @@ public:
 			false,
 			false,
 			0,
-#ifdef _DEBUG
+#ifdef DEBUG
 			true
 #endif
 		};
@@ -102,7 +102,7 @@ public:
 			false,
 			false,
 			0,
-#ifdef _DEBUG
+#ifdef DEBUG
 			true
 #endif
 		};

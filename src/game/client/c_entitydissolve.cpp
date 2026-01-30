@@ -510,8 +510,8 @@ void C_EntityDissolve::ClientThink( void )
 	// the server ragdoll (or any server physics) on the client
 	if (( !m_pController ) && ( m_nDissolveType == ENTITY_DISSOLVE_NORMAL ) && pAnimating->IsRagdoll())
 	{
-		IPhysicsObject *ppList[VPHYSICS_MAX_OBJECT_LIST_COUNT];
-		int nCount = pAnimating->VPhysicsGetObjectList( ppList, ARRAYSIZE(ppList) );
+		IPhysicsObject *ppList[32];
+		int nCount = pAnimating->VPhysicsGetObjectList( ppList, 32 );
 		if ( nCount > 0 )
 		{
 			m_pController = physenv->CreateMotionController( this );

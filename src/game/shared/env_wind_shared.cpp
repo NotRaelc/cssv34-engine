@@ -232,7 +232,7 @@ float CEnvWindShared::WindThink( float flTime )
 //			UpdateWindSound( flTotalWindSpeed );
 
 			// Always immediately call, the wind is forever varying
-			return ( flTime + 0.01f );
+			return ( flTime + 0.01f ) - gpGlobals->curtime;
 		}
 
 		m_flSimTime = m_flSwitchTime;

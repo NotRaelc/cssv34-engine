@@ -24,6 +24,218 @@ extern ConVar r_DrawBeams;
 
 static IMaterial *g_pBeamWireframeMaterial;
 
+// ------------------------------------------------------------------------------------------ //
+// CBeamSegDraw implementation.
+// ------------------------------------------------------------------------------------------ //
+void CBeamSegDraw::Start( int nSegs, IMaterial *pMaterial, CMeshBuilder *pMeshBuilder, int nMeshVertCount )
+{
+	Assert( nSegs >= 2 );
+
+	m_nSegsDrawn = 0;
+	m_nTotalSegs = nSegs;
+
+	if ( pMeshBuilder )
+	{
+		m_pMeshBuilder = pMeshBuilder;
+		m_nMeshVertCount = nMeshVertCount;
+	}
+	else
+	{
+		m_pMeshBuilder = NULL;
+		m_nMeshVertCount = 0;
+
+		if ( ShouldDrawInWireFrameMode() || r_DrawBeams.GetInt() == 2 )
+		{
+			if ( !g_pBeamWireframeMaterial )
+				g_pBeamWireframeMaterial = materials->FindMaterial("shadertest/wireframevertexcolor", TEXTURE_GROUP_OTHER);
+			pMaterial = g_pBeamWireframeMaterial;
+		}
+
+		IMesh *pMesh = materials->GetDynamicMesh( true, NULL, NULL, pMaterial );
+		m_Mesh.Begin( pMesh, MATERIAL_TRIANGLE_STRIP, (nSegs-1) * 2 );
+	}
+}
+
+inline void CBeamSegDraw::ComputeNormal( const Vector &vStartPos, const Vector &vNextPos, Vector *pNormal )
+{
+	// vTangentY = line vector for beam
+	Vector vTangentY;
+	VectorSubtract( vStartPos, vNextPos, vTangentY );
+	
+	// vDirToBeam = vector from viewer origin to beam
+	Vector vDirToBeam;
+	VectorSubtract( vStartPos, CurrentViewOrigin(), vDirToBeam );
+
+	// Get a vector that is perpendicular to us and perpendicular to the beam.
+	// This is used to fatten the beam.
+	CrossProduct( vTangentY, vDirToBeam, *pNormal );
+	VectorNormalizeFast( *pNormal );
+}
+
+inline void CBeamSegDraw::SpecifySeg( const Vector &vNormal )
+{
+	// SUCKY: Need to do a fair amount more work to get the tangent owing to the averaged normal
+	Vector vDirToBeam, vTangentY;
+	VectorSubtract( m_Seg.m_vPos, CurrentViewOrigin(), vDirToBeam );
+	CrossProduct( vDirToBeam, vNormal, vTangentY );
+	VectorNormalizeFast( vTangentY );
+
+	// Build the endpoints.
+	Vector vPoint1, vPoint2;
+	VectorMA( m_Seg.m_vPos,  m_Seg.m_flWidth*0.5f, vNormal, vPoint1 );
+	VectorMA( m_Seg.m_vPos, -m_Seg.m_flWidth*0.5f, vNormal, vPoint2 );
+
+	if ( m_pMeshBuilder )
+	{
+		// Specify the points.
+		m_pMeshBuilder->Position3fv( vPoint1.Base() );
+		m_pMeshBuilder->Color4f( VectorExpand( m_Seg.m_vColor ), m_Seg.m_flAlpha );
+		m_pMeshBuilder->TexCoord2f( 0, 0, m_Seg.m_flTexCoord );
+		m_pMeshBuilder->TexCoord2f( 1, 0, m_Seg.m_flTexCoord );
+		m_pMeshBuilder->TangentS3fv( vNormal.Base() );
+		m_pMeshBuilder->TangentT3fv( vTangentY.Base() );
+		m_pMeshBuilder->AdvanceVertex();
+		
+		m_pMeshBuilder->Position3fv( vPoint2.Base() );
+		m_pMeshBuilder->Color4f( VectorExpand( m_Seg.m_vColor ), m_Seg.m_flAlpha );
+		m_pMeshBuilder->TexCoord2f( 0, 1, m_Seg.m_flTexCoord );
+		m_pMeshBuilder->TexCoord2f( 1, 1, m_Seg.m_flTexCoord );
+		m_pMeshBuilder->TangentS3fv( vNormal.Base() );
+		m_pMeshBuilder->TangentT3fv( vTangentY.Base() );
+		m_pMeshBuilder->AdvanceVertex();
+
+		if ( m_nSegsDrawn > 1 )
+		{
+			int nBase = ( ( m_nSegsDrawn - 2 ) * 2 ) + m_nMeshVertCount;
+
+			m_pMeshBuilder->FastIndex( nBase );
+			m_pMeshBuilder->FastIndex( nBase + 1 );
+			m_pMeshBuilder->FastIndex( nBase + 2 );
+			m_pMeshBuilder->FastIndex( nBase + 1 );
+			m_pMeshBuilder->FastIndex( nBase + 3 );
+			m_pMeshBuilder->FastIndex( nBase + 2 );
+		}
+	}
+	else
+	{
+		// Specify the points.
+		m_Mesh.Position3fv( vPoint1.Base() );
+		m_Mesh.Color4f( VectorExpand( m_Seg.m_vColor ), m_Seg.m_flAlpha );
+		m_Mesh.TexCoord2f( 0, 0, m_Seg.m_flTexCoord );
+		m_Mesh.TexCoord2f( 1, 0, m_Seg.m_flTexCoord );
+		m_Mesh.TangentS3fv( vNormal.Base() );
+		m_Mesh.TangentT3fv( vTangentY.Base() );
+		m_Mesh.AdvanceVertex();
+		
+		m_Mesh.Position3fv( vPoint2.Base() );
+		m_Mesh.Color4f( VectorExpand( m_Seg.m_vColor ), m_Seg.m_flAlpha );
+		m_Mesh.TexCoord2f( 0, 1, m_Seg.m_flTexCoord );
+		m_Mesh.TexCoord2f( 1, 1, m_Seg.m_flTexCoord );
+		m_Mesh.TangentS3fv( vNormal.Base() );
+		m_Mesh.TangentT3fv( vTangentY.Base() );
+		m_Mesh.AdvanceVertex();
+	}
+}
+
+void CBeamSegDraw::NextSeg( CBeamSeg *pSeg )
+{
+ 	if ( m_nSegsDrawn > 0 )
+	{
+		// Get a vector that is perpendicular to us and perpendicular to the beam.
+		// This is used to fatten the beam.
+		Vector vNormal, vAveNormal;
+		ComputeNormal( m_Seg.m_vPos, pSeg->m_vPos, &vNormal );
+
+		if ( m_nSegsDrawn > 1 )
+		{
+			// Average this with the previous normal
+			VectorAdd( vNormal, m_vNormalLast, vAveNormal );
+			vAveNormal *= 0.5f;
+			VectorNormalizeFast( vAveNormal );
+		}
+		else
+		{
+			vAveNormal = vNormal;
+		}
+
+		m_vNormalLast = vNormal;
+		SpecifySeg( vAveNormal );
+	}
+
+	m_Seg = *pSeg;
+	++m_nSegsDrawn;
+
+ 	if( m_nSegsDrawn == m_nTotalSegs )
+	{
+		SpecifySeg( m_vNormalLast );
+	}
+}
+
+void CBeamSegDraw::End()
+{
+	if ( m_pMeshBuilder )
+	{
+		m_pMeshBuilder = NULL;
+		return;
+	}
+
+	m_Mesh.End( false, true );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &normal - 
+//-----------------------------------------------------------------------------
+void CBeamSegDrawArbitrary::SetNormal( const Vector &normal )
+{
+	m_vNormalLast = normal;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pSeg - 
+//-----------------------------------------------------------------------------
+void CBeamSegDrawArbitrary::NextSeg( CBeamSeg *pSeg )
+{
+ 	if ( m_nSegsDrawn > 0 )
+	{
+		Vector	segDir = ( m_PrevSeg.m_vPos - pSeg->m_vPos );
+		VectorNormalize( segDir );
+
+		Vector	normal = CrossProduct( segDir, m_vNormalLast );
+		SpecifySeg( normal );
+	}
+
+	m_PrevSeg = m_Seg;
+	m_Seg = *pSeg;
+	++m_nSegsDrawn;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &vNextPos - 
+//-----------------------------------------------------------------------------
+void CBeamSegDrawArbitrary::SpecifySeg( const Vector &vNormal )
+{
+	// Build the endpoints.
+	Vector vPoint1, vPoint2;
+	VectorMA( m_Seg.m_vPos,  m_Seg.m_flWidth*0.5f, vNormal, vPoint1 );
+	VectorMA( m_Seg.m_vPos, -m_Seg.m_flWidth*0.5f, vNormal, vPoint2 );
+
+	// Specify the points.
+	m_Mesh.Position3fv( vPoint1.Base() );
+	m_Mesh.Color4f( VectorExpand( m_Seg.m_vColor ), m_Seg.m_flAlpha );
+	m_Mesh.TexCoord2f( 0, 0, m_Seg.m_flTexCoord );
+	m_Mesh.TexCoord2f( 1, 0, m_Seg.m_flTexCoord );
+	m_Mesh.AdvanceVertex();
+	
+	m_Mesh.Position3fv( vPoint2.Base() );
+	m_Mesh.Color4f( VectorExpand( m_Seg.m_vColor ), m_Seg.m_flAlpha );
+	m_Mesh.TexCoord2f( 0, 1, m_Seg.m_flTexCoord );
+	m_Mesh.TexCoord2f( 1, 1, m_Seg.m_flTexCoord );
+	m_Mesh.AdvanceVertex();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Retrieve sprite object and set it up for rendering
 // Input  : *pSpriteModel - 
@@ -43,19 +255,18 @@ CEngineSprite *Draw_SetSpriteTexture( const model_t *pSpriteModel, int frame, in
 	if( !material )
 		return NULL;
 	
-	CMatRenderContextPtr pRenderContext( materials );
 	if ( ShouldDrawInWireFrameMode() || r_DrawBeams.GetInt() == 2 )
 	{
 		if ( !g_pBeamWireframeMaterial )
 			g_pBeamWireframeMaterial = materials->FindMaterial( "shadertest/wireframevertexcolor", TEXTURE_GROUP_OTHER );
-		pRenderContext->Bind( g_pBeamWireframeMaterial, NULL );
+		materials->Bind( g_pBeamWireframeMaterial, NULL );
 		return psprite;
 	}
 	
 	psprite->SetFrame( frame );
 	psprite->SetRenderMode( rendermode );
 
-	pRenderContext->Bind( material );
+	materials->Bind( material );
 	return psprite;
 }
 
@@ -81,8 +292,7 @@ void DrawHalo(IMaterial* pMaterial, const Vector& source, float scale, float con
 		}
 	}
 
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	IMesh* pMesh = materials->GetDynamicMesh( );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
@@ -157,8 +367,7 @@ void DrawSprite( const Vector &vecOrigin, float flWidth, float flHeight, color32
 
 	CMeshBuilder meshBuilder;
 	Vector point;
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	IMesh* pMesh = materials->GetDynamicMesh( );
 
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 
@@ -330,14 +539,13 @@ void DrawSegs( int noise_divisions, float *prgNoise, const model_t* spritemodel,
 	ComputeBeamPerpendicular( delta, &perp1 );
 
 	// Specify all the segments.
-	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	CBeamSegDraw segDraw;
-	segDraw.Start( pRenderContext, segments, NULL );
+	segDraw.Start( segments, NULL );
 
 	for ( i = 0; i < segments; i++ )
 	{
 		Assert( noiseIndex < (noise_divisions<<16) );
-		BeamSeg_t curSeg;
+		CBeamSeg curSeg;
 		curSeg.m_flAlpha = 1;
 
 		fraction = i * div;
@@ -531,9 +739,8 @@ void DrawTeslaSegs( int noise_divisions, float *prgNoise, const model_t* spritem
 	ComputeBeamPerpendicular( delta, &perp );
 
 	// Specify all the segments.
-	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	CBeamSegDraw segDraw;
-	segDraw.Start( pRenderContext, segments, NULL );
+	segDraw.Start( segments, NULL );
 
 	// Keep track of how many times we've branched
 	int iBranches = 0;
@@ -544,7 +751,7 @@ void DrawTeslaSegs( int noise_divisions, float *prgNoise, const model_t* spritem
 
 	for ( i = 0; i < segments; i++ )
 	{
-		BeamSeg_t curSeg;
+		CBeamSeg curSeg;
 		curSeg.m_flAlpha = 1;
 
 		fraction = i * div;
@@ -700,9 +907,8 @@ void DrawSplineSegs( int noise_divisions, float *prgNoise,
 	
 
 	IMaterial *pBeamMaterial = pBeamSprite->GetMaterial();
-	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	CBeamSegDraw segDraw;
-	segDraw.Start( pRenderContext, (segments-1)*(numAttachments-1), pBeamMaterial );
+	segDraw.Start( (segments-1)*(numAttachments-1), pBeamMaterial );
 
 	CEngineSprite *pHaloSprite = (CEngineSprite *)modelinfo->GetModelExtraData( halosprite );
 	IMaterial *pHaloMaterial = NULL;
@@ -742,6 +948,8 @@ void DrawSplineSegs( int noise_divisions, float *prgNoise,
 	Vector pStart;	// start of current beam
 	Vector pEnd;	// end of current beam
 	Vector pNext;	// attachment point after the current beam
+
+
 
 	for (int j=0;j<numAttachments-1;j++)
 	{
@@ -801,7 +1009,7 @@ void DrawSplineSegs( int noise_divisions, float *prgNoise,
 		if ( flags & FBEAM_SHADEIN )
 			brightness = 0;
 
-		BeamSeg_t seg;
+		CBeamSeg seg;
 		seg.m_flAlpha = 1;
 
 		VectorScale( color, brightness, scaledColor );
@@ -951,7 +1159,7 @@ void DrawSplineSegs( int noise_divisions, float *prgNoise,
 				if (fade > 1.0) fade = 1.0;
 				float haloColor[3];
 				VectorScale( color, fade, haloColor );
-				pRenderContext->Bind(pHaloMaterial);
+				materials->Bind(pHaloMaterial);
 				float curWidth = (fBestFraction*(endSegWidth-startSegWidth))+startSegWidth;
 				DrawHalo(pHaloMaterial,vHaloPos,flHaloScale*curWidth/endWidth,haloColor, flHDRColorScale);
 			}
@@ -965,7 +1173,7 @@ void DrawSplineSegs( int noise_divisions, float *prgNoise,
 	// ------------------------
 	if (pHaloMaterial)
 	{
-		pRenderContext->Bind(pHaloMaterial);
+		materials->Bind(pHaloMaterial);
 		DrawHalo(pHaloMaterial,pEnd,flHaloScale,scaledColor, flHDRColorScale);
 	}
 }
@@ -1050,8 +1258,7 @@ void DrawDisk( int noise_divisions, float *prgNoise, const model_t* spritemodel,
 
 	w = freq * delta[2];
 
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	IMesh* pMesh = materials->GetDynamicMesh( );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_TRIANGLE_STRIP, (segments - 1) * 2 );
@@ -1146,8 +1353,7 @@ void DrawCylinder( int noise_divisions, float *prgNoise, const model_t* spritemo
 	vLast = fmod(freq*speed,1);	// Scroll speed 3.5 -- initial texture position, scrolls 3.5/sec (1.0 is entire texture)
 	scale = scale * length;
 	
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	IMesh* pMesh = materials->GetDynamicMesh( );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_TRIANGLE_STRIP, (segments - 1) * 2 );
@@ -1271,8 +1477,7 @@ void DrawRing( int noise_divisions, float *prgNoise, void (*pfnNoise)( float *no
 
 	j = segments / 8;
 
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	IMesh* pMesh = materials->GetDynamicMesh( );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_TRIANGLE_STRIP, (segments) * 2 );
@@ -1415,8 +1620,7 @@ void DrawBeamFollow( const model_t* spritemodel, BeamTrail_t* pHead, int frame, 
 		pTraverse = pTraverse->next;
 	}
 
-	CMatRenderContextPtr pRenderContext( materials );
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( );
+	IMesh* pMesh = materials->GetDynamicMesh( );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, count );
@@ -1494,11 +1698,10 @@ void DrawBeamQuadratic( const Vector &start, const Vector &control, const Vector
 {
 	int subdivisions = 16;
 
-	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	CBeamSegDraw beamDraw;
-	beamDraw.Start( pRenderContext, subdivisions+1, NULL );
+	beamDraw.Start( subdivisions+1, NULL );
 
-	BeamSeg_t seg;
+	CBeamSeg seg;
 	seg.m_flAlpha = 1.0;
 	seg.m_flWidth = width;
 	

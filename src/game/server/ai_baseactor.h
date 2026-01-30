@@ -68,8 +68,8 @@ public:
 
 		index = (FlexWeight_t)FindFlexController( szName ); 
 	}
-	void	Set( FlexWeight_t index, float flValue ) { SetFlexWeight( (LocalFlexController_t)index, flValue ); }
-	float	Get( FlexWeight_t index ) { return GetFlexWeight( (LocalFlexController_t)index ); }
+	void	Set( FlexWeight_t index, float flValue ) { SetFlexWeight( (int)index, flValue ); }
+	float	Get( FlexWeight_t index ) { return GetFlexWeight( (int)index ); }
 
 
 public:
@@ -136,9 +136,7 @@ public:
 
 	virtual void			SetHeadDirection( const Vector &vTargetPos, float flInterval );
 
-	void					UpdateBodyControl( void );
-	void					UpdateHeadControl( const Vector &vHeadTarget, float flHeadInfluence );
-	virtual	float			GetHeadDebounce( void ) { return 0.3; } // how much of previous head turn to use
+	void					UpdateHeadBodyControl( const Vector &vHeadTarget, float flHeadInfluence, const Vector &vBodyTarget, float flBodyInfluence );
 
 	virtual void			MaintainLookTargets( float flInterval );
 	virtual bool			ValidEyeTarget(const Vector &lookTargetPos);
@@ -175,8 +173,7 @@ public:
 		SCENE_AI_RANDOMLOOK,
 		SCENE_AI_RANDOMFACEFLEX,
 		SCENE_AI_RANDOMHEADFLEX,
-		SCENE_AI_IGNORECOLLISION,
-		SCENE_AI_DISABLEAI
+		SCENE_AI_IGNORECOLLISION
 	};
 
 

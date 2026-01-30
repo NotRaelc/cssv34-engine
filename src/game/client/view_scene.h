@@ -32,19 +32,14 @@ int ScreenTransform( const Vector& point, Vector& screen );
 
 extern ConVar r_updaterefracttexture;
 extern int g_viewscene_refractUpdateFrame;
-extern bool g_bAllowMultipleRefractUpdatesPerScenePerFrame;
-bool DrawingShadowDepthView( void );
 
 inline void UpdateRefractTexture( int x, int y, int w, int h, bool bForceUpdate = false )
 {
-	Assert( !DrawingShadowDepthView() );
-
 	if ( !IsRetail() && !r_updaterefracttexture.GetBool() )
 		return;
 
-	CMatRenderContextPtr pRenderContext( materials );
 	ITexture *pTexture = GetPowerOfTwoFrameBufferTexture();
-	if ( IsPC() || bForceUpdate || g_bAllowMultipleRefractUpdatesPerScenePerFrame || (gpGlobals->framecount != g_viewscene_refractUpdateFrame) )
+	if ( IsPC() || bForceUpdate || gpGlobals->framecount != g_viewscene_refractUpdateFrame )
 	{
 		// forced or only once per frame 
 		Rect_t rect;
@@ -52,22 +47,17 @@ inline void UpdateRefractTexture( int x, int y, int w, int h, bool bForceUpdate 
 		rect.y = y;
 		rect.width = w;
 		rect.height = h;
-		pRenderContext->CopyRenderTargetToTextureEx( pTexture, 0, &rect, NULL );
+		materials->CopyRenderTargetToTextureEx( pTexture, 0, &rect, NULL );
 
 		g_viewscene_refractUpdateFrame = gpGlobals->framecount;
 	}
-	pRenderContext->SetFrameBufferCopyTexture( pTexture );
+	materials->SetFrameBufferCopyTexture( pTexture );
 }
 
 inline void UpdateRefractTexture( bool bForceUpdate = false )
 {
-	Assert( !DrawingShadowDepthView() );
-
-	CMatRenderContextPtr pRenderContext( materials );
-
-	int x,y,w,h;
-	pRenderContext->GetViewport( x, y, w, h );
-	UpdateRefractTexture( x, y, w, h, bForceUpdate );
+	const CViewSetup *pViewSetup = view->GetViewSetup();
+	UpdateRefractTexture( pViewSetup->x, pViewSetup->y, pViewSetup->width, pViewSetup->height, bForceUpdate );
 }
 
 inline void UpdateScreenEffectTexture( int textureIndex, int x, int y, int w, int h, bool bDestFullScreen = false, Rect_t *pActualRect = NULL )
@@ -78,10 +68,9 @@ inline void UpdateScreenEffectTexture( int textureIndex, int x, int y, int w, in
 	srcRect.width = w;
 	srcRect.height = h;
 
-	CMatRenderContextPtr pRenderContext( materials );
 	ITexture *pTexture = GetFullFrameFrameBufferTexture( textureIndex );
 	int nSrcWidth, nSrcHeight;
-	pRenderContext->GetRenderTargetDimensions( nSrcWidth, nSrcHeight );
+	materials->GetRenderTargetDimensions( nSrcWidth, nSrcHeight );
 	int nDestWidth = pTexture->GetActualWidth();
 	int nDestHeight = pTexture->GetActualHeight();
 
@@ -102,8 +91,8 @@ inline void UpdateScreenEffectTexture( int textureIndex, int x, int y, int w, in
 		destRect.height = clamp( destRect.height, 0, nDestHeight - destRect.y );
 	}
 
-	pRenderContext->CopyRenderTargetToTextureEx( pTexture, 0, &srcRect, bDestFullScreen ? NULL : &destRect );
-	pRenderContext->SetFrameBufferCopyTexture( pTexture, textureIndex );
+	materials->CopyRenderTargetToTextureEx( pTexture, 0, &srcRect, bDestFullScreen ? NULL : &destRect );
+	materials->SetFrameBufferCopyTexture( pTexture, textureIndex );
 
 	if ( pActualRect )
 	{
@@ -114,50 +103,7 @@ inline void UpdateScreenEffectTexture( int textureIndex, int x, int y, int w, in
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Draws the screen effect
-//-----------------------------------------------------------------------------
-inline void DrawScreenEffectMaterial( IMaterial *pMaterial, int x, int y, int w, int h )
-{
-	Rect_t actualRect;
-	UpdateScreenEffectTexture( 0, x, y, w, h, false, &actualRect );
-	ITexture *pTexture = GetFullFrameFrameBufferTexture( 0 );
-
-	CMatRenderContextPtr pRenderContext( materials );
-
-	pRenderContext->DrawScreenSpaceRectangle( pMaterial, x, y, w, h,
-		actualRect.x, actualRect.y, actualRect.x+actualRect.width-1, actualRect.y+actualRect.height-1, 
-		pTexture->GetActualWidth(), pTexture->GetActualHeight() );
-}
-
-
-//intended for use by dynamic meshes to naively update front buffer textures needed by a material
-inline void UpdateFrontBufferTexturesForMaterial( IMaterial *pMaterial, bool bForce = false )
-{
-	Assert( !DrawingShadowDepthView() );
-
-	if( pMaterial->NeedsPowerOfTwoFrameBufferTexture() )
-	{
-		UpdateRefractTexture( bForce );
-	}
-	else if( pMaterial->NeedsFullFrameBufferTexture() )
-	{
-		const CViewSetup *pView = view->GetViewSetup();
-		UpdateScreenEffectTexture( 0, pView->x, pView->y, pView->width, pView->height );
-	}
-}
-
-inline void UpdateScreenEffectTexture( void )
-{
-	Assert( !DrawingShadowDepthView() );
-
-	const CViewSetup *pViewSetup = view->GetViewSetup();
-	UpdateScreenEffectTexture( 0, pViewSetup->x, pViewSetup->y, pViewSetup->width, pViewSetup->height);
-}
-
 // reset the tonem apping to a constant value, and clear the filter bank
 void ResetToneMapping(float value);
-
-void UpdateFullScreenDepthTexture( void );
 
 #endif // VIEW_SCENE_H

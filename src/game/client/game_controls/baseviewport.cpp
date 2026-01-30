@@ -27,8 +27,8 @@
 #include <vgui/IVGui.h>
 #include <vgui/ILocalize.h>
 #include <vgui/ipanel.h>
-#include <vgui_controls/button.h>
 
+#include <keydefs.h> // K_ENTER, ... define
 #include <igameresources.h>
 
 // sub dialogs
@@ -54,7 +54,6 @@
 IViewPort *gViewPortInterface = NULL;
 
 vgui::Panel *g_lastPanel = NULL; // used for mouseover buttons, keeps track of the last active panel
-vgui::Button *g_lastButton = NULL; // used for mouseover buttons, keeps track of the last active button
 using namespace vgui;
 
 ConVar hud_autoreloadscript("hud_autoreloadscript", "0", FCVAR_NONE, "Automatically reloads the animation script each time one is ran");
@@ -66,10 +65,10 @@ CON_COMMAND( showpanel, "Shows a viewport panel <name>" )
 	if ( !gViewPortInterface )
 		return;
 	
-	if ( args.ArgC() != 2 )
+	if ( engine->Cmd_Argc() != 2 )
 		return;
 		
-	 gViewPortInterface->ShowPanel( args[ 1 ], true );
+	 gViewPortInterface->ShowPanel( engine->Cmd_Argv( 1 ), true );
 }
 
 CON_COMMAND( hidepanel, "Hides a viewport panel <name>" )
@@ -77,10 +76,10 @@ CON_COMMAND( hidepanel, "Hides a viewport panel <name>" )
 	if ( !gViewPortInterface )
 		return;
 	
-	if ( args.ArgC() != 2 )
+	if ( engine->Cmd_Argc() != 2 )
 		return;
 		
-	 gViewPortInterface->ShowPanel( args[ 1 ], false );
+	 gViewPortInterface->ShowPanel( engine->Cmd_Argv( 1 ), false );
 }
 
 /* global helper functions
@@ -102,41 +101,6 @@ bool Helper_LoadFile( IBaseFileSystem *pFileSystem, const char *pFilename, CUtlV
 	return true;
 } */
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CBaseViewport::LoadHudAnimations( void )
-{
-	const char *HUDANIMATION_MANIFEST_FILE = "scripts/hudanimations_manifest.txt";
-	KeyValues *manifest = new KeyValues( HUDANIMATION_MANIFEST_FILE );
-	if ( manifest->LoadFromFile( g_pFullFileSystem, HUDANIMATION_MANIFEST_FILE, "GAME" ) == false )
-	{
-		manifest->deleteThis();
-		return false;
-	}
-
-	bool bClearScript = true;
-
-	// Load each file defined in the text
-	for ( KeyValues *sub = manifest->GetFirstSubKey(); sub != NULL; sub = sub->GetNextKey() )
-	{
-		if ( !Q_stricmp( sub->GetName(), "file" ) )
-		{
-			// Add it
-			if ( m_pAnimController->SetScriptFile( GetVPanel(), sub->GetString(), bClearScript ) == false )
-			{
-				Assert( 0 );
-			}
-
-			bClearScript = false;
-			continue;
-		}
-	}
-
-	manifest->deleteThis();
-	return true;
-}
 
 //================================================================
 CBaseViewport::CBaseViewport() : vgui::EditablePanel( NULL, "CBaseViewport")
@@ -164,17 +128,10 @@ CBaseViewport::CBaseViewport() : vgui::EditablePanel( NULL, "CBaseViewport")
 	// create our animation controller
 	m_pAnimController->SetScheme(scheme);
 	m_pAnimController->SetProportional(true);
-	
-	// Attempt to load all hud animations
-	if ( LoadHudAnimations() == false )
+	if (!m_pAnimController->SetScriptFile( GetVPanel(), "scripts/HudAnimations.txt"))
 	{
-		// Fall back to just the main
-		if ( m_pAnimController->SetScriptFile( GetVPanel(), "scripts/HudAnimations.txt", true ) == false )
-		{
-			Assert(0);
-		}
+		Assert(0);
 	}
-
 	m_OldSize[ 0 ] = m_OldSize[ 1 ] = -1;
 }
 
@@ -199,14 +156,6 @@ void CBaseViewport::OnScreenSizeChanged(int iOldWide, int iOldTall)
 #ifndef _XBOX
 	vgui::ipanel()->MoveToBack( m_pBackGround->GetVPanel() ); // really send it to the back 
 #endif
-
-	// hide all panels when reconnecting 
-	ShowPanel( PANEL_ALL, false );
-
-	if ( engine->IsHLTV() )
-	{
-		ShowPanel( PANEL_SPECGUI, true );
-	}
 }
 
 void CBaseViewport::CreateDefaultPanels( void )
@@ -217,9 +166,9 @@ void CBaseViewport::CreateDefaultPanels( void )
 	AddNewPanel( CreatePanelByName( PANEL_SPECGUI ), "PANEL_SPECGUI" );
 	AddNewPanel( CreatePanelByName( PANEL_SPECMENU ), "PANEL_SPECMENU" );
 	AddNewPanel( CreatePanelByName( PANEL_NAV_PROGRESS ), "PANEL_NAV_PROGRESS" );
-	// AddNewPanel( CreatePanelByName( PANEL_TEAM ), "PANEL_TEAM" );
-	// AddNewPanel( CreatePanelByName( PANEL_CLASS ), "PANEL_CLASS" );
-	// AddNewPanel( CreatePanelByName( PANEL_BUY ), "PANEL_BUY" );
+	// AddNewPanel( CreatePanelByName( PANEL_TEAM ) );
+	// AddNewPanel( CreatePanelByName( PANEL_CLASS ) );
+	// AddNewPanel( CreatePanelByName( PANEL_BUY ) );
 #endif
 }
 
@@ -282,7 +231,7 @@ bool CBaseViewport::AddNewPanel( IViewPortPanel* pPanel, char const *pchDebugNam
 {
 	if ( !pPanel )
 	{
-		DevMsg("CBaseViewport::AddNewPanel(%s): NULL panel.\n", pchDebugName );
+		DevMsg("CBaseViewport::AddNewPanel(%s): NULL panel.\n", !pchDebugName ? "" : pchDebugName );
 		return false;
 	}
 
@@ -311,41 +260,6 @@ IViewPortPanel* CBaseViewport::FindPanelByName(const char *szPanelName)
 
 	return NULL;
 }
-
-void CBaseViewport::PostMessageToPanel( IViewPortPanel* pPanel, KeyValues *pKeyValues )
-{			   
-	PostMessage( pPanel->GetVPanel(), pKeyValues );
-}
-
-void CBaseViewport::PostMessageToPanel( const char *pName, KeyValues *pKeyValues )
-{
-	if ( Q_strcmp( pName, PANEL_ALL ) == 0 )
-	{
-		for (int i=0; i< m_Panels.Count(); i++ )
-		{
-			PostMessageToPanel( m_Panels[i], pKeyValues );
-		}
-
-		return;
-	}
-
-	IViewPortPanel * panel = NULL;
-
-	if ( Q_strcmp( pName, PANEL_ACTIVE ) == 0 )
-	{
-		panel = m_pActivePanel;
-	}
-	else
-	{
-		panel = FindPanelByName( pName );
-	}
-
-	if ( !panel	)
-		return;
-
-	PostMessageToPanel( panel, pKeyValues );
-}
-
 
 void CBaseViewport::ShowPanel( const char *pName, bool state )
 {
@@ -387,7 +301,7 @@ void CBaseViewport::ShowPanel( IViewPortPanel* pPanel, bool state )
 			if ( engine->IsPlayingDemo() && !engine->IsHLTV() )
 				return;
 
-			if ( (m_pActivePanel != NULL) && (m_pActivePanel != pPanel) && (m_pActivePanel->IsVisible()) )
+			if ( (m_pActivePanel != NULL) && (m_pActivePanel != pPanel) )
 			{
 				// store a pointer to the currently active panel
 				// so we can restore it later
@@ -459,8 +373,6 @@ CBaseViewport::~CBaseViewport()
 	m_pBackGround = NULL;
 #endif
 	RemoveAllPanels();
-
-	gameeventmanager->RemoveListener( this );
 }
 
 
@@ -585,19 +497,19 @@ void CBaseViewport::OnThink()
 void CBaseViewport::SetParent(vgui::VPANEL parent)
 {
 	EditablePanel::SetParent( parent );
-	// force ourselves to be proportional - when we set our parent above, if our new
-	// parent happened to be non-proportional (such as the vgui root panel), we got
-	// slammed to be nonproportional
-	EditablePanel::SetProportional( true );
-	
 #ifndef _XBOX
 	m_pBackGround->SetParent( (vgui::VPANEL)parent );
 #endif
-
-	// set proportionality on animation controller
-	m_pAnimController->SetProportional( true );
+	for (int i=0; i< m_Panels.Count(); i++ )
+	{
+		m_Panels[i]->SetParent( parent );
+	}
 
 	m_bHasParent = (parent != 0);
+
+	// restore proportionality on animation controller
+	// TODO: should all panels be restored to being proportional? 
+	m_pAnimController->SetProportional( true );
 }
 
 //-----------------------------------------------------------------------------
@@ -651,19 +563,15 @@ void CBaseViewport::ReloadScheme(const char *fromFile)
 	}
 
 	// Force a reload
-	if ( LoadHudAnimations() == false )
+	if ( !m_pAnimController->SetScriptFile(  GetVPanel(), "scripts/HudAnimations.txt", true) )
 	{
-		// Fall back to just the main
-		if ( m_pAnimController->SetScriptFile( GetVPanel(), "scripts/HudAnimations.txt", true ) == false )
-		{
-			Assert(0);
-		}
+		Assert( 0 );
 	}
 
 	SetProportional( true );
 	
 	// reload the .res file from disk
-	LoadControlSettings( "scripts/HudLayout.res" );
+	LoadControlSettings("scripts/HudLayout.res");
 
 	gHUD.RefreshHudTextures();
 

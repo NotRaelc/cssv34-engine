@@ -186,7 +186,7 @@ public:
 			{
 				const int BufLen = 2048;
 				wchar_t wbuf[BufLen] = L"";
-				wchar_t *formatStr = g_pVGuiLocalize->Find("#Cstrike_MarketPreviousPrice");
+				wchar_t *formatStr = vgui::localize()->Find("#Cstrike_MarketPreviousPrice");
 
 				if ( !formatStr )
 					formatStr = L"%s1";
@@ -195,9 +195,9 @@ public:
 				wchar_t szPrice[64];
 				Q_snprintf( strPrice, sizeof( strPrice ), "%d", m_iPreviousPrice );
 
-				g_pVGuiLocalize->ConvertANSIToUnicode( strPrice, szPrice, sizeof(szPrice));
+				vgui::localize()->ConvertANSIToUnicode( strPrice, szPrice, sizeof(szPrice));
 
-				g_pVGuiLocalize->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, szPrice );
+				vgui::localize()->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, szPrice );
 				pLabel->SetText( wbuf );
 				pLabel->SetVisible( true );
 			}
@@ -208,7 +208,7 @@ public:
 			{
 				const int BufLen = 2048;
 				wchar_t wbuf[BufLen] = L"";
-				wchar_t *formatStr = g_pVGuiLocalize->Find("#Cstrike_MarketCurrentPrice");
+				wchar_t *formatStr = vgui::localize()->Find("#Cstrike_MarketCurrentPrice");
 
 				if ( !formatStr )
 					formatStr = L"%s1";
@@ -217,9 +217,9 @@ public:
 				wchar_t szPrice[64];
 				Q_snprintf( strPrice, sizeof( strPrice ), "%d", m_iPrice );
 
-				g_pVGuiLocalize->ConvertANSIToUnicode( strPrice, szPrice, sizeof(szPrice));
+				vgui::localize()->ConvertANSIToUnicode( strPrice, szPrice, sizeof(szPrice));
 
-				g_pVGuiLocalize->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, szPrice );
+				vgui::localize()->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, szPrice );
 				pLabel->SetText( wbuf );
 				pLabel->SetVisible( true );
 			}
@@ -230,7 +230,7 @@ public:
 			{
 				const int BufLen = 2048;
 				wchar_t wbuf[BufLen] = L"";
-				wchar_t *formatStr = g_pVGuiLocalize->Find("#Cstrike_MarketDeltaPrice");
+				wchar_t *formatStr = vgui::localize()->Find("#Cstrike_MarketDeltaPrice");
 
 				if ( !formatStr )
 					formatStr = L"%s1";
@@ -251,9 +251,9 @@ public:
 
 				Q_snprintf( strPrice, sizeof( strPrice ), "%d", abs( iDifference ) );
 
-				g_pVGuiLocalize->ConvertANSIToUnicode( strPrice, szPrice, sizeof(szPrice));
+				vgui::localize()->ConvertANSIToUnicode( strPrice, szPrice, sizeof(szPrice));
 
-				g_pVGuiLocalize->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, szPrice );
+				vgui::localize()->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, szPrice );
 				pLabel->SetText( wbuf );
 				pLabel->SetVisible( true );
 			}

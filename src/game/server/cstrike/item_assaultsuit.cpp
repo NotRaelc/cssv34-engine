@@ -36,11 +36,8 @@ class CItemAssaultSuit : public CItem
 		pPlayer->m_bHasHelmet = true;
 		pPlayer->SetArmorValue( 100 );
 
-		if ( pPlayer->IsDead() == false )
-		{
-			CPASAttenuationFilter filter( pBasePlayer );
-			EmitSound( filter, entindex(), "BaseCombatCharacter.ItemPickup2" );
-		}
+		CPASAttenuationFilter filter( pBasePlayer );
+		EmitSound( filter, entindex(), "BaseCombatCharacter.ItemPickup2" );
 
 		return true;		
 	}

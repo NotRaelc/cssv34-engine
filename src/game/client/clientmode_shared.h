@@ -13,7 +13,7 @@
 #endif
 
 #include "iclientmode.h"
-#include "gameeventlistener.h"
+#include <igameevents.h>
 #include <baseviewport.h>
 
 class CBaseHudChat;
@@ -31,8 +31,8 @@ class Panel;
 
 extern IClientMode *GetClientModeNormal(); // must be implemented
 
-// This class implements client mode functionality common to HL2 and TF2.
-class ClientModeShared : public IClientMode, public CGameEventListener
+// This class implements client mode functionality 
+class ClientModeShared : public IClientMode, public IGameEventListener2
 {
 // IClientMode overrides.
 public:
@@ -66,12 +66,11 @@ public:
 	virtual void	PostRender();
 	virtual void	PostRenderVGui();
 	virtual void	ProcessInput(bool bActive);
-	virtual bool	CreateMove( float flInputSampleTime, CUserCmd *cmd );
+	virtual void	CreateMove( float flInputSampleTime, CUserCmd *cmd );
 	virtual void	Update();
 
 	// Input
-	virtual int		KeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding );
-	virtual int		HudElementKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding );
+	virtual int		KeyInput( int down, int keynum, const char *pszCurrentBinding );
 	virtual void	OverrideMouseInput( float *x, float *y );
 	virtual void	StartMessageMode( int iMessageModeType );
 	virtual vgui::Panel *GetMessagePanel();
@@ -91,8 +90,6 @@ public:
 	virtual void FireGameEvent( IGameEvent *event );
 
 	virtual bool CanRecordDemo( char *errorMsg, int length ) const { return true; }
-
-	virtual int HandleSpectatorKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding );
 
 protected:
 	CBaseViewport			*m_pViewport;

@@ -1,10 +1,10 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include "animation.h"
@@ -24,7 +24,6 @@ extern ConVar ai_sequence_debug;
 
 BEGIN_SIMPLE_DATADESC( CAnimationLayer )
 
-//	DEFINE_FIELD( m_pOwnerEntity, CBaseAnimatingOverlay ),
 	DEFINE_FIELD( m_fFlags, FIELD_INTEGER ),
 	DEFINE_FIELD( m_bSequenceFinished, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bLooping, FIELD_BOOLEAN ),
@@ -400,9 +399,9 @@ void CAnimationLayer::DispatchAnimEvents( CBaseAnimating *eventHandler, CBaseAni
 	m_flLastEventCheck = flEnd;
 
 	/*
-	if (pOwner->m_debugOverlays & OVERLAY_NPC_SELECTED_BIT)
+	if (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT)
 	{
-		Msg( "%s:%s : checking %.2f %.2f (%d)\n", STRING(pOwner->GetModelName()), pstudiohdr->pSeqdesc( m_nSequence ).pszLabel(), flStart, flEnd, m_bSequenceFinished );
+		Msg( "%s:%s : checking %.2f %.2f (%d)\n", STRING(GetModelName()), pstudiohdr->pSeqdesc( m_nSequence )->pszLabel(), flStart, flEnd, m_bSequenceFinished );
 	}
 	*/
 
@@ -442,32 +441,20 @@ void CBaseAnimatingOverlay::GetSkeleton( CStudioHdr *pStudioHdr, Vector pos[], Q
 		return;
 	}
 
-	InitPose( pStudioHdr, pos, q, boneMask );
+	InitPose( pStudioHdr, pos, q );
 
 	AccumulatePose( pStudioHdr, m_pIk, pos, q, GetSequence(), GetCycle(), GetPoseParameterArray(), boneMask, 1.0, gpGlobals->curtime );
 
-	// sort the layers
-	int layer[MAX_OVERLAYS];
-	int i;
-	for (i = 0; i < m_AnimOverlay.Count(); i++)
+	// layers
 	{
-		layer[i] = MAX_OVERLAYS;
-	}
-	for (i = 0; i < m_AnimOverlay.Count(); i++)
-	{
-		CAnimationLayer &pLayer = m_AnimOverlay[i];
-		if( (pLayer.m_flWeight > 0) && pLayer.IsActive() && pLayer.m_nOrder >= 0 && pLayer.m_nOrder < m_AnimOverlay.Count())
+		for (int i = 0; i < m_AnimOverlay.Count(); i++)
 		{
-			layer[pLayer.m_nOrder] = i;
-		}
-	}
-	for (i = 0; i < m_AnimOverlay.Count(); i++)
-	{
-		if (layer[i] >= 0 && layer[i] < m_AnimOverlay.Count())
-		{
-			CAnimationLayer &pLayer = m_AnimOverlay[layer[i]];
-			// UNDONE: Is it correct to use overlay weight for IK too?
-			AccumulatePose( pStudioHdr, m_pIk, pos, q, pLayer.m_nSequence, pLayer.m_flCycle, GetPoseParameterArray(), boneMask, pLayer.m_flWeight, gpGlobals->curtime );
+			CAnimationLayer &pLayer = m_AnimOverlay[i];
+			if( (pLayer.m_flWeight > 0) && pLayer.IsActive() )
+			{
+				// UNDONE: Is it correct to use overlay weight for IK too?
+				AccumulatePose( pStudioHdr, m_pIk, pos, q, pLayer.m_nSequence, pLayer.m_flCycle, GetPoseParameterArray(), boneMask, pLayer.m_flWeight, gpGlobals->curtime );
+			}
 		}
 	}
 
@@ -633,6 +620,7 @@ float CBaseAnimatingOverlay::GetLayerDuration( int iLayer )
 int	CBaseAnimatingOverlay::AddLayeredSequence( int sequence, int iPriority )
 {
 	int i = AllocateLayer( iPriority );
+	Assert( IsValidLayer( i ) );
 	// No room?
 	if ( IsValidLayer( i ) )
 	{
@@ -704,11 +692,6 @@ int CBaseAnimatingOverlay::AllocateLayer( int iPriority )
 
 	if (iOpenLayer == -1)
 	{
-		if (m_AnimOverlay.Count() >= MAX_OVERLAYS)
-		{
-			return -1;
-		}
-
 		iOpenLayer = m_AnimOverlay.AddToTail();
 		m_AnimOverlay[iOpenLayer].Init( this );
 	}
@@ -716,11 +699,8 @@ int CBaseAnimatingOverlay::AllocateLayer( int iPriority )
 	// make sure there's always an empty unused layer so that history slots will be available on the client when it is used
 	if (iNumOpen == 0)
 	{
-		if (m_AnimOverlay.Count() < MAX_OVERLAYS)
-		{
-			i = m_AnimOverlay.AddToTail();
-			m_AnimOverlay[i].Init( this );
-		}
+		i = m_AnimOverlay.AddToTail();
+		m_AnimOverlay[i].Init( this );
 	}
 
 	for (i = 0; i < m_AnimOverlay.Count(); i++)
@@ -855,8 +835,7 @@ void CBaseAnimatingOverlay::RestartGesture( Activity activity, bool addifmissing
 	}
 
 	m_AnimOverlay[ idx ].m_flCycle = 0.0f;
-	m_AnimOverlay[ idx ].m_flPrevCycle = 0.0f;
-	m_AnimOverlay[ idx ].m_flLastEventCheck = 0.0f;
+	m_AnimOverlay[ idx ].m_flPrevCycle = 0;
 }
 
 //-----------------------------------------------------------------------------

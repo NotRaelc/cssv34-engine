@@ -46,9 +46,6 @@ public:
 	void			EndLogging( void );
 
 	//---------------------------------
-	bool			IsAsync();
-
-	//---------------------------------
 
 	int				GetWritePos() const;
 	void			SetWritePos(int pos);
@@ -178,7 +175,6 @@ private:
 	CGameSaveRestoreInfo *m_pGameInfo;
 
 	FileHandle_t		m_hLogFile;
-	bool				m_bAsync;
 };
 
 //-----------------------------------------------------------------------------

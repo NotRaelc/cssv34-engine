@@ -10,7 +10,6 @@
 #pragma once
 
 
-#include "basemultiplayerplayer.h"
 #include "server_class.h"
 #include "cs_playeranimstate.h"
 #include "cs_shareddefs.h"
@@ -202,10 +201,10 @@ enum BuyResult_e
 //=============================================================================
 // >> CounterStrike player
 //=============================================================================
-class CCSPlayer : public CBaseMultiplayerPlayer, public ICSPlayerAnimStateHelpers
+class CCSPlayer : public CBasePlayer, public ICSPlayerAnimStateHelpers
 {
 public:
-	DECLARE_CLASS( CCSPlayer, CBaseMultiplayerPlayer );
+	DECLARE_CLASS( CCSPlayer, CBasePlayer );
 	DECLARE_SERVERCLASS();
 	DECLARE_PREDICTABLE();
 	DECLARE_DATADESC();
@@ -240,7 +239,7 @@ public:
 	virtual void		ShowViewPortPanel( const char * name, bool bShow = true, KeyValues *data = NULL );
 
 	// This passes the event to the client's and server's CPlayerAnimState.
-	void DoAnimationEvent( PlayerAnimEvent_t event, int nData = 0 );
+	void DoAnimationEvent( PlayerAnimEvent_t event );
 
 	// from CBasePlayer
 	virtual void		SetupVisibility( CBaseEntity *pViewEntity, unsigned char *pvs, int pvssize );
@@ -298,7 +297,6 @@ public:
 
 	virtual bool StartReplayMode( float fDelay, float fDuration, int iEntity );
 	virtual void StopReplayMode();
-	virtual void PlayUseDenySound();
 
 
 public:
@@ -311,7 +309,7 @@ public:
 	virtual void PlayStepSound( Vector &vecOrigin, surfacedata_t *psurface, float fvol, bool force );
 	
 	// from cbasecombatcharacter
-	void InitVCollision( const Vector &vecAbsOrigin, const Vector &vecAbsVelocity );
+	void InitVCollision();
 	void VPhysicsShadowUpdate( IPhysicsObject *pPhysics );
 	
 	bool HasShield() const;
@@ -385,7 +383,7 @@ public:
 	// This is the think function for the player when they first join the server and have to select a team
 	void JoiningThink();
 
-	virtual bool ClientCommand( const CCommand &args );
+	virtual bool ClientCommand( const char* command );
 
 	bool HandleCommand_JoinClass( int iClass );
 	bool HandleCommand_JoinTeam( int iTeam );
@@ -402,6 +400,7 @@ public:
 
 	void ListPlayers();
 
+	int m_iIgnoreGlobalChat;
 	bool m_bIgnoreRadio;
 
 	// Returns one of the CS_CLASS_ enums.
@@ -437,6 +436,8 @@ public:
 	void ChangeTeam( int iTeamNum );
 	void SwitchTeam( int iTeamNum );	// Changes teams without penalty - used for auto team balancing
 
+	bool CanHearChatFrom( CBasePlayer *pPlayer );
+	
 	void ModifyOrAppendPlayerCriteria( AI_CriteriaSet& set );
 
 	virtual void OnDamagedByExplosion( const CTakeDamageInfo &info );
@@ -444,6 +445,9 @@ public:
 	// Called whenever this player fires a shot.
 	void NoteWeaponFired();
 	virtual bool WantsLagCompensationOnEntity( const CBasePlayer *pPlayer, const CUserCmd *pCmd, const CBitVec<MAX_EDICTS> *pEntityTransmitBits ) const;
+	
+	virtual int		Cmd_Argc( void );
+	virtual char	*Cmd_Argv( int argc );
 
 // ------------------------------------------------------------------------------------------------ //
 // Player state management.
@@ -602,8 +606,6 @@ public:
 	void SurpressLadderChecks( const Vector& pos, const Vector& normal );
 	bool CanGrabLadder( const Vector& pos, const Vector& normal );
 
-	CNetworkVar( bool, m_bDetected );
-
 private:
 	CountdownTimer m_ladderSurpressionTimer;
 	Vector m_lastLadderNormal;
@@ -751,7 +753,7 @@ protected:
 // Command rate limiting.
 private:
 
-	bool ShouldRunRateLimitedCommand( const CCommand &args );
+	bool ShouldRunRateLimitedCommand( const char* command );
 
 	// This lets us rate limit the commands the players can execute so they don't overflow things like reliable buffers.
 	CUtlDict<float,int>	m_RateLimitLastCommandTimes;

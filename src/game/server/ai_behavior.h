@@ -109,10 +109,7 @@ public:
 	bool BridgeIsValidShootPosition( const Vector &vLocation, CAI_Node *pNode, CAI_Hint const *pHint );
 	float BridgeGetMaxTacticalLateralMovement( void );
 	bool BridgeShouldIgnoreSound( CSound *pSound );
-	void BridgeOnSeeEntity( CBaseEntity *pEntity );
-	void BridgeOnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker );
 	bool BridgeIsInterruptable( void );
-	bool BridgeIsNavigationUrgent( void );
 	bool BridgeShouldPlayerAvoid( void );
 	int	 BridgeOnTakeDamage_Alive( const CTakeDamageInfo &info );
 	float BridgeGetReasonableFacingDist( void );
@@ -127,9 +124,6 @@ public:
 	bool BridgeCanRunAScriptedNPCInteraction( bool bForced );
 	Activity BridgeGetFlinchActivity( bool bHeavyDamage, bool bGesture );
 	bool BridgeOnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
-	void BridgeModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet );
-	void BridgeTeleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity );
-	void BridgeHandleAnimEvent( animevent_t *pEvent );
 
 	virtual void GatherConditions();
 	virtual void GatherConditionsNotActive() { return; } // Override this and your behavior will call this in place of GatherConditions() when your behavior is NOT the active one.
@@ -198,10 +192,7 @@ protected:
 	virtual	bool IsValidShootPosition( const Vector &vLocation, CAI_Node *pNode, CAI_Hint const *pHint );
 	virtual float GetMaxTacticalLateralMovement( void );
 	virtual bool ShouldIgnoreSound( CSound *pSound );
-	virtual void OnSeeEntity( CBaseEntity *pEntity );
-	virtual void OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker );
 	virtual bool IsInterruptable( void );
-	virtual bool IsNavigationUrgent( void );
 	virtual int	 OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	virtual float GetReasonableFacingDist( void );
 	virtual bool ShouldPlayerAvoid( void );
@@ -212,9 +203,6 @@ protected:
 	virtual bool CanRunAScriptedNPCInteraction( bool bForced );
 	virtual Activity GetFlinchActivity( bool bHeavyDamage, bool bGesture );
 	virtual bool OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
-	virtual void ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet );
-	virtual void Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity );
-	virtual void HandleAnimEvent( animevent_t *pEvent );
 
 	virtual bool ShouldAlwaysThink();
 
@@ -341,10 +329,7 @@ public:
 	virtual bool		 BackBridge_IsValidShootPosition( const Vector &vLocation, CAI_Node *pNode, CAI_Hint const *pHint ) = 0;
 	virtual float		 BackBridge_GetMaxTacticalLateralMovement( void ) = 0;
 	virtual bool		 BackBridge_ShouldIgnoreSound( CSound *pSound ) = 0;
-	virtual void		 BackBridge_OnSeeEntity( CBaseEntity *pEntity ) = 0;
-	virtual void		 BackBridge_OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker ) = 0;
 	virtual bool		 BackBridge_IsInterruptable( void ) = 0;
-	virtual bool		 BackBridge_IsNavigationUrgent( void ) = 0;
 	virtual bool		 BackBridge_ShouldPlayerAvoid( void ) = 0;
 	virtual int			 BackBridge_OnTakeDamage_Alive( const CTakeDamageInfo &info ) = 0;
 	virtual float		 BackBridge_GetDefaultNavGoalTolerance() = 0;
@@ -356,10 +341,6 @@ public:
 	virtual bool		 BackBridge_CanRunAScriptedNPCInteraction( bool bForced ) = 0;
 	virtual Activity	 BackBridge_GetFlinchActivity( bool bHeavyDamage, bool bGesture ) = 0;
 	virtual bool		 BackBridge_OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult ) = 0;
-	virtual void		 BackBridge_ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet ) = 0;
-	virtual void		 BackBridge_Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity ) = 0;
-
-	virtual void		 BackBridge_HandleAnimEvent( animevent_t *pEvent ) = 0;
 
 //-------------------------------------
 
@@ -442,10 +423,7 @@ public:
 	bool			IsValidShootPosition( const Vector &vLocation, CAI_Node *pNode, CAI_Hint const *pHint );
 	float			GetMaxTacticalLateralMovement( void );
 	bool			ShouldIgnoreSound( CSound *pSound );
-	void			OnSeeEntity( CBaseEntity *pEntity );
-	void			OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker );
 	bool			IsInterruptable( void );
-	bool			IsNavigationUrgent( void );
 	bool			ShouldPlayerAvoid( void );
 	int				OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	float			GetReasonableFacingDist( void );
@@ -456,7 +434,6 @@ public:
 	bool			CanRunAScriptedNPCInteraction( bool bForced );
 	Activity		GetFlinchActivity( bool bHeavyDamage, bool bGesture );
 	bool			OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
-	void			HandleAnimEvent( animevent_t *pEvent );
 	
 	bool			ShouldAlwaysThink();
 
@@ -466,7 +443,6 @@ public:
 	void			OnRestore();
 
 	void			ModifyOrAppendCriteria( AI_CriteriaSet& set );
-	void			Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity );
 
 	//---------------------------------
 
@@ -497,10 +473,7 @@ private:
 	bool			BackBridge_IsValidShootPosition( const Vector &vLocation, CAI_Node *pNode, CAI_Hint const *pHint );
 	float			BackBridge_GetMaxTacticalLateralMovement( void );
 	bool			BackBridge_ShouldIgnoreSound( CSound *pSound );
-	void			BackBridge_OnSeeEntity( CBaseEntity *pEntity );
-	void			BackBridge_OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker );
 	bool			BackBridge_IsInterruptable( void );
-	bool			BackBridge_IsNavigationUrgent( void );
 	bool			BackBridge_ShouldPlayerAvoid( void );
 	int				BackBridge_OnTakeDamage_Alive( const CTakeDamageInfo &info );
 	float			BackBridge_GetDefaultNavGoalTolerance();
@@ -512,10 +485,6 @@ private:
 	bool			BackBridge_CanRunAScriptedNPCInteraction( bool bForced );
 	Activity		BackBridge_GetFlinchActivity( bool bHeavyDamage, bool bGesture );
 	bool			BackBridge_OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult );
-	void			BackBridge_ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet );
-	void			BackBridge_Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity );
-
-	void			BackBridge_HandleAnimEvent( animevent_t *pEvent );
 
 	CAI_BehaviorBase **AccessBehaviors();
 	int				NumBehaviors();
@@ -732,30 +701,9 @@ inline bool CAI_BehaviorBase::BridgeShouldIgnoreSound( CSound *pSound )
 
 //-------------------------------------
 
-inline void CAI_BehaviorBase::BridgeOnSeeEntity( CBaseEntity *pEntity )
-{
-	OnSeeEntity( pEntity );
-}
-
-//-------------------------------------
-
-inline void CAI_BehaviorBase::BridgeOnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker )
-{
-	OnFriendDamaged( pSquadmate, pAttacker );
-}
-
-//-------------------------------------
-
 inline bool CAI_BehaviorBase::BridgeIsInterruptable( void )
 {
 	return IsInterruptable();
-}
-
-//-------------------------------------
-
-inline bool CAI_BehaviorBase::BridgeIsNavigationUrgent( void )
-{
-	return IsNavigationUrgent();
 }
 
 //-------------------------------------
@@ -864,27 +812,6 @@ inline Activity CAI_BehaviorBase::BridgeGetFlinchActivity( bool bHeavyDamage, bo
 inline bool CAI_BehaviorBase::BridgeOnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult )
 {
 	return OnCalcBaseMove( pMoveGoal, distClear, pResult );
-}
-
-//-----------------------------------------------------------------------------
-
-inline void CAI_BehaviorBase::BridgeModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet )
-{
-	ModifyOrAppendCriteria( criteriaSet );
-}
-
-//-----------------------------------------------------------------------------
-
-inline void CAI_BehaviorBase::BridgeTeleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity )
-{
-	Teleport( newPosition, newAngles, newVelocity );
-}
-
-//-----------------------------------------------------------------------------
-
-inline void CAI_BehaviorBase::BridgeHandleAnimEvent( animevent_t *pEvent )
-{
-	HandleAnimEvent( pEvent );
 }
 
 //-----------------------------------------------------------------------------
@@ -1328,34 +1255,9 @@ inline bool CAI_BehaviorHost<BASE_NPC>::BackBridge_ShouldIgnoreSound( CSound *pS
 //-------------------------------------
 
 template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::BackBridge_OnSeeEntity( CBaseEntity *pEntity )
-{
-	BaseClass::OnSeeEntity( pEntity );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::BackBridge_OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker )
-{
-	BaseClass::OnFriendDamaged( pSquadmate, pAttacker );
-}
-
-
-//-------------------------------------
-
-template <class BASE_NPC>
 inline bool CAI_BehaviorHost<BASE_NPC>::BackBridge_IsInterruptable( void )
 {
 	return BaseClass::IsInterruptable();
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline bool CAI_BehaviorHost<BASE_NPC>::BackBridge_IsNavigationUrgent( void )
-{
-	return BaseClass::IsNavigationUrgent();
 }
 
 //-------------------------------------
@@ -1436,30 +1338,6 @@ template <class BASE_NPC>
 inline bool CAI_BehaviorHost<BASE_NPC>::BackBridge_OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distClear, AIMoveResult_t *pResult )
 {
 	return BaseClass::OnCalcBaseMove( pMoveGoal, distClear, pResult );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::BackBridge_ModifyOrAppendCriteria( AI_CriteriaSet &criteriaSet )
-{
-	BaseClass::ModifyOrAppendCriteria( criteriaSet );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::BackBridge_Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity )
-{
-	BaseClass::Teleport( newPosition, newAngles, newVelocity );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::BackBridge_HandleAnimEvent( animevent_t *pEvent )
-{
-	BaseClass::HandleAnimEvent( pEvent );
 }
 
 //-------------------------------------
@@ -1580,45 +1458,12 @@ inline bool CAI_BehaviorHost<BASE_NPC>::ShouldIgnoreSound( CSound *pSound )
 //-------------------------------------
 
 template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::OnSeeEntity( CBaseEntity *pEntity )
-{
-	if ( m_pCurBehavior )
-		return m_pCurBehavior->BridgeOnSeeEntity( pEntity );
-
-	BaseClass::OnSeeEntity( pEntity );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker )
-{
-	if ( m_pCurBehavior )
-		return m_pCurBehavior->BridgeOnFriendDamaged( pSquadmate, pAttacker );
-
-	BaseClass::OnFriendDamaged( pSquadmate, pAttacker );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
 inline bool CAI_BehaviorHost<BASE_NPC>::IsInterruptable( void )
 {
 	if ( m_pCurBehavior )
 		return m_pCurBehavior->BridgeIsInterruptable();
 	
 	return BaseClass::IsInterruptable();
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline bool CAI_BehaviorHost<BASE_NPC>::IsNavigationUrgent( void )
-{
-	if ( m_pCurBehavior )
-		return m_pCurBehavior->BridgeIsNavigationUrgent();
-
-	return BaseClass::IsNavigationUrgent();
 }
 
 //-------------------------------------
@@ -1826,48 +1671,6 @@ inline bool CAI_BehaviorHost<BASE_NPC>::OnCalcBaseMove( AILocalMoveGoal_t *pMove
 //-------------------------------------
 
 template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::ModifyOrAppendCriteria( AI_CriteriaSet &criteriaSet )
-{
-	BaseClass::ModifyOrAppendCriteria( criteriaSet );
-
-	if ( m_pCurBehavior )
-	{
-		// Append active behavior name
-		criteriaSet.AppendCriteria( "active_behavior", GetRunningBehavior()->GetName() );
-		
-		m_pCurBehavior->BridgeModifyOrAppendCriteria( criteriaSet );
-		return;
-	}
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity )
-{
-	if ( m_pCurBehavior )
-	{
-		m_pCurBehavior->BridgeTeleport( newPosition, newAngles, newVelocity );
-		return;
-	}
-
-	BaseClass::Teleport( newPosition, newAngles, newVelocity );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
-inline void CAI_BehaviorHost<BASE_NPC>::HandleAnimEvent( animevent_t *pEvent )
-{
-	if ( m_pCurBehavior )
-		return m_pCurBehavior->BridgeHandleAnimEvent( pEvent );
-
-	return BaseClass::HandleAnimEvent( pEvent );
-}
-
-//-------------------------------------
-
-template <class BASE_NPC>
 inline bool CAI_BehaviorHost<BASE_NPC>::OnBehaviorChangeStatus(  CAI_BehaviorBase *pBehavior, bool fCanFinishSchedule )
 {
 	if ( pBehavior == GetRunningBehavior() && !pBehavior->CanSelectSchedule() && !fCanFinishSchedule )
@@ -1967,6 +1770,21 @@ inline bool CAI_BehaviorHost<BASE_NPC>::CreateComponents()
 	}
 	return false;
 }
+
+//-------------------------------------
+
+template <class BASE_NPC>
+inline void CAI_BehaviorHost<BASE_NPC>::ModifyOrAppendCriteria( AI_CriteriaSet& set )
+{
+	BaseClass::ModifyOrAppendCriteria( set );
+
+	// Append active behavior name
+	if ( GetRunningBehavior() )
+	{
+		set.AppendCriteria( "active_behavior", GetRunningBehavior()->GetName() );
+	}
+}
+
 
 //-----------------------------------------------------------------------------
 

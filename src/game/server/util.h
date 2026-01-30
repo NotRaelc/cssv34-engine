@@ -172,7 +172,7 @@ extern CGlobalVars *gpGlobals;
 // Misc useful
 inline bool FStrEq(const char *sz1, const char *sz2)
 {
-	return ( sz1 == sz2 || stricmp(sz1, sz2) == 0 );
+	return(stricmp(sz1, sz2) == 0);
 }
 
 #if 0
@@ -204,17 +204,14 @@ float		UTIL_GetSimulationInterval();
 // Input  : playerIndex - index of the player - first player is index 1
 //-----------------------------------------------------------------------------
 
+// NOTENOTE: Use UTIL_GetLocalPlayer instead of UTIL_PlayerByIndex IF you're in single player
+// and you want the player.
 CBasePlayer	*UTIL_PlayerByIndex( int playerIndex );
 
-// returns first valid player
+// NOTENOTE: Use this instead of UTIL_PlayerByIndex IF you're in single player
+// and you want the player.
+// not useable in multiplayer - see UTIL_GetListenServerHost()
 CBasePlayer* UTIL_GetLocalPlayer( void );
-
-// multiplayer use
-CBasePlayer* UTIL_GetNearestPlayer(const Vector& origin);
-CBasePlayer* UTIL_GetNearestPlayerPreferVisible(CBaseEntity* pLooker, int mask = MASK_SOLID_BRUSHONLY);
-CBasePlayer* UTIL_GetNearestVisiblePlayer(CBaseEntity* pLooker, int mask = MASK_SOLID_BRUSHONLY);
-CBasePlayer* UTIL_GetOtherNearestPlayer(const Vector& origin);
-
 
 // get the local player on a listen server
 CBasePlayer *UTIL_GetListenServerHost( void );
@@ -225,9 +222,6 @@ CBasePlayer* UTIL_PlayerByName( const char *name ); // not case sensitive
 // Returns true if the command was issued by the listenserver host, or by the dedicated server, via rcon or the server console.
 // This is valid during ConCommand execution.
 bool UTIL_IsCommandIssuedByServerAdmin( void );
-
-// Return true if the any player is looking at the entity.
-bool UTIL_IsAnyPlayerLookingAtEntity(CBaseEntity* pEntity);
 
 CBaseEntity* UTIL_EntityByIndex( int entityIndex );
 
@@ -320,7 +314,7 @@ private:
 enum soundlevel_t;
 
 // Drops an entity onto the floor
-int			UTIL_DropToFloor( CBaseEntity *pEntity, unsigned int mask, CBaseEntity *pIgnore = NULL );
+int			UTIL_DropToFloor( CBaseEntity *pEntity, unsigned int mask );
 
 // Returns false if any part of the bottom of the entity is off an edge that is not a staircase.
 bool		UTIL_CheckBottom( CBaseEntity *pEntity, ITraceFilter *pTraceFilter, float flStepSize );
@@ -361,14 +355,11 @@ bool		UTIL_IsValidEntity( CBaseEntity *pEnt );
 bool		UTIL_TeamsMatch( const char *pTeamName1, const char *pTeamName2 );
 
 // snaps a vector to the nearest axis vector (if within epsilon)
-void		UTIL_SnapDirectionToAxis( Vector &direction, float epsilon = 0.002f );
+void		UTIL_SnapDirectionToAxis( Vector &direction, float epsilon = 0.01f );
 
 //Set the entity to point at the target specified
 bool UTIL_PointAtEntity( CBaseEntity *pEnt, CBaseEntity *pTarget );
 void UTIL_PointAtNamedEntity( CBaseEntity *pEnt, string_t strTarget );
-
-// Copy the pose parameter values from one entity to the other
-bool UTIL_TransferPoseParameters( CBaseEntity *pSourceEntity, CBaseEntity *pDestEntity );
 
 // Search for water transition along a vertical line
 float UTIL_WaterLevel( const Vector &position, float minz, float maxz );
@@ -509,7 +500,6 @@ void DBG_AssertFunction(bool fExpr, const char* szExpr, const char* szFile, int 
 #define SF_BRUSH_ROTATE_BACKWARDS	2
 #define SF_BRUSH_ROTATE_Z_AXIS		4
 #define SF_BRUSH_ROTATE_X_AXIS		8
-#define SF_BRUSH_ROTATE_CLIENTSIDE	16
 
 
 #define SF_BRUSH_ROTATE_SMALLRADIUS	128
@@ -621,17 +611,9 @@ extern void			*UTIL_FunctionFromName( datamap_t *pMap, const char *pName );
 
 int UTIL_GetCommandClientIndex( void );
 CBasePlayer *UTIL_GetCommandClient( void );
-bool UTIL_GetModDir( char *lpszTextOut, unsigned int nSize );
 
 AngularImpulse WorldToLocalRotation( const VMatrix &localToWorld, const Vector &worldAxis, float rotation );
-void UTIL_WorldToParentSpace( CBaseEntity *pEntity, Vector &vecPosition, QAngle &vecAngles );
-void UTIL_WorldToParentSpace( CBaseEntity *pEntity, Vector &vecPosition, Quaternion &quat );
-void UTIL_ParentToWorldSpace( CBaseEntity *pEntity, Vector &vecPosition, QAngle &vecAngles );
-void UTIL_ParentToWorldSpace( CBaseEntity *pEntity, Vector &vecPosition, Quaternion &quat );
 
 bool UTIL_LoadAndSpawnEntitiesFromScript( CUtlVector <CBaseEntity*> &entities, const char *pScriptFile, const char *pBlock, bool bActivate = true );
-
-// Given a vector, clamps the scalar axes to MAX_COORD_FLOAT ranges from worldsize.h
-void UTIL_BoundToWorldSize( Vector *pVecPos );
 
 #endif // UTIL_H

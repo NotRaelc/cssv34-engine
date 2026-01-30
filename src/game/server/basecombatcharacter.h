@@ -15,12 +15,6 @@
 #pragma once
 #endif
 
-#ifdef INVASION_DLL
-#include "tf_shareddefs.h"
-
-#define POWERUP_THINK_CONTEXT	"PowerupThink"
-#endif
-
 #include "cbase.h"
 #include "baseentity.h"
 #include "baseflex.h"
@@ -128,28 +122,17 @@ public:
 
 	virtual void		Precache();
 
-	virtual int			Restore( IRestore &restore );
-
 	virtual const impactdamagetable_t	&GetPhysicsImpactDamageTable( void );
 
 	int					TakeHealth( float flHealth, int bitsDamageType );
 	void				CauseDeath( const CTakeDamageInfo &info );
 
-	virtual	bool		FVisible ( CBaseEntity *pEntity, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
-	virtual bool		FVisible( const Vector &vecTarget, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL )	{ return BaseClass::FVisible( vecTarget, traceMask, ppBlocker ); }
+	virtual	bool		FVisible ( CBaseEntity *pEntity, int traceMask = MASK_OPAQUE, CBaseEntity **ppBlocker = NULL );
+	virtual bool		FVisible( const Vector &vecTarget, int traceMask = MASK_OPAQUE, CBaseEntity **ppBlocker = NULL )	{ return BaseClass::FVisible( vecTarget, traceMask, ppBlocker ); }
 	static void			ResetVisibilityCache( CBaseCombatCharacter *pBCC = NULL );
-
-#ifdef PORTAL
-	virtual	bool		FVisibleThroughPortal( const CProp_Portal *pPortal, CBaseEntity *pEntity, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
-#endif
 
 	virtual bool		FInViewCone( CBaseEntity *pEntity );
 	virtual bool		FInViewCone( const Vector &vecSpot );
-
-#ifdef PORTAL
-	virtual CProp_Portal*	FInViewConeThroughPortal( CBaseEntity *pEntity );
-	virtual CProp_Portal*	FInViewConeThroughPortal( const Vector &vecSpot );
-#endif
 
 	virtual bool		FInAimCone( CBaseEntity *pEntity );
 	virtual bool		FInAimCone( const Vector &vecSpot );
@@ -191,8 +174,8 @@ public:
 	CBaseCombatWeapon*	Weapon_Create( const char *pWeaponName );
 	virtual Activity	Weapon_TranslateActivity( Activity baseAct, bool *pRequired = NULL );
 	void				Weapon_SetActivity( Activity newActivity, float duration );
-	virtual void		Weapon_FrameUpdate( void );
-	virtual void		Weapon_HandleAnimEvent( animevent_t *pEvent );
+	void				Weapon_FrameUpdate( void );
+	void				Weapon_HandleAnimEvent( animevent_t *pEvent );
 	CBaseCombatWeapon*	Weapon_OwnsThisType( const char *pszWeapon, int iSubType = 0 ) const;  // True if already owns a weapon of this class
 	virtual bool		Weapon_CanUse( CBaseCombatWeapon *pWeapon );		// True is allowed to use this class of weapon
 	virtual void		Weapon_Equip( CBaseCombatWeapon *pWeapon );			// Adds weapon to player
@@ -231,9 +214,7 @@ public:
 	virtual void 			OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker ) {}
 	virtual void 			NotifyFriendsOfDamage( CBaseEntity *pAttackerEntity ) {}
 
-	virtual void			OnPlayerKilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info ) {}
-
-		// utility function to calc damage force
+	// utility function to calc damage force
 	Vector					CalcDamageForceVector( const CTakeDamageInfo &info );
 
 	virtual int				BloodColor();
@@ -299,10 +280,9 @@ protected:
 public:
 	
 	// Vehicle queries
-	virtual bool IsInAVehicle( void ) const { return false; }
+	virtual bool	IsInAVehicle( void ) { return false; }
 	virtual IServerVehicle *GetVehicle( void ) { return NULL; }
 	virtual CBaseEntity *GetVehicleEntity( void ) { return NULL; }
-	virtual bool ExitVehicle( void ) { return false; }
 
 	// Blood color (see BLOOD_COLOR_* macros in baseentity.h)
 	void SetBloodColor( int nBloodColor );
@@ -356,38 +336,6 @@ public:
 	void				SetNextAttack( float flWait ) { m_flNextAttack = flWait; }
 
 	bool				m_bForceServerRagdoll;
-
-	// Pickup prevention
-	bool				IsAllowedToPickupWeapons( void ) { return !m_bPreventWeaponPickup; }
-	void				SetPreventWeaponPickup( bool bPrevent ) { m_bPreventWeaponPickup = bPrevent; }
-	bool				m_bPreventWeaponPickup;
-
-#ifdef INVASION_DLL
-public:
-
-	// TF2 Powerups
-	virtual bool		CanBePoweredUp( void );
-	bool				HasPowerup( int iPowerup );
-	virtual	bool		CanPowerupNow( int iPowerup );		// Return true if I can be powered by this powerup right now
-	virtual	bool		CanPowerupEver( int iPowerup );		// Return true if I ever accept this powerup type
-
-	void				SetPowerup( int iPowerup, bool bState, float flTime = 0, float flAmount = 0, CBaseEntity *pAttacker = NULL, CDamageModifier *pDamageModifier = NULL );
-	virtual	bool		AttemptToPowerup( int iPowerup, float flTime, float flAmount = 0, CBaseEntity *pAttacker = NULL, CDamageModifier *pDamageModifier = NULL );
-	virtual	float		PowerupDuration( int iPowerup, float flTime );
-	virtual	void		PowerupStart( int iPowerup, float flAmount = 0, CBaseEntity *pAttacker = NULL, CDamageModifier *pDamageModifier = NULL );
-	virtual	void		PowerupEnd( int iPowerup );
-
-	void				PowerupThink( void );
-	virtual	void		PowerupThink( int iPowerup );
-
-public:
-
-	CNetworkVar( int, m_iPowerups );
-	float				m_flPowerupAttemptTimes[ MAX_POWERUPS ];
-	float				m_flPowerupEndTimes[ MAX_POWERUPS ];
-	float				m_flFractionalBoost;	// POWERUP_BOOST health fraction - specific powerup data
-
-#endif
 
 public:
 	// returns the last body region that took damage
@@ -450,32 +398,6 @@ private:
 
 	friend class CCleanupDefaultRelationShips;
 };
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-inline int	CBaseCombatCharacter::WeaponCount() const
-{
-	return MAX_WEAPONS;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : i - 
-//-----------------------------------------------------------------------------
-inline CBaseCombatWeapon *CBaseCombatCharacter::GetWeapon( int i ) const
-{
-	Assert( (i >= 0) && (i < MAX_WEAPONS) );
-	return m_hMyWeapons[i].Get();
-}
-
-#ifdef INVASION_DLL
-// Powerup Inlines
-inline bool CBaseCombatCharacter::CanBePoweredUp( void )							{ return true; }
-inline float CBaseCombatCharacter::PowerupDuration( int iPowerup, float flTime )	{ return flTime; }
-inline void	CBaseCombatCharacter::PowerupEnd( int iPowerup )						{ return; }
-inline void	CBaseCombatCharacter::PowerupThink( int iPowerup )						{ return; }
-#endif
 
 EXTERN_SEND_TABLE(DT_BaseCombatCharacter);
 

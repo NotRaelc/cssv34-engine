@@ -10,7 +10,7 @@
 #include <ctype.h>
 #include "sentence.h"
 #include "hud_closecaption.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include <vgui_controls/Controls.h>
 #include <vgui/IVgui.h>
 #include <vgui/ISurface.h>
@@ -21,28 +21,26 @@
 #include "checksum_crc.h"
 #include "filesystem.h"
 #include "datacache/idatacache.h"
-#include "soundemittersystem/isoundemittersystembase.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 #define CC_INSET		12
 
-using namespace vgui;
-
-extern ISoundEmitterSystemBase *soundemitterbase;
-
 // Marked as FCVAR_USERINFO so that the server can cull CC messages before networking them down to us!!!
-ConVar closecaption( "closecaption", "0", FCVAR_ARCHIVE | FCVAR_ARCHIVE_XBOX | FCVAR_USERINFO, "Enable close captioning." );
+ConVar closecaption( "closecaption", "0", FCVAR_ARCHIVE | FCVAR_USERINFO, "Enable close captioning." );
 extern ConVar cc_lang;
 static ConVar cc_linger_time( "cc_linger_time", "1.0", FCVAR_ARCHIVE, "Close caption linger time." );
 static ConVar cc_predisplay_time( "cc_predisplay_time", "0.25", FCVAR_ARCHIVE, "Close caption delay before showing caption." );
 static ConVar cc_captiontrace( "cc_captiontrace", "1", 0, "Show missing closecaptions (0 = no, 1 = devconsole, 2 = show in hud)" );
 static ConVar cc_subtitles( "cc_subtitles", "0", FCVAR_ARCHIVE | FCVAR_ARCHIVE_XBOX, "If set, don't show sound effect captions, just voice overs (i.e., won't help hearing impaired players)." );
 ConVar english( "english", "1", FCVAR_USERINFO, "If set to 1, running the english language set of assets." );
-static ConVar cc_smallfontlength( "cc_smallfontlength", "300", 0, "If text stream is this long, force usage of small font size." );
 
-#define	MAX_CAPTION_CHARACTERS		4096
+#if defined( _XBOX )
+static ConVar cc_smallfontlength( "cc_smallfontlength", "300", 0, "If text stream is this long, force usage of small font size." );
+#endif
+
+#define	MAX_CAPTION_CHARACTERS		2048
 
 #define CAPTION_PAN_FADE_TIME		0.5			// The time it takes for a line to fade while panning over a large entry
 #define CAPTION_PAN_SLIDE_TIME		0.5			// The time it takes for a line to slide on while panning over a large entry
@@ -54,10 +52,12 @@ static ConVar cc_smallfontlength( "cc_smallfontlength", "300", 0, "If text strea
 //			unicodeBufferSize - 
 // Output : int
 //-----------------------------------------------------------------------------
+#ifndef _XBOX
 int ConvertANSIToUnicode(const char *ansi, wchar_t *unicode, int unicodeBufferSize)
 {
-	return g_pVGuiLocalize->ConvertANSIToUnicode( ansi, unicode, unicodeBufferSize );
+	return vgui::localize()->ConvertANSIToUnicode( ansi, unicode, unicodeBufferSize );
 }
+#endif
 
 // A work unit is a pre-processed chunk of CC text to display
 // Any state changes (font/color/etc) cause a new work unit to be precomputed
@@ -106,7 +106,7 @@ public:
 	void Dump()
 	{
 		char buf[ 2048 ];
-		g_pVGuiLocalize->ConvertUnicodeToANSI( GetStream(), buf, sizeof( buf ) );
+		vgui::localize()->ConvertUnicodeToANSI( GetStream(), buf, sizeof( buf ) );
 
 		Msg( "x = %i, y = %i, w = %i h = %i text %s\n", m_nX, m_nY, m_nWidth, m_nHeight, buf );
 	}
@@ -454,7 +454,7 @@ struct VisibleStreamItem
 //-----------------------------------------------------------------------------
 struct asynccaptionparams_t
 {
-	const char *dbfile;
+	char const *dbfile;
 	int			fileindex;
 	int			blocktoload;
 	int			blockoffset;
@@ -462,7 +462,7 @@ struct asynccaptionparams_t
 };
 
 // 16K of cache for close caption data
-#define MAX_ASYNCCAPTION_MEMORY_CACHE (int)( 64.0 * 1024.0f )
+#define MAX_ASYNCCAPTION_MEMORY_CACHE (int)( 16.0 * 1024.0f )
 
 void CaptionAsyncLoaderCallback( const FileAsyncRequest_t &request, int numReadBytes, FSAsyncStatus_t asyncStatus );
 
@@ -526,7 +526,7 @@ struct AsyncCaptionData_t
 		return sizeof( *this ) + m_nBlockSize; 
 	}
 
-	void AsyncLoad( const char *fileName, int blockOffset )
+	void AsyncLoad( char const *fileName, int blockOffset )
 	{
 		// Already pending
 		Assert ( !m_hAsyncControl );
@@ -538,10 +538,10 @@ struct AsyncCaptionData_t
 		fileRequest.pData       = m_pBlockData;
 		fileRequest.pszFilename = fileName;
 		fileRequest.nOffset     = blockOffset;
-		fileRequest.flags       = 0;
+		fileRequest.flags       = FSASYNC_FLAGS_RAWIO;
 		fileRequest.nBytes      = m_nBlockSize;
 		fileRequest.priority    = -1;
-		fileRequest.pszPathID   = "GAME";
+		fileRequest.pszPathID   = IsXbox() ? "XGAME" : "GAME";
 		
 		// queue for async load
 		MEM_ALLOC_CREDIT();
@@ -677,7 +677,7 @@ public:
 	// Either commences async loading or polls for async loading once per frame to wait for it to complete...
 	void PollForAsyncLoading( CHudCloseCaption *hudCloseCaption, int dbFileIndex, int blockNum )
 	{
-		const char *dbname = m_Db[ dbFileIndex ].m_DataBaseFile.String();
+		char const *dbname = m_Db[ dbFileIndex ].m_DataBaseFile.String();
 
 		CUtlRBTree< AsyncCaption_t::BlockInfo_t, unsigned short >& requested = m_Db[ dbFileIndex ].m_RequestedBlocks;
 
@@ -747,7 +747,7 @@ public:
 	//-----------------------------------------------------------------------------
 	int FindOrAddBlock( int dbFileIndex, int blockNum )
 	{
-		const char *dbname = m_Db[ dbFileIndex ].m_DataBaseFile.String();
+		char const *dbname = m_Db[ dbFileIndex ].m_DataBaseFile.String();
 
 		CUtlRBTree< AsyncCaption_t::BlockInfo_t, unsigned short >& requested = m_Db[ dbFileIndex ].m_RequestedBlocks;
 
@@ -831,6 +831,9 @@ CHudCloseCaption::CHudCloseCaption( const char *pElementName )
 	m_CloseCaptionRepeats( 0, 0, CaptionTokenLessFunc ),
 	m_CurrentLanguage( UTL_INVAL_SYMBOL ),
 	m_bPaintDebugInfo( false )
+#if !defined( _XBOX )
+	, m_TokenNameLookup( 0, 0, TokenNameLessFunc )
+#endif
 {
 	vgui::Panel *pParent = g_pClientMode->GetViewport();
 	SetParent( pParent );
@@ -851,12 +854,12 @@ CHudCloseCaption::CHudCloseCaption( const char *pElementName )
 
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 0 );
 
-	if ( !IsX360() )
-	{
-		g_pVGuiLocalize->AddFile( "resource/closecaption_%language%.txt", "GAME", true );
-	}
+	vgui::localize()->AddFileEx( vgui::filesystem(), "resource/closecaption_%language%.txt", "GAME", true );
 
 	HOOK_HUD_MESSAGE( CHudCloseCaption, CloseCaption );
+#if !defined( _XBOX )
+	BuildTokenNameLookup();
+#endif
 
 	char uilanguage[ 64 ];
 	engine->GetUILanguage( uilanguage, sizeof( uilanguage ) );
@@ -881,6 +884,9 @@ CHudCloseCaption::CHudCloseCaption( const char *pElementName )
 CHudCloseCaption::~CHudCloseCaption()
 {
 	m_CloseCaptionRepeats.RemoveAll();
+#if !defined( _XBOX )
+	m_TokenNameLookup.RemoveAll();
+#endif
 
 	ClearAsyncWork();
 }
@@ -1104,6 +1110,12 @@ void CHudCloseCaption::Paint( void )
 
 	rcText.top = rcText.bottom - textHeight - CC_INSET;
 
+	wrect_t rcWindow;
+	rcWindow.left = 0;
+	rcWindow.top = 0;
+	rcWindow.right = avail_width;
+	rcWindow.bottom = avail_height;
+
 	// Now draw them
 	c = visibleitems.Count();
 	for ( i = 0; i < c; i++ )
@@ -1203,7 +1215,7 @@ void CHudCloseCaption::Paint( void )
  
 		rcOut.right = rcOut.left + si->width + 6;
 		
-		DrawStream( rcOut, rcOutput, item, iFadeLine, flFadeLineAlpha );
+		DrawStream( rcOut, rcWindow, item, iFadeLine, flFadeLineAlpha );
 
 		rcText.top += height;
 		rcText.bottom += height;
@@ -1211,6 +1223,20 @@ void CHudCloseCaption::Paint( void )
 		if ( rcText.top >= rcOutput.bottom )
 			break;
 	}
+}
+
+bool CHudCloseCaption::LookupUnicodeText( char const *token, wchar_t *outbuf, size_t count )
+{
+	wchar_t *outstr = vgui::localize()->Find( token );
+	if ( !outstr )
+	{
+		wcsncpy( outbuf, L"<can't find entry>", count );
+		return false;
+	}
+
+	wcsncpy( outbuf, outstr, count );
+
+	return true;
 }
 
 void CHudCloseCaption::OnTick( void )
@@ -1229,11 +1255,7 @@ void CHudCloseCaption::OnTick( void )
 		SetVisible( true );
 		if ( !c )
 		{
-			// Don't clear our force visible if we're waiting for the caption to load
-			if ( m_AsyncWork.Count() == 0 )
-			{
-				m_bVisibleDueToDirect = false;
-			}
+			m_bVisibleDueToDirect = false;
 		}
 	}
 	else
@@ -1441,7 +1463,7 @@ bool CHudCloseCaption::StreamHasCommand( const wchar_t *stream, const wchar_t *s
 	return false;
 }
 
-void CHudCloseCaption::Process( const wchar_t *stream, float duration, const char *tokenstream, bool fromplayer, bool direct )
+void CHudCloseCaption::Process( const wchar_t *stream, float duration, char const *tokenstream, bool fromplayer, bool direct )
 {
 	if ( !direct )
 	{
@@ -1581,7 +1603,6 @@ void CHudCloseCaption::Process( const wchar_t *stream, float duration, const cha
 		if ( GetFloatCommandValue( phrase, L"len", override_duration ) )
 		{
 			item->SetTimeToLive( override_duration );
-			item->SetInitialLifeSpan( override_duration );
 		}
 	}
 }
@@ -1590,19 +1611,14 @@ void CHudCloseCaption::CreateFonts( void )
 {
 	vgui::IScheme *pScheme = vgui::scheme()->GetIScheme( GetScheme() );
 
-	m_hFonts[CCFONT_NORMAL] = pScheme->GetFont( "CloseCaption_Normal" );
-
-	if ( IsPC() )
-	{
-		m_hFonts[CCFONT_BOLD] = pScheme->GetFont( "CloseCaption_Bold" );
-		m_hFonts[CCFONT_ITALIC] = pScheme->GetFont( "CloseCaption_Italic" );
-		m_hFonts[CCFONT_ITALICBOLD] = pScheme->GetFont( "CloseCaption_BoldItalic" );
-	}
-	else
-	{
-		m_hFonts[CCFONT_SMALL] = pScheme->GetFont( "CloseCaption_Small" );
-	}
-
+	m_hFonts[ CCFONT_NORMAL ]		= pScheme->GetFont( "CloseCaption_Normal" );
+#if defined( _XBOX )
+	m_hFonts[ CCFONT_SMALL ]		= pScheme->GetFont( "CloseCaption_Small" );
+#else
+    m_hFonts[ CCFONT_BOLD ]			= pScheme->GetFont( "CloseCaption_Bold" );
+	m_hFonts[ CCFONT_ITALIC ]		= pScheme->GetFont( "CloseCaption_Italic" );
+	m_hFonts[ CCFONT_ITALICBOLD ]	= pScheme->GetFont( "CloseCaption_BoldItalic" );
+#endif
 	m_nLineHeight = max( 6, vgui::surface()->GetFontTall( m_hFonts[ CCFONT_NORMAL ] ) );
 }
 
@@ -1648,10 +1664,12 @@ struct WorkUnitParams
 		}
 	}
 
+#if !defined( _XBOX )
 	int GetFontNumber()
 	{
 		return CHudCloseCaption::GetFontNumber( bold, italic );
 	}
+#endif
 
 	wchar_t	stream[ MAX_CAPTION_CHARACTERS ];
 	wchar_t	*out;
@@ -1707,11 +1725,13 @@ void CHudCloseCaption::ComputeStreamWork( int available_width, CCloseCaptionItem
 	WorkUnitParams params;
 
 	const wchar_t *curpos = item->GetStream();
+#if defined( _XBOX )
 	int streamlen = wcslen( curpos );
+#endif
 	CUtlVector< Color > colorStack;
 
 	const wchar_t *most_recent_space = NULL;
-	int	most_recent_space_w = -1;
+	int				most_recent_space_w = -1;
 
 	for ( ; curpos && *curpos != L'\0'; ++curpos )
 	{
@@ -1782,17 +1802,12 @@ void CHudCloseCaption::ComputeStreamWork( int available_width, CCloseCaptionItem
 
 			continue;
 		}
+#if defined( _XBOX )
+		vgui::HFont useF = m_hFonts[ streamlen >= cc_smallfontlength.GetInt() ? CCFONT_SMALL : CCFONT_NORMAL ];
+#else
+		vgui::HFont useF = m_hFonts[ params.GetFontNumber() ];
+#endif	
 
-		int font;
-		if ( IsPC() )
-		{
-			font = params.GetFontNumber();
-		}
-		else
-		{
-			font = streamlen >= cc_smallfontlength.GetInt() ? CCFONT_SMALL : CCFONT_NORMAL;
-		}
-		vgui::HFont useF = m_hFonts[font];
 		params.font = useF;
 
 		int w, h;
@@ -1896,7 +1911,7 @@ void CHudCloseCaption::DrawStream( wrect_t &rcText, wrect_t &rcWindow, CCloseCap
 		{
 			flLineAlpha *= flFadeLineAlpha;
 		}
-		else if ( rcOut.top < rcWindow.top )
+		else if ( rcOut.top < 0 )
 		{
 			// We're off the top of the element, so don't draw
 			continue;
@@ -1959,7 +1974,13 @@ bool CHudCloseCaption::CaptionTokenLessFunc( const CaptionRepeat &lhs, const Cap
 	return ( lhs.m_nTokenIndex < rhs.m_nTokenIndex );	
 }
 
-static bool CaptionTrace( const char *token )
+#if !defined( _XBOX )
+bool CHudCloseCaption::TokenNameLessFunc( const TokenNameLookup &lhs, const TokenNameLookup &rhs )
+{
+	return (unsigned int)lhs.crc < (unsigned int)rhs.crc;
+}
+
+static bool CaptionTrace( char const *token )
 {
 	static CUtlSymbolTable s_MissingCloseCaptions;
 
@@ -1972,10 +1993,11 @@ static bool CaptionTrace( const char *token )
 
 	return false;
 }
+#endif 
 
 static ConVar cc_sentencecaptionnorepeat( "cc_sentencecaptionnorepeat", "4", 0, "How often a sentence can repeat." );
 
-int CRCString( const char *str )
+int CRCString( char const *str )
 {
 	int len = Q_strlen( str );
 	CRC32_t crc;
@@ -2125,10 +2147,10 @@ public:
 		m_Tokens.AddToTail( caption );
 	}
 
-	bool AddToken
+	void AddToken
 	( 
 		CUtlVector< AsyncCaption_t >& directories, 
-		const char *token 
+		char const *token 
 	)
 	{
 		CaptionLookup_t search;
@@ -2147,7 +2169,7 @@ public:
 		}
 
 		if ( i >= dc || idx == -1 )
-			return false;
+			return;
 
 		caption_t *caption = new caption_t;
 		caption->token = strdup( token );
@@ -2156,7 +2178,6 @@ public:
 		caption->fileindex = i;
 
 		m_Tokens.AddToTail( caption );
-		return true;
 	}
 
 	int						Count() const
@@ -2164,7 +2185,7 @@ public:
 		return m_Tokens.Count();
 	}
 
-	const char				*GetToken( int index )
+	char const				*GetToken( int index )
 	{
 		return m_Tokens[ index ]->token;
 	}
@@ -2270,7 +2291,7 @@ void CHudCloseCaption::ProcessAsyncWork()
 		int n = m_AsyncWork.Next( i );
 
 		CAsyncCaption *item = m_AsyncWork[ i ];
-		wchar_t stream[ MAX_CAPTION_CHARACTERS ];
+		wchar_t stream[ 2048 ];
 
 		// If we get to the first item with pending async work, stop processing
 		if ( !item->GetStream( stream, sizeof( stream ) ) )
@@ -2313,7 +2334,7 @@ void CHudCloseCaption::ClearAsyncWork()
 
 extern void Hack_FixEscapeChars( char *str );
 
-void CHudCloseCaption::ProcessCaptionDirect( const char *tokenname, float duration, bool fromplayer /* = false */ )
+void CHudCloseCaption::ProcessCaptionDirect( char const *tokenname, float duration, bool fromplayer /* = false */ )
 {
 	m_bVisibleDueToDirect = true;
 
@@ -2338,16 +2359,14 @@ void CHudCloseCaption::PlayRandomCaption()
 	m_AsyncWork.AddToTail( async );
 }
 
-bool CHudCloseCaption::AddAsyncWork( const char *tokenstream, bool bIsStream, float duration, bool fromplayer, bool direct /* = false */ )
+void CHudCloseCaption::AddAsyncWork( char const *tokenstream, bool bIsStream, float duration, bool fromplayer, bool direct /* = false */ )
 {
-	bool bret = true;
-
 	CAsyncCaption *async = new CAsyncCaption();
 	async->SetIsStream( bIsStream );
 	async->SetDirect( direct );
 	if ( !bIsStream )
 	{
-		bret = async->AddToken
+		async->AddToken
 		( 
 			m_AsyncCaptions, 
 			tokenstream 
@@ -2358,7 +2377,7 @@ bool CHudCloseCaption::AddAsyncWork( const char *tokenstream, bool bIsStream, fl
 		// The first token from the stream is the name of the sentence
 		char tokenname[ 512 ];
 		tokenname[ 0 ] = 0;
-		const char *p = tokenstream;
+		char const *p = tokenstream;
 		p = nexttoken( tokenname, p, ' ' );
 		// p points to reset of sentence tokens, build up a unicode string from them...
 		while ( p && Q_strlen( tokenname ) > 0 )
@@ -2382,11 +2401,10 @@ bool CHudCloseCaption::AddAsyncWork( const char *tokenstream, bool bIsStream, fl
 	async->SetFromPlayer( fromplayer );
 	// Do this last as the block might be resident already and this will finish immediately...
 	async->StartRequesting( this, m_AsyncCaptions );
-	return bret;
 }
 
 
-void CHudCloseCaption::ProcessSentenceCaptionStream( const char *tokenstream )
+void CHudCloseCaption::ProcessSentenceCaptionStream( char const *tokenstream )
 {
 	float interval = cc_sentencecaptionnorepeat.GetFloat();
 	interval = clamp( interval, 0.1f, 60.0f );
@@ -2396,7 +2414,7 @@ void CHudCloseCaption::ProcessSentenceCaptionStream( const char *tokenstream )
 
 	tokenname[ 0 ] = 0;
 
-	const char *p = tokenstream;
+	char const *p = tokenstream;
 
 	p = nexttoken( tokenname, p, ' ' );
 
@@ -2430,7 +2448,7 @@ void CHudCloseCaption::ProcessSentenceCaptionStream( const char *tokenstream )
 	AddAsyncWork( tokenstream, true, 0.0f, false );
 }
 
-void CHudCloseCaption::_ProcessSentenceCaptionStream( int wordCount, const char *tokenstream, const wchar_t *caption_full )
+void CHudCloseCaption::_ProcessSentenceCaptionStream( int wordCount, char const *tokenstream, const wchar_t *caption_full )
 {
 	if ( wcslen( caption_full ) > 0 )
 	{
@@ -2438,12 +2456,12 @@ void CHudCloseCaption::_ProcessSentenceCaptionStream( int wordCount, const char 
 	}
 }
 
-bool CHudCloseCaption::ProcessCaption( const char *tokenname, float duration, bool fromplayer /* = false */, bool direct /* = false */ )
+void CHudCloseCaption::ProcessCaption( char const *tokenname, float duration, bool fromplayer /* = false */, bool direct /* = false */ )
 {
-	return AddAsyncWork( tokenname, false, duration, fromplayer, direct );
+	AddAsyncWork( tokenname, false, duration, fromplayer, direct );
 }
 
-void CHudCloseCaption::_ProcessCaption( const wchar_t *caption, const char *tokenname, float duration, bool fromplayer, bool direct )
+void CHudCloseCaption::_ProcessCaption( const wchar_t *caption, char const *tokenname, float duration, bool fromplayer, bool direct )
 {
 	// Get the string for the token
 	float interval = 0.0f;
@@ -2495,8 +2513,12 @@ void CHudCloseCaption::_ProcessCaption( const wchar_t *caption, const char *toke
 //-----------------------------------------------------------------------------
 void CHudCloseCaption::MsgFunc_CloseCaption(bf_read &msg)
 {
-	char tokenname[ 512 ];
+#if !defined( _XBOX )
+	CRC32_t crc = (CRC32_t)msg.ReadLong();
+#else
+	char tokenname[ 128 ];
 	msg.ReadString( tokenname, sizeof( tokenname ) );
+#endif
 	float duration = msg.ReadShort() * 0.1f;
 	byte flagbyte = msg.ReadByte();
 	bool warnonmissing = flagbyte & CLOSE_CAPTION_WARNIFMISSING ? true : false;
@@ -2504,24 +2526,39 @@ void CHudCloseCaption::MsgFunc_CloseCaption(bf_read &msg)
 	bool bIsMale = flagbyte & CLOSE_CAPTION_GENDER_MALE ? true : false;
 	bool bIsFemale = flagbyte & CLOSE_CAPTION_GENDER_FEMALE ? true : false;
 
-	if ( warnonmissing && !IsX360() )
+#if !defined( _XBOX )
+	TokenNameLookup lookup;
+	lookup.crc = crc;
+
+	int idx = m_TokenNameLookup.Find( lookup );
+	if ( idx == m_TokenNameLookup.InvalidIndex() )
 	{
-		wchar_t *pcheck = g_pVGuiLocalize->Find( tokenname );
-		if ( !pcheck )
+		if ( warnonmissing )
 		{
-			Warning( "No caption found for '%s'\n", tokenname );
+			// Send message to server to spew warning
+			engine->ClientCmd( VarArgs( "cc_lookup_crc %u\n", (unsigned int)crc ) );
 		}
+		return;
 	}
 
+	char const *tokenname = vgui::localize()->GetNameByIndex( m_TokenNameLookup[ idx ].stringIndex );
+	if ( !tokenname )
+	{
+		Warning( "MsgFunc_CloseCaption to find token name for index %i\n", m_TokenNameLookup[ idx ].stringIndex );
+		return;
+	}
+#endif
 	char szTestName[ 512 ];
 	if ( bIsMale || bIsFemale )
 	{
 		Q_snprintf( szTestName, sizeof( szTestName ), "%s_%s", tokenname, bIsMale ? "male" : "female" );
-		// If the gender-ified version exists, use it, otherwise fall through and pass the non-gender string to the cc system for processing
-		if ( ProcessCaption( szTestName , duration, fromplayer ) )
+		// see if it exists
+		if ( vgui::localize()->Find( szTestName ) )
 		{
+			// the gender-ified version exists, use it, otherwise fall through and pass the non-gender string to the cc system for processing
+			ProcessCaption( szTestName , duration, fromplayer );	
 			return;
-		}
+		}		
 	}
 
 	ProcessCaption( tokenname, duration, fromplayer );	
@@ -2529,7 +2566,8 @@ void CHudCloseCaption::MsgFunc_CloseCaption(bf_read &msg)
 
 int CHudCloseCaption::GetFontNumber( bool bold, bool italic )
 {
-	if ( IsPC() && ( bold || italic ) )
+#if !defined( _XBOX )
+	if ( bold || italic )
 	{
 		if( bold && italic )
 		{
@@ -2546,7 +2584,7 @@ int CHudCloseCaption::GetFontNumber( bool bold, bool italic )
 			return CHudCloseCaption::CCFONT_ITALIC;
 		}
 	}
-
+#endif
 	return CHudCloseCaption::CCFONT_NORMAL;
 }
 
@@ -2555,7 +2593,7 @@ void CHudCloseCaption::Flush()
 	g_AsyncCaptionResourceManager.Flush();
 }
 
-void CHudCloseCaption::InitCaptionDictionary( const char *dbfile )
+void CHudCloseCaption::InitCaptionDictionary( char const *dbfile )
 {
 	if ( m_CurrentLanguage.IsValid() && !Q_stricmp( m_CurrentLanguage.String(), dbfile ) )
 		return;
@@ -2566,34 +2604,22 @@ void CHudCloseCaption::InitCaptionDictionary( const char *dbfile )
 
 	g_AsyncCaptionResourceManager.Clear();
 
-	char searchPaths[4096];
+	char searchPaths[ 512 ];
 	filesystem->GetSearchPath( "GAME", true, searchPaths, sizeof( searchPaths ) );
 
-	for ( char *path = strtok( searchPaths, ";" ); path; path = strtok( NULL, ";" ) )
+	char *path = strtok( searchPaths, ";" );
+	while ( path )
 	{
-		if ( IsX360() && ( filesystem->GetDVDMode() == DVDMODE_STRICT ) && !V_stristr( path, ".zip" ) )
-		{
-			// only want zip paths
-			continue;
-		} 
-
-		char fullpath[MAX_PATH];
+		char fullpath[ 512 ];
 		Q_snprintf( fullpath, sizeof( fullpath ), "%s%s", path, dbfile );
 		Q_FixSlashes( fullpath );
 		Q_strlower( fullpath );
 
-		if ( IsX360() )
-		{
-			char fullpath360[MAX_PATH];
-			UpdateOrCreateCaptionFile( fullpath, fullpath360, sizeof( fullpath360 ) );
-			Q_strncpy( fullpath, fullpath360, sizeof( fullpath ) );
-		}
+		path = strtok( NULL, ";" );
 
         FileHandle_t fh = filesystem->Open( fullpath, "rb" );
 		if ( FILESYSTEM_INVALID_HANDLE != fh )
 		{
-			MEM_ALLOC_CREDIT();
-
 			CUtlBuffer dirbuffer;
 
 			AsyncCaption_t& entry = m_AsyncCaptions[ m_AsyncCaptions.AddToTail() ];
@@ -2653,10 +2679,45 @@ void CHudCloseCaption::Unlock( void )
 	m_bLocked = false;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+#if !defined( _XBOX )
+void CHudCloseCaption::BuildTokenNameLookup()
+{
+	vgui::StringIndex_t i = vgui::localize()->GetFirstStringIndex();
+	while ( vgui::INVALID_STRING_INDEX != i )
+	{
+		TokenNameLookup lookup;
+
+		CRC32_t crc;
+		CRC32_Init( &crc );
+		char const *tokenName = vgui::localize()->GetNameByIndex( i );
+
+		char lowercase[ 256 ];
+		Q_strncpy( lowercase, tokenName, sizeof( lowercase ) );
+		Q_strlower( lowercase );
+
+		CRC32_ProcessBuffer( &crc, lowercase, Q_strlen( lowercase ) );
+		CRC32_Final( &crc );
+
+		lookup.crc = crc;
+		lookup.stringIndex = i;
+
+		if ( m_TokenNameLookup.Find( lookup ) == m_TokenNameLookup.InvalidIndex() )
+		{
+			m_TokenNameLookup.Insert( lookup );
+		}
+
+		i = vgui::localize()->GetNextStringIndex( i );
+	}
+}
+#endif
+
 static int EmitCaptionCompletion( const char *partial, char commands[ COMMAND_COMPLETION_MAXITEMS ][ COMMAND_COMPLETION_ITEM_LENGTH ] )
 {
 	int current = 0;
-	if ( !g_pVGuiLocalize || IsX360() )
+	if ( !vgui::localize() )
 		return current;
 
 	const char *cmdname = "cc_emit";
@@ -2668,12 +2729,12 @@ static int EmitCaptionCompletion( const char *partial, char commands[ COMMAND_CO
 		substringLen = strlen(substring);
 	}
 	
-	StringIndex_t i = g_pVGuiLocalize->GetFirstStringIndex();
+	vgui::StringIndex_t i = vgui::localize()->GetFirstStringIndex();
 
-	while ( i != INVALID_LOCALIZE_STRING_INDEX  &&
+	while ( i != vgui::INVALID_STRING_INDEX &&
 		 current < COMMAND_COMPLETION_MAXITEMS )
 	{
-		const char *ccname = g_pVGuiLocalize->GetNameByIndex( i );
+		char const *ccname = vgui::localize()->GetNameByIndex( i );
 		if ( ccname )
 		{
 			if ( !substring || !Q_strncasecmp( ccname, substring, substringLen ) )
@@ -2682,15 +2743,15 @@ static int EmitCaptionCompletion( const char *partial, char commands[ COMMAND_CO
 				current++;
 			}
 		}
-		i = g_pVGuiLocalize->GetNextStringIndex( i );
+		i = vgui::localize()->GetNextStringIndex( i );
 	}
 
 	return current;
 }
 
-CON_COMMAND_F_COMPLETION( cc_emit, "Emits a closed caption", 0, EmitCaptionCompletion )
+void EmitCaption_f()
 {
-	if ( args.ArgC() != 2 )
+	if ( engine->Cmd_Argc() != 2 )
 	{
 		Msg( "usage:  cc_emit tokenname\n" );
 		return;
@@ -2699,16 +2760,18 @@ CON_COMMAND_F_COMPLETION( cc_emit, "Emits a closed caption", 0, EmitCaptionCompl
 	CHudCloseCaption *hudCloseCaption = GET_HUDELEMENT( CHudCloseCaption );
 	if ( hudCloseCaption )
 	{
-		hudCloseCaption->ProcessCaption( args[1], 5.0f );	
+		hudCloseCaption->ProcessCaption( engine->Cmd_Argv(1), 5.0f );	
 	}
 }
 
-CON_COMMAND( cc_random, "Emits a random caption" )
+static ConCommand cc_emit( "cc_emit", EmitCaption_f, "Emits a closed caption", 0, EmitCaptionCompletion );
+
+void EmitRandomCaption_f()
 {
 	int count = 1;
-	if ( args.ArgC() == 2 )
+	if ( engine->Cmd_Argc() == 2 )
 	{
-		count = max( 1, atoi( args[ 1 ] ) );
+		count = max( 1, atoi( engine->Cmd_Argv( 1 ) ) );
 	}
 	CHudCloseCaption *hudCloseCaption = GET_HUDELEMENT( CHudCloseCaption );
 	if ( hudCloseCaption )
@@ -2720,6 +2783,7 @@ CON_COMMAND( cc_random, "Emits a random caption" )
 	}
 }
 
+static ConCommand cc_random( "cc_random", EmitRandomCaption_f, "Emits a random caption" );
 
 CON_COMMAND( cc_flush, "Flushes async'd captions." )
 {
@@ -2739,21 +2803,16 @@ CON_COMMAND( cc_showblocks, "Toggles showing which blocks are pending/loaded asy
 	}
 }
 
-void OnCaptionLanguageChanged( IConVar *pConVar, const char *pOldString, float flOldValue )
+void OnCaptionLanguageChanged( ConVar *var, char const *pOldString )
 {
-	if ( !g_pVGuiLocalize )
+	if ( !vgui::localize() )
 		return;
 
-	ConVarRef var( pConVar );
-
 	char fn[ 512 ];
-	Q_snprintf( fn, sizeof( fn ), "resource/closecaption_%s.txt", var.GetString() );
+	Q_snprintf( fn, sizeof( fn ), "resource/closecaption_%s.txt", var->GetString() );
 
 	// Re-adding the file, even if it's "english" will overwrite the tokens as needed
-	if ( !IsX360() )
-	{
-		g_pVGuiLocalize->AddFile( "resource/closecaption_%language%.txt", "GAME", true );
-	}
+	vgui::localize()->AddFileEx( vgui::filesystem(), "resource/closecaption_%language%.txt", "GAME", true );
 
 	char uilanguage[ 64 ];
 	engine->GetUILanguage( uilanguage, sizeof( uilanguage ) );
@@ -2761,28 +2820,25 @@ void OnCaptionLanguageChanged( IConVar *pConVar, const char *pOldString, float f
 	CHudCloseCaption *hudCloseCaption = GET_HUDELEMENT( CHudCloseCaption );
 
 	// If it's not the default, load the language on top of the user's default language
-	if ( Q_strlen( var.GetString() ) > 0 && Q_stricmp( var.GetString(), uilanguage ) )
+	if ( Q_strlen( var->GetString() ) > 0 && Q_stricmp( var->GetString(), uilanguage ) )
 	{
-		if ( !IsX360() )
+		if ( vgui::filesystem()->FileExists( fn ) )
 		{
-			if ( g_pFullFileSystem->FileExists( fn ) )
-			{
-				g_pVGuiLocalize->AddFile( fn, "GAME", true );
-			}
-			else
-			{
-				char fallback[ 512 ];
-				Q_snprintf( fallback, sizeof( fallback ), "resource/closecaption_%s.txt", uilanguage );
+			vgui::localize()->AddFileEx( vgui::filesystem(), fn, "GAME", true );
+		}
+		else
+		{
+			char fallback[ 512 ];
+			Q_snprintf( fallback, sizeof( fallback ), "resource/closecaption_%s.txt", uilanguage );
 
-				Msg( "%s not found\n", fn );
-				Msg( "%s will be used\n", fallback );
-			}
+			Msg( "%s not found\n", fn );
+			Msg( "%s will be used\n", fallback );
 		}
 
 		if ( hudCloseCaption )
 		{
 			char dbfile [ 512 ];
-			Q_snprintf( dbfile, sizeof( dbfile ), "resource/closecaption_%s.dat", var.GetString() );
+			Q_snprintf( dbfile, sizeof( dbfile ), "resource/closecaption_%s.dat", var->GetString() );
 			hudCloseCaption->InitCaptionDictionary( dbfile );
 		}
 	}
@@ -2795,121 +2851,9 @@ void OnCaptionLanguageChanged( IConVar *pConVar, const char *pOldString, float f
 			hudCloseCaption->InitCaptionDictionary( dbfile );
 		}
 	}
-	DevMsg( "cc_lang = %s\n", var.GetString() );
+	DevMsg( "cc_lang = %s\n", var->GetString() );
 }
 
 
 
 ConVar cc_lang( "cc_lang", "", FCVAR_ARCHIVE, "Current close caption language (emtpy = use game UI language)", OnCaptionLanguageChanged );
-
-CON_COMMAND( cc_findsound, "Searches for soundname which emits specified text." )
-{
-	if ( args.ArgC() != 2 )
-	{
-		Msg( "usage:  cc_findsound 'substring'\n" );
-		return;
-	}
-
-	CHudCloseCaption *hudCloseCaption = GET_HUDELEMENT( CHudCloseCaption );
-	if ( hudCloseCaption )
-	{
-		hudCloseCaption->FindSound( args.Arg( 1 ) );
-	}
-}
-
-void CHudCloseCaption::FindSound( char const *pchANSI )
-{
-	// Now do the searching
-	wchar_t stream[ 1024 ];
-	char streamANSI[ 1024 ];
-
-	for ( int i = 0 ; i < m_AsyncCaptions.Count(); ++i )
-	{
-		AsyncCaption_t &data = m_AsyncCaptions[ i ];
-
-		byte *block = new byte[ data.m_Header.blocksize ];
-
-		int nLoadedBlock = -1;
-
-		Q_memset( block, 0, data.m_Header.blocksize );
-		CaptionDictionary_t &dict = data.m_CaptionDirectory;
-		for ( int j = 0; j < dict.Count(); ++j )
-		{
-			CaptionLookup_t &lu = dict[ j ];
-
-			int blockNum = lu.blockNum;
-
-			const char *dbname = data.m_DataBaseFile.String();
-
-			// Try and reload it
-			char fn[ 256 ];
-			Q_strncpy( fn, dbname, sizeof( fn ) );
-			Q_FixSlashes( fn );
-			Q_strlower( fn );
-
-			asynccaptionparams_t params;
-			params.dbfile		= fn;
-			params.blocktoload	= blockNum;
-			params.blocksize	= data.m_Header.blocksize;
-			params.blockoffset	= data.m_Header.dataoffset + blockNum *data.m_Header.blocksize;
-			params.fileindex    = i;
-
-			if ( blockNum != nLoadedBlock )
-			{
-				nLoadedBlock = blockNum;
-
-				FileHandle_t fh = filesystem->Open( fn, "rb" );
-				filesystem->Seek( fh, params.blockoffset, FILESYSTEM_SEEK_CURRENT );
-				filesystem->Read( block, data.m_Header.blocksize, fh );
-				filesystem->Close( fh );
-			}
-
-			// Now we have the data
-			const wchar_t *pIn = ( const wchar_t *)&block[ lu.offset ];
-			Q_memcpy( (void *)stream, pIn, min( lu.length, sizeof( stream ) ) );
-
-			// Now search for search text
-			g_pVGuiLocalize->ConvertUnicodeToANSI( stream, streamANSI, sizeof( streamANSI ) );
-			streamANSI[ sizeof( streamANSI ) - 1 ] = 0;
-
-			if ( Q_stristr( streamANSI, pchANSI ) )
-			{
-				CaptionLookup_t search;
-
-				Msg( "found '%s' in %s\n", streamANSI, fn );
-
-				// Now find the sounds that will hash to this
-				for ( int k = soundemitterbase->First(); k != soundemitterbase->InvalidIndex(); k = soundemitterbase->Next( k ) )
-				{
-					char const *pchSoundName = soundemitterbase->GetSoundName( k );
-
-					// Hash it
-					
-					search.SetHash( pchSoundName );
-
-					if ( search.hash == lu.hash )
-					{
-						Msg( "    '%s' matches\n", pchSoundName );
-					}
-				}
-
-				if ( IsPC() )
-				{
-					for ( int r = g_pVGuiLocalize->GetFirstStringIndex(); r != INVALID_LOCALIZE_STRING_INDEX; r = g_pVGuiLocalize->GetNextStringIndex( r ) )
-					{
-						const char *strName = g_pVGuiLocalize->GetNameByIndex( r );
-
-						search.SetHash( strName );
-
-						if ( search.hash == lu.hash )
-						{
-							Msg( "    '%s' localization matches\n", strName );
-						}
-					}
-				}
-			}
-		}
-
-		delete[] block;
-	}
-}

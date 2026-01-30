@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Implements visual effects entities: sprites, beams, bubbles, etc.
 //
@@ -11,7 +11,7 @@
 #include "utllinkedlist.h"
 #include "vstdlib/random.h"
 #include "tier0/dbg.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 #include <float.h>
 
 

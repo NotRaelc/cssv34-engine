@@ -138,10 +138,6 @@ public:
 	virtual void MakeNPC( void );
 	void MakeNPCInRadius( void );
 	void MakeNPCInLine( void );
-	virtual void MakeMultipleNPCS( int nNPCs );
-
-protected:
-	virtual void PrecacheTemplateEntity( CBaseEntity *pEntity );
 
 	bool PlaceNPCInRadius( CAI_BaseNPC *pNPC );
 	bool PlaceNPCInLine( CAI_BaseNPC *pNPC );
@@ -149,7 +145,6 @@ protected:
 	// Inputs
 	void InputSpawnInRadius( inputdata_t &inputdata ) { MakeNPCInRadius(); }
 	void InputSpawnInLine( inputdata_t &inputdata ) { MakeNPCInLine(); }
-	void InputSpawnMultiple( inputdata_t &inputdata );
 	void InputChangeDestinationGroup( inputdata_t &inputdata );
 	void InputSetMinimumSpawnDistance( inputdata_t &inputdata );
 	

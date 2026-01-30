@@ -22,8 +22,8 @@ BuyPresetManager *TheBuyPresets = NULL;
 
 #if USE_BUY_PRESETS
 //--------------------------------------------------------------------------------------------------------------
-ConVar cl_buy_favorite_quiet( "cl_buy_favorite_quiet", "0", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Skips the prompt when saving a buy favorite in the buy menu" );
-ConVar cl_buy_favorite_nowarn( "cl_buy_favorite_nowarn", "0", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Skips the error prompt when saving an invalid buy favorite" );
+ConVar cl_buy_favorite_quiet( "cl_buy_favorite_quiet", "0", FCVAR_ARCHIVE, "Skips the prompt when saving a buy favorite in the buy menu" );
+ConVar cl_buy_favorite_nowarn( "cl_buy_favorite_nowarn", "0", FCVAR_ARCHIVE, "Skips the error prompt when saving an invalid buy favorite" );
 
 //--------------------------------------------------------------------------------------------------------------
 static void PrintBuyPresetUsage( void )
@@ -37,7 +37,7 @@ static void PrintBuyPresetUsage( void )
 			if ( preset && preset->GetName() && preset->GetName()[0] )
 			{
 				char buffer[64];
-				g_pVGuiLocalize->ConvertUnicodeToANSI( preset->GetName(), buffer, sizeof( buffer ) );
+				vgui::localize()->ConvertUnicodeToANSI( preset->GetName(), buffer, sizeof( buffer ) );
 				Msg( " %d. %s\n", i+1, buffer );
 			}
 		}
@@ -53,7 +53,7 @@ static void PrintBuyPresetUsage( void )
 /**
  *  Callback function for handling the "cl_buy_favorite" command
  */
-CON_COMMAND_F( cl_buy_favorite, "Purchase a favorite weapon/equipment loadout", FCVAR_CLIENTCMD_CAN_EXECUTE )
+CON_COMMAND( cl_buy_favorite, "Purchase a favorite weapon/equipment loadout" )
 {
 	if ( !engine->IsConnected() )
 		return;
@@ -61,14 +61,14 @@ CON_COMMAND_F( cl_buy_favorite, "Purchase a favorite weapon/equipment loadout", 
 	if ( !TheBuyPresets )
 		TheBuyPresets = new BuyPresetManager();
 
-	if ( args.ArgC() != 2 )
+	if ( engine->Cmd_Argc() != 2 )
 	{
 		PRESET_DEBUG( "cl_buy_favorite: no favorite specified\n" );
 		PrintBuyPresetUsage();
 		return;
 	}
 
-	int presetIndex = atoi( args[1] ) - 1;
+	int presetIndex = atoi( engine->Cmd_Argv( 1 ) ) - 1;
 	if ( presetIndex < 0 || presetIndex >= TheBuyPresets->GetNumPresets() )
 	{
 		PRESET_DEBUG( "cl_buy_favorite: favorite %d doesn't exist\n", presetIndex );
@@ -84,7 +84,7 @@ CON_COMMAND_F( cl_buy_favorite, "Purchase a favorite weapon/equipment loadout", 
 /**
  *  Callback function for handling the "cl_buy_favorite_set" command
  */
-CON_COMMAND_F( cl_buy_favorite_set, "Saves the current loadout as a favorite", FCVAR_CLIENTCMD_CAN_EXECUTE )
+CON_COMMAND( cl_buy_favorite_set, "Saves the current loadout as a favorite" )
 {
 	if ( !engine->IsConnected() )
 		return;
@@ -92,14 +92,14 @@ CON_COMMAND_F( cl_buy_favorite_set, "Saves the current loadout as a favorite", F
 	if ( !TheBuyPresets )
 		TheBuyPresets = new BuyPresetManager();
 
-	if ( args.ArgC() != 2 )
+	if ( engine->Cmd_Argc() != 2 )
 	{
 		PRESET_DEBUG( "cl_buy_favorite_set: no favorite specified\n" );
 		PrintBuyPresetUsage();
 		return;
 	}
 
-	int presetIndex = atoi( args[ 1 ] ) - 1;
+	int presetIndex = atoi( engine->Cmd_Argv( 1 ) ) - 1;
 	if ( presetIndex < 0 || presetIndex >= TheBuyPresets->GetNumPresets() )
 	{
 		PRESET_DEBUG( "cl_buy_favorite_set: favorite %d doesn't exist\n", presetIndex );
@@ -151,7 +151,7 @@ void __CmdFunc_BuyPresetsReset(void)
 	TheBuyPresets->SetPresets( TheBuyPresets->GetEditPresets() );
 	TheBuyPresets->Save();
 }
-ConCommand cl_buy_favorite_reset( "cl_buy_favorite_reset", __CmdFunc_BuyPresetsReset, "Reset favorite loadouts to the default", FCVAR_CLIENTCMD_CAN_EXECUTE );
+ConCommand cl_buy_favorite_reset( "cl_buy_favorite_reset", __CmdFunc_BuyPresetsReset, "Reset favorite loadouts to the default" );
 #endif // USE_BUY_PRESETS
 
 

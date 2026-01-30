@@ -94,7 +94,7 @@ public:
 
 	virtual void	Init( void );
 	virtual void	LevelInit( void );
-	virtual void	GetFadeParams( byte *r, byte *g, byte *b, byte *a, bool *blend );
+	virtual void	GetFadeParams( int context, byte *r, byte *g, byte *b, byte *a, bool *blend );
 	virtual void	CalcShake( void );
 	virtual void	ApplyShake( Vector& origin, QAngle& angles, float factor );
 
@@ -288,12 +288,7 @@ void CViewEffects::CalcShake( void )
 		fraction *= fraction;
 
 		// Sine wave that slowly settles to zero
-		float angle = gpGlobals->curtime * freq;
-		if ( angle > 1e8 )
-		{
-			angle = 1e8;
-		}
-		fraction = fraction * sin( angle );
+		fraction = fraction * sin( gpGlobals->curtime * freq );
 		
 		if( pShake->command != SHAKE_START_NORUMBLE )
 		{
@@ -602,7 +597,7 @@ void CViewEffects::ClearAllFades( void )
 //			*a - 
 //			*blend - 
 //-----------------------------------------------------------------------------
-void CViewEffects::GetFadeParams( byte *r, byte *g, byte *b, byte *a, bool *blend )
+void CViewEffects::GetFadeParams( int context, byte *r, byte *g, byte *b, byte *a, bool *blend )
 {
 	// If the intro is overriding our fade, use that instead
 	if ( g_pIntroData && g_pIntroData->m_flCurrentFadeColor[3] )

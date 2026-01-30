@@ -22,22 +22,14 @@
 #define SF_ENVEXPLOSION_NOCLAMPMIN	0x00000800 // don't clamp the minimum size of the fireball sprite
 #define SF_ENVEXPLOSION_NOCLAMPMAX	0x00001000 // don't clamp the maximum size of the fireball sprite
 #define SF_ENVEXPLOSION_SURFACEONLY	0x00002000 // don't damage the player if he's underwater.
-#define SF_ENVEXPLOSION_GENERIC_DAMAGE	0x00004000 // don't do BLAST damage
 
 extern short	g_sModelIndexFireball;
 extern short	g_sModelIndexSmoke;
 
 void ExplosionCreate( const Vector &center, const QAngle &angles, 
-	CBaseEntity *pOwner, int magnitude, int radius, bool doDamage, float flExplosionForce = 0.0f, bool bSurfaceOnly = false, bool bSilent = false, int iCustomDamageType = -1 );
+	CBaseEntity *pOwner, int magnitude, int radius, bool doDamage, float flExplosionForce = 0.0f, bool bSurfaceOnly = false, bool bSilent = false );
 
 void ExplosionCreate( const Vector &center, const QAngle &angles, 
-					 CBaseEntity *pOwner, int magnitude, int radius, int nSpawnFlags, 
-					 float flExplosionForce = 0.0f, CBaseEntity *pInflictor = NULL, int iCustomDamageType = -1,  const EHANDLE *ignoredEntity = NULL, Class_T ignoredClass = CLASS_NONE);
-
-// this version lets you specify classes or entities to be ignored
-void ExplosionCreate( const Vector &center, const QAngle &angles, 
-					 CBaseEntity *pOwner, int magnitude, int radius, bool doDamage, 
-					 const EHANDLE *ignoredEntity, Class_T ignoredClass,
-					 float flExplosionForce = 0.0f, bool bSurfaceOnly = false, bool bSilent = false, int iCustomDamageType = -1 );
+	CBaseEntity *pOwner, int magnitude, int radius, int nSpawnFlags, float flExplosionForce = 0.0f, CBaseEntity *pInflictor = NULL );
 
 #endif			//EXPLODE_H

@@ -94,6 +94,4 @@ static inline bool ShouldDrawInWireFrameMode( void )
 		return false;
 }
 
-void ComputeCameraVariables( const Vector &vecOrigin, const QAngle &vecAngles, Vector *pVecForward, Vector *pVecRight, Vector *pVecUp, VMatrix *pMatCamInverse );
-
 #endif // VIEW_H

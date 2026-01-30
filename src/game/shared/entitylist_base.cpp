@@ -183,11 +183,8 @@ CBaseHandle CBaseEntityList::AddNonNetworkableEntity( IHandleEntity *pEnt )
 	// Find a slot for it.
 	CEntInfo *pSlot = m_freeNonNetworkableList.Head();
 	if ( !pSlot )
-	{
-		Warning( "CBaseEntityList::AddNonNetworkableEntity: no free slots!\n" );
-		AssertMsg( 0, ( "CBaseEntityList::AddNonNetworkableEntity: no free slots!\n" ) );
-		return CBaseHandle();
-	}
+		Error( "CBaseEntityList::AddNonNetworkableEntity: no free slots!" );
+
 
 	// Move from the free list into the allocated list.
 	m_freeNonNetworkableList.Unlink( pSlot );

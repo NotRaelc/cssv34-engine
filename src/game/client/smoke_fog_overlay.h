@@ -11,7 +11,7 @@
 
 
 #include "basetypes.h"
-#include "mathlib/vector.h"
+#include "vector.h"
 
 
 #define ROTATION_SPEED				0.6

@@ -24,7 +24,7 @@ void RegisterUserMessages()
 	usermessages->Register( "Shake", 13 );		// shake view
 	usermessages->Register( "Fade", 10 );	// fade HUD in/out
 	usermessages->Register( "VGUIMenu", -1 );	// Show VGUI menu
-	usermessages->Register( "CloseCaption", -1 ); // Show a caption (by string id number)(duration in 10th of a second)
+	usermessages->Register( "CloseCaption", 7 ); // Show a caption (by string id number)(duration in 10th of a second)
 
 	usermessages->Register( "SendAudio", -1 );	// play radion command
 
@@ -35,7 +35,6 @@ void RegisterUserMessages()
 	usermessages->Register( "Damage", -1 );		// for HUD damage indicators
 	usermessages->Register( "RadioText", -1 );		// for HUD damage indicators
 	usermessages->Register( "HintText", -1 );	// Displays hint text display
-	usermessages->Register( "KeyHintText", -1 );	// Displays hint text display
 	
 	usermessages->Register( "ReloadEffect", 2 );			// a player reloading..
 	usermessages->Register( "PlayerAnimEvent", -1 );	// jumping, firing, reload, etc.

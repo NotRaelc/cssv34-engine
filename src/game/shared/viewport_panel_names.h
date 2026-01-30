@@ -30,6 +30,6 @@
 #define PANEL_NAV_PROGRESS	"nav_progress"
 #define PANEL_BUYPRESET_MAIN	"buypreset_main"
 #define PANEL_BUYPRESET_EDIT	"buypreset_edit"
-#define PANEL_INTRO			"intro"
+
 
 #endif // VIEWPORT_PANEL_NAMES_H

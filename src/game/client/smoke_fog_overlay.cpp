@@ -58,19 +58,17 @@ void DrawSmokeFogOverlay()
 	// Hard-coded for now..
 	g_SmokeFogOverlayColor.Init( 0.3, 0.3, 0.3 );
 	
-	CMatRenderContextPtr pRenderContext( materials );
+	materials->MatrixMode( MATERIAL_PROJECTION );
+	materials->LoadIdentity();
+	materials->Ortho( 0, 0, 1, 1, -99999, 99999 );
 
-	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
-	pRenderContext->LoadIdentity();
-	pRenderContext->Ortho( 0, 0, 1, 1, -99999, 99999 );
+	materials->MatrixMode( MATERIAL_VIEW );
+	materials->LoadIdentity();
 
-	pRenderContext->MatrixMode( MATERIAL_VIEW );
-	pRenderContext->LoadIdentity();
+	materials->MatrixMode( MATERIAL_MODEL );
+	materials->LoadIdentity();
 
-	pRenderContext->MatrixMode( MATERIAL_MODEL );
-	pRenderContext->LoadIdentity();
-
-	IMesh* pMesh = pRenderContext->GetDynamicMesh( false, NULL, NULL, g_pSmokeFogMaterial );
+	IMesh* pMesh = materials->GetDynamicMesh( false, NULL, NULL, g_pSmokeFogMaterial );
 	CMeshBuilder meshBuilder;
 
 	static float dist = 10;

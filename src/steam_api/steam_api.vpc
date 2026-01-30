@@ -1,0 +1,72 @@
+//-----------------------------------------------------------------------------
+//	STEAM_API.VPC
+//
+//	Project Script
+//-----------------------------------------------------------------------------
+
+$Macro SRCDIR		".."
+$Macro OUTBINDIR	"$SRCDIR\..\game\bin"
+
+$Include "$SRCDIR\vpc_scripts\source_dll_base.vpc"
+
+$Configuration
+{
+	$Compiler
+	{
+		$AdditionalIncludeDirectories			"$BASE;.\revEmu"
+	}
+	$Linker
+	{
+		// pc publishes the import library directly
+		$ImportLibrary					"$LIBPUBLIC\$(TargetName).lib"				[$WINDOWS]
+		$AdditionalDependencies			"$BASE ws2_32.lib"
+	}
+}
+
+$Project
+{
+	$Folder	"Source Files"
+	{
+		-$File	"$SRCDIR\public\tier0\memoverride.cpp"
+	}
+
+	$Folder	"Link Libraries"
+	{
+		-$ImpLib tier0
+		-$Lib	 tier1
+		-$Implib vstdlib
+	}
+}
+
+$Project "steam_api"
+{
+	$Folder "Source Files"
+	{
+		$File	"steam_api.cpp"
+	}
+	$Folder	"kohtep_revEmu"
+	{
+		$Folder "Encryption"
+		{
+			$File	"revEmu\Encryption\CRijndael.cpp"
+			$File	"revEmu\Encryption\CRijndael.h"
+			$File	"revEmu\Encryption\DoubleBuffering.cpp"
+			$File	"revEmu\Encryption\DoubleBuffering.h"
+			$File	"revEmu\Encryption\MessageDigest.cpp"
+			$File	"revEmu\Encryption\MessageDigest.h"
+			$File	"revEmu\Encryption\SHA.cpp"
+			$File	"revEmu\Encryption\SHA.h"
+		}
+		$File	"revEmu\ExternIP.cpp"
+		$File	"revEmu\RevSpoofer.cpp"
+		$File	"revEmu\StrUtils.cpp"
+		$File	"revEmu\AVSMP.h"
+		$File	"revEmu\ExternIP.h"
+		$File	"revEmu\HTTP.h"
+		$File	"revEmu\OldRevEmu.h"
+		$File	"revEmu\RevEmu.h"
+		$File	"revEmu\RevEmu2013.h"
+		$File	"revEmu\RevSpoofer.h"
+		$File	"revEmu\SC2009.h"
+		$File	"revEmu\StrUtils.h"
+}

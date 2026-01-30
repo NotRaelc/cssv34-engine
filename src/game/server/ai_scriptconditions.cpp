@@ -61,7 +61,7 @@ BEGIN_DATADESC( CAI_ScriptConditions )
 	DEFINE_FIELD( m_hTarget, FIELD_EHANDLE ),
 	DEFINE_KEYFIELD(m_Actor,						FIELD_STRING,	"Actor"						),
 
-	DEFINE_KEYFIELD(m_flRequiredTime, 				FIELD_FLOAT, 	"RequiredTime" 				),
+	DEFINE_KEYFIELD(m_flRequiredTime, 			FIELD_FLOAT, 	"RequiredTime" 				),
 
 #ifndef HL2_EPISODIC
 	DEFINE_FIELD( m_hActor, FIELD_EHANDLE ),
@@ -73,40 +73,37 @@ BEGIN_DATADESC( CAI_ScriptConditions )
 	DEFINE_KEYFIELD(m_fMaxState, 					FIELD_INTEGER,	"MaximumState" 				),
 
 	DEFINE_KEYFIELD(m_fScriptStatus, 				FIELD_INTEGER,	"ScriptStatus" 				),
-	DEFINE_KEYFIELD(m_fActorSeePlayer,				FIELD_INTEGER,	"ActorSeePlayer"			),
+	DEFINE_KEYFIELD(m_fActorSeePlayer,			FIELD_INTEGER,	"ActorSeePlayer"			),
 
 
 	DEFINE_KEYFIELD(m_flPlayerActorProximity,		FIELD_FLOAT, 	"PlayerActorProximity" 		),
 	DEFINE_EMBEDDED(m_PlayerActorProxTester),
 
 	DEFINE_KEYFIELD(m_flPlayerActorFOV, 			FIELD_FLOAT, 	"PlayerActorFOV" 			),
-	DEFINE_KEYFIELD(m_bPlayerActorFOVTrueCone,		FIELD_BOOLEAN,	"PlayerActorFOVTrueCone"	),
+	DEFINE_KEYFIELD(m_bPlayerActorFOVTrueCone,	FIELD_BOOLEAN,	"PlayerActorFOVTrueCone"	),
 
-	DEFINE_KEYFIELD(m_fPlayerActorLOS, 				FIELD_INTEGER, 	"PlayerActorLOS" 			),
-	DEFINE_KEYFIELD(m_fActorSeeTarget,				FIELD_INTEGER,	"ActorSeeTarget" 			),
+	DEFINE_KEYFIELD(m_fPlayerActorLOS, 			FIELD_INTEGER, 	"PlayerActorLOS" 			),
+	DEFINE_KEYFIELD(m_fActorSeeTarget,			FIELD_INTEGER,	"ActorSeeTarget" 			),
 
 	DEFINE_KEYFIELD(m_flActorTargetProximity,		FIELD_FLOAT, 	"ActorTargetProximity" 		),
 	DEFINE_EMBEDDED(m_ActorTargetProxTester),
 
-	DEFINE_KEYFIELD(m_flPlayerTargetProximity, 		FIELD_FLOAT, 	"PlayerTargetProximity"		),
+	DEFINE_KEYFIELD(m_flPlayerTargetProximity, 	FIELD_FLOAT, 	"PlayerTargetProximity"		),
 	DEFINE_EMBEDDED(m_PlayerTargetProxTester),
 
 	DEFINE_KEYFIELD(m_flPlayerTargetFOV, 			FIELD_FLOAT,	"PlayerTargetFOV"			),
-	DEFINE_KEYFIELD(m_bPlayerTargetFOVTrueCone,		FIELD_BOOLEAN,	"PlayerTargetFOVTrueCone"	),
+	DEFINE_KEYFIELD(m_bPlayerTargetFOVTrueCone,	FIELD_BOOLEAN,	"PlayerTargetFOVTrueCone"	),
 
 	DEFINE_KEYFIELD(m_fPlayerTargetLOS, 			FIELD_INTEGER,	"PlayerTargetLOS"			),
-	DEFINE_KEYFIELD(m_fPlayerBlockingActor,			FIELD_INTEGER,  "PlayerBlockingActor"		),
+	DEFINE_KEYFIELD(m_fPlayerBlockingActor,		FIELD_INTEGER,  "PlayerBlockingActor"		),
 
 	DEFINE_KEYFIELD(m_flMinTimeout, 				FIELD_FLOAT,	"MinTimeout"				),
 	DEFINE_KEYFIELD(m_flMaxTimeout, 				FIELD_FLOAT,	"MaxTimeout"				),
 
-	DEFINE_KEYFIELD(m_fActorInPVS,					FIELD_INTEGER,  "ActorInPVS"		),
+	DEFINE_KEYFIELD(m_fActorInPVS,		FIELD_INTEGER,  "ActorInPVS"		),
 
-	DEFINE_KEYFIELD(m_fActorInVehicle,				FIELD_INTEGER,	 "ActorInVehicle" ),
-	DEFINE_KEYFIELD(m_fPlayerInVehicle,				FIELD_INTEGER,	 "PlayerInVehicle" ),
-
-	DEFINE_UTLVECTOR( m_ElementList,				FIELD_EMBEDDED ),
-	DEFINE_FIELD( m_bLeaveAsleep,					FIELD_BOOLEAN ),
+	DEFINE_UTLVECTOR( m_ElementList, FIELD_EMBEDDED ),
+	DEFINE_FIELD( m_bLeaveAsleep, FIELD_BOOLEAN ),
 
 END_DATADESC()
 
@@ -142,8 +139,6 @@ CAI_ScriptConditions::EvaluatorInfo_t CAI_ScriptConditions::gm_Evaluators[] =
 
 #ifdef HL2_EPISODIC
 		EVALUATOR( ActorInPVS ),
-		EVALUATOR( PlayerInVehicle ),
-		EVALUATOR( ActorInVehicle ),
 #endif
 
 };
@@ -390,42 +385,6 @@ bool CAI_ScriptConditions::EvalPlayerBlockingActor( const EvalArgs_t &args )
 
 //-----------------------------------------------------------------------------
 
-bool CAI_ScriptConditions::EvalPlayerInVehicle( const EvalArgs_t &args )
-{
-	// We don't care
-	if ( m_fPlayerInVehicle == TRS_NONE )
-		return true;
-
-	// Need a player to test
-	if ( args.pPlayer == NULL )
-		return false;
-
-	// Desired states must match
-	return ( !!args.pPlayer->IsInAVehicle() == m_fPlayerInVehicle );
-}
-
-//-----------------------------------------------------------------------------
-
-bool CAI_ScriptConditions::EvalActorInVehicle( const EvalArgs_t &args )
-{
-	// We don't care
-	if ( m_fActorInVehicle == TRS_NONE )
-		return true;
-
-	if ( !args.pActor )
-		return true;
-
-	// Must be able to be in a vehicle at all
-	CBaseCombatCharacter *pBCC = args.pActor->MyCombatCharacterPointer();
-	if ( pBCC == NULL )
-		return false;
-
-	// Desired states must match
-	return ( !!pBCC->IsInAVehicle() == m_fActorInVehicle );
-}
-
-//-----------------------------------------------------------------------------
-
 void CAI_ScriptConditions::Spawn()
 {
 	Assert( ( m_fMinState == NPC_STATE_IDLE || m_fMinState == NPC_STATE_COMBAT || m_fMinState == NPC_STATE_ALERT ) &&
@@ -472,14 +431,6 @@ void CAI_ScriptConditions::EvaluationThink()
 		return;
 
 	int iActorsDone = 0;
-
-#ifdef HL2_DLL
-	// don't run on multiplayer
-	if( AI_IsSinglePlayer() && UTIL_GetLocalPlayer()->GetFlags() & FL_NOTARGET )
-	{
-		ScrCondDbgMsg( ("%s WARNING: Player is NOTARGET. This will affect all LOS conditiosn involving the player!\n", GetDebugName()) );
-	}
-#endif
 
 	for ( int i = 0; i < m_ElementList.Count(); )
 	{
@@ -639,10 +590,7 @@ void CAI_ScriptConditions::Enable( void )
 	//If we are hitting this it means we are using a Target->Player condition
 	if ( m_Actor == NULL_STRING )
 	{
-		if( !ActorInList(pActor) )
-		{
-			AddNewElement( NULL );
-		}
+		AddNewElement( NULL );
 	}
 
 	m_fDisabled = false;
@@ -735,9 +683,6 @@ bool CAI_ScriptConditions::IsInFOV( CBaseEntity *pViewer, CBaseEntity *pViewed, 
 
 bool CAI_ScriptConditions::PlayerHasLineOfSight( CBaseEntity *pViewer, CBaseEntity *pViewed, bool fNot )
 {
-	if (pViewer == NULL)
-		return false;
-
 	CBaseCombatCharacter *pCombatantViewer = pViewer->MyCombatCharacterPointer();
 
 	if( pCombatantViewer )

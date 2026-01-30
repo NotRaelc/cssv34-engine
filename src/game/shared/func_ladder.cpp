@@ -87,7 +87,7 @@ void CFuncLadder::Spawn()
 				m_vecPlayerMountPositionBottom.GetZ(),
 				bottomtrace.m_pEnt 
 					? 
-					UTIL_VarArgs( "%s/%s", bottomtrace.m_pEnt->GetClassname(), bottomtrace.m_pEnt->GetEntityName().ToCStr() ) 
+					UTIL_VarArgs( "%s/%s", bottomtrace.m_pEnt->GetClassname(), STRING(bottomtrace.m_pEnt->GetEntityName()) ) 
 					: 
 					"NULL" );
 		}
@@ -99,7 +99,7 @@ void CFuncLadder::Spawn()
 				m_vecPlayerMountPositionTop.GetZ(),
 				toptrace.m_pEnt 
 					? 
-					UTIL_VarArgs( "%s/%s", toptrace.m_pEnt->GetClassname(), toptrace.m_pEnt->GetEntityName().ToCStr() ) 
+					UTIL_VarArgs( "%s/%s", toptrace.m_pEnt->GetClassname(), STRING(toptrace.m_pEnt->GetEntityName()) ) 
 					: 
 					"NULL" );
 		}
@@ -417,15 +417,6 @@ bool CFuncLadder::DontGetOnLadder( void ) const
 	return m_bFakeLadder;
 }
 
-#if !defined(CLIENT_DLL)
-const char *CFuncLadder::GetSurfacePropName()
-{
-	if ( !m_surfacePropName )
-		return NULL;
-	return m_surfacePropName.ToCStr();
-}
-#endif
-
 IMPLEMENT_NETWORKCLASS_ALIASED( FuncLadder, DT_FuncLadder );
 
 BEGIN_NETWORK_TABLE( CFuncLadder, DT_FuncLadder )
@@ -434,7 +425,6 @@ BEGIN_NETWORK_TABLE( CFuncLadder, DT_FuncLadder )
 	SendPropVector( SENDINFO( m_vecPlayerMountPositionBottom ), SPROP_COORD ),
 	SendPropVector( SENDINFO( m_vecLadderDir ), SPROP_COORD ),
 	SendPropBool( SENDINFO( m_bFakeLadder ) ),
-//	SendPropStringT( SENDINFO(m_surfacePropName) ),
 #else
 	RecvPropVector( RECVINFO( m_vecPlayerMountPositionTop ) ),
 	RecvPropVector( RECVINFO( m_vecPlayerMountPositionBottom )),
@@ -459,7 +449,6 @@ BEGIN_DATADESC( CFuncLadder )
 	DEFINE_KEYFIELD( m_bDisabled,	FIELD_BOOLEAN,	"StartDisabled" ),
 
 #if !defined( CLIENT_DLL )
-	DEFINE_KEYFIELD( m_surfacePropName,FIELD_STRING,	"ladderSurfaceProperties" ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
 
@@ -498,16 +487,3 @@ BEGIN_NETWORK_TABLE( CInfoLadderDismount, DT_InfoLadderDismount )
 END_NETWORK_TABLE()
 
 LINK_ENTITY_TO_CLASS( info_ladder_dismount, CInfoLadderDismount );
-
-#if defined(GAME_DLL)
-const char *FuncLadder_GetSurfaceprops(CBaseEntity *pLadderEntity)
-{
-	CFuncLadder *pLadder = dynamic_cast<CFuncLadder *>(pLadderEntity);
-	if ( pLadder )
-	{
-		if ( pLadder->GetSurfacePropName() )
-			return pLadder->GetSurfacePropName();
-	}
-	return "ladder";
-}
-#endif

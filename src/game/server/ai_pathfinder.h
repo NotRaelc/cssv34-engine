@@ -28,8 +28,8 @@ class CAI_Node;
 enum RouteBuildFlags_e 
 {
 	bits_BUILD_GROUND		=			0x00000001, // 
-	bits_BUILD_JUMP			=			0x00000002, //
-	bits_BUILD_FLY			=			0x00000004, // 
+	bits_BUILD_FLY			=			0x00000002, // 
+	bits_BUILD_JUMP			=			0x00000004, //
 	bits_BUILD_CLIMB		=			0x00000008, //
 	bits_BUILD_GIVEWAY		=			0x00000010, //
 	bits_BUILD_TRIANG		=			0x00000020, //
@@ -80,7 +80,7 @@ public:
 
 	// --------------------------------
 	
-	virtual AI_Waypoint_t *BuildNodeRoute( const Vector &vStart, const Vector &vEnd, int buildFlags, float goalTolerance );
+	virtual AI_Waypoint_t *BuildNodeRoute( const Vector &vStart, const Vector &vEnd, float goalTolerance );
 	virtual AI_Waypoint_t *BuildLocalRoute( const Vector &vStart, const Vector &vEnd, CBaseEntity const *pTarget, int endFlags, int nodeID, int buildFlags, float goalTolerance);
 	virtual AI_Waypoint_t *BuildRadialRoute( const Vector &vStartPos, const Vector &vCenterPos, const Vector &vGoalPos, float flRadius, float flArc, float flStepDist, bool bClockwise, float goalTolerance, bool bAirRoute );	
 	
@@ -88,9 +88,6 @@ public:
 													const Vector &vEnd, CBaseEntity const *pTarget, int endFlags, int nodeID,
 													float flYaw, float flDistToBlocker, Navigation_t navType);
 
-	virtual AI_Waypoint_t *BuildOBBAvoidanceRoute(  const Vector &vStart, const Vector &vEnd, 
-													const CBaseEntity *pObstruction, const CBaseEntity *pTarget, 
-													Navigation_t navType );
 
 	// --------------------------------
 	
@@ -112,14 +109,12 @@ private:
 	AI_Waypoint_t*	RouteToNode(const Vector &vecOrigin, int buildFlags, int nodeID, float goalTolerance);
 	AI_Waypoint_t*	RouteFromNode(const Vector &vecOrigin, int buildFlags, int nodeID, float goalTolerance);
 
-	AI_Waypoint_t *	BuildNearestNodeRoute( const Vector &vGoal, bool bToNode, int buildFlags, float goalTolerance, int *pNearestNode );
+	AI_Waypoint_t *	BuildNearestNodeRoute( const Vector &vGoal, bool bToNode, float goalTolerance, int *pNearestNode );
 
 	//---------------------------------
 	
 	AI_Waypoint_t*	MakeRouteFromParents(int *parentArray, int endID);
 	AI_Waypoint_t*	CreateNodeWaypoint( Hull_t hullType, int nodeID, int nodeFlags = 0 );
-	
-	AI_Waypoint_t*	BuildRouteThroughPoints( Vector *vecPoints, int nNumPoints, int nDirection, int nStartIndex, int nEndIndex, Navigation_t navType, CBaseEntity *pTarget );
 
 	bool			IsLinkStillStale(int moveType, CAI_Link *nodeLink);
 
@@ -155,10 +150,6 @@ private:
 	// --------------------------------
 	
 	bool			CanGiveWay( const Vector& vStart, const Vector& vEnd, CBaseEntity *pNPCBlocker );
-
-	// --------------------------------
-
-	bool			UseStrongOptimizations();
 
 	// --------------------------------
 	// Debugging fields and functions

@@ -116,14 +116,17 @@ CBasePlayer *BotPutInServer( bool bFrozen )
 }
 
 // Handler for the "bot" command.
-CON_COMMAND_F( "bot_add", "Add a bot.", FCVAR_CHEAT )
+void BotAdd_f()
 {
+	extern int FindEngineArgInt( const char *pName, int defaultVal );
+	extern const char* FindEngineArg( const char *pName );
+
 	// Look at -count.
-	int count = args.FindArgInt( "-count", 1 );
+	int count = FindEngineArgInt( "-count", 1 );
 	count = clamp( count, 1, 16 );
 
 	// Look at -frozen.
-	bool bFrozen = !!args.FindArg( "-frozen" );
+	bool bFrozen = !!FindEngineArg( "-frozen" );
 		
 	// Ok, spawn all the bots.
 	while ( --count >= 0 )
@@ -131,6 +134,7 @@ CON_COMMAND_F( "bot_add", "Add a bot.", FCVAR_CHEAT )
 		BotPutInServer( bFrozen );
 	}
 }
+ConCommand cc_Bot( "bot_add", BotAdd_f, "Add a bot.", FCVAR_CHEAT );
 
 
 //-----------------------------------------------------------------------------

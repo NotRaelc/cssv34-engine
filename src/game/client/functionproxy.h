@@ -43,7 +43,6 @@ public:
 	virtual ~CResultProxy();
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void Release( void ) { delete this; }
-	virtual IMaterial *GetMaterial();
 
 protected:
 	C_BaseEntity *BindArgToEntity( void *pArg );

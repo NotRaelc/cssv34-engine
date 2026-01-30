@@ -15,10 +15,8 @@
 
 
 //-----------------------------------------------------------------------------
-// Purpose: entity class for simple ragdoll physics
+// Purpose: 
 //-----------------------------------------------------------------------------
-
-// UNDONE: Move this to a private header
 class CRagdollProp : public CBaseAnimating, public CDefaultPlayerPickupVPhysics
 {
 	DECLARE_CLASS( CRagdollProp, CBaseAnimating );
@@ -29,7 +27,14 @@ public:
 
 	virtual void UpdateOnRemove( void );
 
-	void DrawDebugGeometryOverlays();
+	void DrawDebugGeometryOverlays()
+	{
+		if (m_debugOverlays & OVERLAY_BBOX_BIT) 
+		{
+			DrawServerHitboxes();
+		}
+		BaseClass::DrawDebugGeometryOverlays();
+	}
 
 	void Spawn( void );
 	void Precache( void );
@@ -62,7 +67,7 @@ public:
 
 	// locals
 	void InitRagdollAnimation( void );
-	void InitRagdoll( const Vector &forceVector, int forceBone, const Vector &forcePos, matrix3x4_t *pPrevBones, matrix3x4_t *pBoneToWorld, float dt, int collisionGroup, bool activateRagdoll, bool bWakeRagdoll = true );
+	void InitRagdoll( const Vector &forceVector, int forceBone, const Vector &forcePos, matrix3x4_t *pPrevBones, matrix3x4_t *pBoneToWorld, float dt, int collisionGroup, bool activateRagdoll );
 	
 	void RecheckCollisionFilter( void );
 	void SetDebrisThink();
@@ -95,15 +100,8 @@ public:
 	void			SetKiller( CBaseEntity *pKiller ) { m_hKiller = pKiller; }
 	void			GetAngleOverrideFromCurrentState( char *pOut, int size );
 
-	void			DisableMotion( void );
-
 	// Input/Output
 	void			InputStartRadgollBoogie( inputdata_t &inputdata );
-	void			InputEnableMotion( inputdata_t &inputdata );
-	void			InputDisableMotion( inputdata_t &inputdata );
-	void			InputTurnOn( inputdata_t &inputdata );
-	void			InputTurnOff( inputdata_t &inputdata );
-	void			InputFadeAndRemove( inputdata_t &inputdata );
 
 	DECLARE_DATADESC();
 
@@ -114,8 +112,6 @@ protected:
 private:
 	void UpdateNetworkDataFromVPhysics( IPhysicsObject *pPhysics, int index );
 	void FadeOutThink();
-
-	bool				m_bStartDisabled;
 
 	CNetworkArray( Vector, m_ragPos, RAGDOLL_MAX_ELEMENTS );
 	CNetworkArray( QAngle, m_ragAngles, RAGDOLL_MAX_ELEMENTS );
@@ -135,7 +131,6 @@ private:
 	float					m_flLastPhysicsInfluenceTime;
 	float				m_flFadeOutStartTime;
 	float				m_flFadeTime;
-
 
 	string_t			m_strSourceClassName;
 	bool				m_bHasBeenPhysgunned;
@@ -157,6 +152,5 @@ CBaseAnimating *CreateServerRagdollSubmodel( CBaseAnimating *pOwner, const char 
 
 bool Ragdoll_IsPropRagdoll( CBaseEntity *pEntity );
 void Ragdoll_GetAngleOverrideString( char *pOut, int size, CBaseEntity *pEntity );
-ragdoll_t *Ragdoll_GetRagdoll( CBaseEntity *pEntity );
 
 #endif // PHYSICS_PROP_RAGDOLL_H

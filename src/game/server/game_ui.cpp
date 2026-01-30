@@ -129,49 +129,40 @@ void CGameUI::Deactivate( CBaseEntity *pActivator )
 {
 	CBasePlayer *pPlayer = m_player;
 
-	AssertMsg(pPlayer, "CGameUI deactivated without a player!");
-
-	if (pPlayer)
+	// Re-enable player motion
+	if ( FBitSet( m_spawnflags, SF_GAMEUI_FREEZE_PLAYER ) )
 	{
-		// Re-enable player motion
-		if ( FBitSet( m_spawnflags, SF_GAMEUI_FREEZE_PLAYER ) )
+		m_player->RemoveFlag( FL_ATCONTROLS );
+	}
+
+	// Restore weapons
+	if ( FBitSet( m_spawnflags, SF_GAMEUI_HIDE_WEAPON ) )
+	{
+		// Turn the hud back on
+		pPlayer->m_Local.m_iHideHUD &= ~HIDEHUD_WEAPONSELECTION;
+
+		if ( m_hSaveWeapon.Get() )
 		{
-			m_player->RemoveFlag( FL_ATCONTROLS );
+			m_player->Weapon_Switch( m_hSaveWeapon.Get() );
+			m_hSaveWeapon = NULL;
 		}
 
-		// Restore weapons
-		if ( FBitSet( m_spawnflags, SF_GAMEUI_HIDE_WEAPON ) )
+		if ( pPlayer->GetActiveWeapon() )
 		{
-			// Turn the hud back on
-			pPlayer->m_Local.m_iHideHUD &= ~HIDEHUD_WEAPONSELECTION;
-
-			if ( m_hSaveWeapon.Get() )
-			{
-				m_player->Weapon_Switch( m_hSaveWeapon.Get() );
-				m_hSaveWeapon = NULL;
-			}
-
-			if ( pPlayer->GetActiveWeapon() )
-			{
-				pPlayer->GetActiveWeapon()->Deploy();
-			}
+			pPlayer->GetActiveWeapon()->Deploy();
 		}
-
-		// Announce that the player is no longer controlling through us
-		m_playerOff.FireOutput( pPlayer, this, 0 );
-
-		// Clear out the axis controls
-		m_xaxis.Set( 0, pPlayer, this );
-		m_yaxis.Set( 0, pPlayer, this );
-		m_attackaxis.Set( 0, pPlayer, this );
-		m_attack2axis.Set( 0, pPlayer, this );
-		m_nLastButtonState = 0;
-		m_player = NULL;
 	}
-	else
-	{
-		Warning("%s Deactivate(): I have no player when called by %s!\n", GetEntityName().ToCStr(), pActivator->GetEntityName().ToCStr());
-	}
+
+	// Announce that the player is no longer controlling through us
+	m_playerOff.FireOutput( pPlayer, this, 0 );
+
+	// Clear out the axis controls
+	m_xaxis.Set( 0, pPlayer, this );
+	m_yaxis.Set( 0, pPlayer, this );
+	m_attackaxis.Set( 0, pPlayer, this );
+	m_attack2axis.Set( 0, pPlayer, this );
+	m_nLastButtonState = 0;
+	m_player = NULL;
 	
 	// Stop thinking
 	SetNextThink( TICK_NEVER_THINK );
@@ -191,7 +182,7 @@ void CGameUI::InputActivate( inputdata_t &inputdata )
 		CBaseEntity *pEntity = gEntList.FindEntityByName( NULL, inputdata.value.String(), this, inputdata.pActivator, inputdata.pCaller );
 		if ( pEntity == NULL || pEntity->IsPlayer() == false )
 		{
-			Warning( "%s InputActivate: entity %s not found or is not a player!\n", GetEntityName().ToCStr(), inputdata.value.String() );
+			Warning( "%s InputActivate: entity %s not found or is not a player!\n", GetEntityName(), inputdata.value.String() );
 			return;
 		}
 
@@ -202,7 +193,7 @@ void CGameUI::InputActivate( inputdata_t &inputdata )
 		// Otherwise try to use the activator
 		if ( inputdata.pActivator == NULL || inputdata.pActivator->IsPlayer() == false )
 		{
-			Warning( "%s InputActivate: invalid or missing !activator!\n", GetEntityName().ToCStr(), inputdata.value.String() );
+			Warning( "%s InputActivate: invalid or missing !activator!\n", GetEntityName(), inputdata.value.String() );
 			return;
 		}
 

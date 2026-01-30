@@ -9,13 +9,10 @@
 #include "materialsystem/IMaterial.h"
 #include "materialsystem/IMaterialVar.h"
 #include "iviewrender.h"
-#include "toolframework_client.h"
+//#include "VMatrix.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-
-// forward declarations
-void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 // no inputs, assumes that the results go into $CHEAPWATERSTARTDISTANCE and $CHEAPWATERENDDISTANCE
 class CWaterLODMaterialProxy : public IMaterialProxy
@@ -26,8 +23,6 @@ public:
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pC_BaseEntity );
 	virtual void Release( void ) { delete this; }
-	virtual IMaterial *GetMaterial();
-
 private:
 	IMaterialVar *m_pCheapWaterStartDistanceVar;
 	IMaterialVar *m_pCheapWaterEndDistanceVar;
@@ -68,16 +63,6 @@ void CWaterLODMaterialProxy::OnBind( void *pC_BaseEntity )
 	view->GetWaterLODParams( start, end );
 	m_pCheapWaterStartDistanceVar->SetFloatValue( start );
 	m_pCheapWaterEndDistanceVar->SetFloatValue( end );
-
-	if ( ToolsEnabled() )
-	{
-		ToolFramework_RecordMaterialParams( GetMaterial() );
-	}
-}
-
-IMaterial *CWaterLODMaterialProxy::GetMaterial()
-{
-	return m_pCheapWaterStartDistanceVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CWaterLODMaterialProxy, IMaterialProxy, "WaterLOD" IMATERIAL_PROXY_INTERFACE_VERSION );

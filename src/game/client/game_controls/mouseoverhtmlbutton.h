@@ -76,14 +76,14 @@ private:
 			wchar_t newText[ 128 ];
 			wchar_t localizeText[ 128 ];
 			wchar_t *ansiLocal;
-			if ( text[0] == '#' && ( ansiLocal = g_pVGuiLocalize->Find( text ) ) )
+			if ( text[0] == '#' && ( ansiLocal = vgui::localize()->Find( text ) ) )
 			{
 				// wcsncpy will crash if ansiLocal is null... *sigh*
 				wcsncpy(localizeText, ansiLocal, sizeof(localizeText)/sizeof(wchar_t));
 			}
 			else
 			{
-				g_pVGuiLocalize->ConvertANSIToUnicode( text, localizeText, sizeof( localizeText ) );
+				vgui::localize()->ConvertANSIToUnicode( text, localizeText, sizeof( localizeText ) );
 			}
 
 			if ( m_bAddShortCut )

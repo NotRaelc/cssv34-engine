@@ -7,7 +7,7 @@
 
 #include "tier0/platform.h"
 #include "interval.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "vstdlib/random.h"
 
 // memdbgon must be the last include file in a .cpp file!!!

@@ -73,9 +73,9 @@ char *CHudTextMessage::LocaliseTextString( const char *msg, char *dst_buffer, in
 
 			// Does titles.txt want to lookup into cstrike_<language>.txt?
 			wchar_t *pLocalizedStr;
-			if ( clmsg->pMessage[0] == '#' && ((pLocalizedStr = g_pVGuiLocalize->Find( clmsg->pMessage )) != NULL ) )
+			if ( clmsg->pMessage[0] == '#' && ((pLocalizedStr = vgui::localize()->Find( clmsg->pMessage )) != NULL ) )
 			{
-				g_pVGuiLocalize->ConvertUnicodeToANSI( pLocalizedStr, dst, buffer_size );
+				vgui::localize()->ConvertUnicodeToANSI( pLocalizedStr, dst, buffer_size );
 			}
 			else
 			{

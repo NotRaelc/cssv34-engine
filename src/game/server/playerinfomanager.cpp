@@ -71,8 +71,8 @@ namespace
 		}
 	}
 
-	EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPlayerInfoManager_V1, IPlayerInfoManager_V1, "PlayerInfoManager001", s_PlayerInfoManager_V1);
-}
+	EXPOSE_SINGLE_INTERFACE_GLOBALVAR(CPlayerInfoManager, IPlayerInfoManager_V1, "PlayerInfoManager001", s_PlayerInfoManager);
+};
 
 IPlayerInfo *CPlayerInfoManager::GetPlayerInfo( edict_t *pEdict )
 {

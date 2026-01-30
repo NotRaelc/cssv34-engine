@@ -33,7 +33,7 @@
 #include "cl_steamauth.h"
 #include "server.h"
 #include "steam/steam_api.h"
-#include "matchmaking.h"
+//#include "matchmaking.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -381,8 +381,7 @@ bool CBaseClientState::SetSignonState ( int state, int count )
 	}
 
 	if ( IsX360() && 
-		( state == SIGNONSTATE_FULL ) && 
-		g_pMatchmaking->PreventFullServerStartup() )
+		( state == SIGNONSTATE_FULL )  )
 	{
 		return true;
 	}
@@ -478,6 +477,7 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 		//Disconnect();
 		//return false;
 		Msg("Non-Steam connection: unGSSteamID %llu\n", unGSSteamID);
+		Msg("Client will send RevEmu ticket.\n");
 	}
 
 	// Size looks bogus
@@ -498,8 +498,8 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 #ifndef SWDS
 	// now append the steam3 cookie
 	char steam3Cookie[ STEAM_KEYSIZE ];
-	//int steam3CookieLen = Steam3Client().InitiateConnection( steam3Cookie, sizeof(steam3Cookie), checkAdr.GetIP(), checkAdr.GetPort(), unGSSteamID, bGSSecure, (void *)encryptionKey, keySize );
-	int steam3CookieLen = STEAM_KEYSIZE - 512;
+	int steam3CookieLen = Steam3Client().InitiateConnection( steam3Cookie, sizeof(steam3Cookie), checkAdr.GetIP(), checkAdr.GetPort(), unGSSteamID, bGSSecure, (void *)encryptionKey, keySize );
+	//int steam3CookieLen = STEAM_KEYSIZE - 512;
 	msg.WriteShort( steam3CookieLen );
 	if ( steam3CookieLen > 0 )
 		msg.WriteBytes( steam3Cookie, steam3CookieLen );

@@ -38,9 +38,6 @@ public:
 	{
 		if ( m_distSq != 0 )
 		{
-			if (pEntity1 == NULL || pEntity2 == NULL)
-				return false;
-
 			float distSq = ( pEntity1->GetAbsOrigin() - pEntity2->GetAbsOrigin() ).LengthSqr();
 			bool fInside = ( distSq < m_distSq );
 
@@ -109,9 +106,7 @@ public:
 		m_fPlayerBlockingActor( TRS_NONE ),
 		m_flMinTimeout( 0 ),
 		m_flMaxTimeout( 0 ),
-		m_fActorInPVS( TRS_NONE ),
-		m_fActorInVehicle( TRS_NONE ),
-		m_fPlayerInVehicle( TRS_NONE )
+		m_fActorInPVS( TRS_NONE )
 	{
 #ifndef HL2_EPISODIC
 		m_hActor = NULL;
@@ -133,7 +128,7 @@ private:
 	struct EvalArgs_t
 	{
 		CBaseEntity *pActor; 
-		CBasePlayer *pPlayer; 
+		CBaseEntity *pPlayer; 
 		CBaseEntity *pTarget;
 	};
 
@@ -149,8 +144,6 @@ private:
 	bool EvalPlayerTargetLOS( const EvalArgs_t &args );
 	bool EvalPlayerBlockingActor( const EvalArgs_t &args );
 	bool EvalActorInPVS( const EvalArgs_t &args );
-	bool EvalPlayerInVehicle( const EvalArgs_t &args );
-	bool EvalActorInVehicle( const EvalArgs_t &args );
 
 	void OnEntitySpawned( CBaseEntity *pEntity );
 
@@ -173,7 +166,7 @@ private:
 #ifndef HL2_EPISODIC
 	CBaseEntity *GetActor()		{ return m_hActor.Get();			}
 #endif
-	CBasePlayer *GetPlayer()	{ return UTIL_GetLocalPlayer();	}
+	CBaseEntity *GetPlayer()	{ return UTIL_GetLocalPlayer();	}
 
 	//---------------------------------
 
@@ -243,9 +236,6 @@ private:
 
 	float			m_flMinTimeout;
 	float			m_flMaxTimeout;
-
-	ThreeState_t	m_fActorInVehicle;
-	ThreeState_t	m_fPlayerInVehicle;
 
 	CUtlVector< CAI_ScriptConditionsElement > m_ElementList;
 

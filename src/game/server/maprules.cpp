@@ -147,7 +147,7 @@ LINK_ENTITY_TO_CLASS( game_score, CGameScore );
 
 BEGIN_DATADESC( CGameScore )
 	// Inputs
-	DEFINE_INPUTFUNC( FIELD_VOID, "ApplySplatform", InputApplyScore ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "ApplyScore", InputApplyScore ),
 END_DATADESC()
 
 void CGameScore::Spawn( void )
@@ -349,14 +349,23 @@ void CGameText::Display( CBaseEntity *pActivator )
 	if ( !CanFireForActivator( pActivator ) )
 		return;
 
-	if ( MessageToAll() || !pActivator || !pActivator->IsPlayer() )
+	if ( MessageToAll() )
 	{
 		UTIL_HudMessageAll( m_textParms, MessageGet() );
 	}
-	// show the message to the player that triggered us.
-	else // if ( pActivator && pActivator->IsNetClient() )
+	else
 	{
-		UTIL_HudMessage( ToBasePlayer( pActivator ), m_textParms, MessageGet() );
+		// If we're in singleplayer, show the message to the player.
+		if ( gpGlobals->maxClients == 1 )
+		{
+			CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+			UTIL_HudMessage( pPlayer, m_textParms, MessageGet() );
+		}
+		// Otherwise show the message to the player that triggered us.
+		else if ( pActivator && pActivator->IsNetClient() )
+		{
+			UTIL_HudMessage( ToBasePlayer( pActivator ), m_textParms, MessageGet() );
+		}
 	}
 }
 

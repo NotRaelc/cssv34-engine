@@ -1,4 +1,4 @@
-//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:			The Escort's Shield weapon effect
 //
@@ -320,9 +320,9 @@ void CSheetSimulator::ComputeForces()
 		if (m_Springs[i].m_Particle2 >= 0)
 			m_Particle[m_Springs[i].m_Particle2].m_Force -= force;
 
-		assert( IsFinite( m_Particle[m_Springs[i].m_Particle1].m_Force.x ) &&
-			IsFinite( m_Particle[m_Springs[i].m_Particle1].m_Force.y) &&
-			IsFinite( m_Particle[m_Springs[i].m_Particle1].m_Force.z) );
+		assert( _finite( m_Particle[m_Springs[i].m_Particle1].m_Force.x ) &&
+			_finite( m_Particle[m_Springs[i].m_Particle1].m_Force.y) && 
+			_finite( m_Particle[m_Springs[i].m_Particle1].m_Force.z) );
 	}
 
 	// gravity term
@@ -533,9 +533,9 @@ void CSheetSimulator::EulerStep( float dt )
 		m_Particle[i].m_Position += m_Particle[i].m_Velocity * dt; 
 		m_Particle[i].m_Velocity += m_Particle[i].m_Force * dt / m_Particle[i].m_Mass;
 
-		assert( IsFinite( m_Particle[i].m_Velocity.x ) &&
-			IsFinite( m_Particle[i].m_Velocity.y) &&
-			IsFinite( m_Particle[i].m_Velocity.z) );
+		assert( _finite( m_Particle[i].m_Velocity.x ) &&
+			_finite( m_Particle[i].m_Velocity.y) && 
+			_finite( m_Particle[i].m_Velocity.z) );
 
 		// clamp for stability
 		float lensq = m_Particle[i].m_Velocity.LengthSqr();

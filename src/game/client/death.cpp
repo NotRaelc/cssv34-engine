@@ -88,7 +88,6 @@ struct DeathNoticeItem {
 static int DEATHNOTICE_DISPLAY_TIME = 6;
 
 // Robin HACKHACK: HL2 doesn't use deathmsgs, so I just forced these down below our minimap.
-// It should be positioned by TF2/HL2 separately, and TF2 should position it according to the minimap position
 #define DEATHNOTICE_TOP		YRES( 140 )	// Was: 20
 
 DeathNoticeItem rgDeathNoticeList[ MAX_DEATHNOTICES + 1 ];
@@ -157,8 +156,8 @@ void CHudDeathNotice::Paint()
 		wchar_t victim[ 256 ];
 		wchar_t killer[ 256 ];
 
-		g_pVGuiLocalize->ConvertANSIToUnicode( rgDeathNoticeList[i].szVictim, victim, sizeof( victim ) );
-		g_pVGuiLocalize->ConvertANSIToUnicode( rgDeathNoticeList[i].szKiller, killer, sizeof( killer ) );
+		vgui::localize()->ConvertANSIToUnicode( rgDeathNoticeList[i].szVictim, victim, sizeof( victim ) );
+		vgui::localize()->ConvertANSIToUnicode( rgDeathNoticeList[i].szKiller, killer, sizeof( killer ) );
 
 		int len = UTIL_ComputeStringWidth( m_hTextFont, victim );
 

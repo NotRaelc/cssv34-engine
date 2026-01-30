@@ -1,10 +1,10 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//===========================================================================//
+//=============================================================================//
 //
 // hud_redraw.cpp
 //
@@ -27,12 +27,11 @@ const int CHud::HUDPB_VERTICAL = 1;
 const int CHud::HUDPB_HORIZONTAL_INV = 2;
 
 // Called when a ConVar changes value
-static void FovChanged_Callback( IConVar *pConVar, const char *pOldString, float flOldValue )
+static void FovChanged_Callback( ConVar *var, const char *pOldString )
 {
-	ConVarRef var( pConVar );
 	if ( engine->IsInGame() )
 	{
-		engine->ServerCmd( VarArgs( "fov %f\n", var.GetFloat() ) );
+		engine->ServerCmd( VarArgs( "fov %f\n", var->GetFloat() ) );
 	}
 }
 
@@ -74,16 +73,6 @@ void CHud::Think(void)
 	if ( pWeapon )
 	{
 		pWeapon->HandleInput();
-	}
-
-	if ( ( m_flScreenShotTime > 0 ) && ( m_flScreenShotTime < gpGlobals->curtime ) )
-	{
-		if ( !IsX360() )
-		{
-			engine->ClientCmd( "screenshot" );
-		}
-
-		m_flScreenShotTime = -1;
 	}
 }
 

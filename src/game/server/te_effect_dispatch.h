@@ -14,6 +14,8 @@
 
 #include "effect_dispatch_data.h"
 
+
 void DispatchEffect( const char *pName, const CEffectData &data );
+
 
 #endif // TE_EFFECT_DISPATCH_H

@@ -13,9 +13,6 @@
 #include "baseentity.h"
 #include "entityoutput.h"
 #include "studio.h"
-#include "datacache/idatacache.h"
-#include "tier0/threadtools.h"
-
 
 struct animevent_t;
 struct matrix3x4_t;
@@ -47,15 +44,11 @@ public:
 
 	virtual void SetModel( const char *szModelName );
 	virtual void Activate();
-	virtual void Spawn();
-	virtual void Precache();
 	virtual void SetTransmit( CCheckTransmitInfo *pInfo, bool bAlways );
 
-	virtual int	 Restore( IRestore &restore );
 	virtual void OnRestore();
 
 	CStudioHdr *GetModelPtr( void );
-	void InvalidateMdlCache();
 
 	virtual CBaseAnimating*	GetBaseAnimating() { return this; }
 
@@ -93,15 +86,13 @@ public:
 	virtual bool IsActivityFinished( void ) { return m_bSequenceFinished; }
 	inline bool IsSequenceFinished( void ) { return m_bSequenceFinished; }
 	inline bool SequenceLoops( void ) { return m_bSequenceLoops; }
-	bool		 IsSequenceLooping( CStudioHdr *pStudioHdr, int iSequence );
-	inline bool	 IsSequenceLooping( int iSequence ) { return IsSequenceLooping(GetModelPtr(),iSequence); }
 	inline float SequenceDuration( void ) { return SequenceDuration( m_nSequence ); }
 	float	SequenceDuration( CStudioHdr *pStudioHdr, int iSequence );
 	inline float SequenceDuration( int iSequence ) { return SequenceDuration(GetModelPtr(), iSequence); }
 	float	GetSequenceCycleRate( CStudioHdr *pStudioHdr, int iSequence );
 	inline float	GetSequenceCycleRate( int iSequence ) { return GetSequenceCycleRate(GetModelPtr(),iSequence); }
 	float	GetLastVisibleCycle( CStudioHdr *pStudioHdr, int iSequence );
-	virtual float	GetSequenceGroundSpeed( CStudioHdr *pStudioHdr, int iSequence );
+	float	GetSequenceGroundSpeed( CStudioHdr *pStudioHdr, int iSequence );
 	inline float GetSequenceGroundSpeed( int iSequence ) { return GetSequenceGroundSpeed(GetModelPtr(), iSequence); }
 	void	ResetActivityIndexes ( void );
 	void    ResetEventIndexes ( void );
@@ -155,15 +146,6 @@ public:
 	bool	HasPoseParameter( int iSequence, int iParameter );
 	float	EdgeLimitPoseParameter( int iParameter, float flValue, float flBase = 0.0f );
 
-protected:
-	// The modus operandi for pose parameters is that you should not use the const char * version of the functions
-	// in general code -- it causes many many string comparisons, which is slower than you think. Better is to 
-	// save off your pose parameters in member variables in your derivation of this function:
-	virtual void	PopulatePoseParameters( void );
-
-
-public:
-
 	int  LookupBone( const char *szName );
 	void GetBonePosition( const char *szName, Vector &origin, QAngle &angles );
 	void GetBonePosition( int iBone, Vector &origin, QAngle &angles );
@@ -172,7 +154,6 @@ public:
 	int GetNumBones ( void );
 
 	int  FindTransitionSequence( int iCurrentSequence, int iGoalSequence, int *piDir );
-	bool GotoSequence( int iCurrentSequence, float flCurrentCycle, float flCurrentRate,  int iGoalSequence, int &iNextSequence, float &flCycle, int &iDir );
 	int  GetEntryNode( int iSequence );
 	int  GetExitNode( int iSequence );
 	
@@ -183,7 +164,6 @@ public:
 	// These return the attachment in world space
 	bool GetAttachment( const char *szName, Vector &absOrigin, QAngle &absAngles );
 	bool GetAttachment( int iAttachment, Vector &absOrigin, QAngle &absAngles );
-	int GetAttachmentBone( int iAttachment );
 	virtual bool GetAttachment( int iAttachment, matrix3x4_t &attachmentToWorld );
 
 	// These return the attachment in the space of the entity
@@ -236,10 +216,10 @@ public:
 	void					GetVelocity(Vector *vVelocity, AngularImpulse *vAngVelocity);
 
 	// these two need to move somewhere else
-	LocalFlexController_t GetNumFlexControllers( void );
+	int GetNumFlexControllers( void );
 	const char *GetFlexDescFacs( int iFlexDesc );
-	const char *GetFlexControllerName( LocalFlexController_t iFlexController );
-	const char *GetFlexControllerType( LocalFlexController_t iFlexController );
+	const char *GetFlexControllerName( int iFlexController );
+	const char *GetFlexControllerType( int iFlexController );
 
 	virtual	Vector GetGroundSpeedVelocity( void );
 
@@ -284,17 +264,10 @@ public:
 
 	// Fire
 	virtual void Ignite( float flFlameLifetime, bool bNPCOnly = true, float flSize = 0.0f, bool bCalledByLevelDesigner = false );
-	virtual void IgniteLifetime( float flFlameLifetime );
-	virtual void IgniteNumHitboxFires( int iNumHitBoxFires );
-	virtual void IgniteHitboxFireScale( float flHitboxFireScale );
 	virtual void Extinguish() { RemoveFlag( FL_ONFIRE ); }
 	bool IsOnFire() { return ( (GetFlags() & FL_ONFIRE) != 0 ); }
 	void Scorch( int rate, int floor );
 	void InputIgnite( inputdata_t &inputdata );
-	void InputIgniteLifetime( inputdata_t &inputdata );
-	void InputIgniteNumHitboxFires( inputdata_t &inputdata );
-	void InputIgniteHitboxFireScale( inputdata_t &inputdata );
-	void InputBecomeRagdoll( inputdata_t &inputdata );
 
 	// Dissolve, returns true if the ragdoll has been created
 	bool Dissolve( const char *pMaterialName, float flStartTime, bool bNPCOnly = true, int nDissolveType = 0, Vector vDissolverOrigin = vec3_origin, int iMagnitude = 0 );
@@ -330,9 +303,6 @@ public:
 	bool PrefetchSequence( int iSequence );
 
 private:
-	void LockStudioHdr();
-	void UnlockStudioHdr();
-
 	void StudioFrameAdvanceInternal( CStudioHdr *pStudioHdr, float flInterval );
 	void InputSetLightingOriginRelative( inputdata_t &inputdata );
 	void InputSetLightingOrigin( inputdata_t &inputdata );
@@ -354,7 +324,6 @@ public:
 	CNetworkVar( float, m_flPlaybackRate );
 
 public:
-	void InitStepHeightAdjust( void );
 	void SetIKGroundContactInfo( float minHeight, float maxHeight );
 	void UpdateStepOrigin( void );
 
@@ -414,8 +383,6 @@ public:
 
 private:
 	CStudioHdr			*m_pStudioHdr;
-	CThreadFastMutex	m_StudioHdrInitLock;
-	CThreadFastMutex	m_BoneSetupMutex;
 
 // FIXME: necessary so that cyclers can hack m_bSequenceFinished
 friend class CFlexCycler;
@@ -423,32 +390,6 @@ friend class CCycler;
 friend class CBlendingCycler;
 };
 
-//-----------------------------------------------------------------------------
-// Purpose: return a pointer to an updated studiomdl cache cache
-//-----------------------------------------------------------------------------
-inline CStudioHdr *CBaseAnimating::GetModelPtr( void ) 
-{ 
-#ifdef _DEBUG
-	// GetModelPtr() is often called before OnNewModel() so go ahead and set it up first chance.
-	static IDataCacheSection *pModelCache = datacache->FindSection( "ModelData" );
-	AssertOnce( pModelCache->IsFrameLocking() );
-#endif
-	if ( !m_pStudioHdr && GetModel() )
-	{
-		LockStudioHdr();
-	}
-	return ( m_pStudioHdr && m_pStudioHdr->IsValid() ) ? m_pStudioHdr : NULL;
-}
-
-inline void CBaseAnimating::InvalidateMdlCache()
-{
-	UnlockStudioHdr();
-	if ( m_pStudioHdr != NULL )
-	{
-		delete m_pStudioHdr;
-		m_pStudioHdr = NULL;
-	}
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: Serves the 90% case of calling SetSequence / ResetSequenceInfo.
@@ -510,15 +451,11 @@ EXTERN_SEND_TABLE(DT_BaseAnimating);
 
 
 
-#define ANIMATION_SEQUENCE_BITS			12	// 4096 sequences
+#define ANIMATION_SEQUENCE_BITS			11	// 2048 sequences
 #define ANIMATION_SKIN_BITS				10	// 1024 body skin selections FIXME: this seems way high
 #define ANIMATION_BODY_BITS				32	// body combinations
 #define ANIMATION_HITBOXSET_BITS		2	// hit box sets 
-#if defined( TF_DLL )
-#define ANIMATION_POSEPARAMETER_BITS	8	// pose parameter resolution
-#else
 #define ANIMATION_POSEPARAMETER_BITS	11	// pose parameter resolution
-#endif
 #define ANIMATION_PLAYBACKRATE_BITS		8	// default playback rate, only used on leading edge detect sequence changes
 
 #endif // BASEANIMATING_H

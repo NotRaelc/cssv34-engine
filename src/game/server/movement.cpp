@@ -10,7 +10,7 @@
 #include "entityoutput.h"
 #include "keyframe/keyframe.h" // BUG: this needs to move if keyframe is a standard thing
 
-#include "mathlib/mathlib.h"	// FIXME: why do we still need this?
+#include "mathlib.h"	// FIXME: why do we still need this?
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -146,9 +146,9 @@ void CPathKeyFrame::CalculateFrameDuration( void )
 			float x = 0;
 			for ( int i = 0; i < 3; i++ )
 			{
-				if ( fabsf(ang[i]) > x )
+				if ( abs(ang[i]) > x )
 				{
-					x = fabsf(ang[i]);
+					x = abs(ang[i]);
 				}
 			}
 

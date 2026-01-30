@@ -14,14 +14,14 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-void Test_CreateEntity( const CCommand &args )
+void Test_CreateEntity()
 {
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2 )
 	{
 		Error( "Test_CreateEntity: requires entity classname argument." );
 	}
 
-	const char *pClassName = args[ 1 ];
+	const char *pClassName = engine->Cmd_Argv( 1 );
 
 	if ( !CreateEntityByName( pClassName ) )
 	{

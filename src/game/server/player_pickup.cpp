@@ -24,7 +24,7 @@ void Pickup_ForcePlayerToDropThisObject( CBaseEntity *pTarget )
 
 	if ( pPhysics->GetGameFlags() & FVPHYSICS_PLAYER_HELD )
 	{
-		CBasePlayer *pPlayer = UTIL_GetNearestPlayer(pTarget->GetAbsOrigin());
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
 		pPlayer->ForceDropOfCarriedPhysObjects( pTarget );
 	}
 }
@@ -46,17 +46,6 @@ void Pickup_OnPhysGunPickup( CBaseEntity *pPickedUpObject, CBasePlayer *pPlayer,
 	if ( pPickup )
 	{
 		pPickup->OnPhysGunPickup( pPlayer, reason );
-	}
-
-	// send phys gun pickup item event, but only in single player
-	if ( !g_pGameRules->IsMultiplayer() )
-	{
-		IGameEvent *event = gameeventmanager->CreateEvent( "physgun_pickup" );
-		if ( event )
-		{
-			event->SetInt( "entindex", pPickedUpObject->entindex() );
-			gameeventmanager->FireEvent( event );
-		}
 	}
 }
 
@@ -105,10 +94,10 @@ bool Pickup_ForcePhysGunOpen( CBaseEntity *pObject, CBasePlayer *pPlayer )
 	return false;
 }
 
-AngularImpulse Pickup_PhysGunLaunchAngularImpulse( CBaseEntity *pObject, PhysGunForce_t reason )
+AngularImpulse Pickup_PhysGunLaunchAngularImpulse( CBaseEntity *pObject )
 {
 	IPlayerPickupVPhysics *pPickup = dynamic_cast<IPlayerPickupVPhysics *>(pObject);
-	if ( pPickup != NULL && pPickup->ShouldPuntUseLaunchForces( reason ) )
+	if ( pPickup )
 	{
 		return pPickup->PhysGunLaunchAngularImpulse();
 	}
@@ -127,7 +116,7 @@ Vector Pickup_DefaultPhysGunLaunchVelocity( const Vector &vecForward, float flMa
 	{
 		mass = min( mass, 1000 );
 		float flForceMin = physcannon_minforce.GetFloat();
-		flForce = SimpleSplineRemapValClamped( mass, 100, 600, flForceMax, flForceMin );
+		flForce = SimpleSplineRemapVal( mass, 100, 600, flForceMax, flForceMin );
 	}
 
 	return ( vecForward * flForce );
@@ -137,7 +126,7 @@ Vector Pickup_DefaultPhysGunLaunchVelocity( const Vector &vecForward, float flMa
 	return ( vecForward * flMass );
 }
 
-Vector Pickup_PhysGunLaunchVelocity( CBaseEntity *pObject, const Vector &vecForward, PhysGunForce_t reason )
+Vector Pickup_PhysGunLaunchVelocity( CBaseEntity *pObject, const Vector &vecForward )
 {
 	// The object must be valid
 	if ( pObject == NULL )
@@ -156,19 +145,19 @@ Vector Pickup_PhysGunLaunchVelocity( CBaseEntity *pObject, const Vector &vecForw
 
 	// Call the pickup entity's callback
 	IPlayerPickupVPhysics *pPickup = dynamic_cast<IPlayerPickupVPhysics *>(pObject);
-	if ( pPickup != NULL && pPickup->ShouldPuntUseLaunchForces( reason ) )
+	if ( pPickup != NULL )
 		return pPickup->PhysGunLaunchVelocity( vecForward, pPhysicsObject->GetMass() );
 
 	// Do our default behavior
 	return Pickup_DefaultPhysGunLaunchVelocity(	vecForward, pPhysicsObject->GetMass() );
 }
 
-bool Pickup_ShouldPuntUseLaunchForces( CBaseEntity *pObject, PhysGunForce_t reason )
+bool Pickup_ShouldPuntUseLaunchForces( CBaseEntity *pObject )
 {
 	IPlayerPickupVPhysics *pPickup = dynamic_cast<IPlayerPickupVPhysics *>(pObject);
 	if ( pPickup )
 	{
-		return pPickup->ShouldPuntUseLaunchForces( reason );
+		return pPickup->ShouldPuntUseLaunchForces();
 	}
 	return false;
 }

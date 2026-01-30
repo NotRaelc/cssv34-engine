@@ -1,8 +1,8 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ====
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Implements buttons.
 //
-//=============================================================================
+//=============================================================================//
 
 #include "cbase.h"
 #include "doors.h"
@@ -10,7 +10,7 @@
 #include "spark.h"
 #include "vstdlib/random.h"
 #include "engine/IEngineSound.h"
-#include "tier1/strtools.h"
+#include "vstdlib/strtools.h"
 #include "buttons.h"
 #include "eventqueue.h"
 
@@ -63,8 +63,6 @@ BEGIN_DATADESC( CBaseButton )
 	DEFINE_INPUTFUNC( FIELD_VOID, "Lock", InputLock ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Unlock", InputUnlock ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Press", InputPress ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "PressIn", InputPressIn ),
-	DEFINE_INPUTFUNC( FIELD_VOID, "PressOut", InputPressOut ),
 
 	// Outputs
 	DEFINE_OUTPUT( m_OnDamaged, "OnDamaged" ),
@@ -205,21 +203,12 @@ void CBaseButton::InputUnlock( inputdata_t &inputdata )
 
 
 //-----------------------------------------------------------------------------
-// Presses or unpresses the button.
+// Purpose: Locks the button. If locked, the button will play the locked sound
+//			when the player tries to use it.
 //-----------------------------------------------------------------------------
-void CBaseButton::Press( CBaseEntity *pActivator, BUTTON_CODE eCode )
+void CBaseButton::InputPress( inputdata_t &inputdata )
 {
-	if ( ( eCode == BUTTON_PRESS ) && ( m_toggle_state == TS_GOING_UP || m_toggle_state == TS_GOING_DOWN ) )
-	{
-		return;
-	}
-
-	if ( ( eCode == BUTTON_ACTIVATE ) && ( m_toggle_state == TS_GOING_UP || m_toggle_state == TS_AT_TOP ) )
-	{
-		return;
-	}
-
-	if ( ( eCode == BUTTON_RETURN ) && ( m_toggle_state == TS_GOING_DOWN || m_toggle_state == TS_AT_BOTTOM ) )
+	if (m_toggle_state == TS_GOING_UP || m_toggle_state == TS_GOING_DOWN )
 	{
 		return;
 	}
@@ -235,8 +224,7 @@ void CBaseButton::Press( CBaseEntity *pActivator, BUTTON_CODE eCode )
 	// Temporarily disable the touch function, until movement is finished.
 	SetTouch( NULL );
 
-	if ( ( eCode == BUTTON_PRESS ) && ( m_toggle_state == TS_AT_TOP ) ||
-		 ( ( eCode == BUTTON_RETURN ) && ( m_toggle_state == TS_AT_TOP || m_toggle_state == TS_GOING_UP ) ) )
+	if ( m_toggle_state == TS_AT_TOP)
 	{
 		if ( m_sNoise != NULL_STRING )
 		{
@@ -251,42 +239,14 @@ void CBaseButton::Press( CBaseEntity *pActivator, BUTTON_CODE eCode )
 			EmitSound( filter, entindex(), ep );
 		}
 
-		m_OnPressed.FireOutput(pActivator, this);
+		m_OnPressed.FireOutput(m_hActivator, this);
 		ButtonReturn();
 	}
-	else if ( ( eCode == BUTTON_PRESS ) ||
-			  ( ( eCode == BUTTON_ACTIVATE ) && ( m_toggle_state == TS_AT_BOTTOM || m_toggle_state == TS_GOING_DOWN ) ) )
+	else
 	{
-		m_OnPressed.FireOutput(pActivator, this);
-		ButtonActivate();
+		m_OnPressed.FireOutput(m_hActivator, this);
+		ButtonActivate( );
 	}
-}
-
-
-//-----------------------------------------------------------------------------
-// Presses the button.
-//-----------------------------------------------------------------------------
-void CBaseButton::InputPress( inputdata_t &inputdata )
-{
-	Press( inputdata.pActivator, BUTTON_PRESS );
-}
-
-
-//-----------------------------------------------------------------------------
-// Presses the button, sending it to the top/pressed position.
-//-----------------------------------------------------------------------------
-void CBaseButton::InputPressIn( inputdata_t &inputdata )
-{
-	Press( inputdata.pActivator, BUTTON_ACTIVATE );
-}
-
-
-//-----------------------------------------------------------------------------
-// Unpresses the button, sending it to the unpressed/bottom position.
-//-----------------------------------------------------------------------------
-void CBaseButton::InputPressOut( inputdata_t &inputdata )
-{
-	Press( inputdata.pActivator, BUTTON_RETURN );
 }
 
 
@@ -698,8 +658,8 @@ int	CBaseButton::ObjectCaps(void)
 
 
 //-----------------------------------------------------------------------------
-// Purpose: Button has reached the "pressed/top" position. Fire its OnIn output,
-//			and pause before returning to "unpressed/bottom".
+// Purpose: Button has reached the "in/up" position.  Activate its "targets", 
+//			and pause before "popping out".
 //-----------------------------------------------------------------------------
 void CBaseButton::TriggerAndWait( void )
 {
@@ -762,8 +722,7 @@ void CBaseButton::ButtonReturn( void )
 
 
 //-----------------------------------------------------------------------------
-// Purpose: Button has returned to the "unpressed/bottom" position. Fire its
-//			OnOut output and stop moving.
+// Purpose: Button has returned to start state. Quiesce it.
 //-----------------------------------------------------------------------------
 void CBaseButton::ButtonBackHome( void )
 {
@@ -791,43 +750,6 @@ void CBaseButton::ButtonBackHome( void )
 		SetThink ( &CBaseButton::ButtonSpark );
 		SetNextThink( gpGlobals->curtime + 0.5f );// no hurry
 	}
-}
-
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-int CBaseButton::DrawDebugTextOverlays()
-{
-	int text_offset = BaseClass::DrawDebugTextOverlays();
-
-	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
-	{
-		static char *pszStates[] =
-		{
-			"Pressed",
-			"Unpressed",
-			"Pressing...",
-			"Unpressing...",
-			"<UNKNOWN STATE>",
-		};
-	
-		char tempstr[255];
-
-		int nState = m_toggle_state;
-		if ( ( nState < 0 ) || ( nState > 3 ) )
-		{
-			nState = 4;
-		}
-
-		Q_snprintf( tempstr, sizeof(tempstr), "State: %s", pszStates[nState] );
-		EntityText( text_offset, tempstr, 0 );
-		text_offset++;
-
-		Q_snprintf( tempstr, sizeof(tempstr), "%s", m_bLocked ? "Locked" : "Unlocked" );
-		EntityText( text_offset, tempstr, 0 );
-		text_offset++;
-	}
-	return text_offset;
 }
 
 
@@ -935,6 +857,7 @@ BEGIN_DATADESC( CMomentaryRotButton )
 	DEFINE_FIELD( m_start, FIELD_VECTOR ),
 	DEFINE_FIELD( m_end, FIELD_VECTOR ),
 	DEFINE_FIELD( m_IdealYaw, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flTimeDelta, FIELD_FLOAT ),
 	DEFINE_FIELD( m_sNoise, FIELD_SOUNDNAME ),
 	DEFINE_FIELD( m_bUpdateTarget, FIELD_BOOLEAN ),
 
@@ -1168,16 +1091,9 @@ void CMomentaryRotButton::InputSetPosition( inputdata_t &inputdata )
 	//
 	QAngle vecNewAngles = m_start + m_vecMoveAng * ( m_IdealYaw * m_flMoveDistance );
 	float flAngleDelta = fabs( AxisDelta( m_spawnflags, vecNewAngles, GetLocalAngles() ));
-	float dt = flAngleDelta / m_flSpeed;
-	if ( dt < TICK_INTERVAL )
-	{
-		dt = TICK_INTERVAL;
-		float speed = flAngleDelta / TICK_INTERVAL;
-		SetLocalAngularVelocity( speed * m_vecMoveAng * m_direction );
-	}
-	dt = clamp( dt, TICK_INTERVAL, TICK_INTERVAL * 6);
+	m_flTimeDelta = min( flAngleDelta / m_flSpeed, 0.1f );
 
-	SetMoveDoneTime( dt );
+	SetMoveDoneTime( m_flTimeDelta );
 }
 
 
@@ -1275,7 +1191,6 @@ void CMomentaryRotButton::SetPositionMoveDone(void)
 		// We reached or surpassed our movement goal.
 		//
 		SetLocalAngularVelocity( vec3_angle );
-		// BUGBUG: Won't this get the player stuck?
 		SetLocalAngles( m_start + m_vecMoveAng * ( m_IdealYaw * m_flMoveDistance ) );
 		SetNextThink( TICK_NEVER_THINK );
 		SetMoveDoneTime( -1 );
@@ -1285,18 +1200,7 @@ void CMomentaryRotButton::SetPositionMoveDone(void)
 	}
 
 	// TODO: change this to use a Think function like ReturnThink.
-	QAngle vecNewAngles = m_start + m_vecMoveAng * ( m_IdealYaw * m_flMoveDistance );
-	float flAngleDelta = fabs( AxisDelta( m_spawnflags, vecNewAngles, GetLocalAngles() ));
-	float dt = flAngleDelta / m_flSpeed;
-	if ( dt < TICK_INTERVAL )
-	{
-		dt = TICK_INTERVAL;
-		float speed = flAngleDelta / TICK_INTERVAL;
-		SetLocalAngularVelocity( speed * m_vecMoveAng * m_direction );
-	}
-	dt = clamp( dt, TICK_INTERVAL, TICK_INTERVAL * 6);
-
-	SetMoveDoneTime( dt );
+	SetMoveDoneTime( m_flTimeDelta );
 }
 
 
@@ -1364,15 +1268,9 @@ void CMomentaryRotButton::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, US
 
 	//
 	// Think every frame while we are moving.
-	// HACK: Don't reset the think time if we already have a pending think.
-	// This works around an issue with host_thread_mode > 0 when the player's
-	// clock runs ahead of the server.
 	//
-	if ( !m_pfnThink )
-	{
-		SetThink( &CMomentaryRotButton::UpdateThink );
-		SetNextThink( gpGlobals->curtime );
-	}
+	SetThink( &CMomentaryRotButton::UpdateThink );
+	SetNextThink( gpGlobals->curtime );
 }
 
 

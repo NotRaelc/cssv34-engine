@@ -27,7 +27,7 @@ struct	Task_t;
 #ifndef MAX_CONDITIONS
 #define	MAX_CONDITIONS 32*8
 #endif
-typedef CBitVec<MAX_CONDITIONS> CAI_ScheduleBits;
+typedef CFixedBitString<MAX_CONDITIONS> CAI_ScheduleBits;
 
 //==================================================
 // goalType_t
@@ -131,12 +131,12 @@ public:
 	
 	void GetInterruptMask( CAI_ScheduleBits *pBits ) const
 	{
-		m_InterruptMask.CopyTo( pBits );
+		m_InterruptMask.Copy( pBits );
 	}
 
 	bool HasInterrupt( int condition ) const
 	{
-		return m_InterruptMask.IsBitSet( condition );
+		return m_InterruptMask.GetBit( condition );
 	}
 	
 	const char *GetName() const

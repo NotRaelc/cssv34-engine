@@ -24,7 +24,6 @@ public:
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pC_BaseEntity );
 	virtual void Release( void ) { delete this; }
-	virtual IMaterial *GetMaterial();
 
 protected:
 	// derived classes must implement this; it returns the time

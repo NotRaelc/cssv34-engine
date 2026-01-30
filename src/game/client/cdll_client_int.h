@@ -14,7 +14,6 @@
 #include "iclientnetworkable.h"
 #include "utllinkedlist.h"
 #include "cdll_int.h"
-#include "eiface.h"
 
 
 class IVModelRender;
@@ -51,10 +50,7 @@ class C_BaseAnimating;
 class IColorCorrectionSystem;
 class IInputSystem;
 class ISceneFileCache;
-class IXboxSystem;	// Xbox 360 only
-class IMatchmaking;
 class IAvi;
-class IBik;
 
 extern IVModelRender *modelrender;
 extern IVEngineClient	*engine;
@@ -84,14 +80,10 @@ extern IGameEventManager2 *gameeventmanager;
 extern IPhysicsGameTrace *physgametrace;
 extern CGlobalVarsBase *gpGlobals;
 extern IClientTools *clienttools;
+extern IColorCorrectionSystem *colorcorrection;
 extern IInputSystem *inputsystem;
 extern ISceneFileCache *scenefilecache;
-extern IXboxSystem *xboxsystem;	// Xbox 360 only
-extern IMatchmaking *matchmaking;
 extern IAvi *avi;
-extern IBik *bik;
-extern IUploadGameStats *g_pClientGameStatsUploader;
-
 
 // Set to true between LevelInit and LevelShutdown.
 extern bool	g_bLevelInitialized;
@@ -119,18 +111,9 @@ int GetMaterialIndex( const char *pMaterialName );
 const char *GetMaterialNameFromIndex( int nIndex );
 
 //-----------------------------------------------------------------------------
-// Precache-related methods for particle systems
-//-----------------------------------------------------------------------------
-void PrecacheParticleSystem( const char *pParticleSystemName );
-int GetParticleSystemIndex( const char *pParticleSystemName );
-const char *GetParticleSystemNameFromIndex( int nIndex );
-
-
-//-----------------------------------------------------------------------------
 // Called during bone setup to test perf
 //-----------------------------------------------------------------------------
 void TrackBoneSetupEnt( C_BaseAnimating *pEnt );
 
-bool IsEngineThreaded();
 
 #endif // CDLL_CLIENT_INT_H

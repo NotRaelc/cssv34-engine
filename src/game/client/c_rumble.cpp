@@ -6,6 +6,11 @@
 //
 //=============================================================================//
 #include "cbase.h"
+//#ifdef _XBOX
+//#include "xbox/xbox_platform.h"
+//#include "xbox/xbox_win32stubs.h"
+//#include "xbox/xbox_core.h"
+//#endif
 #include "c_rumble.h"
 #include "rumble_shared.h"
 #include "inputsystem/iinputsystem.h"
@@ -356,9 +361,10 @@ void CRumbleEffects::Init()
 	TerminateWaveform( &m_Waveforms[RUMBLE_RPG_MISSILE], 6 );
 
 	// Physcannon open forks
-	params.Set( 1, 1.0f, false, 0.0f, 0.25f );
+	params.Set( 1, 1.0f, true, 0.0f, 0.1f );
 	GenerateFlatEffect( &m_Waveforms[RUMBLE_PHYSCANNON_OPEN], params );
-	TerminateWaveform( &m_Waveforms[RUMBLE_PHYSCANNON_OPEN], 4 );
+	params.Set( 6, 1.0f, false, 0.0f, 0.12f );
+	GenerateSineWaveEffect( &m_Waveforms[RUMBLE_PHYSCANNON_OPEN], params );
 
 	// Physcannon holding something
 	params.Set( 1, 1.0f, true, 0.0f, 0.2f );
@@ -389,37 +395,6 @@ void CRumbleEffects::Init()
 	GenerateFlatEffect( &m_Waveforms[RUMBLE_FLAT_BOTH], params );
 	params.Set( 1, 1.0f, false, 0.0f, 1.0f );
 	GenerateFlatEffect( &m_Waveforms[RUMBLE_FLAT_BOTH], params );
-
-	// Impact from a long fall
-	params.Set( 1, 1.0f, false, 0.0f, 0.5f );
-	GenerateFlatEffect( &m_Waveforms[RUMBLE_FALL_LONG], params );
-	params.Set( 1, 1.0f, true, 0.0f, 0.5f );
-	GenerateFlatEffect( &m_Waveforms[RUMBLE_FALL_LONG], params );
-	TerminateWaveform( &m_Waveforms[RUMBLE_FALL_LONG], 3 );
-
-	// Impact from a short fall
-	params.Set( 1, 1.0f, false, 0.0f, 0.3f );
-	GenerateFlatEffect( &m_Waveforms[RUMBLE_FALL_SHORT], params );
-	params.Set( 1, 1.0f, true, 0.0f, 0.3f );
-	GenerateFlatEffect( &m_Waveforms[RUMBLE_FALL_SHORT], params );
-	TerminateWaveform( &m_Waveforms[RUMBLE_FALL_SHORT], 2 );
-
-	// Portalgun left (blue) shot
-	params.Set( 1, 1.0f, true, 0.0f, 0.3f );
-	GenerateFlatEffect( &m_Waveforms[RUMBLE_PORTALGUN_LEFT], params );
-	TerminateWaveform( &m_Waveforms[RUMBLE_PORTALGUN_LEFT], 2 );
-
-	// Portalgun right (red) shot
-	params.Set( 1, 1.0f, false, 0.0f, 0.3f );
-	GenerateFlatEffect( &m_Waveforms[RUMBLE_PORTALGUN_RIGHT], params );
-	TerminateWaveform( &m_Waveforms[RUMBLE_PORTALGUN_RIGHT], 2 );
-
-	// Portal failed to place feedback
-	params.Set( 12, 1.0f, true, 0.0f, 1.0f );
-	GenerateSquareWaveEffect( &m_Waveforms[RUMBLE_PORTAL_PLACEMENT_FAILURE], params );
-	params.Set( 12, 1.0f, false, 0.0f, 1.0f );
-	GenerateSquareWaveEffect( &m_Waveforms[RUMBLE_PORTAL_PLACEMENT_FAILURE], params );
-	TerminateWaveform( &m_Waveforms[RUMBLE_PORTAL_PLACEMENT_FAILURE], 6 );
 }
 
 //---------------------------------------------------------
@@ -772,7 +747,10 @@ void CRumbleEffects::UpdateEffects( float curtime )
 		fRightMotor = 0.0f;
 	}
 
-	inputsystem->SetRumble( fLeftMotor, fRightMotor );
+	if ( IsXbox() )
+	{
+		inputsystem->SetRumble( fLeftMotor, fRightMotor );
+	}
 }
 
 //---------------------------------------------------------

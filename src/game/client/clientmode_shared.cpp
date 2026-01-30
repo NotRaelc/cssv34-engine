@@ -12,6 +12,7 @@
 #include "clientmode_shared.h"
 #include "iinput.h"
 #include "view_shared.h"
+#include "keydefs.h"
 #include "iviewrender.h"
 #include "hud_basechat.h"
 #include "weapon_selection.h"
@@ -28,12 +29,6 @@
 #include "c_vguiscreen.h"
 #include "c_team.h"
 #include "c_rumble.h"
-#include "fmtstr.h"
-#include "c_playerresource.h"
-#include <vgui/ILocalize.h>
-#if defined( _X360 )
-#include "xbox/xbox_console.h"
-#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -43,19 +38,9 @@ class CHudChat;
 
 static vgui::HContext s_hVGuiContext = DEFAULT_VGUI_CONTEXT;
 
-ConVar cl_drawhud( "cl_drawhud", "1", FCVAR_CHEAT, "Enable the rendering of the hud" );
-ConVar hud_takesshots( "hud_takesshots", "0", FCVAR_CLIENTDLL | FCVAR_ARCHIVE, "Auto-save a scoreboard screenshot at the end of a map." );
-
-//fov_desired
-#ifdef HL2R_CLIENT
-ConVar fov_desired( "fov_desired", "90", FCVAR_ARCHIVE | FCVAR_USERINFO, "Sets the base field-of-view.", true, 75.0, true, 90.0 );
-#else
-ConVar fov_desired( "fov_desired", "75", FCVAR_ARCHIVE | FCVAR_USERINFO, "Sets the base field-of-view.", true, 75.0, true, 90.0 );
-#endif
+ConVar cl_drawhud( "cl_drawhud","1", FCVAR_CHEAT, "Enable the rendering of the hud" );
 
 extern ConVar v_viewmodel_fov;
-
-extern bool IsInCommentaryMode( void );
 
 CON_COMMAND( hud_reloadscheme, "Reloads hud layout and animation scripts." )
 {
@@ -66,35 +51,8 @@ CON_COMMAND( hud_reloadscheme, "Reloads hud layout and animation scripts." )
 	mode->ReloadScheme();
 }
 
-CON_COMMAND_F( crash, "Crash the client. Optional parameter -- type of crash:\n 0: read from NULL\n 1: write to NULL\n 2: DmCrashDump() (xbox360 only)", FCVAR_CHEAT )
-{
-	int crashtype = 0;
-	int dummy;
-	if ( args.ArgC() > 1 )
-	{
-		 crashtype = Q_atoi( args[1] );
-	}
-	switch (crashtype)
-	{
-		case 0:
-			dummy = *((int *) NULL);
-			Msg("Crashed! %d\n", dummy); // keeps dummy from optimizing out
-			break;
-		case 1:
-			*((int *)NULL) = 42;
-			break;
-#if defined( _X360 )
-		case 2:
-			XBX_CrashDump(false);
-			break;
-#endif
-		default:
-			Msg("Unknown variety of crash. You have now failed to crash. I hope you're happy.\n");
-			break;
-	}
-}
-
-static void __MsgFunc_Rumble( bf_read &msg )
+#ifdef _XBOX
+static void __MsgFunc_XBoxRumble( bf_read &msg )
 {
 	unsigned char waveformIndex;
 	unsigned char rumbleData;
@@ -106,6 +64,7 @@ static void __MsgFunc_Rumble( bf_read &msg )
 
 	RumbleEffect( waveformIndex, rumbleData, rumbleFlags );
 }
+#endif//_XBOX
 
 static void __MsgFunc_VGUIMenu( bf_read &msg )
 {
@@ -145,15 +104,6 @@ static void __MsgFunc_VGUIMenu( bf_read &msg )
 		keys->deleteThis();
 	}
 
-	// is the server telling us to show the scoreboard (at the end of a map)?
-	if ( Q_stricmp( panelname, "scores" ) == 0 )
-	{
-		if ( hud_takesshots.GetBool() == true )
-		{
-			gHUD.SetScreenShotTime( gpGlobals->curtime + 1.0 ); // take a screenshot in 1 second
-		}
-	}
-
 	gViewPortInterface->ShowPanel( viewport, bShow );
 }
 
@@ -187,32 +137,34 @@ void ClientModeShared::ReloadScheme( void )
 //-----------------------------------------------------------------------------
 void ClientModeShared::Init()
 {
-	m_pChatElement = ( CBaseHudChat * )GET_HUDELEMENT( CHudChat );
-	Assert( m_pChatElement );
+	if ( IsPC() )
+	{
+		m_pChatElement = ( CBaseHudChat * )GET_HUDELEMENT( CHudChat );
+		Assert( m_pChatElement );
+	}
 
 	m_pWeaponSelection = ( CBaseHudWeaponSelection * )GET_HUDELEMENT( CHudWeaponSelection );
 	Assert( m_pWeaponSelection );
 
 	// Derived ClientMode class must make sure m_Viewport is instantiated
 	Assert( m_pViewport );
-	m_pViewport->LoadControlSettings( "scripts/HudLayout.res" );
+	m_pViewport->LoadControlSettings("scripts/HudLayout.res");
 
-	ListenForGameEvent( "player_connect" );
-	ListenForGameEvent( "player_disconnect" );
-	ListenForGameEvent( "player_team" );
-	ListenForGameEvent( "server_cvar" );
-	ListenForGameEvent( "player_changename" );
-	ListenForGameEvent( "teamplay_broadcast_audio" );
-
-	ListenForGameEvent( "achievement_earned" );
-
+	gameeventmanager->AddListener( this, "player_connect", false );
+	gameeventmanager->AddListener( this, "player_disconnect", false );
+	gameeventmanager->AddListener( this, "player_team", false );
+	gameeventmanager->AddListener( this, "server_cvar", false );
+	gameeventmanager->AddListener( this, "player_changename", false );
 #ifndef _XBOX
 	HLTVCamera()->Init();
 #endif
 	m_CursorNone = vgui::dc_none;
 
 	HOOK_MESSAGE( VGUIMenu );
-	HOOK_MESSAGE( Rumble );
+
+#ifdef _XBOX
+	HOOK_MESSAGE( XBoxRumble );
+#endif //_XBOX
 }
 
 
@@ -233,6 +185,7 @@ void ClientModeShared::VGui_Shutdown()
 //-----------------------------------------------------------------------------
 void ClientModeShared::Shutdown()
 {
+	gameeventmanager->RemoveListener( this );
 }
 
 //-----------------------------------------------------------------------------
@@ -240,15 +193,15 @@ void ClientModeShared::Shutdown()
 // Input  : frametime - 
 //			*cmd - 
 //-----------------------------------------------------------------------------
-bool ClientModeShared::CreateMove( float flInputSampleTime, CUserCmd *cmd )
+void ClientModeShared::CreateMove( float flInputSampleTime, CUserCmd *cmd )
 {
 	// Let the player override the view.
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	if(!pPlayer)
-		return true;
+		return;
 
 	// Let the player at it
-	return pPlayer->CreateMove( flInputSampleTime, cmd );
+	pPlayer->CreateMove( flInputSampleTime, cmd );
 }
 
 //-----------------------------------------------------------------------------
@@ -402,7 +355,9 @@ void ClientModeShared::Update()
 		m_pViewport->SetVisible( cl_drawhud.GetBool() );
 	}
 
+#ifdef _XBOX
 	UpdateRumbleEffects();
+#endif//_XBOX
 }
 
 //-----------------------------------------------------------------------------
@@ -417,7 +372,7 @@ void ClientModeShared::ProcessInput(bool bActive)
 //-----------------------------------------------------------------------------
 // Purpose: We've received a keypress from the engine. Return 1 if the engine is allowed to handle it.
 //-----------------------------------------------------------------------------
-int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
+int	ClientModeShared::KeyInput( int down, int keynum, const char *pszCurrentBinding )
 {
 	if ( engine->Con_IsVisible() )
 		return 1;
@@ -446,75 +401,44 @@ int	ClientModeShared::KeyInput( int down, ButtonCode_t keynum, const char *pszCu
 	
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
-	// if ingame spectator mode, let spectator input intercept key event here
-	if( pPlayer &&
-		( pPlayer->GetObserverMode() > OBS_MODE_DEATHCAM ) &&
-		!HandleSpectatorKeyInput( down, keynum, pszCurrentBinding ) )
+	// if ingame spectator mode, intercept key event here
+	if( pPlayer && pPlayer->GetObserverMode() > OBS_MODE_DEATHCAM ) 
 	{
-		return 0;
+		// we are in spectator mode, open spectator menu
+		if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+duck" ) == 0 )
+		{
+			m_pViewport->ShowPanel( PANEL_SPECMENU, true );
+			return 0; // we handled it, don't handle twice or send to server
+		}
+		else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack" ) == 0 )
+		{
+			engine->ClientCmd( "spec_next" );
+			return 0;
+		}
+		else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack2" ) == 0 )
+		{
+			engine->ClientCmd( "spec_prev" );
+			return 0;
+		}
+		else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+jump" ) == 0 )
+		{
+			engine->ClientCmd( "spec_mode" );
+			return 0;
+		}
 	}
 
-	// Let game-specific hud elements get a crack at the key input
-	if ( !HudElementKeyInput( down, keynum, pszCurrentBinding ) )
-	{
-		return 0;
-	}
-
-	C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
-	if ( pWeapon )
-	{
-		return pWeapon->KeyInput( down, keynum, pszCurrentBinding );
-	}
-
-	return 1;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: See if spectator input occurred. Return 0 if the key is swallowed.
-//-----------------------------------------------------------------------------
-int ClientModeShared::HandleSpectatorKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
-{
-	// we are in spectator mode, open spectator menu
-	if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+duck" ) == 0 )
-	{
-		m_pViewport->ShowPanel( PANEL_SPECMENU, true );
-		return 0; // we handled it, don't handle twice or send to server
-	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack" ) == 0 )
-	{
-		engine->ClientCmd( "spec_next" );
-		return 0;
-	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+attack2" ) == 0 )
-	{
-		engine->ClientCmd( "spec_prev" );
-		return 0;
-	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+jump" ) == 0 )
-	{
-		engine->ClientCmd( "spec_mode" );
-		return 0;
-	}
-	else if ( down && pszCurrentBinding && Q_strcmp( pszCurrentBinding, "+strafe" ) == 0 )
-	{
-		HLTVCamera()->SetAutoDirector( true );
-		return 0;
-	}
-
-	return 1;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: See if hud elements want key input. Return 0 if the key is swallowed
-//-----------------------------------------------------------------------------
-int ClientModeShared::HudElementKeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding )
-{
 	if ( m_pWeaponSelection )
 	{
 		if ( !m_pWeaponSelection->KeyInput( down, keynum, pszCurrentBinding ) )
 		{
 			return 0;
 		}
+	}
+
+	C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
+	if ( pWeapon )
+	{
+		return pWeapon->KeyInput( down, keynum, pszCurrentBinding );
 	}
 
 	return 1;
@@ -612,18 +536,11 @@ void ClientModeShared::Enable()
 		m_pViewport->SetParent( pRoot );
 	}
 
-	// All hud elements should be proportional
-	// This sets that flag on the viewport and all child panels
-	m_pViewport->SetProportional( true );
-
 	m_pViewport->SetCursor( m_CursorNone );
 	vgui::surface()->SetCursor( m_CursorNone );
 
 	m_pViewport->SetVisible( true );
-	if ( m_pViewport->IsKeyBoardInputEnabled() )
-	{
-		m_pViewport->RequestFocus();
-	}
+	m_pViewport->RequestFocus();
 
 	Layout();
 }
@@ -672,20 +589,6 @@ float ClientModeShared::GetViewModelFOV( void )
 
 class CHudChat;
 
-bool PlayerNameNotSetYet( const char *pszName )
-{
-	if ( pszName && pszName[0] )
-	{
-		// Don't show "unconnected" if we haven't got the players name yet
-		if ( Q_strnicmp(pszName,"unconnected",11) == 0 )
-			return true;
-		if ( Q_strnicmp(pszName,"NULLNAME",11) == 0 )
-			return true;
-	}
-
-	return false;
-}
-
 void ClientModeShared::FireGameEvent( IGameEvent *event )
 {
 	CBaseHudChat *hudChat = (CBaseHudChat *)GET_HUDELEMENT( CHudChat );
@@ -696,21 +599,8 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 	{
 		if ( !hudChat )
 			return;
-		if ( PlayerNameNotSetYet(event->GetString("name")) )
-			return;
 
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszLocalized[100];
-			wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("name"), wszPlayerName, sizeof(wszPlayerName) );
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_joined_game" ), 1, wszPlayerName );
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s", szLocalized );
-		}
+		hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s has joined the game\n", event->GetString("name") );
 	}
 	else if ( Q_strcmp( "player_disconnect", eventname ) == 0 )
 	{
@@ -718,32 +608,8 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 
 		if ( !hudChat || !pPlayer )
 			return;
-		if ( PlayerNameNotSetYet(event->GetString("name")) )
-			return;
 
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
-			g_pVGuiLocalize->ConvertANSIToUnicode( pPlayer->GetPlayerName(), wszPlayerName, sizeof(wszPlayerName) );
-
-			wchar_t wszReason[64];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("reason"), wszReason, sizeof(wszReason) );
-
-			wchar_t wszLocalized[100];
-			if (IsPC())
-			{
-				g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_left_game" ), 2, wszPlayerName, wszReason );
-			}
-			else
-			{
-				g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_left_game" ), 1, wszPlayerName );
-			}
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s", szLocalized );
-		}
+		hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s left the game (%s)\n", pPlayer->GetPlayerName(), event->GetString("reason") );
 	}
 	else if ( Q_strcmp( "player_team", eventname ) == 0 )
 	{
@@ -760,33 +626,14 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 
 		int team = event->GetInt( "team" );
 
-		const char *pszName = pPlayer->GetPlayerName();
-		if ( PlayerNameNotSetYet(pszName) )
-			return;
-
-		wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
-		g_pVGuiLocalize->ConvertANSIToUnicode( pszName, wszPlayerName, sizeof(wszPlayerName) );
-
-		wchar_t wszTeam[64];
 		C_Team *pTeam = GetGlobalTeam( team );
 		if ( pTeam )
 		{
-			g_pVGuiLocalize->ConvertANSIToUnicode( pTeam->Get_Name(), wszTeam, sizeof(wszTeam) );
+			hudChat->Printf( CHAT_FILTER_TEAMCHANGE, "Player %s joined team %s\n", pPlayer->GetPlayerName(), pTeam->Get_Name() );
 		}
 		else
 		{
-			_snwprintf ( wszTeam, sizeof( wszTeam ) / sizeof( wchar_t ), L"%d", team );
-		}
-
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszLocalized[100];
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_joined_team" ), 2, wszPlayerName, wszTeam );
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_TEAMCHANGE, "%s", szLocalized );
+			hudChat->Printf( CHAT_FILTER_TEAMCHANGE, "Player %s joined team %i\n", pPlayer->GetPlayerName(), team );
 		}
 
 		if ( pPlayer->IsLocalPlayer() )
@@ -800,99 +647,14 @@ void ClientModeShared::FireGameEvent( IGameEvent *event )
 		if ( !hudChat )
 			return;
 
-		const char *pszOldName = event->GetString("oldname");
-		if ( PlayerNameNotSetYet(pszOldName) )
-			return;
-
-		wchar_t wszOldName[MAX_PLAYER_NAME_LENGTH];
-		g_pVGuiLocalize->ConvertANSIToUnicode( pszOldName, wszOldName, sizeof(wszOldName) );
-
-		wchar_t wszNewName[MAX_PLAYER_NAME_LENGTH];
-		g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString( "newname" ), wszNewName, sizeof(wszNewName) );
-
-		wchar_t wszLocalized[100];
-		g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_changed_name" ), 2, wszOldName, wszNewName );
-
-		char szLocalized[100];
-		g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-		hudChat->Printf( CHAT_FILTER_NAMECHANGE, "%s", szLocalized );
+		hudChat->Printf( CHAT_FILTER_NAMECHANGE, "%s changed name to %s\n", event->GetString( "oldname" ), event->GetString( "newname" ) );
 	}
-	else if ( Q_strcmp( "teamplay_broadcast_audio", eventname ) == 0 )
-	{
-		int team = event->GetInt( "team" );
-
-		bool bValidTeam = false;
-
-		if ( (GetLocalTeam() && GetLocalTeam()->GetTeamNumber() == team) )
-		{
-			bValidTeam = true;
-		}
-
-		//If we're in the spectator team then we should be getting whatever messages the person I'm spectating gets.
-		if ( bValidTeam == false )
-		{
-			CBasePlayer *pSpectatorTarget = UTIL_PlayerByIndex( GetSpectatorTarget() );
-
-			if ( pSpectatorTarget && (GetSpectatorMode() == OBS_MODE_IN_EYE || GetSpectatorMode() == OBS_MODE_CHASE) )
-			{
-				if ( pSpectatorTarget->GetTeamNumber() == team )
-				{
-					bValidTeam = true;
-				}
-			}
-		}
-
-		if ( team == 0 && GetLocalTeam() > 0 )
-		{
-			bValidTeam = false;
-		}
-
-		if ( bValidTeam == true )
-		{
-			CLocalPlayerFilter filter;
-			const char *pszSoundName = event->GetString("sound");
-			C_BaseEntity::EmitSound( filter, SOUND_FROM_LOCAL_PLAYER, pszSoundName );
-		}
-	}
-	else if ( Q_strcmp( "teamplay_broadcast_audio", eventname ) == 0 )
-	{
-		int team = event->GetInt( "team" );
-		if ( !team || (GetLocalTeam() && GetLocalTeam()->GetTeamNumber() == team) )
-		{
-			CLocalPlayerFilter filter;
-			const char *pszSoundName = event->GetString("sound");
-			C_BaseEntity::EmitSound( filter, SOUND_FROM_LOCAL_PLAYER, pszSoundName );
-		}
-	}
+	
 	else if ( Q_strcmp( "server_cvar", eventname ) == 0 )
 	{
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszCvarName[64];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("cvarname"), wszCvarName, sizeof(wszCvarName) );
-
-			wchar_t wszCvarValue[16];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("cvarvalue"), wszCvarValue, sizeof(wszCvarValue) );
-
-			wchar_t wszLocalized[100];
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_server_cvar_changed" ), 2, wszCvarName, wszCvarValue );
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_SERVERMSG, "%s", szLocalized );
-		}
+		hudChat->Printf( CHAT_FILTER_SERVERMSG, "Server cvar \"%s\" changed to %s\n", event->GetString("cvarname"), event->GetString("cvarvalue") );
 	}
-	else if ( Q_strcmp( "achievement_earned", eventname ) == 0 )
-	{
-		int iPlayerIndex = event->GetInt( "player" );
-		C_BasePlayer *pPlayer = UTIL_PlayerByIndex( iPlayerIndex );
-		int iAchievement = event->GetInt( "achievement" );
 
-		if ( !hudChat || !pPlayer )
-			return;
-	}
 	else
 	{
 		DevMsg( 2, "Unhandled GameEvent in ClientModeShared::FireGameEvent - %s\n", event->GetName()  );

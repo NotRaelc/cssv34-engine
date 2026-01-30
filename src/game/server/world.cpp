@@ -1,9 +1,9 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Precaches and defs for entities and other data that must always be available.
 //
 // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include "soundent.h"
@@ -29,8 +29,6 @@
 #include "engine/IEngineSound.h"
 #include "globals.h"
 #include "engine/IStaticPropMgr.h"
-#include "particle_parse.h"
-#include "globalstate.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -39,7 +37,7 @@ extern CBaseEntity				*g_pLastSpawn;
 void InitBodyQue(void);
 extern void W_Precache(void);
 extern void ActivityList_Free( void );
-extern CUtlMemoryPool g_EntityListPool;
+extern CMemoryPool g_EntityListPool;
 
 #define SF_DECAL_NOTINDEATHMATCH		2048
 
@@ -188,7 +186,7 @@ void CDecal::StaticDecal( void )
 
 	bool canDraw = true;
 
-	entityIndex = trace.m_pEnt ? trace.m_pEnt->entindex() : 0;
+	entityIndex = (short)trace.m_pEnt ? trace.m_pEnt->entindex() : 0;
 	if ( entityIndex )
 	{
 		CBaseEntity *ent = trace.m_pEnt;
@@ -380,13 +378,8 @@ BEGIN_DATADESC( CWorld )
 	DEFINE_KEYFIELD( m_bDisplayTitle,	FIELD_BOOLEAN, "gametitle" ),
 	DEFINE_FIELD( m_WorldMins, FIELD_VECTOR ),
 	DEFINE_FIELD( m_WorldMaxs, FIELD_VECTOR ),
-#ifdef _X360
-	DEFINE_KEYFIELD( m_flMaxOccludeeArea, FIELD_FLOAT, "maxoccludeearea_x360" ),
-	DEFINE_KEYFIELD( m_flMinOccluderArea, FIELD_FLOAT, "minoccluderarea_x360" ),
-#else
 	DEFINE_KEYFIELD( m_flMaxOccludeeArea, FIELD_FLOAT, "maxoccludeearea" ),
 	DEFINE_KEYFIELD( m_flMinOccluderArea, FIELD_FLOAT, "minoccluderarea" ),
-#endif
 	DEFINE_KEYFIELD( m_flMaxPropScreenSpaceWidth, FIELD_FLOAT, "maxpropscreenwidth" ),
 	DEFINE_KEYFIELD( m_flMinPropScreenSpaceWidth, FIELD_FLOAT, "minpropscreenwidth" ),
 	DEFINE_KEYFIELD( m_iszDetailSpriteMaterial, FIELD_STRING, "detailmaterial" ),
@@ -417,8 +410,11 @@ bool CWorld::KeyValue( const char *szKeyName, const char *szValue )
 	if ( FStrEq(szKeyName, "skyname") )
 	{
 		// Sent over net now.
-		ConVarRef skyname( "sv_skyname" );
-		skyname.SetValue( szValue );
+		ConVar *skyname = ( ConVar * )cvar->FindVar( "sv_skyname" );
+		if ( skyname )
+		{
+			skyname->SetValue( szValue );
+		}
 	}
 	else if ( FStrEq(szKeyName, "newunit") )
 	{
@@ -528,8 +524,6 @@ void CWorld::Spawn( void )
 
 	g_EventQueue.Init();
 	Precache( );
-	GlobalEntity_Add( "is_console", STRING(gpGlobals->mapname), ( IsConsole() ) ? GLOBAL_ON : GLOBAL_OFF );
-	GlobalEntity_Add( "is_pc", STRING(gpGlobals->mapname), ( !IsConsole() ) ? GLOBAL_ON : GLOBAL_OFF );
 }
 
 static const char *g_DefaultLightstyles[] =
@@ -580,11 +574,17 @@ void CWorld::Precache( void )
 	g_fGameOver = false;
 	g_pLastSpawn = NULL;
 
-	ConVarRef stepsize( "sv_stepsize" );
-	stepsize.SetValue( 18 );
+	ConVar *stepsize = ( ConVar * )cvar->FindVar( "sv_stepsize" );
+	if ( stepsize )
+	{
+		stepsize->SetValue( 18 );
+	}
 
-	ConVarRef roomtype( "room_type" );
-	roomtype.SetValue( 0 );
+	ConVar *roomtype = ( ConVar * )cvar->FindVar( "room_type" );
+	if ( roomtype )
+	{
+		roomtype->SetValue( 0 );
+	}
 
 	// Set up game rules
 	Assert( !g_pGameRules );
@@ -595,7 +595,6 @@ void CWorld::Precache( void )
 
 	InstallGameRules();
 	Assert( g_pGameRules );
-	g_pGameRules->Init();
 
 	CSoundEnt::InitSoundEnt();
 
@@ -621,9 +620,6 @@ void CWorld::Precache( void )
 // ok to call this multiple times, calls after first are ignored.
 
 	SENTENCEG_Init();
-
-	// Precache standard particle systems
-	PrecacheStandardParticleSystems( );
 
 // the area based ambient sounds MUST be the first precache_sounds
 

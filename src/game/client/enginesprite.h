@@ -11,7 +11,7 @@
 #pragma once
 #endif
 
-#include "mathlib/vector.h"
+#include "vector.h"
 #include "avi/iavi.h"
 
 

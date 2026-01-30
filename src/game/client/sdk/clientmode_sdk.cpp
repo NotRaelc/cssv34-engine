@@ -1,10 +1,10 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//===========================================================================//
+//=============================================================================//
 #include "cbase.h"
 #include "hud.h"
 #include "clientmode_sdk.h"
@@ -17,6 +17,7 @@
 #include "BuyMenu.h"
 #include "filesystem.h"
 #include "vgui/ivgui.h"
+#include "keydefs.h"
 #include "hud_chat.h"
 #include "view_shared.h"
 #include "view.h"

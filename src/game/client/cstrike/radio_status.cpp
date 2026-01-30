@@ -107,20 +107,20 @@ static void radio3_f( void )
 	OpenRadioMenu( 3 );
 }
 
-CON_COMMAND_F( menuselect, "menuselect", FCVAR_CLIENTCMD_CAN_EXECUTE )
+CON_COMMAND( menuselect, "menuselect" )
 {
-	if ( args.ArgC() < 2 )
+	if ( engine->Cmd_Argc() < 2 )
 		return;
 
 	if( g_whichMenu == 0 )
 	{
 		// if we didn't have a menu open, maybe a plugin did.  send it on to the server.
-		const char *cmd = VarArgs( "menuselect %s", args[1] );
+		const char *cmd = VarArgs( "menuselect %s", engine->Cmd_Argv( 1 ) );
 		engine->ServerCmd( cmd );
 		return;
 	}
 
-	int whichEntry = atoi( args[ 1 ] );
+	int whichEntry = atoi( engine->Cmd_Argv( 1 ) );
 
 	switch( g_whichMenu )
 	{
@@ -337,10 +337,10 @@ void CRadioStatus::DrawHeadLabels()
 
 		float flSize = s_flHeadIconSize;
 
-		CMatRenderContextPtr pRenderContext( materials );
+		//CMatRenderContextPtr pRenderContext( materials );
 
-		pRenderContext->Bind( m_pHeadLabelMaterial );
-		IMesh *pMesh = pRenderContext->GetDynamicMesh();
+		materials->Bind( m_pHeadLabelMaterial );
+		IMesh *pMesh = materials->GetDynamicMesh();
 		CMeshBuilder meshBuilder;
 		meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 

@@ -26,17 +26,17 @@ void CCSHLTVDirector::SetHLTVServer( IHLTVServer *hltv )
 	if ( m_pHLTVServer )
 	{
 		// mod specific events the director uses to find interesting shots
-		ListenForGameEvent( "hostage_rescued" );
-		ListenForGameEvent( "hostage_killed" );
-		ListenForGameEvent( "hostage_hurt" );
-		ListenForGameEvent( "hostage_follows" );
-		ListenForGameEvent( "bomb_pickup" );
-		ListenForGameEvent( "bomb_dropped" );
-		ListenForGameEvent( "bomb_exploded" );
-		ListenForGameEvent( "bomb_defused" );
-		ListenForGameEvent( "bomb_planted" );
-		ListenForGameEvent( "vip_escaped" );
-		ListenForGameEvent( "vip_killed" );
+		gameeventmanager->AddListener( this, "hostage_rescued", true );
+		gameeventmanager->AddListener( this, "hostage_killed", true );
+		gameeventmanager->AddListener( this, "hostage_hurt", true );
+		gameeventmanager->AddListener( this, "hostage_follows", true );
+		gameeventmanager->AddListener( this, "bomb_pickup", true );
+		gameeventmanager->AddListener( this, "bomb_dropped", true );
+		gameeventmanager->AddListener( this, "bomb_exploded", true );
+		gameeventmanager->AddListener( this, "bomb_defused", true );
+		gameeventmanager->AddListener( this, "bomb_planted", true );
+		gameeventmanager->AddListener( this, "vip_escaped", true );
+		gameeventmanager->AddListener( this, "vip_killed", true );
 	}
 }
 
@@ -127,7 +127,6 @@ const char** CCSHLTVDirector::GetModEvents()
 		"bomb_defused",
 		"hostage_killed",
 		"hostage_hurt",
-		"round_end_message",
 		NULL
 	};
 

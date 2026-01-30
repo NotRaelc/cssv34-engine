@@ -101,7 +101,6 @@ CVoiceGameMgr::CVoiceGameMgr()
 {
 	m_UpdateInterval = 0;
 	m_nMaxPlayers = 0;
-	m_iProximityDistance = -1;
 }
 
 
@@ -148,24 +147,24 @@ void CVoiceGameMgr::ClientConnected(struct edict_t *pEdict)
 }
 
 
-bool CVoiceGameMgr::ClientCommand( CBasePlayer *pPlayer, const CCommand &args )
+bool CVoiceGameMgr::ClientCommand(CBasePlayer *pPlayer, const char *cmd)
 {
 	int playerClientIndex = pPlayer->entindex() - 1;
 	if(playerClientIndex < 0 || playerClientIndex >= m_nMaxPlayers)
 	{
-		VoiceServerDebug( "CVoiceGameMgr::ClientCommand: cmd %s from invalid client (%d)\n", args[0], playerClientIndex );
+		VoiceServerDebug( "CVoiceGameMgr::ClientCommand: cmd %s from invalid client (%d)\n", cmd, playerClientIndex );
 		return true;
 	}
 
-	bool bBan = stricmp( args[0], "vban" ) == 0;
-	if( bBan && args.ArgC() >= 2 )
+	bool bBan = stricmp(cmd, "vban") == 0;
+	if(bBan && engine->Cmd_Argc() >= 2)
 	{
-		for(int i=1; i < args.ArgC(); i++)
+		for(int i=1; i < engine->Cmd_Argc(); i++)
 		{
 			unsigned long mask = 0;
-			sscanf( args[i], "%x", &mask);
+			sscanf(engine->Cmd_Argv(i), "%x", &mask);
 
-			if( i <= VOICE_MAX_PLAYERS_DW )
+			if(i <= VOICE_MAX_PLAYERS_DW)
 			{
 				VoiceServerDebug( "CVoiceGameMgr::ClientCommand: vban (0x%x) from %d\n", mask, playerClientIndex );
 				g_BanMasks[playerClientIndex].SetDWord(i-1, mask);
@@ -180,10 +179,10 @@ bool CVoiceGameMgr::ClientCommand( CBasePlayer *pPlayer, const CCommand &args )
 		//UpdateMasks();		
 		return true;
 	}
-	else if(stricmp( args[0], "VModEnable") == 0 && args.ArgC() >= 2)
+	else if(stricmp(cmd, "VModEnable") == 0 && engine->Cmd_Argc() >= 2)
 	{
-		VoiceServerDebug( "CVoiceGameMgr::ClientCommand: VModEnable (%d)\n", !!atoi( args[1] ) );
-		g_PlayerModEnable[playerClientIndex] = !!atoi( args[1] );
+		VoiceServerDebug( "CVoiceGameMgr::ClientCommand: VModEnable (%d)\n", !!atoi(engine->Cmd_Argv(1)) );
+		g_PlayerModEnable[playerClientIndex] = !!atoi(engine->Cmd_Argv(1));
 		g_bWantModEnable[playerClientIndex] = false;
 		//UpdateMasks();		
 		return true;
@@ -222,8 +221,6 @@ void CVoiceGameMgr::UpdateMasks()
 		}
 
 		CPlayerBitVec gameRulesMask;
-		CPlayerBitVec ProximityMask;
-		bool		bProximity = false;
 		if( g_PlayerModEnable[iClient] )
 		{
 			// Build a mask of who they can hear based on the game rules.
@@ -231,10 +228,9 @@ void CVoiceGameMgr::UpdateMasks()
 			{
 				CBaseEntity *pEnt = UTIL_PlayerByIndex(iOtherClient+1);
 				if(pEnt && pEnt->IsPlayer() && 
-					(bAllTalk || m_pHelper->CanPlayerHearPlayer(pPlayer, (CBasePlayer*)pEnt, bProximity )) )
+					(bAllTalk || m_pHelper->CanPlayerHearPlayer(pPlayer, (CBasePlayer*)pEnt)) )
 				{
 					gameRulesMask[iOtherClient] = true;
-					ProximityMask[iOtherClient] = bProximity;
 				}
 			}
 		}
@@ -262,29 +258,6 @@ void CVoiceGameMgr::UpdateMasks()
 		{
 			bool bCanHear = gameRulesMask[iOtherClient] && !g_BanMasks[iClient][iOtherClient];
 			g_pVoiceServer->SetClientListening( iClient+1, iOtherClient+1, bCanHear );
-
-			if ( bCanHear )
-			{
-				g_pVoiceServer->SetClientProximity( iClient+1, iOtherClient+1, !!ProximityMask[iOtherClient] );
-			}
 		}
 	}
-}
-
-bool CVoiceGameMgr::IsPlayerIgnoringPlayer( int iTalker, int iListener )
-{
-	return !!g_BanMasks[iListener-1][iTalker-1];
-}
-
-void CVoiceGameMgr::SetProximityDistance( int iDistance )
-{
-	m_iProximityDistance = iDistance;
-}
-
-bool CVoiceGameMgr::CheckProximity( int iDistance )
-{
-	if ( m_iProximityDistance >= iDistance )
-		return true;
-
-	return false;
 }

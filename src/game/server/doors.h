@@ -19,7 +19,7 @@
 
 // doors
 #define SF_DOOR_ROTATE_YAW			0		// yaw by default
-#define	SF_DOOR_START_OPEN_OBSOLETE	1
+#define	SF_DOOR_START_OPEN			1
 #define SF_DOOR_ROTATE_BACKWARDS	2
 #define SF_DOOR_NONSOLID_TO_PLAYER	4
 #define SF_DOOR_PASSABLE			8
@@ -35,14 +35,6 @@
 #define	SF_DOOR_USE_CLOSES			8192	// Door can be +used to close before its autoreturn delay has expired.
 #define SF_DOOR_SILENT_TO_NPCS		16384	// Does not alert NPC's when opened.
 #define SF_DOOR_IGNORE_USE			32768	// Completely ignores player +use commands.
-#define SF_DOOR_NEW_USE_RULES		65536	// For func_door entities, behave more like prop_door_rotating with respect to +USE (changelist 242482)
-
-
-enum FuncDoorSpawnPos_t
-{
-	FUNC_DOOR_SPAWN_CLOSED = 0,
-	FUNC_DOOR_SPAWN_OPEN,
-};
 
 
 class CBaseDoor : public CBaseToggle
@@ -109,19 +101,13 @@ public:
 	
 	byte	m_bLockedSentence;	
 	byte	m_bUnlockedSentence;
-
 	bool	m_bForceClosed;			// If set, always close, even if we're blocked.
 	bool	m_bDoorGroup;
 	bool	m_bLocked;				// Whether the door is locked
 	bool	m_bIgnoreDebris;
-	
-	FuncDoorSpawnPos_t m_eSpawnPosition;
-
 	float	m_flBlockDamage;		// Damage inflicted when blocked.
 	string_t	m_NoiseMoving;		//Start/Looping sound
 	string_t	m_NoiseArrived;		//End sound
-	string_t	m_NoiseMovingClosed;		//Start/Looping sound
-	string_t	m_NoiseArrivedClosed;		//End sound
 	string_t	m_ChainTarget;		///< Entity name to pass Touch and Use events to
 
 	CNetworkVar( float, m_flWaveHeight );
@@ -135,7 +121,6 @@ public:
 	COutputEvent m_OnFullyOpen;				// Triggered when the door reaches the fully open position.
 	COutputEvent m_OnClose;					// Triggered when the door is told to close.
 	COutputEvent m_OnOpen;					// Triggered when the door is told to open.
-	COutputEvent m_OnLockedUse;				// Triggered when the user tries to open a locked door.
 
 	void			StartMovingSound( void );
 	virtual void	StopMovingSound( void );

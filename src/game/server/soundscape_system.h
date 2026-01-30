@@ -38,15 +38,19 @@ public:
 	void RemoveSoundscapeEntity( CEnvSoundscape *pSoundscape );
 	void PrintDebugInfo( void );
 
+#ifdef _XBOX
 	void AddSoundscapeSounds( KeyValues *pSoundscape, int soundscapeIndex );
 	void PrecacheSounds( int soundscapeIndex );
+#endif
 
 private:
-	CStringRegistry							m_soundscapes;
-	int										m_soundscapeCount;
-	CUtlVector< CEnvSoundscape * >			m_soundscapeEntities;
-	int										m_activeIndex;
+	CStringRegistry		m_soundscapes;
+	int					m_soundscapeCount;
+	CUtlVector<CEnvSoundscape *>	m_soundscapeEntities;
+	int					m_activeIndex;
+#ifdef _XBOX
 	CUtlVector< CUtlVector< CUtlString > >	m_soundscapeSounds;
+#endif
 };
 
 extern CSoundscapeSystem g_SoundscapeSystem;

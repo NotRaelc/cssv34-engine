@@ -38,13 +38,11 @@ class CGenericCycler : public CCycler
 public:
 	DECLARE_CLASS( CGenericCycler, CCycler );
 
-	void Spawn()
-	{
-		GenericCyclerSpawn( (char *)STRING( GetModelName() ), Vector(-16, -16, 0), Vector(16, 16, 72) );
-	}
+	void Spawn( void ) { GenericCyclerSpawn( (char *)STRING( GetModelName() ), Vector(-16, -16, 0), Vector(16, 16, 72) ); }
 };
 LINK_ENTITY_TO_CLASS( cycler, CGenericCycler );
 LINK_ENTITY_TO_CLASS( model_studio, CGenericCycler ); // For now model_studios build as cyclers.
+
 
 
 // Cycler member functions
@@ -58,8 +56,7 @@ void CCycler::GenericCyclerSpawn(char *szModel, Vector vecMin, Vector vecMax)
 		return;
 	}
 
-	Precache();
-
+	PrecacheModel( szModel );
 	SetModel( szModel );
 
 	m_bloodColor = DONT_BLEED;
@@ -68,13 +65,6 @@ void CCycler::GenericCyclerSpawn(char *szModel, Vector vecMin, Vector vecMax)
 
 	UTIL_SetSize(this, vecMin, vecMax);
 }
-
-
-void CCycler::Precache()
-{
-	PrecacheModel( (const char *)STRING( GetModelName() ) );
-}
-
 
 void CCycler::Spawn( )
 {
@@ -105,12 +95,8 @@ void CCycler::Spawn( )
 
 	if (GetSequence() != 0 || m_flCycle != 0)
 	{
-#ifdef TF2_DLL
-		m_animate = 1;
-#else
 		m_animate = 0;
 		m_flPlaybackRate = 0;
-#endif
 	}
 	else
 	{
@@ -131,7 +117,6 @@ void CCycler::Think( void )
 	if (m_animate)
 	{
 		StudioFrameAdvance ( );
-		DispatchAnimEvents( this );
 	}
 	if (IsSequenceFinished() && !SequenceLoops())
 	{

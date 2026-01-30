@@ -1,9 +1,9 @@
-//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//===========================================================================//
+//=============================================================================//
 
 #include "cbase.h"
 #include <stdio.h>
@@ -12,10 +12,8 @@
 #include <cdll_util.h>
 #include <globalvars_base.h>
 #include <igameresources.h>
-#include "IGameUIFuncs.h" // for key bindings
-#include "inputsystem/iinputsystem.h"
+
 #include "clientscoreboarddialog.h"
-#include <voice_status.h>
 
 #include <vgui/IScheme.h>
 #include <vgui/ILocalize.h>
@@ -31,19 +29,23 @@
 #include <game/client/iviewport.h>
 #include <igameresources.h>
 
+//#include "voice_status.h"
+//#include "Friends/IFriendsUser.h"
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-using namespace vgui;
+// extern vars
+//extern IFriendsUser *g_pFriendsUser;
 
+using namespace vgui;
 
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
-CClientScoreBoardDialog::CClientScoreBoardDialog(IViewPort *pViewPort) : EditablePanel( NULL, PANEL_SCOREBOARD )
+CClientScoreBoardDialog::CClientScoreBoardDialog(IViewPort *pViewPort) : Frame( NULL, PANEL_SCOREBOARD )
 {
 	m_iPlayerIndexSymbol = KeyValuesSystem()->GetSymbolForString("playerIndex");
-	m_nCloseKey = BUTTON_CODE_INVALID;
 
 	//memset(s_VoiceImage, 0x0, sizeof( s_VoiceImage ));
 	TrackerImage = 0;
@@ -53,6 +55,10 @@ CClientScoreBoardDialog::CClientScoreBoardDialog(IViewPort *pViewPort) : Editabl
 	SetProportional(true);
 	SetKeyBoardInputEnabled(false);
 	SetMouseInputEnabled(false);
+	SetSizeable(false);
+
+	// hide the system buttons
+	SetTitleBarVisible( false );
 
 	// set the scheme before any child control is created
 	SetScheme("ClientScheme");
@@ -67,64 +73,16 @@ CClientScoreBoardDialog::CClientScoreBoardDialog(IViewPort *pViewPort) : Editabl
 	m_HLTVSpectators = 0;
 	
 	// update scoreboard instantly if on of these events occure
-	ListenForGameEvent( "hltv_status" );
-	ListenForGameEvent( "server_spawn" );
-
-	m_pImageList = NULL;
-
+	gameeventmanager->AddListener(this, "hltv_status", false );
+	gameeventmanager->AddListener(this, "server_spawn", false );
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Constructor
+// Purpose: Destructor
 //-----------------------------------------------------------------------------
 CClientScoreBoardDialog::~CClientScoreBoardDialog()
 {
-	if ( NULL != m_pImageList )
-	{
-		delete m_pImageList;
-		m_pImageList = NULL;
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Call every frame
-//-----------------------------------------------------------------------------
-void CClientScoreBoardDialog::OnThink()
-{
-	BaseClass::OnThink();
-
-	// NOTE: this is necessary because of the way input works.
-	// If a key down message is sent to vgui, then it will get the key up message
-	// Sometimes the scoreboard is activated by other vgui menus, 
-	// sometimes by console commands. In the case where it's activated by
-	// other vgui menus, we lose the key up message because this panel
-	// doesn't accept keyboard input. It *can't* accept keyboard input
-	// because another feature of the dialog is that if it's triggered
-	// from within the game, you should be able to still run around while
-	// the scoreboard is up. That feature is impossible if this panel accepts input.
-	// because if a vgui panel is up that accepts input, it prevents the engine from
-	// receiving that input. So, I'm stuck with a polling solution.
-	// 
-	// Close key is set to non-invalid when something other than a keybind
-	// brings the scoreboard up, and it's set to invalid as soon as the 
-	// dialog becomes hidden.
-	if ( m_nCloseKey != BUTTON_CODE_INVALID )
-	{
-		if ( !g_pInputSystem->IsButtonDown( m_nCloseKey ) )
-		{
-			m_nCloseKey = BUTTON_CODE_INVALID;
-			gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, false );
-			GetClientVoiceMgr()->StopSquelchMode();
-		}
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Called by vgui panels that activate the client scoreboard
-//-----------------------------------------------------------------------------
-void CClientScoreBoardDialog::OnPollHideCode( int code )
-{
-	m_nCloseKey = (ButtonCode_t)code;
+	gameeventmanager->RemoveListener(this);
 }
 
 //-----------------------------------------------------------------------------
@@ -155,51 +113,36 @@ void CClientScoreBoardDialog::InitScoreboardSections()
 void CClientScoreBoardDialog::ApplySchemeSettings( IScheme *pScheme )
 {
 	BaseClass::ApplySchemeSettings( pScheme );
+	ImageList *imageList = new ImageList(false);
+//	s_VoiceImage[0] = 0;	// index 0 is always blank
+//	s_VoiceImage[CVoiceStatus::VOICE_NEVERSPOKEN] = imageList->AddImage(scheme()->GetImage("gfx/vgui/640_speaker1", true));
+//	s_VoiceImage[CVoiceStatus::VOICE_NOTTALKING] = imageList->AddImage(scheme()->GetImage("gfx/vgui/640_speaker2", true));
+//	s_VoiceImage[CVoiceStatus::VOICE_TALKING] = imageList->AddImage(scheme()->GetImage( "gfx/vgui/640_speaker3", true));
+//	s_VoiceImage[CVoiceStatus::VOICE_BANNED] = imageList->AddImage(scheme()->GetImage("gfx/vgui/640_voiceblocked", true));
+	
+//	TrackerImage = imageList->AddImage(scheme()->GetImage("gfx/vgui/640_scoreboardtracker", true));
 
-	if ( m_pImageList )
-		delete m_pImageList;
-	m_pImageList = new ImageList( false );
-
-	PostApplySchemeSettings( pScheme );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Does dialog-specific customization after applying scheme settings.
-//-----------------------------------------------------------------------------
-void CClientScoreBoardDialog::PostApplySchemeSettings( vgui::IScheme *pScheme )
-{
 	// resize the images to our resolution
-	for (int i = 0; i < m_pImageList->GetImageCount(); i++ )
+	for (int i = 0; i < imageList->GetImageCount(); i++ )
 	{
 		int wide, tall;
-		m_pImageList->GetImage(i)->GetSize(wide, tall);
-		m_pImageList->GetImage(i)->SetSize(scheme()->GetProportionalScaledValueEx( GetScheme(),wide), scheme()->GetProportionalScaledValueEx( GetScheme(),tall));
+		imageList->GetImage(i)->GetSize(wide, tall);
+		imageList->GetImage(i)->SetSize(scheme()->GetProportionalScaledValueEx( GetScheme(),wide), scheme()->GetProportionalScaledValueEx( GetScheme(),tall));
 	}
 
-	m_pPlayerList->SetImageList( m_pImageList, false );
+	m_pPlayerList->SetImageList(imageList, false);
 	m_pPlayerList->SetVisible( true );
 
 	// light up scoreboard a bit
 	SetBgColor( Color( 0,0,0,0) );
 }
 
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 void CClientScoreBoardDialog::ShowPanel(bool bShow)
 {
-	// Catch the case where we call ShowPanel before ApplySchemeSettings, eg when
-	// going from windowed <-> fullscreen
-	if ( m_pImageList == NULL )
-	{
-		InvalidateLayout( true, true );
-	}
-
-	if ( !bShow )
-	{
-		m_nCloseKey = BUTTON_CODE_INVALID;
-	}
-
 	if ( BaseClass::IsVisible() == bShow )
 		return;
 
@@ -207,8 +150,8 @@ void CClientScoreBoardDialog::ShowPanel(bool bShow)
 	{
 		Reset();
 		Update();
-		SetVisible( true );
-		MoveToFront();
+
+		Activate();
 	}
 	else
 	{
@@ -217,6 +160,8 @@ void CClientScoreBoardDialog::ShowPanel(bool bShow)
 		SetKeyBoardInputEnabled( false );
 	}
 }
+
+
 
 void CClientScoreBoardDialog::FireGameEvent( IGameEvent *event )
 {
@@ -238,8 +183,8 @@ void CClientScoreBoardDialog::FireGameEvent( IGameEvent *event )
 		if ( control )
 		{
 			PostMessage( control, new KeyValues( "SetText", "text", hostname ) );
-			control->MoveToFront();
 		}
+		control->MoveToFront();
 	}
 
 	if( IsVisible() )
@@ -249,7 +194,9 @@ void CClientScoreBoardDialog::FireGameEvent( IGameEvent *event )
 
 bool CClientScoreBoardDialog::NeedsUpdate( void )
 {
-	return (m_fNextUpdateTime < gpGlobals->curtime);	
+	return (m_fNextUpdateTime < gpGlobals->curtime);
+		
+
 }
 
 //-----------------------------------------------------------------------------
@@ -267,7 +214,6 @@ void CClientScoreBoardDialog::Update( void )
 	// grow the scoreboard to fit all the players
 	int wide, tall;
 	m_pPlayerList->GetContentSize(wide, tall);
-	tall += GetAdditionalHeight();
 	wide = GetWide();
 	if (m_iDesiredHeight < tall)
 	{
@@ -291,7 +237,6 @@ void CClientScoreBoardDialog::Update( void )
 //-----------------------------------------------------------------------------
 void CClientScoreBoardDialog::UpdateTeamInfo()
 {
-// TODO: work out a sorting algorthim for team display for TF2
 }
 
 //-----------------------------------------------------------------------------
@@ -311,8 +256,9 @@ void CClientScoreBoardDialog::UpdatePlayerInfo()
 		{
 			// add the player to the list
 			KeyValues *playerData = new KeyValues("data");
-			GetPlayerScoreInfo(i, playerData);
+			GetPlayerScoreInfo( i, playerData );
 
+	
 			const char *oldName = playerData->GetString("name","");
 			int bufsize = strlen(oldName) * 2 + 1;
 			char *newName = (char *)_alloca( bufsize );
@@ -370,9 +316,11 @@ void CClientScoreBoardDialog::AddHeader()
 	m_pPlayerList->AddSection(m_iSectionId, "");
 	m_pPlayerList->SetSectionAlwaysVisible(m_iSectionId);
 	m_pPlayerList->AddColumnToSection(m_iSectionId, "name", "#PlayerName", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),NAME_WIDTH) );
-	m_pPlayerList->AddColumnToSection(m_iSectionId, "frags", "#PlayerSplatform", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),SCORE_WIDTH) );
+	m_pPlayerList->AddColumnToSection(m_iSectionId, "frags", "#PlayerScore", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),SCORE_WIDTH) );
 	m_pPlayerList->AddColumnToSection(m_iSectionId, "deaths", "#PlayerDeath", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),DEATH_WIDTH) );
 	m_pPlayerList->AddColumnToSection(m_iSectionId, "ping", "#PlayerPing", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),PING_WIDTH) );
+//	m_pPlayerList->AddColumnToSection(m_iSectionId, "voice", "#PlayerVoice", SectionedListPanel::COLUMN_IMAGE | SectionedListPanel::COLUMN_CENTER, scheme()->GetProportionalScaledValueEx( GetScheme(),VOICE_WIDTH) );
+//	m_pPlayerList->AddColumnToSection(m_iSectionId, "tracker", "#PlayerTracker", SectionedListPanel::COLUMN_IMAGE, scheme()->GetProportionalScaledValueEx( GetScheme(),FRIENDS_WIDTH) );
 }
 
 //-----------------------------------------------------------------------------
@@ -388,17 +336,17 @@ void CClientScoreBoardDialog::AddSection(int teamType, int teamNumber)
 			return;
 
 		// setup the team name
-		wchar_t *teamName = g_pVGuiLocalize->Find( gr->GetTeamName(teamNumber) );
+		wchar_t *teamName = localize()->Find( gr->GetTeamName(teamNumber) );
 		wchar_t name[64];
 		wchar_t string1[1024];
 		
 		if (!teamName)
 		{
-			g_pVGuiLocalize->ConvertANSIToUnicode(gr->GetTeamName(teamNumber), name, sizeof(name));
+			localize()->ConvertANSIToUnicode(gr->GetTeamName(teamNumber), name, sizeof(name));
 			teamName = name;
 		}
 
-		g_pVGuiLocalize->ConstructString( string1, sizeof( string1 ), g_pVGuiLocalize->Find("#Player"), 2, teamName );
+		localize()->ConstructString( string1, sizeof( string1 ), localize()->Find("#Player"), 2, teamName );
 		
 		m_pPlayerList->AddSection(m_iSectionId, "", StaticPlayerSortFunc);
 
@@ -410,8 +358,7 @@ void CClientScoreBoardDialog::AddSection(int teamType, int teamNumber)
 	else if ( teamType == TYPE_SPECTATORS )
 	{
 		m_pPlayerList->AddSection(m_iSectionId, "");
-
-		m_pPlayerList->AddColumnToSection(m_iSectionId, "name", "#Spectators", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),NAME_WIDTH) );
+		m_pPlayerList->AddColumnToSection(m_iSectionId, "name", "#Spectators", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),NAME_WIDTH));
 		m_pPlayerList->AddColumnToSection(m_iSectionId, "frags", "", 0, scheme()->GetProportionalScaledValueEx( GetScheme(),SCORE_WIDTH) );
 	}
 }
@@ -461,6 +408,19 @@ bool CClientScoreBoardDialog::GetPlayerScoreInfo(int playerIndex, KeyValues *kv)
 	kv->SetString("name", gr->GetPlayerName( playerIndex ) );
 	kv->SetInt("playerIndex", playerIndex);
 
+//	kv->SetInt("voice",	s_VoiceImage[GetClientVoice()->GetSpeakerStatus( playerIndex - 1) ]);	
+
+/*	// setup the tracker column
+	if (g_pFriendsUser)
+	{
+		unsigned int trackerID = gEngfuncs.GetTrackerIDForPlayer(row);
+
+		if (g_pFriendsUser->IsBuddy(trackerID) && trackerID != g_pFriendsUser->GetFriendsID())
+		{
+			kv->SetInt("tracker",TrackerImage);
+		}
+	}
+*/
 	return true;
 }
 
@@ -494,6 +454,9 @@ int CClientScoreBoardDialog::FindItemIDForPlayerIndex(int playerIndex)
 	return -1;
 }
 
+
+
+
 //-----------------------------------------------------------------------------
 // Purpose: Sets the text of a control by name
 //-----------------------------------------------------------------------------
@@ -506,13 +469,3 @@ void CClientScoreBoardDialog::MoveLabelToFront(const char *textEntryName)
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: Center the dialog on the screen.  (vgui has this method on
-//			Frame, but we're an EditablePanel, need to roll our own.)
-//-----------------------------------------------------------------------------
-void CClientScoreBoardDialog::MoveToCenterOfScreen()
-{
-	int wx, wy, ww, wt;
-	surface()->GetWorkspaceBounds(wx, wy, ww, wt);
-	SetPos((ww - GetWide()) / 2, (wt - GetTall()) / 2);
-}

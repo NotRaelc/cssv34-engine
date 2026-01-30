@@ -20,44 +20,37 @@ class CBoneFollower;
 
 struct physfollower_t
 {
-	DECLARE_SIMPLE_DATADESC();
 	int boneIndex;
 	CHandle<CBoneFollower> hFollower;
 };
-
-struct vcollide_t;
-
-// create a manager and a list of followers directly from a ragdoll
-void CreateBoneFollowersFromRagdoll( CBaseAnimating *pEntity, class CBoneFollowerManager *pManager, vcollide_t *pCollide );
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 class CBoneFollowerManager
 {
-	DECLARE_SIMPLE_DATADESC();
 public:
-	CBoneFollowerManager();
-	~CBoneFollowerManager();
+	CBoneFollowerManager( void );
 
 	// Use either of these to create the bone followers in your entity's CreateVPhysics()
-	void InitBoneFollowers( CBaseAnimating *pParentEntity, int iNumBones, const char **pFollowerBoneNames );
-	void AddBoneFollower( CBaseAnimating *pParentEntity, const char *pFollowerBoneName, solid_t *pSolid = NULL );	// Adds a single bone follower
+	void InitBoneFollowers( CBaseEntity *pEntity, int iNumBones, const char **pFollowerBoneNames );
+	void AddBoneFollower( CBaseEntity *pEntity, const char *pFollowerBoneName );	// Adds a single bone follower
 
 	// Call this after you move your bones
-	void UpdateBoneFollowers( CBaseAnimating *pParentEntity );
+	void UpdateBoneFollowers( void );
 
 	// Call this when your entity's removed
 	void DestroyBoneFollowers( void );
 
 	physfollower_t *GetBoneFollower( int iFollowerIndex );
-	int				GetBoneFollowerIndex( CBoneFollower *pFollower );
-	int				GetNumBoneFollowers( void ) const { return m_iNumBones; }
+
+	int		GetNumBoneFollowers( void ){ return m_iNumBones; }
 
 private:
-	bool CreatePhysicsFollower( CBaseAnimating *pParentEntity, physfollower_t &follow, const char *pBoneName, solid_t *pSolid );
+	bool CreatePhysicsFollower( physfollower_t &follow, const char *pBoneName );
 
 private:
+	CHandle<CBaseAnimating>		m_hOuter;
 	int							m_iNumBones;
 	CUtlVector<physfollower_t>	m_physBones;
 };
@@ -70,6 +63,7 @@ class CBoneFollower : public CBaseEntity
 	DECLARE_SERVERCLASS();
 public:
 	// CBaseEntity
+	void DrawDebugGeometryOverlays();
 	void VPhysicsUpdate( IPhysicsObject *pPhysics );
 	int  UpdateTransmitState(void);
 
@@ -79,6 +73,7 @@ public:
 	void VPhysicsShadowCollision( int index, gamevcollisionevent_t *pEvent );
 
 	bool TestCollision( const Ray_t &ray, unsigned int mask, trace_t& trace );
+	// assume these are re-created by the owner objects
 	int	 ObjectCaps( void );
 	void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
 	

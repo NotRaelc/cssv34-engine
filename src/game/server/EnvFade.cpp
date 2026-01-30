@@ -33,8 +33,6 @@ public:
 	inline void SetDuration( float duration ) { m_Duration = duration; }
 	inline void SetHoldTime( float hold ) { m_HoldTime = hold; }
 
-	int DrawDebugTextOverlays(void);
-
 	// Inputs
 	void InputFade( inputdata_t &inputdata );
 };
@@ -115,13 +113,13 @@ void CEnvFade::InputFade( inputdata_t &inputdata )
 // Input  : flTime - Returns the fade time in seconds (the time to fade in or out)
 //			clrFade - Returns the color to fade to or from.
 //-----------------------------------------------------------------------------
-static void GetFadeParms( const CCommand &args, float &flTime, color32 &clrFade)
+static void GetFadeParms( float &flTime, color32 &clrFade)
 {
 	flTime = 2.0f;
 
-	if ( args.ArgC() > 1 )
+	if ( engine->Cmd_Argc() > 1 )
 	{
-		flTime = atof( args[1] );
+		flTime = atof( engine->Cmd_Argv(1) );
 	}
 	
 	clrFade.r = 0;
@@ -129,15 +127,15 @@ static void GetFadeParms( const CCommand &args, float &flTime, color32 &clrFade)
 	clrFade.b = 0;
 	clrFade.a = 255;
 
-	if ( args.ArgC() > 4 )
+	if ( engine->Cmd_Argc() > 4 )
 	{
-		clrFade.r = atoi( args[2] );
-		clrFade.g = atoi( args[3] );
-		clrFade.b = atoi( args[4] );
+		clrFade.r = atoi( engine->Cmd_Argv(2) );
+		clrFade.g = atoi( engine->Cmd_Argv(3) );
+		clrFade.b = atoi( engine->Cmd_Argv(4) );
 
-		if ( args.ArgC() == 5 )
+		if ( engine->Cmd_Argc() == 5 )
 		{
-			clrFade.a = atoi( args[5] );
+			clrFade.a = atoi( engine->Cmd_Argv(5) );
 		}
 	}
 }
@@ -146,11 +144,11 @@ static void GetFadeParms( const CCommand &args, float &flTime, color32 &clrFade)
 //-----------------------------------------------------------------------------
 // Purpose: Console command to fade out to a given color.
 //-----------------------------------------------------------------------------
-static void CC_FadeOut( const CCommand &args )
+static void CC_FadeOut( void )
 {
 	float flTime;
 	color32 clrFade;
-	GetFadeParms( args, flTime, clrFade );
+	GetFadeParms( flTime, clrFade );
 
 	CBasePlayer *pPlayer = UTIL_GetCommandClient();
 	UTIL_ScreenFade( pPlayer, clrFade, flTime, 0, FFADE_OUT | FFADE_PURGE | FFADE_STAYOUT );
@@ -161,11 +159,11 @@ static ConCommand fadeout("fadeout", CC_FadeOut, "fadeout {time r g b}: Fades th
 //-----------------------------------------------------------------------------
 // Purpose: Console command to fade in from a given color.
 //-----------------------------------------------------------------------------
-static void CC_FadeIn( const CCommand &args )
+static void CC_FadeIn( void )
 {
 	float flTime;
 	color32 clrFade;
-	GetFadeParms( args, flTime, clrFade );
+	GetFadeParms( flTime, clrFade );
 
 	CBasePlayer *pPlayer = UTIL_GetCommandClient();
 	UTIL_ScreenFade( pPlayer, clrFade, flTime, 0, FFADE_IN | FFADE_PURGE );
@@ -174,27 +172,3 @@ static void CC_FadeIn( const CCommand &args )
 static ConCommand fadein("fadein", CC_FadeIn, "fadein {time r g b}: Fades the screen in from black or from the specified color over the given number of seconds.", FCVAR_CHEAT );
 
 
-//-----------------------------------------------------------------------------
-// Purpose: Draw any debug text overlays
-// Output : Current text offset from the top
-//-----------------------------------------------------------------------------
-int CEnvFade::DrawDebugTextOverlays( void ) 
-{
-	int text_offset = BaseClass::DrawDebugTextOverlays();
-
-	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
-	{
-		char tempstr[512];
-
-		// print duration
-		Q_snprintf(tempstr,sizeof(tempstr),"    duration: %f", m_Duration);
-		EntityText(text_offset,tempstr,0);
-		text_offset++;
-
-		// print hold time
-		Q_snprintf(tempstr,sizeof(tempstr),"    hold time: %f", m_HoldTime);
-		EntityText(text_offset,tempstr,0);
-		text_offset++;
-	}
-	return text_offset;
-}
