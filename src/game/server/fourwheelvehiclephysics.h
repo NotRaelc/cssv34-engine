@@ -99,20 +99,19 @@ public:
 	float GetWheelBaseHeight(int wheelIndex) { return m_wheelBaseHeight[wheelIndex]; }
 	float GetWheelTotalHeight(int wheelIndex) { return m_wheelTotalHeight[wheelIndex]; }
 
+	IPhysicsVehicleController *GetVehicleController() { return m_pVehicle; }
 	const vehicleparams_t &GetVehicleParams( void ) { return m_pVehicle->GetVehicleParams(); }
 	const vehicle_controlparams_t &GetVehicleControls( void ) { return m_controls; }
+	const vehicle_operatingparams_t &GetVehicleOperatingParams( void ) { return m_pVehicle->GetOperatingParams(); }
 
 	int VPhysicsGetObjectList( IPhysicsObject **pList, int listMax );
-
-	void	AddThrottleReduction( float flPercentage );
-	void	RemoveThrottleReduction( float flPercentage );
 
 private:
 	// engine sounds
 	void CalcWheelData( vehicleparams_t &vehicle );
 
 	void SteeringRest( float carSpeed, const vehicleparams_t &vehicleData );
-	void SteeringTurn( float carSpeed, const vehicleparams_t &vehicleData, bool bTurnLeft );
+	void SteeringTurn( float carSpeed, const vehicleparams_t &vehicleData, bool bTurnLeft, bool bBrake, bool bThrottle );
 	void SteeringTurnAnalog( float carSpeed, const vehicleparams_t &vehicleData, float sidemove );
 
 	// A couple wrapper methods to perform common operations
@@ -142,7 +141,6 @@ private:
 
 	float				m_maxThrottle;
 	float				m_flMaxRevThrottle;
-	float				m_flThrottleReduction;
 	float				m_flMaxSpeed;
 	float				m_actionSpeed;
 	IPhysicsObject		*m_pWheels[4];
@@ -167,9 +165,6 @@ private:
 	bool				m_bLastThrottle;
 	bool				m_bLastBoost;
 	bool				m_bLastSkid;
-
-	int					m_nTurnLeftCount;
-	int					m_nTurnRightCount;
 };
 
 

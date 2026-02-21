@@ -153,10 +153,10 @@ void CCSViewRender::PerformNightVisionEffect( const CViewSetup &view )
 			// Only one pass in DX7.
 			if ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 80 )
 			{
-				//CMatRenderContextPtr pRenderContext( materials );
-				materials->DrawScreenSpaceQuad( pMaterial );
+				CMatRenderContextPtr pRenderContext( materials );
+				pRenderContext->DrawScreenSpaceQuad( pMaterial );
 				render->ViewDrawFade( overlaycolor, pMaterial );
-				materials->DrawScreenSpaceQuad( pMaterial );
+				pRenderContext->DrawScreenSpaceQuad( pMaterial );
 			}
 		}
 	}
@@ -182,7 +182,7 @@ void CCSViewRender::PerformFlashbangEffect( const CViewSetup &view )
 
 	byte overlaycolor[4] = { 255, 255, 255, 255 };
 	
-	//CMatRenderContextPtr pRenderContext( materials );
+	CMatRenderContextPtr pRenderContext( materials );
 	
 	if ( pPlayer->m_flFlashAlpha < pPlayer->m_flFlashMaxAlpha )
 	{
@@ -204,19 +204,19 @@ void CCSViewRender::PerformFlashbangEffect( const CViewSetup &view )
 		srcRect.width = view.width;
 		srcRect.height = view.height;
 		m_BaseTextureVar->SetTextureValue( m_pFlashTexture );
-		materials->CopyRenderTargetToTextureEx( m_pFlashTexture, 0, &srcRect, NULL );
-		materials->SetFrameBufferCopyTexture( m_pFlashTexture );
+		pRenderContext->CopyRenderTargetToTextureEx( m_pFlashTexture, 0, &srcRect, NULL );
+		pRenderContext->SetFrameBufferCopyTexture( m_pFlashTexture );
 
 		render->ViewDrawFade( overlaycolor, pMaterial );
 
 		// just do one pass for dxlevel < 80.
 		if (g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 80)
 		{
-			materials->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
+			pRenderContext->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
 				0, 0, m_pFlashTexture->GetActualWidth()-1, m_pFlashTexture->GetActualHeight()-1, 
 				m_pFlashTexture->GetActualWidth(), m_pFlashTexture->GetActualHeight() );
 			render->ViewDrawFade( overlaycolor, pMaterial );
-			materials->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
+			pRenderContext->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
 				0, 0, m_pFlashTexture->GetActualWidth()-1, m_pFlashTexture->GetActualHeight()-1, 
 				m_pFlashTexture->GetActualWidth(), m_pFlashTexture->GetActualHeight() );
 		}
@@ -234,11 +234,11 @@ void CCSViewRender::PerformFlashbangEffect( const CViewSetup &view )
 		// just do one pass for dxlevel < 80.
 		if (g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 80)
 		{
-			materials->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
+			pRenderContext->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
 				0, 0, m_pFlashTexture->GetActualWidth()-1, m_pFlashTexture->GetActualHeight()-1, 
 				m_pFlashTexture->GetActualWidth(), m_pFlashTexture->GetActualHeight() );
 			render->ViewDrawFade( overlaycolor, pMaterial );
-			materials->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
+			pRenderContext->DrawScreenSpaceRectangle( pMaterial, view.x, view.y, view.width, view.height,
 				0, 0, m_pFlashTexture->GetActualWidth()-1, m_pFlashTexture->GetActualHeight()-1, 
 				m_pFlashTexture->GetActualWidth(), m_pFlashTexture->GetActualHeight() );
 		}

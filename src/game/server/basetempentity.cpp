@@ -11,7 +11,7 @@
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 #include "basetempentity.h"
 
 // memdbgon must be the last include file in a .cpp file!!!

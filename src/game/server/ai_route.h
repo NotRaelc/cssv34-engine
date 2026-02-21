@@ -12,7 +12,7 @@
 #endif
 
 #include "ai_basenpc.h"
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "ai_network.h"
 #include "ai_node.h"
 #include "ai_waypoint.h"

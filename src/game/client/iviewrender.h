@@ -30,22 +30,23 @@ enum DrawFlags_t
 	DF_RENDER_ABOVEWATER	= 0x20,
 	DF_RENDER_WATER			= 0x40,
 
-	DF_CLEARDEPTH			= 0x100,
+	DF_UNUSED1				= 0x100,
 	DF_WATERHEIGHT			= 0x200,
-	DF_BUILDWORLDLISTS		= 0x400,
+	DF_UNUSED2				= 0x400,
 	DF_DRAWSKYBOX			= 0x800,
 
 	DF_FUDGE_UP				= 0x1000,
 
 	DF_DRAW_ENTITITES		= 0x2000,
-	DF_CLEARCOLOR			= 0x4000,
+	DF_UNUSED3				= 0x4000,
 
-	DF_MAINTAINWORLDLISTS	= 0x8000,
+	DF_UNUSED4				= 0x8000,
 
-	DF_MONITOR				= 0x10000,	// Currently rendering a monitor.
+	DF_UNUSED5				= 0x10000,
 	DF_SAVEGAMESCREENSHOT	= 0x20000,
 	DF_CLIP_SKYBOX			= 0x40000,
-	DF_UPDATELIGHTMAPS		= 0x80000,
+
+	DF_SHADOW_DEPTH_MAP		= 0x100000	// Currently rendering a shadow depth map
 };
 
 
@@ -78,8 +79,9 @@ public:
 
 	// Called to render the entire scene
 	virtual	void		Render( vrect_t *rect ) = 0;
+
 	// Called to render just a particular setup ( for timerefresh and envmap creation )
-	virtual void		RenderView( const CViewSetup &view, int nClearFlags, bool drawViewmodel ) = 0;
+	virtual void		RenderView( const CViewSetup &view, int nClearFlags, int whatToDraw ) = 0;
 
 	// What are we currently rendering? Returns a combination of DF_ flags.
 	virtual int GetDrawFlags() = 0;
@@ -97,14 +99,8 @@ public:
 	virtual const CViewSetup *GetPlayerViewSetup( void ) const = 0;
 	virtual const CViewSetup *GetViewSetup( void ) const = 0;
 
-	virtual void		AddVisOrigin( const Vector& origin ) = 0;
 	virtual void		DisableVis( void ) = 0;
 
-	// Used to force visibility calculations to use this as the view point and leaf (instead of the camera position)
-	virtual void		ForceVisOverride ( VisOverrideData_t& visData ) = 0;
-	virtual void		ForceViewLeaf  ( int iViewLeaf ) = 0;
-
-	virtual int			FrameNumber() const = 0;
 	virtual int			BuildWorldListsNumber() const = 0;
 
 	virtual void		SetCheapWaterStartDistance( float flCheapWaterStartDistance ) = 0;
@@ -120,9 +116,6 @@ public:
 	virtual void		WriteSaveGameScreenshot( const char *pFilename ) = 0;
 	virtual void		WriteSaveGameScreenshotOfSize( const char *pFilename, int width, int height ) = 0;
 
-	// See RenderViewInfo_t
-	virtual void		RenderViewEx( const CViewSetup &view, int nClearFlags, int whatToDraw ) = 0;
-
 	// Draws another rendering over the top of the screen
 	virtual void		QueueOverlayRenderView( const CViewSetup &view, int nClearFlags, int whatToDraw ) = 0;
 
@@ -131,6 +124,13 @@ public:
 	virtual float		GetZFar() = 0;
 
 	virtual void		GetScreenFadeDistances( float *min, float *max ) = 0;
+
+	virtual C_BaseEntity *GetCurrentlyDrawingEntity() = 0;
+	virtual void		SetCurrentlyDrawingEntity( C_BaseEntity *pEnt ) = 0;
+
+	virtual bool		UpdateShadowDepthTexture( ITexture *pRenderTarget, ITexture *pDepthTexture, const CViewSetup &shadowView ) = 0;
+
+	virtual void		FreezeFrame( float flFreezeTime ) = 0;
 };
 
 extern IViewRender *view;

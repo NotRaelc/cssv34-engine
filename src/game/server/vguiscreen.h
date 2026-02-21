@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: This is an entity that represents a vgui screen
 //
@@ -30,6 +30,7 @@ public:
 	virtual bool KeyValue( const char *szKeyName, const char *szValue );
 	virtual void Spawn();
 	virtual void Activate();
+	virtual void OnRestore();
 
 	const char *GetPanelName() const;
 
@@ -51,8 +52,12 @@ public:
 	void SetAttachedToViewModel( bool bAttached );
 	bool IsAttachedToViewModel() const;
 
+	void SetTransparency( bool bTransparent );
+
 	virtual int UpdateTransmitState( void );
 	virtual int ShouldTransmit( const CCheckTransmitInfo *pInfo );
+
+	void SetPlayerOwner( CBasePlayer *pPlayer, bool bOwnerOnlyInput = false );
 
 private:
 	void SetAttachmentIndex( int nIndex );
@@ -68,6 +73,7 @@ private:
 	CNetworkVar( int, m_nAttachmentIndex );
 	CNetworkVar( int, m_nOverlayMaterial );
 	CNetworkVar( int, m_fScreenFlags );
+	CNetworkVar( EHANDLE, m_hPlayerOwner );
 
 	friend CVGuiScreen *CreateVGuiScreen( const char *pScreenClassname, const char *pScreenType, CBaseEntity *pAttachedTo, CBaseEntity *pOwner, int nAttachmentIndex );
 };
@@ -75,7 +81,7 @@ private:
 
 void PrecacheVGuiScreen( const char *pScreenType );
 void PrecacheVGuiScreenOverlayMaterial( const char *pMaterialName );
-CVGuiScreen *CreateVGuiScreen( const char *pScreenClassname, const char *pScreenType, CBaseEntity *pAttachedTo, int nAttachmentIndex );
+CVGuiScreen *CreateVGuiScreen( const char *pScreenClassname, const char *pScreenType, CBaseEntity *pAttachedTo, CBaseEntity *pOwner, int nAttachmentIndex );
 void DestroyVGuiScreen( CVGuiScreen *pVGuiScreen );
 
 

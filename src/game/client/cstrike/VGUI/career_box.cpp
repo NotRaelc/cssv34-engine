@@ -293,7 +293,7 @@ void CCareerBaseBox::PaintBackground( )
 	int wide, tall;
 	GetSize( wide, tall );
 
-	DrawBackground( m_bgColor, wide, tall );
+	DrawRoundedBackground( m_bgColor, wide, tall );
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -302,7 +302,7 @@ void CCareerBaseBox::PaintBorder( )
 	int wide, tall;
 	GetSize( wide, tall );
 
-	DrawBorder( m_borderColor, wide, tall );
+	DrawRoundedBorder( m_borderColor, wide, tall );
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -572,8 +572,8 @@ void CWeaponButton::SetWeapon( const BuyPresetWeapon& weapon )
 		{
 			const int BufLen = 256;
 			wchar_t wbuf[BufLen];
-			vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-				vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+			g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+				g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 				1, NumAsWString( info->GetWeaponPrice() ) );
 			m_pCostImage->SetText( wbuf );
 		}
@@ -877,12 +877,12 @@ void CWeaponSelectBox::PopulateControls()
 			clipsOrMore = "#Cstrike_BuyPresetEditClipOrMore";
 			clips = "#Cstrike_BuyPresetEditClip";
 		}
-		vgui::localize()->ConstructString( buf, sizeof(buf),
-			vgui::localize()->Find( clipsOrMore ),
+		g_pVGuiLocalize->ConstructString( buf, sizeof(buf),
+			g_pVGuiLocalize->Find( clipsOrMore ),
 			1, NumAsWString( i ));
 		m_pClips->AddItem( buf, NULL );
-		vgui::localize()->ConstructString( buf, sizeof(buf),
-			vgui::localize()->Find( clips ),
+		g_pVGuiLocalize->ConstructString( buf, sizeof(buf),
+			g_pVGuiLocalize->Find( clips ),
 			1, NumAsWString( i ));
 		m_pClips->AddItem( buf, NULL );
 	}
@@ -898,7 +898,7 @@ void CWeaponSelectBox::PopulateControls()
 		Panel *pPanel = FindChildByName( "TitleLabel" );
 		if ( pPanel )
 		{
-			const wchar_t *title = vgui::localize()->Find( "#Cstrike_BuyPresetWizardSecondary" );
+			const wchar_t *title = g_pVGuiLocalize->Find( "#Cstrike_BuyPresetWizardSecondary" );
 			if ( title )
 				PostMessage(pPanel, new KeyValues("SetText", "text", title));
 		}
@@ -938,8 +938,8 @@ void CWeaponSelectBox::UpdateClips()
 
 		const int BufLen = 64;
 		wchar_t buf[BufLen];
-		vgui::localize()->ConstructString( buf, sizeof(buf),
-			vgui::localize()->Find( "#Cstrike_BuyPresetsBullets" ),
+		g_pVGuiLocalize->ConstructString( buf, sizeof(buf),
+			g_pVGuiLocalize->Find( "#Cstrike_BuyPresetsBullets" ),
 			2, NumAsWString( min( maxRounds, numClips * buyClipSize ) ), NumAsWString( maxRounds ) );
 		m_pBullets->SetText( buf );
 	}
@@ -1140,8 +1140,8 @@ void CGrenadeSelectBox::OnControlChanged()
 	if ( info )
 	{
 		numGrenades = m_pHEGrenade->GetActiveItem();
-		vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-			vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+		g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+			g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 			1, NumAsWString( info->GetWeaponPrice() * numGrenades ) );
 		m_pHELabel->SetText( wbuf );
 	}
@@ -1150,8 +1150,8 @@ void CGrenadeSelectBox::OnControlChanged()
 	if ( info )
 	{
 		numGrenades = m_pSmokeGrenade->GetActiveItem();
-		vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-			vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+		g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+			g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 			1, NumAsWString( info->GetWeaponPrice() * numGrenades ) );
 		m_pSmokeLabel->SetText( wbuf );
 	}
@@ -1160,8 +1160,8 @@ void CGrenadeSelectBox::OnControlChanged()
 	if ( info )
 	{
 		numGrenades = m_pFlashbangs->GetActiveItem();
-		vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-			vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+		g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+			g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 			1, NumAsWString( info->GetWeaponPrice() * numGrenades ) );
 		m_pFlashLabel->SetText( wbuf );
 	}
@@ -1251,8 +1251,8 @@ void CEquipmentSelectBox::OnControlChanged()
 	}
 
 	int count = m_pKevlar->GetActiveItem();
-	vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-		vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+	g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+		g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 		1, NumAsWString( iKevlarPrice * count ) );
 	m_pKevlarLabel->SetText( wbuf );
 
@@ -1261,20 +1261,20 @@ void CEquipmentSelectBox::OnControlChanged()
 		m_pHelmet->ActivateItemByRow( 0 );
 
 	count = m_pHelmet->GetActiveItem();
-	vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-		vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+	g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+		g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 		1, NumAsWString( iHelmetPrice * count ) );
 	m_pHelmetLabel->SetText( wbuf );
 
 	count = m_pDefuser->GetActiveItem();
-	vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-		vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+	g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+		g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 		1, NumAsWString( DEFUSEKIT_PRICE * count ) );
 	m_pDefuserLabel->SetText( wbuf );
 
 	count = m_pNightvision->GetActiveItem();
-	vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-		vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+	g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+		g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 		1, NumAsWString( NVG_PRICE * count ) );
 	m_pNightvisionLabel->SetText( wbuf );
 }

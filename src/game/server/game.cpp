@@ -12,8 +12,20 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+void MapCycleFileChangedCallback( IConVar *var, const char *pOldString, float flOldValue )
+{
+	if ( Q_stricmp( pOldString, mapcyclefile.GetString() ) != 0 )
+	{
+		if ( GameRules() )
+		{
+			// For multiplayer games, forces the mapcyclefile to be reloaded
+			GameRules()->ResetMapCycleTimeStamp();
+		}
+	}
+}
+
 ConVar	displaysoundlist( "displaysoundlist","0" );
-ConVar  mapcyclefile( "mapcyclefile","mapcycle.txt" );
+ConVar  mapcyclefile( "mapcyclefile", "mapcycle.txt", FCVAR_NONE, "Name of the .txt file used to cycle the maps on multiplayer servers ", MapCycleFileChangedCallback );
 ConVar  servercfgfile( "servercfgfile","server.cfg" );
 ConVar  lservercfgfile( "lservercfgfile","listenserver.cfg" );
 
@@ -27,7 +39,7 @@ ConVar	footsteps( "mp_footsteps","1", FCVAR_NOTIFY );
 ConVar	flashlight( "mp_flashlight","0", FCVAR_NOTIFY );
 ConVar	aimcrosshair( "mp_autocrosshair","1", FCVAR_NOTIFY );
 ConVar	decalfrequency( "decalfrequency","10", FCVAR_NOTIFY );
-ConVar	teamlist( "mp_teamlist","hgrunt,scientist", FCVAR_NOTIFY );
+ConVar	teamlist( "mp_teamlist","hgrunt;scientist", FCVAR_NOTIFY );
 ConVar	teamoverride( "mp_teamoverride","1" );
 ConVar	defaultteam( "mp_defaultteam","0" );
 ConVar	allowNPCs( "mp_allowNPCs","1", FCVAR_NOTIFY );
@@ -43,22 +55,16 @@ class CGameDLL_ConVarAccessor : public IConCommandBaseAccessor
 public:
 	virtual bool	RegisterConCommandBase( ConCommandBase *pCommand )
 	{
-		// Mark for easy removal
-		pCommand->AddFlags( FCVAR_GAMEDLL );
-
 		// Remember "unlinked" default value for replicated cvars
-		bool replicated = pCommand->IsBitSet( FCVAR_REPLICATED );
+		bool replicated = pCommand->IsFlagSet( FCVAR_REPLICATED );
 		const char *defvalue = NULL;
 		if ( replicated && !pCommand->IsCommand() )
 		{
 			defvalue = ( ( ConVar * )pCommand)->GetDefault();
 		}
 
-		// Unlink from client .dll only list
-		pCommand->SetNext( NULL );
-
 		// Link to engine's list instead
-		cvar->RegisterConCommandBase( pCommand );
+		cvar->RegisterConCommand( pCommand );
 
 		// Apply any command-line values.
 		const char *pValue = cvar->GetCommandLineValue( pCommand->GetName() );
@@ -95,9 +101,7 @@ static CGameDLL_ConVarAccessor g_ConVarAccessor;
 void InitializeCvars( void )
 {
 	// Register cvars here:
-
-	// Initialize the console variables.
-	ConCommandBaseMgr::OneTimeInit(&g_ConVarAccessor);
+	ConVar_Register( FCVAR_GAMEDLL, &g_ConVarAccessor ); 
 
 	g_pDeveloper	= cvar->FindVar( "developer" );
 }

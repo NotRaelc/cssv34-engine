@@ -25,6 +25,7 @@ typedef enum { matGlass = 0, matWood, matMetal, matFlesh, matCinderBlock, matCei
 #define SF_BREAK_PRESSURE					0x0004	// can be broken by a player standing on it
 #define SF_BREAK_PHYSICS_BREAK_IMMEDIATELY	0x0200	// the first physics collision this breakable has will immediately break it
 #define SF_BREAK_DONT_TAKE_PHYSICS_DAMAGE	0x0400	// this breakable doesn't take damage from physics collisions
+#define SF_BREAK_NO_BULLET_PENETRATION		0x0800  // don't allow bullets to penetrate
 
 // Spawnflags for func_pushable (it's also func_breakable, so don't collide with those flags)
 #define SF_PUSH_BREAKABLE					0x0080
@@ -55,6 +56,8 @@ public:
 	void InputBreak( inputdata_t &inputdata );
 	void InputRemoveHealth( inputdata_t &inputdata );
 	void InputSetHealth( inputdata_t &inputdata );
+	void InputSetMass( inputdata_t &inputdata );
+
 
 	// breakables use an overridden takedamage
 	virtual int OnTakeDamage( const CTakeDamageInfo &info );
@@ -154,6 +157,7 @@ protected:
 	int				m_iMaxBreakableSize;
 	string_t		m_iszBasePropData;	
 	int				m_iInteractions;
+	PerformanceMode_t m_PerformanceMode;
 
 	float			m_explodeRadius;
 

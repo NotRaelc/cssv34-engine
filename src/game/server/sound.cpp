@@ -11,15 +11,9 @@
 //
 //=============================================================================//
 
-#ifdef _XBOX
-#include "xbox/xbox_platform.h"
-#include "xbox/xbox_win32stubs.h"
-#include "xbox/xbox_core.h"
-#endif
-
 #include "cbase.h"
 #include "player.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 #include "ai_speech.h"
 #include "stringregistry.h"
 #include "gamerules.h"
@@ -285,6 +279,9 @@ void CAmbientGeneric::Spawn( void )
 	m_nSoundSourceEntIndex = -1;
 
 	Precache( );
+
+	// init all dynamic modulation parms
+	InitModulationParms();
 }
 
 
@@ -430,9 +427,6 @@ void CAmbientGeneric::Precache( void )
 		}
 	}
 
-	// init all dynamic modulation parms
-	InitModulationParms();
-
 	if ( !FBitSet (m_spawnflags, SF_AMBIENT_SOUND_START_SILENT ) )
 	{
 		// start the sound ASAP
@@ -479,7 +473,7 @@ void CAmbientGeneric::Activate( void )
 	// If active start the sound
 	if ( m_fActive )
 	{
-		SoundFlags_t flags = SND_SPAWNING;
+		int flags = SND_SPAWNING;
 		// If we are loading a saved game, we can't write into the init/signon buffer here, so just issue
 		//  as a regular sound message...
 		if ( gpGlobals->eLoadType == MapLoad_Transition ||
@@ -489,7 +483,15 @@ void CAmbientGeneric::Activate( void )
 			flags = SND_NOFLAGS;
 		}
 	
-		SendSound( flags );
+		// Tracker 76119:  8/12/07 ywb: 
+		//  Make sure pitch and volume are set up to the correct value (especially after restoring a .sav file)
+		flags |= ( SND_CHANGE_PITCH | SND_CHANGE_VOL );  
+
+		// Don't bother sending over to client if volume is zero, though
+		if ( m_dpv.vol > 0 )
+		{
+			SendSound( (SoundFlags_t)flags );
+		}
 
 		SetNextThink( gpGlobals->curtime + 0.1f );
 	}
@@ -1304,19 +1306,12 @@ void SENTENCEG_Stop(edict_t *entity, int isentenceg, int ipick)
 // open sentences.txt, scan for groups, build rgsentenceg
 // Should be called from world spawn, only works on the
 // first call and is ignored subsequently.
-extern const char*	XBX_GetLanguageString(void);
 void SENTENCEG_Init()
 {
 	if (fSentencesInit)
 		return;
 
-#ifdef _XBOX
-	char scriptName[ MAX_PATH ];
-	Q_snprintf( scriptName, MAX_PATH, "scripts/sentences_%s.txt", XBX_GetLanguageString() );
-	engine->PrecacheSentenceFile( scriptName );
-#else
 	engine->PrecacheSentenceFile( "scripts/sentences.txt" );
-#endif
 	fSentencesInit = true;
 }
 
@@ -1439,7 +1434,7 @@ int UTIL_EmitGroupnameSuit(edict_t *entity, const char *groupname)
 
 char TEXTURETYPE_Find( trace_t *ptr )
 {
-	surfacedata_t *psurfaceData = physprops->GetSurfaceData( ptr->surface.surfaceProps );
+	const surfacedata_t *psurfaceData = physprops->GetSurfaceData( ptr->surface.surfaceProps );
 
 	return psurfaceData->game.material;
 }

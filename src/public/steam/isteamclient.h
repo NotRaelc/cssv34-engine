@@ -89,6 +89,22 @@ public:
 
 #define STEAMCLIENT_INTERFACE_VERSION		"SteamClient006"
 
+//-----------------------------------------------------------------------------
+// Purpose: Base values for callback identifiers, each callback must
+//			have a unique ID.
+//-----------------------------------------------------------------------------
+enum { k_iSteamUserCallbacks = 100 };
+enum { k_iSteamGameServerCallbacks = 200 };
+enum { k_iSteamFriendsCallbacks = 300 };
+enum { k_iSteamBillingCallbacks = 400 };
+enum { k_iSteamMatchmakingCallbacks = 500 };
+enum { k_iSteamContentServerCallbacks = 600 };
+enum { k_iSteamUtilsCallbacks = 700 };
+enum { k_iClientFriendsCallbacks = 800 };
+enum { k_iClientUserCallbacks = 900 };
+enum { k_iSteamAppsCallbacks = 1000 };
+enum { k_iSteamUserStatsCallbacks = 1100 };
+
 
 // For GoldSRC we need a C API as the C++ ABI changed from the GoldSRC compiler 
 // (GCC 2.95.3) to the Source/Steam3 one (GCC 3.4.1)

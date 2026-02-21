@@ -347,26 +347,3 @@ float CBaseToggle::AxisDelta( int flags, const QAngle &angle1, const QAngle &ang
 }
 
 
-/*
-=============
-FEntIsVisible
-
-returns true if the passed entity is visible to caller, even if not infront ()
-=============
-*/
-bool FEntIsVisible(	CBaseEntity *pEdict, CBaseEntity *pTarget )
-{
-	Vector vecSpot1 = pEdict->EyePosition();
-	Vector vecSpot2 = pTarget->EyePosition();
-	trace_t tr;
-
-	// Stopped by world, solid brushes, and water
-	UTIL_TraceLine(vecSpot1, vecSpot2, MASK_OPAQUE | MASK_WATER, pEdict, COLLISION_GROUP_NONE, &tr);
-	
-	if (tr.fraction == 1)
-		return true;
-
-	return false;
-}
-
-

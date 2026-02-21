@@ -32,6 +32,8 @@ public:
 };
 
 IResponseSystem *PrecacheCustomResponseSystem( const char *scriptfile );
+IResponseSystem *BuildCustomResponseSystemGivenCriteria( const char *pszBaseFile, const char *pszCustomName, AI_CriteriaSet &criteriaSet, float flCriteriaScore );
+void DestroyCustomResponseSystems();
 
 class ISaveRestoreBlockHandler *GetDefaultResponseSystemSaveRestoreBlockHandler();
 class ISaveRestoreOps *GetResponseSystemSaveRestoreOps();

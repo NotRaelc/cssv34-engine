@@ -22,9 +22,6 @@
 abstract_class ITextMessage 
 {
 public:
-	virtual void		Create( vgui::VPANEL parent ) = 0;
-	virtual void		Destroy( void ) = 0;
-
 	virtual void		SetPosition( int x, int y ) = 0;
 	virtual void		AddChar( int r, int g, int b, int a, wchar_t ch ) = 0;
 

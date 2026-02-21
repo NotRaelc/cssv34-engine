@@ -18,7 +18,7 @@
 
 
 //--------------------------------------------------------------------------------------------------------------
-static void PrefixChanged( ConVar *var, const char *oldValue )
+static void PrefixChanged( IConVar *c, const char *oldPrefix, float flOldValue )
 {
 	if ( TheCSBots() && TheCSBots()->IsServerActive() )
 	{

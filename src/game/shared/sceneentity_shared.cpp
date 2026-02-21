@@ -13,11 +13,6 @@
 static ConVar scene_print( "scene_print", "0", FCVAR_REPLICATED, "When playing back a scene, print timing and event info to console." );
 ConVar scene_clientflex( "scene_clientflex", "1", FCVAR_REPLICATED, "Do client side flex animation." );
 
-IFileSystem *SceneFileSystem()
-{
-	return filesystem;
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : *pFormat - 

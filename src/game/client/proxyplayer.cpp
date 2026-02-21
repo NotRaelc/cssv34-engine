@@ -11,9 +11,13 @@
 #include "materialsystem/ITexture.h"
 #include "materialsystem/IMaterialSystem.h"
 #include "FunctionProxy.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+// forward declarations
+void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 //-----------------------------------------------------------------------------
 // Returns the proximity of the player to the entity
@@ -54,9 +58,58 @@ void CPlayerProximityProxy::OnBind( void *pC_BaseEntity )
 
 	Assert( m_pResult );
 	SetFloatResult( delta.Length() * m_Factor );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 EXPOSE_INTERFACE( CPlayerProximityProxy, IMaterialProxy, "PlayerProximity" IMATERIAL_PROXY_INTERFACE_VERSION );
+
+
+//-----------------------------------------------------------------------------
+// Returns true if the player's team matches that of the entity the proxy material is attached to
+//-----------------------------------------------------------------------------
+
+class CPlayerTeamMatchProxy : public CResultProxy
+{
+public:
+	bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
+	void OnBind( void *pC_BaseEntity );
+
+private:
+};
+
+bool CPlayerTeamMatchProxy::Init( IMaterial *pMaterial, KeyValues *pKeyValues )
+{
+	if (!CResultProxy::Init( pMaterial, pKeyValues ))
+		return false;
+
+	return true;
+}
+
+void CPlayerTeamMatchProxy::OnBind( void *pC_BaseEntity )
+{
+	if (!pC_BaseEntity)
+		return;
+
+	// Find the distance between the player and this entity....
+	C_BaseEntity *pEntity = BindArgToEntity( pC_BaseEntity );
+	C_BaseEntity* pPlayer = C_BasePlayer::GetLocalPlayer();
+	if (!pPlayer)
+		return;
+
+	Assert( m_pResult );
+	SetFloatResult( (pEntity->GetTeamNumber() == pPlayer->GetTeamNumber()) ? 1.0 : 0.0 );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
+}
+
+EXPOSE_INTERFACE( CPlayerTeamMatchProxy, IMaterialProxy, "PlayerTeamMatch" IMATERIAL_PROXY_INTERFACE_VERSION );
 
 
 //-----------------------------------------------------------------------------
@@ -101,6 +154,11 @@ void CPlayerViewProxy::OnBind( void *pC_BaseEntity )
 
 	Assert( m_pResult );
 	SetFloatResult( DotProduct( forward, delta ) * m_Factor );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 EXPOSE_INTERFACE( CPlayerViewProxy, IMaterialProxy, "PlayerView" IMATERIAL_PROXY_INTERFACE_VERSION );
@@ -137,6 +195,11 @@ void CPlayerSpeedProxy::OnBind( void *pC_BaseEntity )
 
 	Assert( m_pResult );
 	SetFloatResult( pPlayer->GetLocalVelocity().Length() * m_Factor );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 EXPOSE_INTERFACE( CPlayerSpeedProxy, IMaterialProxy, "PlayerSpeed" IMATERIAL_PROXY_INTERFACE_VERSION );
@@ -176,6 +239,11 @@ void CPlayerPositionProxy::OnBind( void *pC_BaseEntity )
 	Vector res;
 	VectorMultiply( pPlayer->WorldSpaceCenter(), m_Factor, res ); 
 	m_pResult->SetVecValue( res.Base(), 3 );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 EXPOSE_INTERFACE( CPlayerPositionProxy, IMaterialProxy, "PlayerPosition" IMATERIAL_PROXY_INTERFACE_VERSION );
@@ -201,6 +269,11 @@ void CEntitySpeedProxy::OnBind( void *pC_BaseEntity )
 
 	Assert( m_pResult );
 	m_pResult->SetFloatValue( pEntity->GetLocalVelocity().Length() );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 EXPOSE_INTERFACE( CEntitySpeedProxy, IMaterialProxy, "EntitySpeed" IMATERIAL_PROXY_INTERFACE_VERSION );
@@ -241,6 +314,11 @@ void CEntityRandomProxy::OnBind( void *pC_BaseEntity )
 
 	Assert( m_pResult );
 	m_pResult->SetFloatValue( pEntity->ProxyRandomValue() * m_Factor.GetFloat() );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 EXPOSE_INTERFACE( CEntityRandomProxy, IMaterialProxy, "EntityRandom" IMATERIAL_PROXY_INTERFACE_VERSION );
@@ -277,6 +355,8 @@ public:
 
 		m_Logos.RemoveAll();
 	}
+
+	virtual IMaterial *GetMaterial();
 
 private:
 	IMaterialVar *m_pBaseTextureVar;
@@ -380,14 +460,21 @@ void CPlayerLogoProxy::OnBind( void *pC_BaseEntity )
 	if ( texture )
 	{
 		m_pBaseTextureVar->SetTextureValue( texture );
-		return;
 	}
-
-	if ( m_pDefaultTexture )
+	else if ( m_pDefaultTexture )
 	{
 		m_pBaseTextureVar->SetTextureValue( m_pDefaultTexture );
-		return;
 	}
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
+}
+
+IMaterial *CPlayerLogoProxy::GetMaterial()
+{
+	return m_pBaseTextureVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CPlayerLogoProxy, IMaterialProxy, "PlayerLogo" IMATERIAL_PROXY_INTERFACE_VERSION );

@@ -16,7 +16,7 @@
 		}
 		"FavoriteGames"
 		{
-			"appid"		"0x0000000000000000"
+			"appid"		"0"
 			"ping"		"0"
 			"NoFull"		"0"
 			"NoEmpty"		"0"
@@ -27,7 +27,7 @@
 		}
 		"HistoryGames"
 		{
-			"appid"		"0x0000000000000000"
+			"appid"		"0"
 			"ping"		"0"
 			"NoFull"		"0"
 			"NoEmpty"		"0"
@@ -38,7 +38,7 @@
 		}
 		"SpectateGames"
 		{
-			"appid"		"0x0000000000000000"
+			"appid"		"0"
 			"ping"		"0"
 			"NoFull"		"0"
 			"NoEmpty"		"0"
@@ -50,7 +50,7 @@
 		}
 		"LanGames"
 		{
-			"appid"		"0x0000000000000000"
+			"appid"		"0"
 			"ping"		"0"
 			"NoFull"		"0"
 			"NoEmpty"		"0"
@@ -61,7 +61,7 @@
 		}
 		"FriendsGames"
 		{
-			"appid"		"0x0000000000000000"
+			"appid"		"0"
 			"ping"		"0"
 			"NoFull"		"0"
 			"NoEmpty"		"0"
@@ -69,6 +69,17 @@
 			"Secure"		"0"
 			"QuickList"		"1"
 			"gametype"		"notags"
+		}
+		"InternetGames"
+		{
+			"appid"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"gametype"		"notags"
+			"location"		"0"
 		}
 	}
 }

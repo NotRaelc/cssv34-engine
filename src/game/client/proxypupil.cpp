@@ -26,6 +26,7 @@ class CPupilProxy : public CEntityMaterialProxy
 public:
 	bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( C_BaseEntity *pBaseEntity );
+	virtual IMaterial *GetMaterial();
 
 private:
 	IMaterialVar *m_pAnimatedTextureVar;
@@ -113,6 +114,14 @@ void CPupilProxy::OnBind( C_BaseEntity *pBaseEntity )
 
 	m_pAnimatedTextureFrameNumVar->SetIntValue( nFrame );
 	m_pLightingVar->SetFloatValue( flIntensity );
+}
+
+IMaterial *CPupilProxy::GetMaterial()
+{
+	if ( !m_pAnimatedTextureVar )
+		return NULL;
+
+	return m_pAnimatedTextureVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CPupilProxy, IMaterialProxy, "Pupil" IMATERIAL_PROXY_INTERFACE_VERSION );

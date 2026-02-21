@@ -282,7 +282,7 @@ void CHudWeaponSelection::Paint()
 				if (pWeapon == pSelectedWeapon)
 				{
 					wchar_t text[128];
-					wchar_t *tempString = localize()->Find(weaponInfo.szPrintName);
+					wchar_t *tempString = g_pVGuiLocalize->Find(weaponInfo.szPrintName);
 
 					// setup our localized string
 					if ( tempString )
@@ -292,8 +292,8 @@ void CHudWeaponSelection::Paint()
 					}
 					else
 					{
-						// string wasn't found by localize()->Find()
-						localize()->ConvertANSIToUnicode(weaponInfo.szPrintName, text, sizeof(text));
+						// string wasn't found by g_pVGuiLocalize->Find()
+						g_pVGuiLocalize->ConvertANSIToUnicode(weaponInfo.szPrintName, text, sizeof(text));
 					}
 
 					surface()->DrawSetTextColor( col );

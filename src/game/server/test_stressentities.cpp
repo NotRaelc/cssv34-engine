@@ -59,7 +59,7 @@ Vector GetRandomSpot()
 }
 
 
-void Test_InitRandomEntitySpawner()
+void Test_InitRandomEntitySpawner( const CCommand &args )
 {
 	// Put the list of registered functions into array form for convenience.
 	g_StressEntityRegs.Purge();
@@ -68,8 +68,8 @@ void Test_InitRandomEntitySpawner()
 
 	// Create slots for all the entities..
 	int nSlots = 100;
-	if ( engine->Cmd_Argc() >= 2 )
-		nSlots = atoi( engine->Cmd_Argv( 1 ) );
+	if ( args.ArgC() >= 2 )
+		nSlots = atoi( args[ 1 ] );
 
 	g_StressEntities.Purge();
 	g_StressEntities.SetSize( nSlots );
@@ -78,9 +78,9 @@ void Test_InitRandomEntitySpawner()
 }
 
 
-void Test_SpawnRandomEntities()
+void Test_SpawnRandomEntities( const CCommand &args )
 {
-	if ( engine->Cmd_Argc() < 3 )
+	if ( args.ArgC() < 3 )
 	{
 		Error( "Test_SpawnRandomEntities <min # entities> <max # entities> missing arguments." );
 	}
@@ -90,8 +90,8 @@ void Test_SpawnRandomEntities()
 		Error( "Test_SpawnRandomEntities: not initialized (call Test_InitRandomEntitySpawner frst)." );
 	} 
 
-	int nMin = atoi( engine->Cmd_Argv( 1 ) );
-	int nMax = atoi( engine->Cmd_Argv( 2 ) );
+	int nMin = atoi( args[ 1 ] );
+	int nMax = atoi( args[ 2 ] );
 	int count = RandomInt( nMin, nMax );
 
 	for ( int i=0; i < count; i++ )
@@ -109,14 +109,14 @@ void Test_SpawnRandomEntities()
 }
 
 
-void Test_RandomizeInPVS()
+void Test_RandomizeInPVS( const CCommand &args )
 {
-	if ( engine->Cmd_Argc() < 2 )
+	if ( args.ArgC() < 2 )
 	{
 		Error( "Test_RandomizeInPVS <percentage chance to change>" );
 	}
 
-	int percent = atoi( engine->Cmd_Argv( 1 ) );
+	int percent = atoi( args[ 1 ] );
 	for ( int i=0; i < g_StressEntities.Count(); i++ )
 	{
 		CBaseEntity *pEnt = g_StressEntities[i];

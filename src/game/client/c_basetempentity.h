@@ -62,7 +62,7 @@ public:
 	virtual int						entindex( void ) const;
 	virtual void					ReceiveMessage( int classID, bf_read &msg );
 	virtual void*					GetDataTableBasePtr();
-
+	virtual void					SetDestroyedOnRecreateEntities( void );
 
 public:
 
@@ -92,7 +92,7 @@ public:
 	}
 
 	// Should this object be able to have shadows cast onto it?
-	virtual bool	ShouldReceiveProjectedTextures( int flags ) { return false; }
+	virtual bool	ShouldReceiveProjectedTextures( int flags ) { return true; }
 
 // Static members
 public:

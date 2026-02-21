@@ -247,7 +247,7 @@ void CHudSquadStatus::Paint()
 	wchar_t *text = NULL;
 	if (m_bSquadMembersFollowing)
 	{
-		text = vgui::localize()->Find("#Valve_Hud_SQUAD_FOLLOWING");
+		text = g_pVGuiLocalize->Find("#Valve_Hud_SQUAD_FOLLOWING");
 
 		if (!text)
 		{
@@ -258,7 +258,7 @@ void CHudSquadStatus::Paint()
 	{
 		if ( !player_squad_transient_commands.GetBool() )
 		{
-			text = vgui::localize()->Find("#Valve_Hud_SQUAD_STATIONED");
+			text = g_pVGuiLocalize->Find("#Valve_Hud_SQUAD_STATIONED");
 
 			if (!text)
 			{

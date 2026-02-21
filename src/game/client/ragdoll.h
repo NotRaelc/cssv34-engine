@@ -52,9 +52,10 @@ public:
 		CStudioHdr *pstudiohdr, 
 		const Vector &forceVector, 
 		int forceBone, 
-		const CBoneAccessor &pPrevBones, 
-		const CBoneAccessor &pBoneToWorld, 
-		float dt );
+		const matrix3x4_t *pDeltaBones0, 
+		const matrix3x4_t *pDeltaBones1, 
+		const matrix3x4_t *pCurrentBonePosition, 
+		float boneDt );
 
 	virtual void RagdollBone( C_BaseEntity *ent, mstudiobone_t *pbones, int boneCount, bool *boneSimulated, CBoneAccessor &pBoneToWorld );
 	virtual const Vector& GetRagdollOrigin( );
@@ -62,6 +63,7 @@ public:
 	void	BuildRagdollBounds( C_BaseEntity *ent );
 	
 	virtual IPhysicsObject *GetElement( int elementNum );
+	virtual IPhysicsConstraintGroup *GetConstraintGroup() { return m_ragdoll.pGroup; }
 	virtual void DrawWireframe();
 	virtual void VPhysicsUpdate( IPhysicsObject *pPhysics );
 	virtual int RagdollBoneCount() const { return m_ragdoll.listCount; }
@@ -72,6 +74,7 @@ public:
 	bool IsValid() { return m_ragdoll.listCount > 0; }
 
 	void ResetRagdollSleepAfterTime( void );
+	float GetLastVPhysicsUpdateTime() const { return m_lastUpdate; }
 
 private:
 
@@ -104,10 +107,10 @@ CRagdoll *CreateRagdoll(
 	CStudioHdr *pstudiohdr, 
 	const Vector &forceVector, 
 	int forceBone, 
-	const CBoneAccessor &pPrevBones, 
-	const CBoneAccessor &pBoneToWorld, 
-	const CBoneAccessor &pDesiredBonePosition,
-	float dt );
+	const matrix3x4_t *pDeltaBones0, 
+	const matrix3x4_t *pDeltaBones1, 
+	const matrix3x4_t *pCurrentBonePosition, 
+	float boneDt );
 
 
 // save this ragdoll's creation as the current tick

@@ -63,9 +63,10 @@ public:
 	int				GetDamageType() const;
 	void			SetDamageType( int bitsDamageType );
 	void			AddDamageType( int bitsDamageType );
-
-	int				GetCustomKill() const;
-	void			SetCustomKill( int iKillType );
+	int				GetDamageCustom( void ) const;
+	void			SetDamageCustom( int iDamageCustom );
+	int				GetDamageStats( void ) const;
+	void			SetDamageStats( int iDamageStats );
 
 	int				GetAmmoType() const;
 	void			SetAmmoType( int iAmmoType );
@@ -77,8 +78,12 @@ public:
 	void			AdjustPlayerDamageInflictedForSkillLevel();
 	void			AdjustPlayerDamageTakenForSkillLevel();
 
+	// Given a damage type (composed of the #defines above), fill out a string with the appropriate text.
+	// For designer debug output.
+	static void		DebugGetDamageTypeString(unsigned int DamageType, char *outbuf, int outbuflength );
 
-private:
+
+//private:
 	void			CopyDamageToBaseDamage();
 
 protected:
@@ -93,7 +98,8 @@ protected:
 	float			m_flMaxDamage;
 	float			m_flBaseDamage;			// The damage amount before skill leve adjustments are made. Used to get uniform damage forces.
 	int				m_bitsDamageType;
-	int				m_iCustomKillType;
+	int				m_iDamageCustom;
+	int				m_iDamageStats;
 	int				m_iAmmoType;			// AmmoType of the weapon used to cause this damage, if any
 
 	DECLARE_SIMPLE_DATADESC();
@@ -135,6 +141,7 @@ void CalculateExplosiveDamageForce( CTakeDamageInfo *info, const Vector &vecDir,
 void CalculateBulletDamageForce( CTakeDamageInfo *info, int iBulletType, const Vector &vecBulletDir, const Vector &vecForceOrigin, float flScale = 1.0 );
 void CalculateMeleeDamageForce( CTakeDamageInfo *info, const Vector &vecMeleeDir, const Vector &vecForceOrigin, float flScale = 1.0 );
 void GuessDamageForce( CTakeDamageInfo *info, const Vector &vecForceDir, const Vector &vecForceOrigin, float flScale = 1.0 );
+
 
 // -------------------------------------------------------------------------------------------------- //
 // Inlines.
@@ -266,14 +273,24 @@ inline void	CTakeDamageInfo::AddDamageType( int bitsDamageType )
 	m_bitsDamageType |= bitsDamageType;
 }
 
-inline int	CTakeDamageInfo::GetCustomKill() const
+inline int CTakeDamageInfo::GetDamageCustom() const
 {
-	return m_iCustomKillType;
+	return m_iDamageCustom;
 }
 
-inline void CTakeDamageInfo::SetCustomKill( int iKillType )
+inline void CTakeDamageInfo::SetDamageCustom( int iDamageCustom )
 {
-	m_iCustomKillType = iKillType;
+	m_iDamageCustom = iDamageCustom;
+}
+
+inline int CTakeDamageInfo::GetDamageStats() const
+{
+	return m_iDamageCustom;
+}
+
+inline void CTakeDamageInfo::SetDamageStats( int iDamageCustom )
+{
+	m_iDamageCustom = iDamageCustom;
 }
 
 inline int CTakeDamageInfo::GetAmmoType() const

@@ -21,7 +21,6 @@
 //
 //-----------------------------------------------------------------------------
 
-DEFINE_FIXEDSIZE_ALLOCATOR( AI_EnemyInfo_t, EMEMORY_POOL_SIZE, CMemoryPool::GROW_FAST );
 
 //-----------------------------------------------------------------------------
 
@@ -270,6 +269,11 @@ bool CAI_Enemies::ShouldDiscardMemory( AI_EnemyInfo_t *pMemory )
 void CAI_Enemies::RefreshMemories(void)
 {
 	AI_PROFILE_SCOPE(CAI_Enemies_RefreshMemories);
+
+	if ( m_flFreeKnowledgeDuration >= m_flEnemyDiscardTime )
+	{
+		m_flFreeKnowledgeDuration = m_flEnemyDiscardTime - .1;
+	}
 
 	// -------------------
 	// Check each record
@@ -623,10 +627,15 @@ void CAI_Enemies::SetFreeKnowledgeDuration( float flDuration )
 { 
 	m_flFreeKnowledgeDuration = flDuration;	
 
-	// If your free knowledge time is greater than your discard time,
-	// you'll forget about secondhand enemies passed to you by squadmates
-	// as soon as you're given them.
-	Assert( m_flFreeKnowledgeDuration < m_flEnemyDiscardTime );
+	if ( m_flFreeKnowledgeDuration >= m_flEnemyDiscardTime )
+	{
+		// If your free knowledge time is greater than your discard time,
+		// you'll forget about secondhand enemies passed to you by squadmates
+		// as soon as you're given them.
+		Assert( m_flFreeKnowledgeDuration < m_flEnemyDiscardTime );
+
+		m_flFreeKnowledgeDuration = m_flEnemyDiscardTime - .1;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -635,8 +644,13 @@ void CAI_Enemies::SetEnemyDiscardTime( float flTime )
 { 
 	m_flEnemyDiscardTime = flTime;			
 
-	// If your free knowledge time is greater than your discard time,
-	// you'll forget about secondhand enemies passed to you by squadmates
-	// as soon as you're given them.
-	Assert( m_flFreeKnowledgeDuration < m_flEnemyDiscardTime );
+	if ( m_flFreeKnowledgeDuration >= m_flEnemyDiscardTime )
+	{
+		// If your free knowledge time is greater than your discard time,
+		// you'll forget about secondhand enemies passed to you by squadmates
+		// as soon as you're given them.
+		Assert( m_flFreeKnowledgeDuration < m_flEnemyDiscardTime );
+
+		m_flFreeKnowledgeDuration = m_flEnemyDiscardTime - .1;
+	}
 }

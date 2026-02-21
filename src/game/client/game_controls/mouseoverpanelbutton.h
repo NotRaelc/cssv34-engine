@@ -13,9 +13,11 @@
 
 #include <vgui/IScheme.h>
 #include <vgui_controls/Button.h>
+#include <vgui/KeyCode.h>
 #include <filesystem.h>
 
 extern vgui::Panel *g_lastPanel;
+extern vgui::Button *g_lastButton;
 
 //-----------------------------------------------------------------------------
 // Purpose: Triggers a new panel when the mouse goes over the button
@@ -49,7 +51,12 @@ public:
 		// Apply pin settings from template, too
 		m_pPanel->SetAutoResize( templatePanel->GetPinCorner(), templatePanel->GetAutoResize(), px, py, rx, ry );
 
+		m_bPreserveArmedButtons = false;
+		m_bUpdateDefaultButtons = false;
 	}
+
+	virtual void SetPreserveArmedButtons( bool bPreserve ){ m_bPreserveArmedButtons = bPreserve; }
+	virtual void SetUpdateDefaultButtons( bool bUpdate ){ m_bUpdateDefaultButtons = bUpdate; }
 
 	virtual void ShowPage()
 	{
@@ -74,10 +81,10 @@ public:
 		static char classPanel[ _MAX_PATH ];
 		Q_snprintf( classPanel, sizeof( classPanel ), "classes/%s.res", className);
 
-		if ( vgui::filesystem()->FileExists( classPanel ) )
+		if ( g_pFullFileSystem->FileExists( classPanel, "MOD" ) )
 		{
 		}
-		else if (vgui::filesystem()->FileExists( "classes/default.res" ) )
+		else if (g_pFullFileSystem->FileExists( "classes/default.res", "MOD" ) )
 		{
 			Q_snprintf ( classPanel, sizeof( classPanel ), "classes/default.res" );
 		}
@@ -109,23 +116,69 @@ public:
 
 	T *GetClassPanel( void ) { return m_pPanel; }
 
-private:
+	virtual void OnCursorExited()
+	{
+		if ( !m_bPreserveArmedButtons )
+		{
+			BaseClass::OnCursorExited();
+		}
+	}
 
 	virtual void OnCursorEntered() 
 	{
 		BaseClass::OnCursorEntered();
 
-		if ( m_pPanel && IsEnabled() )
+		if ( !IsEnabled() )
+			return;
+
+		// are we updating the default buttons?
+		if ( m_bUpdateDefaultButtons )
 		{
-			if ( g_lastPanel )
+			SetAsDefaultButton( 1 );
+		}
+
+		// are we preserving the armed state (and need to turn off the old button)?
+		if ( m_bPreserveArmedButtons )
+		{
+			if ( g_lastButton && g_lastButton != this )
+			{
+				g_lastButton->SetArmed( false );
+			}
+
+			g_lastButton = this;
+		}
+
+		// turn on our panel (if it isn't already)
+		if ( m_pPanel && ( !m_pPanel->IsVisible() ) )
+		{
+			// turn off the previous panel
+			if ( g_lastPanel && g_lastPanel->IsVisible() )
 			{
 				g_lastPanel->SetVisible( false );
 			}
+
 			ShowPage();
 		}
 	}
 
+	virtual void OnKeyCodeReleased( vgui::KeyCode code )
+	{
+		BaseClass::OnKeyCodeReleased( code );
+
+		if ( m_bPreserveArmedButtons )
+		{
+			if ( g_lastButton )
+			{
+				g_lastButton->SetArmed( true );
+			}
+		}
+	}
+
+private:
+
 	T *m_pPanel;
+	bool m_bPreserveArmedButtons;
+	bool m_bUpdateDefaultButtons;
 };
 
 #define MouseOverPanelButton MouseOverButton<vgui::EditablePanel>

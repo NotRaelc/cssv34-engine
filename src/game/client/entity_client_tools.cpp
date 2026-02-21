@@ -9,6 +9,13 @@
 #include "sprite.h"
 #include "enginesprite.h"
 #include "toolframework_client.h"
+#include "particles/particles.h"
+#include "particle_parse.h"
+#include "rendertexture.h"
+
+#ifdef PORTAL
+	#include "portalrender.h"
+#endif
 
 #pragma warning( disable: 4355 )  // warning C4355: 'this' : used in base member initializer list
 
@@ -29,6 +36,7 @@ public:
 	CClientTools();
 
 	virtual HTOOLHANDLE		AttachToEntity( EntitySearchResult entityToAttach );
+	virtual void			DetachFromEntity( EntitySearchResult entityToDetach );
 	virtual bool			IsValidHandle( HTOOLHANDLE handle );
 
 	virtual int				GetNumRecordables();
@@ -41,6 +49,7 @@ public:
 	virtual void			SetEnabled( HTOOLHANDLE handle, bool enabled );
 
 	virtual void			SetRecording( HTOOLHANDLE handle, bool recording );
+	virtual bool			ShouldRecord( HTOOLHANDLE handle );
 
 	virtual int				GetModelIndex( HTOOLHANDLE handle );
 	virtual const char*		GetModelName ( HTOOLHANDLE handle );
@@ -56,15 +65,19 @@ public:
 	virtual bool			DrawSprite( IClientRenderable *pRenderable,
 										float scale, float frame,
 										int rendermode, int renderfx,
-										const Color &color, int *pVisHandle );
+										const Color &color, float flProxyRadius, int *pVisHandle );
 
 	virtual bool			GetLocalPlayerEyePosition( Vector& org, QAngle& ang, float &fov );
 	virtual EntitySearchResult	GetLocalPlayer();
 
 	virtual ClientShadowHandle_t	CreateShadow( CBaseHandle h, int nFlags );
 	virtual void			DestroyShadow( ClientShadowHandle_t h );
+	virtual ClientShadowHandle_t CreateFlashlight( const FlashlightState_t &lightState );
+	virtual void			DestroyFlashlight( ClientShadowHandle_t h );
+	virtual void			UpdateFlashlightState( ClientShadowHandle_t h, const FlashlightState_t &flashlightState );
 	virtual void			AddToDirtyShadowList( ClientShadowHandle_t h, bool force = false );
 	virtual void			MarkRenderToTextureShadowDirty( ClientShadowHandle_t h );
+    virtual void			UpdateProjectedTexture( ClientShadowHandle_t h, bool bForce );
 
 	// Global toggle for recording
 	virtual void			EnableRecordingMode( bool bEnable );
@@ -90,6 +103,16 @@ public:
 
 	virtual Vector			GetAbsOrigin( HTOOLHANDLE handle );
 	virtual QAngle			GetAbsAngles( HTOOLHANDLE handle );
+	virtual void			ReloadParticleDefintions( const char *pFileName, const void *pBufData, int nLen );
+
+	// Sends a mesage from the tool to the client
+	virtual void			PostToolMessage( KeyValues *pKeyValues );
+
+	// Indicates whether the client should render particle systems
+	virtual void			EnableParticleSystems( bool bEnable );
+
+	// Is the game rendering in 3rd person mode?
+	virtual bool			IsRenderingThirdPerson() const;
 
 public:
 	C_BaseEntity			*LookupEntity( HTOOLHANDLE handle );
@@ -99,11 +122,6 @@ public:
 	void OnEntityCreated( C_BaseEntity *pEntity );
 
 private:
-
-	void					OnRemoveEntity( CBaseEntity *ent );
-
-	static int				s_nNextHandle;
-
 	struct HToolEntry_t
 	{
 		HToolEntry_t() : m_Handle( 0 ) {}
@@ -120,6 +138,8 @@ private:
 		EHANDLE				m_hEntity;
 	};
 
+	static int				s_nNextHandle;
+
 	static bool HandleLessFunc( const HToolEntry_t& lhs, const HToolEntry_t& rhs )
 	{
 		return lhs.m_Handle < rhs.m_Handle;
@@ -128,17 +148,31 @@ private:
 	CUtlRBTree< HToolEntry_t >	m_Handles;
 	CUtlVector< int > m_ActiveHandles;
 	bool m_bInRecordingMode;
-
-	bool m_bWTF;
 };
 
+
+//-----------------------------------------------------------------------------
+// Statics
+//-----------------------------------------------------------------------------
+int CClientTools::s_nNextHandle = 1;
+
+
+//-----------------------------------------------------------------------------
+// Singleton instance
+//-----------------------------------------------------------------------------
+static CClientTools s_ClientTools;
+IClientTools *clienttools = &s_ClientTools;
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CClientTools, IClientTools, VCLIENTTOOLS_INTERFACE_VERSION, s_ClientTools );
+
+
+//-----------------------------------------------------------------------------
+// Constructor
+//-----------------------------------------------------------------------------
 CClientTools::CClientTools() : m_Handles( 0, 0, HandleLessFunc )
 {
 	m_bInRecordingMode = false;
 	cl_entitylist->AddListenerEntity( this );
 }
-
-int CClientTools::s_nNextHandle = 1;
 
 
 //-----------------------------------------------------------------------------
@@ -154,6 +188,7 @@ bool CClientTools::IsInRecordingMode() const
 	return m_bInRecordingMode;
 }
 
+
 //-----------------------------------------------------------------------------
 // Trigger a temp entity
 //-----------------------------------------------------------------------------
@@ -161,6 +196,7 @@ void CClientTools::TriggerTempEntity( KeyValues *pKeyValues )
 {
 	te->TriggerTempEntity( pKeyValues );
 }
+
 
 //-----------------------------------------------------------------------------
 // get owning weapon (for viewmodels)
@@ -244,7 +280,7 @@ void CClientTools::SetRenderGroup( IClientRenderable *pRenderable, int renderGro
 	}
 }
 
-bool CClientTools::DrawSprite( IClientRenderable *pRenderable, float scale, float frame, int rendermode, int renderfx, const Color &color, int *pVisHandle )
+bool CClientTools::DrawSprite( IClientRenderable *pRenderable, float scale, float frame, int rendermode, int renderfx, const Color &color, float flProxyRadius, int *pVisHandle )
 {
 	Vector origin = pRenderable->GetRenderOrigin();
 	QAngle angles = pRenderable->GetRenderAngles();
@@ -269,7 +305,15 @@ bool CClientTools::DrawSprite( IClientRenderable *pRenderable, float scale, floa
 		if (( rendermode == kRenderGlow ) || ( rendermode == kRenderWorldGlow ))
 		{
 			pixelvis_queryparams_t params;
-			params.Init( origin );
+			if ( flProxyRadius != 0.0f )
+			{
+				params.Init( origin, flProxyRadius );
+				params.bSizeInScreenspace = true;
+			}
+			else
+			{
+				params.Init( origin );
+			}
 			float blend = oldBlend * StandardGlowBlend( params, ( pixelvis_handle_t* )pVisHandle, rendermode, renderfx, color.a(), &scale );
 
 			if ( blend <= 0.0f )
@@ -297,6 +341,7 @@ bool CClientTools::DrawSprite( IClientRenderable *pRenderable, float scale, floa
 HTOOLHANDLE CClientTools::AttachToEntity( EntitySearchResult entityToAttach )
 {
 	C_BaseEntity *ent = reinterpret_cast< C_BaseEntity * >( entityToAttach );
+	Assert( ent );
 	if ( !ent )
 		return (HTOOLHANDLE)0;
 
@@ -312,13 +357,12 @@ HTOOLHANDLE CClientTools::AttachToEntity( EntitySearchResult entityToAttach )
 	return (HTOOLHANDLE)newHandle.m_Handle;
 }
 
-void CClientTools::OnRemoveEntity( C_BaseEntity *ent )
+void CClientTools::DetachFromEntity( EntitySearchResult entityToDetach )
 {
+	C_BaseEntity *ent = reinterpret_cast< C_BaseEntity * >( entityToDetach );
+	Assert( ent );
 	if ( !ent )
-	{
-		Assert( 0 );
 		return;
-	}
 
 	HTOOLHANDLE handle = ent->GetToolHandle();
 	ent->SetToolHandle( (HTOOLHANDLE)0 );
@@ -334,14 +378,6 @@ void CClientTools::OnRemoveEntity( C_BaseEntity *ent )
 	{
 		Assert( 0 );
 		return;
-	}
-
-	// Send deletion message to tool interface
-	if ( m_bInRecordingMode )
-	{
-		KeyValues *kv = new KeyValues( "deleted" );
-		ToolFramework_PostToolMessage( handle, kv );
-		kv->deleteThis();
 	}
 
 	m_Handles.RemoveAt( idx );
@@ -436,6 +472,16 @@ void CClientTools::SetRecording( HTOOLHANDLE handle, bool recording )
 	}
 }
 
+bool CClientTools::ShouldRecord( HTOOLHANDLE handle )
+{
+	int idx = m_Handles.Find( HToolEntry_t( handle ) );
+	if ( idx == m_Handles.InvalidIndex() )
+		return false;
+
+	HToolEntry_t &entry = m_Handles[ idx ];
+	return entry.m_hEntity && entry.m_hEntity->ShouldRecordInTools();
+}
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -504,29 +550,32 @@ bool CClientTools::IsValidHandle( HTOOLHANDLE handle )
 
 void CClientTools::OnEntityDeleted( CBaseEntity *pEntity )
 {
-	if ( pEntity && pEntity->GetToolHandle() != (HTOOLHANDLE)0 )
+	HTOOLHANDLE handle = pEntity ? pEntity->GetToolHandle() : (HTOOLHANDLE)0;
+	if ( handle == (HTOOLHANDLE)0 )
+		return;
+
+	if ( m_bInRecordingMode )
 	{
-		OnRemoveEntity( pEntity );
+		// Send deletion message to tool interface
+		KeyValues *kv = new KeyValues( "deleted" );
+		ToolFramework_PostToolMessage( handle, kv );
+		kv->deleteThis();
 	}
+
+	DetachFromEntity( pEntity );
 }
 
 void CClientTools::OnEntityCreated( CBaseEntity *pEntity )
 {
-	// It won't have a HTOOLHANDLE since it's new!!!
-	if ( m_bInRecordingMode )
-	{
-		// Send deletion message to tool interface
-		KeyValues *kv = new KeyValues( "created" );
-		kv->SetPtr( "entity", pEntity );
-		kv->SetInt( "index", pEntity->entindex() );
-		kv->SetInt( "client", 1 );
-		kv->SetString( "classname", pEntity->GetClassname() );
+	if ( !m_bInRecordingMode )
+		return;
 
-		HTOOLHANDLE h = AttachToEntity( pEntity );
-		ToolFramework_PostToolMessage( h, kv );
+	HTOOLHANDLE h = AttachToEntity( pEntity );
 
-		kv->deleteThis();
-	}
+	// Send deletion message to tool interface
+	KeyValues *kv = new KeyValues( "created" );
+	ToolFramework_PostToolMessage( h, kv );
+	kv->deleteThis();
 }
 
 HTOOLHANDLE CClientTools::GetToolHandleForEntityByIndex( int entindex )
@@ -569,6 +618,21 @@ void CClientTools::DestroyShadow( ClientShadowHandle_t h )
 	g_pClientShadowMgr->DestroyShadow( h );
 }
 
+ClientShadowHandle_t CClientTools::CreateFlashlight( const FlashlightState_t &lightState )
+{
+	return g_pClientShadowMgr->CreateFlashlight( lightState );
+}
+
+void CClientTools::DestroyFlashlight( ClientShadowHandle_t h )
+{
+	g_pClientShadowMgr->DestroyFlashlight( h );
+}
+
+void CClientTools::UpdateFlashlightState( ClientShadowHandle_t h, const FlashlightState_t &lightState )
+{
+	g_pClientShadowMgr->UpdateFlashlightState( h, lightState );
+}
+
 void CClientTools::AddToDirtyShadowList( ClientShadowHandle_t h, bool force )
 {
 	g_pClientShadowMgr->AddToDirtyShadowList( h, force );
@@ -577,6 +641,11 @@ void CClientTools::AddToDirtyShadowList( ClientShadowHandle_t h, bool force )
 void CClientTools::MarkRenderToTextureShadowDirty( ClientShadowHandle_t h )
 {
 	g_pClientShadowMgr->MarkRenderToTextureShadowDirty( h );
+}
+
+void CClientTools::UpdateProjectedTexture( ClientShadowHandle_t h, bool bForce )
+{
+	g_pClientShadowMgr->UpdateProjectedTexture( h, bForce );
 }
 
 int CClientTools::FindGlobalFlexcontroller( char const *name )
@@ -648,6 +717,77 @@ QAngle CClientTools::GetAbsAngles( HTOOLHANDLE handle )
 	return vec3_angle;
 }
 
-static CClientTools s_ClientTools;
-IClientTools *clienttools = &s_ClientTools;
-EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CClientTools, IClientTools, VCLIENTTOOLS_INTERFACE_VERSION, s_ClientTools );
+
+//-----------------------------------------------------------------------------
+// Sends a mesage from the tool to the client
+//-----------------------------------------------------------------------------
+void CClientTools::PostToolMessage( KeyValues *pKeyValues )
+{
+	if ( !Q_stricmp( pKeyValues->GetName(), "QueryParticleManifest" ) )
+	{
+		// NOTE: This cannot be done during particle system init because tools aren't set up at that point
+		CUtlVector<CUtlString> files;
+		GetParticleManifest( files );
+		int nCount = files.Count();
+		for ( int i = 0; i < nCount; ++i )
+		{
+			char pTemp[256];
+			Q_snprintf( pTemp, sizeof(pTemp), "%d", i );
+			KeyValues *pSubKey = pKeyValues->FindKey( pTemp, true );
+			pSubKey->SetString( "file", files[i] );
+		}
+		return;
+	}
+
+	if ( !Q_stricmp( pKeyValues->GetName(), "QueryMonitorTexture" ) )
+	{
+		pKeyValues->SetPtr( "texture", GetCameraTexture() );
+		return;
+	}
+
+#ifdef PORTAL
+	if ( !Q_stricmp( pKeyValues->GetName(), "portals" ) )
+	{
+		g_pPortalRender->HandlePortalPlaybackMessage( pKeyValues );
+		return;
+	}
+	
+	if ( !Q_stricmp( pKeyValues->GetName(), "query CPortalRenderer" ) )
+	{
+		pKeyValues->SetInt( "IsRenderingPortal", g_pPortalRender->IsRenderingPortal() ? 1 : 0 );
+		return;
+	}
+#endif
+}
+
+
+//-----------------------------------------------------------------------------
+// Indicates whether the client should render particle systems
+//-----------------------------------------------------------------------------
+void CClientTools::EnableParticleSystems( bool bEnable )
+{
+	ParticleMgr()->RenderParticleSystems( bEnable );
+}
+
+
+//-----------------------------------------------------------------------------
+// Is the game rendering in 3rd person mode?
+//-----------------------------------------------------------------------------
+bool CClientTools::IsRenderingThirdPerson() const
+{			  
+	return C_BasePlayer::ShouldDrawLocalPlayer();
+}
+
+
+//-----------------------------------------------------------------------------
+// Reload particle definitions
+//-----------------------------------------------------------------------------
+void CClientTools::ReloadParticleDefintions( const char *pFileName, const void *pBufData, int nLen )
+{
+	// Remove all new effects, because we are going to free internal structures they point to
+	ParticleMgr()->RemoveAllNewEffects();
+
+	// FIXME: Use file name to determine if we care about this data
+	CUtlBuffer buf( pBufData, nLen, CUtlBuffer::READ_ONLY );
+	g_pParticleSystemMgr->ReadParticleConfigFile( buf, true );
+}

@@ -96,6 +96,7 @@ CAI_TestHull* CAI_TestHull::GetTestHull(void)
 	if (CAI_TestHull::pTestHull->bInUse == true)
 	{
 		DevMsg("WARNING: TestHull used and never returned!\n");
+		Assert( 0 );
 	}
 
 	CAI_TestHull::pTestHull->RemoveSolidFlags( FSOLID_NOT_SOLID );
@@ -114,6 +115,9 @@ void CAI_TestHull::ReturnTestHull(void)
 	CAI_TestHull::pTestHull->bInUse = false;
 	CAI_TestHull::pTestHull->AddSolidFlags( FSOLID_NOT_SOLID );
 	UTIL_SetSize(CAI_TestHull::pTestHull, vec3_origin, vec3_origin);
+
+	UTIL_RemoveImmediate( pTestHull );
+	pTestHull = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -229,6 +233,7 @@ int CNodeEnt::Spawn( const char *pMapData )
 		{
 			m_NodeData.nNodeID = m_nNodeCount;
 			pHint = CAI_HintManager::CreateHint( &m_NodeData, pMapData );
+			pHint->AddSpawnFlags( GetSpawnFlags() );
 		}
 	}
 

@@ -107,6 +107,7 @@ public:
 	virtual const char *GetName() {	return "Lead"; }
 
 	virtual int	DrawDebugTextOverlays( int text_offset );
+	virtual bool IsNavigationUrgent();
 
 	void LeadPlayer( const AI_LeadArgs_t &leadArgs, CAI_LeadBehaviorHandler *pSink = NULL );
 	void StopLeading( void );

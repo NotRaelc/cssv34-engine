@@ -11,7 +11,7 @@
 #endif
 
 
-#include "vector.h"
+#include "mathlib/vector.h"
 
 
 extern ConVar ai_shot_bias_min;

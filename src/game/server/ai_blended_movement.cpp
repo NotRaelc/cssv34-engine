@@ -38,7 +38,7 @@ BEGIN_SIMPLE_DATADESC( CAI_BlendedMotor )
 
 	// DEFINE_FIELD( m_nPrevMovementSequence, FIELD_INTEGER ),
 	// DEFINE_FIELD( m_nInteriorSequence, FIELD_INTEGER ),
-
+	// DEFINE_FIELD( m_flCurrRate, FIELD_FLOAT ),
 	// DEFINE_FIELD( m_flStartCycle, FIELD_FLOAT ),
 
 	//			m_scriptMove
@@ -76,6 +76,7 @@ void CAI_BlendedMotor::MoveStart()
 	{
 		m_nPrimarySequence = GetSequence();
 		m_flStartCycle = GetCycle();
+		m_flCurrRate = 0.4;
 
 		// Assert( !GetOuter()->HasMovement( m_nStartSequence ) );
 
@@ -298,11 +299,22 @@ void CAI_BlendedMotor::SetMoveScriptAnim( float flNewSpeed )
 
 	CAI_Navigator *pNavigator = GetNavigator();
 
+	SetPlaybackRate( m_flCurrRate );
+	// calc weight of idle animation layer that suppresses the run animation
 	float flWeight = 0.0;
 	if (GetIdealSpeed() > 0.0)
 	{
-		flWeight = 1.0 - (flNewSpeed / GetIdealSpeed());
+		flWeight = 1.0 - (flNewSpeed / (GetIdealSpeed()  * GetPlaybackRate()));
 	}
+	if (flWeight < 0.0)
+	{
+		m_flCurrRate = flNewSpeed / GetIdealSpeed();
+		m_flCurrRate = clamp( m_flCurrRate, 0.0, 1.0 );
+		SetPlaybackRate( m_flCurrRate );
+		flWeight = 0.0;
+	}
+	// Msg("weight %.3f rate %.3f\n", flWeight, m_flCurrRate );
+	m_flCurrRate = min( m_flCurrRate + (1.0 - m_flCurrRate) * 0.8, 1.0 );
 
 	if (m_nSavedGoalActivity == ACT_INVALID)
 	{
@@ -412,7 +424,7 @@ void CAI_BlendedMotor::SetMoveScriptAnim( float flNewSpeed )
 		}
 
 		// debounce
-		flWeight = flWeight * 0.5 + 0.5 * GetOuter()->GetLayerWeight( m_iPrimaryLayer );
+		// flWeight = flWeight * 0.5 + 0.5 * GetOuter()->GetLayerWeight( m_iPrimaryLayer );
 		SetLayerWeight( m_iPrimaryLayer, flWeight );
 	}
 }
@@ -436,6 +448,7 @@ int CAI_BlendedMotor::GetInteriorSequence( int fromSequence )
 	m_nPrevMovementSequence = sequence;
 
 	KeyValues *seqKeyValues = GetOuter()->GetSequenceKeyValues( sequence );
+	// Msg("sequence %d : %s (%d)\n", sequence,  GetOuter()->GetSequenceName( sequence ), seqKeyValues != NULL );
 	if (seqKeyValues)
 	{
 		KeyValues *pkvInterior = seqKeyValues->FindKey("interior");
@@ -1041,13 +1054,14 @@ void CAI_BlendedMotor::BuildVelocityScript( const AILocalMoveGoal_t &move )
 		}
 
 		m_flPredictiveSpeedAdjust = 1.1 - fabs( flDelta );
-		m_flPredictiveSpeedAdjust = clamp( m_flPredictiveSpeedAdjust, 0.5, 1.0 );
+		m_flPredictiveSpeedAdjust = clamp( m_flPredictiveSpeedAdjust, (flHeight > 0.0) ? 0.5 : 0.8, 1.0 );
 
 		/*
 		if ((GetOuter()->m_debugOverlays & OVERLAY_NPC_SELECTED_BIT))
 		{
 			Msg("m_flPredictiveSpeedAdjust %.3f  %.1f %.1f\n", m_flPredictiveSpeedAdjust, flHeight, flDist );
 			NDebugOverlay::Box( move.directTrace.vEndPosition, Vector( -2, -2, -2 ), Vector( 2, 2, 2 ), 0,255,255, 0, 0.12 );
+		}
 		*/
 	}
 	if (npc_height_adjust.GetBool())
@@ -1066,7 +1080,7 @@ void CAI_BlendedMotor::BuildVelocityScript( const AILocalMoveGoal_t &move )
 		}
 
 		float newSpeedAdjust = 1.1 - fabs( flDelta );
-		newSpeedAdjust = clamp( newSpeedAdjust, 0.5, 1.0 );
+		newSpeedAdjust = clamp( newSpeedAdjust, (flHeight > 0.0) ? 0.5 : 0.8, 1.0 );
 
 		// debounce speed adjust
 		if (newSpeedAdjust < m_flReactiveSpeedAdjust)
@@ -1556,6 +1570,10 @@ void CAI_BlendedMotor::MaintainTurnActivity( void )
 	{
 		// clear out turn detection if currently turing or moving
 		m_doTurn = m_doRight = m_doLeft = 0;
+		if ( GetOuter()->IsMoving())
+		{
+			m_flNextTurnAct = gpGlobals->curtime + 0.3;
+		}
 	}
 	else 
 	{
@@ -1624,6 +1642,10 @@ ConVar scene_flatturn( "scene_flatturn", "1" );
 
 bool CAI_BlendedMotor::AddTurnGesture( float flYD )
 {
+
+	// some funky bug with human turn gestures, disable for now
+	return false;
+
 	// try using a turn gesture
 	Activity activity = ACT_INVALID;
 	float weight = 1.0;

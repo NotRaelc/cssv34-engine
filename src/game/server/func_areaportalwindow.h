@@ -56,6 +56,10 @@ public:
 
 	string_t 		m_iBackgroundBModelName;	// string name of background bmodel
 	CNetworkVar( int, m_iBackgroundModelIndex );
+
+	//Input handlers
+	void InputSetFadeStartDistance( inputdata_t &inputdata );
+	void InputSetFadeEndDistance( inputdata_t &inputdata );
 };
 
 

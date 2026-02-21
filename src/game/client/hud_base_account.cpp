@@ -1,4 +1,4 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -6,7 +6,7 @@
 
 #include "cbase.h"
 #include <vgui_controls/Panel.h>
-#include <vgui/ISurface.h>
+#include <vgui/isurface.h>
 #include <vgui_controls/AnimationController.h>
 #include "hud_base_account.h"
 

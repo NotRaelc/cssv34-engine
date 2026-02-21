@@ -13,8 +13,8 @@
 #include "choreoactor.h"
 #include "choreochannel.h"
 #include "minmax.h"
-#include "mathlib.h"
-#include "vstdlib/strtools.h"
+#include "mathlib/mathlib.h"
+#include "tier1/strtools.h"
 #include "choreoscene.h"
 #include "ichoreoeventcallback.h"
 #include "tier1/utlbuffer.h"
@@ -59,7 +59,7 @@ CEventRelativeTag::CEventRelativeTag( const CEventRelativeTag& src )
 //-----------------------------------------------------------------------------
 const char *CEventRelativeTag::GetName( void )
 {
-	return m_Name.c_str();
+	return m_Name.Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -199,7 +199,7 @@ CEventAbsoluteTag::CEventAbsoluteTag( const CEventAbsoluteTag& src )
 //-----------------------------------------------------------------------------
 const char *CEventAbsoluteTag::GetName( void )
 {
-	return m_Name.c_str();
+	return m_Name.Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -410,7 +410,7 @@ CFlexAnimationTrack::CFlexAnimationTrack( CChoreoEvent *event )
 	m_bCombo			= false;
 	m_bServerSide		= false;
 	m_nFlexControllerIndex[ 0 ] = m_nFlexControllerIndex[ 1 ] = -1;
-	m_nFlexControllerIndexRaw[ 0 ] = m_nFlexControllerIndexRaw[ 1 ] = -1;
+	m_nFlexControllerIndexRaw[ 0 ] = m_nFlexControllerIndexRaw[ 1 ] = LocalFlexController_t(-1);
 
 	// base track has range, combo is always 0..1
 	m_flMin = 0.0f;
@@ -788,9 +788,9 @@ float CFlexAnimationTrack::GetFracIntensity( float time, int type )
 	prev = max( -1, prev );
 	next = min( next, rampCount );
 
-	bool clamp[ 2 ];
-	CExpressionSample *esPre = GetBoundedSample( prev, clamp[ 0 ], type );
-	CExpressionSample *esNext = GetBoundedSample( next, clamp[ 1 ], type );
+	bool bclamp[ 2 ];
+	CExpressionSample *esPre = GetBoundedSample( prev, bclamp[ 0 ], type );
+	CExpressionSample *esNext = GetBoundedSample( next, bclamp[ 1 ], type );
 
 	float dt = esEnd->time - esStart->time;
 
@@ -984,7 +984,7 @@ int CFlexAnimationTrack::GetFlexControllerIndex( int side /*= 0*/ )
 // Input  : side - 
 // Output : int
 //-----------------------------------------------------------------------------
-int CFlexAnimationTrack::GetRawFlexControllerIndex( int side /*= 0*/ )
+LocalFlexController_t CFlexAnimationTrack::GetRawFlexControllerIndex( int side /*= 0*/ )
 {
 	Assert( side == 0 || side == 1 );
 
@@ -1001,7 +1001,7 @@ int CFlexAnimationTrack::GetRawFlexControllerIndex( int side /*= 0*/ )
 // Input  : index - 
 //			side - 
 //-----------------------------------------------------------------------------
-void CFlexAnimationTrack::SetFlexControllerIndex( int raw, int index, int side /*= 0*/ )
+void CFlexAnimationTrack::SetFlexControllerIndex( LocalFlexController_t raw, int index, int side /*= 0*/ )
 {
 	Assert( side == 0 || side == 1 );
 
@@ -1188,10 +1188,12 @@ CChoreoEvent& CChoreoEvent::operator=( const CChoreoEvent& src )
 	m_pActor = NULL;
 	m_pChannel = NULL;
 
+	m_nDefaultCurveType = src.m_nDefaultCurveType;
 	m_fType = src.m_fType;
 	m_Name = src.m_Name;
 	m_Parameters = src.m_Parameters;
 	m_Parameters2= src.m_Parameters2;
+	m_Parameters3= src.m_Parameters3;
 	m_flStartTime = src.m_flStartTime;
 	m_flEndTime = src.m_flEndTime;
 
@@ -1201,6 +1203,8 @@ CChoreoEvent& CChoreoEvent::operator=( const CChoreoEvent& src )
 	m_bLockBodyFacing = src.m_bLockBodyFacing;
 	m_flDistanceToTarget = src.m_flDistanceToTarget;
 	m_bForceShortMovement = src.m_bForceShortMovement;
+	m_bSyncToFollowingGesture = src.m_bSyncToFollowingGesture;
+	m_bPlayOverScript = src.m_bPlayOverScript;
 	m_bUsesTag = src.m_bUsesTag;
 	m_TagName = src.m_TagName;
 	m_TagWavName = src.m_TagWavName;
@@ -1263,15 +1267,7 @@ CChoreoEvent& CChoreoEvent::operator=( const CChoreoEvent& src )
 	m_nLoopsRemaining = src.m_nLoopsRemaining;
 
 	// Copy ramp over
-	m_Ramp.RemoveAll();
-	for ( i = 0; i < src.m_Ramp.Count(); i++ )
-	{
-		CExpressionSample sample = src.m_Ramp[ i ];
-		AddRamp( sample.time, sample.value, sample.selected );
-	}
-
-	m_RampEdgeInfo[ 0 ] = src.m_RampEdgeInfo[ 0 ];
-	m_RampEdgeInfo[ 1 ] = src.m_RampEdgeInfo[ 1 ];
+	m_Ramp = src.m_Ramp;
 
 	m_ccType = src.m_ccType;
 	m_CCToken = src.m_CCToken;
@@ -1284,6 +1280,8 @@ CChoreoEvent& CChoreoEvent::operator=( const CChoreoEvent& src )
 
 	m_bSuppressCaptionAttenuation = src.m_bSuppressCaptionAttenuation;
 
+	m_bActive = src.m_bActive;
+
 	return *this;
 }
 
@@ -1293,11 +1291,12 @@ CChoreoEvent& CChoreoEvent::operator=( const CChoreoEvent& src )
 void CChoreoEvent::Init( CChoreoScene *scene )
 {
 	m_nGlobalID			= s_nGlobalID++;
-
+	m_nDefaultCurveType	= CURVE_CATMULL_ROM_TO_CATMULL_ROM;
 	m_fType				= UNSPECIFIED;
-	m_Name.clear();
-	m_Parameters.clear();
-	m_Parameters2.clear();
+	m_Name.Set("");
+	m_Parameters.Set("");
+	m_Parameters2.Set("");
+	m_Parameters3.Set("");
 
 	m_flStartTime		= 0.0f;
 	m_flEndTime			= -1.0f;
@@ -1316,6 +1315,7 @@ void CChoreoEvent::Init( CChoreoScene *scene )
 	m_flDistanceToTarget = 0.0f;
 	m_bForceShortMovement = false;
 	m_bSyncToFollowingGesture = false;
+	m_bPlayOverScript = false;
 
 	m_pSubScene			= NULL;
 	m_bProcessing		= false;
@@ -1328,7 +1328,7 @@ void CChoreoEvent::Init( CChoreoScene *scene )
 	m_nLoopsRemaining = 0;
 
 	// Close captioning/localization support
-	m_CCToken.clear();
+	m_CCToken.Set("");
 	m_ccType					= CC_MASTER;
 	m_bUsingCombinedSoundFile	= false;
 	m_uRequiredCombinedChecksum = 0; 
@@ -1337,7 +1337,9 @@ void CChoreoEvent::Init( CChoreoScene *scene )
 	m_bCCTokenValid				= false;  
 	m_bCombinedUsingGenderToken = false;
 	m_bSuppressCaptionAttenuation = false;
+	m_bActive					= true;
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -1382,7 +1384,7 @@ void CChoreoEvent::SetName( const char *name )
 //-----------------------------------------------------------------------------
 const char *CChoreoEvent::GetName( void )
 {
-	return m_Name.c_str();
+	return m_Name.Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -1400,7 +1402,7 @@ void CChoreoEvent::SetParameters( const char *param )
 //-----------------------------------------------------------------------------
 const char *CChoreoEvent::GetParameters( void )
 {
-	return m_Parameters.c_str();
+	return m_Parameters.Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -1409,7 +1411,7 @@ const char *CChoreoEvent::GetParameters( void )
 //-----------------------------------------------------------------------------
 void CChoreoEvent::SetParameters2( const char *param )
 {
-	int iLength = strlen( param );
+	int iLength = Q_strlen( param );
 	m_Parameters2 = param;
 
 	// HACK: Remove trailing " " until faceposer is fixed
@@ -1417,7 +1419,10 @@ void CChoreoEvent::SetParameters2( const char *param )
 	{
 		if ( param[iLength-1] == ' ' )
 		{
-			m_Parameters2.erase(iLength-1);
+			char tmp[1024];
+			Q_strncpy( tmp, param, sizeof(tmp) );
+			tmp[iLength-1] = 0;
+			m_Parameters2.Set(tmp);
 		}
 	}
 }
@@ -1428,7 +1433,38 @@ void CChoreoEvent::SetParameters2( const char *param )
 //-----------------------------------------------------------------------------
 const char *CChoreoEvent::GetParameters2( void )
 {
-	return m_Parameters2.c_str();
+	return m_Parameters2.Get();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *param - 
+//-----------------------------------------------------------------------------
+void CChoreoEvent::SetParameters3( const char *param )
+{
+	int iLength = Q_strlen( param );
+	m_Parameters3 = param;
+
+	// HACK: Remove trailing " " until faceposer is fixed
+	if ( iLength > 0 )
+	{
+		if ( param[iLength-1] == ' ' )
+		{
+			char tmp[1024];
+			Q_strncpy( tmp, param, sizeof(tmp) );
+			tmp[iLength-1] = 0;
+			m_Parameters3.Set(tmp);
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : const char
+//-----------------------------------------------------------------------------
+const char *CChoreoEvent::GetParameters3( void )
+{
+	return m_Parameters3.Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -1443,7 +1479,7 @@ const char *CChoreoEvent::GetDescription( void )
 
 	if ( !GetActor() )
 	{
-		Q_snprintf( description,sizeof(description), "global %s", m_Name.c_str() );
+		Q_snprintf( description,sizeof(description), "global %s", m_Name.Get() );
 	}
 	else
 	{
@@ -1551,25 +1587,20 @@ bool CChoreoEvent::CurveHasEndTime()
 	return HasEndTime();
 }
 
-// ICurveDataAccessor method
-int CChoreoEvent::CurveGetSampleCount()
+//-----------------------------------------------------------------------------
+// Default curve type
+//-----------------------------------------------------------------------------
+void CChoreoEvent::SetDefaultCurveType( int nCurveType )
 {
-	return GetRampCount();
-}
-
-// ICurveDataAccessor method
-CExpressionSample *CChoreoEvent::CurveGetBoundedSample( int idx, bool& bClamped )
-{
-	return GetBoundedRamp( idx, bClamped );
+	m_nDefaultCurveType = nCurveType;
 }
 
 int CChoreoEvent::GetDefaultCurveType()
 {
-	return CURVE_CATMULL_ROM_TO_CATMULL_ROM;
+	return m_nDefaultCurveType;
 }
 
-// Static method!!!
-float CChoreoEvent::GetRampIntensity( ICurveDataAccessor *data, float time )
+float CCurveData::GetIntensity( ICurveDataAccessor *data, float time )
 {
 	float zeroValue = 0.0f;
 
@@ -1579,7 +1610,7 @@ float CChoreoEvent::GetRampIntensity( ICurveDataAccessor *data, float time )
 		return zeroValue;
 	}
 
-	int rampCount = data->CurveGetSampleCount();
+	int rampCount = GetCount();
 	if ( rampCount < 1 )
 	{
 		// Full intensity
@@ -1595,8 +1626,8 @@ float CChoreoEvent::GetRampIntensity( ICurveDataAccessor *data, float time )
 	while ( i > -2 && i < rampCount + 1 )
 	{
 		bool dummy;
-		esStart = data->CurveGetBoundedSample( i, dummy );
-		esEnd = data->CurveGetBoundedSample( i + 1, dummy  );
+		esStart = GetBoundedSample( data, i, dummy );
+		esEnd = GetBoundedSample( data, i + 1, dummy  );
 
 		j = max( j / 2, 1 );
 		if ( time < esStart->time)
@@ -1624,9 +1655,9 @@ float CChoreoEvent::GetRampIntensity( ICurveDataAccessor *data, float time )
 	prev = max( -1, prev );
 	next = min( next, rampCount );
 
-	bool clamp[ 2 ];
-	CExpressionSample *esPre = data->CurveGetBoundedSample( prev, clamp[ 0 ] );
-	CExpressionSample *esNext = data->CurveGetBoundedSample( next, clamp[ 1 ] );
+	bool bclamp[ 2 ];
+	CExpressionSample *esPre = GetBoundedSample( data, prev, bclamp[ 0 ] );
+	CExpressionSample *esNext = GetBoundedSample( data, next, bclamp[ 1 ] );
 
 	float dt = esEnd->time - esStart->time;
 
@@ -1635,12 +1666,12 @@ float CChoreoEvent::GetRampIntensity( ICurveDataAccessor *data, float time )
 	Vector vEnd( esEnd->time, esEnd->value, 0 );
 	Vector vNext( esNext->time, esNext->value, 0 );
 
-	if ( clamp[ 0 ] )
+	if ( bclamp[ 0 ] )
 	{
 		vPre.x = vStart.x;
 	}
 
-	if ( clamp[ 1 ] )
+	if ( bclamp[ 1 ] )
 	{
 		vNext.x = vEnd.x;
 	}
@@ -1710,7 +1741,7 @@ float CChoreoEvent::GetRampIntensity( ICurveDataAccessor *data, float time )
 // Purpose: Get intensity for event, bounded by scene global intensity
 // Output : float
 //-----------------------------------------------------------------------------
-float CChoreoEvent::GetIntensity( ICurveDataAccessor *data, float scenetime )
+float CChoreoEvent::GetIntensity( float scenetime )
 {
 	float global_intensity = 1.0f;
 	if ( m_pScene )
@@ -1722,7 +1753,7 @@ float CChoreoEvent::GetIntensity( ICurveDataAccessor *data, float scenetime )
 		Assert( 0 );
 	}
 
-	float event_intensity = _GetIntensity( data, scenetime );
+	float event_intensity = _GetIntensity( scenetime );
 
 	return global_intensity * event_intensity;
 }
@@ -1731,14 +1762,191 @@ float CChoreoEvent::GetIntensity( ICurveDataAccessor *data, float scenetime )
 // Purpose: 
 // Output : float
 //-----------------------------------------------------------------------------
-float CChoreoEvent::_GetIntensity( ICurveDataAccessor *data, float scenetime )
+float CChoreoEvent::_GetIntensity( float scenetime )
 {
 	// Convert to event local time
 	float time = scenetime - GetStartTime();
-	return GetRampIntensity( data, time );
+	return m_Ramp.GetIntensity( this, time );
 }
 
 
+float CChoreoEvent::GetIntensityArea( float scenetime )
+{
+	// Convert to event local time
+	float time = scenetime - GetStartTime();
+	return m_Ramp.GetIntensityArea( this, time );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : float
+//-----------------------------------------------------------------------------
+float CCurveData::GetIntensityArea( ICurveDataAccessor *data, float time )
+{
+	float zeroValue = 0.0f;
+
+	// find samples that span the time
+	if ( !data->CurveHasEndTime() )
+	{
+		return zeroValue;
+	}
+
+	int rampCount = GetCount();
+	if ( rampCount < 1 )
+	{
+		// Full intensity
+		return 1.0f;
+	}
+
+	CExpressionSample *esStart = NULL;
+	CExpressionSample *esEnd = NULL;
+
+	// do binary search for sample in time period
+	int j = max( rampCount / 2, 1 );
+	int i = j;
+	while ( i > -2 && i < rampCount + 1 )
+	{
+		bool dummy;
+		esStart = GetBoundedSample( data, i, dummy );
+		esEnd = GetBoundedSample( data, i + 1, dummy  );
+
+		j = max( j / 2, 1 );
+		if ( time < esStart->time)
+		{
+			i -= j;
+		}
+		else if ( time > esEnd->time)
+		{
+			i += j;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	UpdateIntensityArea( data );
+
+	float flTotal = 0.0f;
+	flTotal = m_RampAccumulator[i+1];
+
+	int prev = i - 1;
+	int next = i + 2;
+
+	prev = max( -1, prev );
+	next = min( next, rampCount );
+
+	bool bclamp[ 2 ];
+	CExpressionSample *esPre = GetBoundedSample( data, prev, bclamp[ 0 ] );
+	CExpressionSample *esNext = GetBoundedSample( data, next, bclamp[ 1 ] );
+
+	float dt = esEnd->time - esStart->time;
+
+	Vector vPre( esPre->time, esPre->value, 0 );
+	Vector vStart( esStart->time, esStart->value, 0 );
+	Vector vEnd( esEnd->time, esEnd->value, 0 );
+	Vector vNext( esNext->time, esNext->value, 0 );
+
+	if ( bclamp[ 0 ] )
+	{
+		vPre.x = vStart.x;
+	}
+
+	if ( bclamp[ 1 ] )
+	{
+		vNext.x = vEnd.x;
+	}
+
+	float f2 = 0.0f;
+	if ( dt > 0.0f )
+	{
+		f2 = ( time - esStart->time ) / ( dt );
+	}
+	f2 = clamp( f2, 0.0f, 1.0f );
+
+	Vector vOut;
+	int dummy;
+	int earlypart, laterpart;
+
+	int startCurve	= esStart->GetCurveType();
+	int endCurve	= esEnd->GetCurveType();
+
+	if ( startCurve == CURVE_DEFAULT )
+	{
+		startCurve = data->GetDefaultCurveType();
+	}
+	if ( endCurve == CURVE_DEFAULT )
+	{
+		endCurve = data->GetDefaultCurveType();
+	}
+
+	// Not holding out value of previous curve...
+	Interpolator_CurveInterpolatorsForType( startCurve, dummy, earlypart );
+	Interpolator_CurveInterpolatorsForType( endCurve, laterpart, dummy );
+
+	// FIXME: needs other curve types
+	Catmull_Rom_Spline_Integral_Normalize( 
+		vPre,
+		vStart,
+		vEnd,
+		vNext,
+		f2, 
+		vOut );
+
+	// Con_Printf( "Accum %f : Partial %f\n", flTotal, vOut.y * (vEnd.x - vStart.x) * f2 );
+	flTotal = flTotal + clamp( vOut.y, 0.0f, 1.0f ) * (vEnd.x - vStart.x);
+	return flTotal;
+}
+
+
+void CCurveData::UpdateIntensityArea( ICurveDataAccessor *data )
+{
+	int rampCount = GetCount();;
+	if ( rampCount < 1 )
+	{
+		return;
+	}
+
+	if (m_RampAccumulator.Count() == rampCount + 2)
+	{
+		return;
+	}
+
+	m_RampAccumulator.SetCount( rampCount + 2 );
+
+	int i = -1;
+
+	bool dummy;
+	CExpressionSample *esPre = GetBoundedSample( data, i - 1, dummy );
+	CExpressionSample *esStart = GetBoundedSample( data, i, dummy );
+	CExpressionSample *esEnd = GetBoundedSample( data, min( i + 1, rampCount ), dummy );
+
+	Vector vPre( esPre->time, esPre->value, 0 );
+	Vector vStart( esStart->time, esStart->value, 0 );
+	Vector vEnd( esEnd->time, esEnd->value, 0 );
+
+	Vector vOut;
+	for (i = -1; i < rampCount; i++)
+	{
+		CExpressionSample *esNext = GetBoundedSample( data, min( i + 2, rampCount ), dummy );
+		Vector vNext( esNext->time, esNext->value, 0 );
+
+		Catmull_Rom_Spline_Integral_Normalize( 
+			vPre,
+			vStart,
+			vEnd,
+			vNext,
+			1.0f, 
+			vOut );
+
+		m_RampAccumulator[i+1] = clamp( vOut.y, 0.0f, 1.0f ) * (vEnd.x - vStart.x);
+
+		vPre = vStart;
+		vStart = vEnd;
+		vEnd = vNext;
+	}
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -2126,6 +2334,27 @@ bool CChoreoEvent::GetSyncToFollowingGesture( void )
 
 //-----------------------------------------------------------------------------
 // Purpose: 
+// Input  : set if the sequence should player overtop of an underlying SS
+//-----------------------------------------------------------------------------
+
+void CChoreoEvent::SetPlayOverScript( bool bPlayOverScript )
+{
+	m_bPlayOverScript = bPlayOverScript;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output  : get if the sequence should player overtop of an underlying SS
+//-----------------------------------------------------------------------------
+
+bool CChoreoEvent::GetPlayOverScript( void )
+{
+	return m_bPlayOverScript;
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
 // Output : float
 //-----------------------------------------------------------------------------
 float CChoreoEvent::GetDuration( void )
@@ -2244,7 +2473,7 @@ void CChoreoEvent::SetUsingRelativeTag( bool usetag, const char *tagname /*= 0*/
 	}
 	else
 	{
-		m_TagName.clear();
+		m_TagName.Set("");
 	}
 	if ( wavname )
 	{
@@ -2252,7 +2481,7 @@ void CChoreoEvent::SetUsingRelativeTag( bool usetag, const char *tagname /*= 0*/
 	}
 	else
 	{
-		m_TagWavName.clear();
+		m_TagWavName.Set("");
 	}
 }
 
@@ -2262,7 +2491,7 @@ void CChoreoEvent::SetUsingRelativeTag( bool usetag, const char *tagname /*= 0*/
 //-----------------------------------------------------------------------------
 const char *CChoreoEvent::GetRelativeTagName( void )
 {
-	return m_TagName.c_str();
+	return m_TagName.Get();
 }
 
 
@@ -2272,7 +2501,7 @@ const char *CChoreoEvent::GetRelativeTagName( void )
 //-----------------------------------------------------------------------------
 const char *CChoreoEvent::GetRelativeWavName( void )
 {
-	return m_TagWavName.c_str();
+	return m_TagWavName.Get();
 }
 
 //-----------------------------------------------------------------------------
@@ -3253,25 +3482,25 @@ int CChoreoEvent::GetLoopCount( void )
 	return m_nNumLoops;
 }
 
-EdgeInfo_t *CChoreoEvent::GetRampEdgeInfo( int idx )
+EdgeInfo_t *CCurveData::GetEdgeInfo( int idx )
 {
 	return &m_RampEdgeInfo[ idx ];
 }
 
-int	 CChoreoEvent::GetRampCount( void )
+int	 CCurveData::GetCount( void )
 {
 	return m_Ramp.Count();
 }
 
-CExpressionSample *CChoreoEvent::GetRamp( int index )
+CExpressionSample *CCurveData::Get( int index )
 {
-	if ( index < 0 || index >= GetRampCount() )
+	if ( index < 0 || index >= GetCount() )
 		return NULL;
 
 	return &m_Ramp[ index ];
 }
 
-CExpressionSample *CChoreoEvent::AddRamp( float time, float value, bool selected )
+CExpressionSample *CCurveData::Add( float time, float value, bool selected )
 {
 	CExpressionSample sample;
 
@@ -3283,15 +3512,15 @@ CExpressionSample *CChoreoEvent::AddRamp( float time, float value, bool selected
 	return &m_Ramp[ idx ];
 }
 
-void CChoreoEvent::DeleteRamp( int index )
+void CCurveData::Delete( int index )
 {
-	if ( index < 0 || index >= GetRampCount() )
+	if ( index < 0 || index >= GetCount() )
 		return;
 
 	m_Ramp.Remove( index );
 }
 
-void CChoreoEvent::ClearRamp( void )
+void CCurveData::Clear( void )
 {
 	m_Ramp.RemoveAll();
 }
@@ -3299,7 +3528,7 @@ void CChoreoEvent::ClearRamp( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CChoreoEvent::ResortRamp( void )
+void CCurveData::Resort( ICurveDataAccessor *data )
 {
 	for ( int i = 0; i < m_Ramp.Size(); i++ )
 	{
@@ -3316,7 +3545,9 @@ void CChoreoEvent::ResortRamp( void )
 		}
 	}
 
-	RemoveOutOfRangeRampSamples();
+	RemoveOutOfRangeSamples( data );
+
+	// m_RampAccumulator.RemoveAll();
 }
 
 //-----------------------------------------------------------------------------
@@ -3324,40 +3555,40 @@ void CChoreoEvent::ResortRamp( void )
 // Input  : number - 
 // Output : CExpressionSample
 //-----------------------------------------------------------------------------
-CExpressionSample *CChoreoEvent::GetBoundedRamp( int number, bool& bClamped )
+CExpressionSample *CCurveData::GetBoundedSample( ICurveDataAccessor *data, int number, bool& bClamped )
 {
 	// Search for two samples which span time f
 	if ( number < 0 )
 	{
 		static CExpressionSample nullstart;
 		nullstart.time = 0.0f;
-		nullstart.value = RampGetEdgeZeroValue( true );
-		nullstart.SetCurveType( RampGetEdgeCurveType( true ) );
+		nullstart.value = GetEdgeZeroValue( true );
+		nullstart.SetCurveType( GetEdgeCurveType( true ) );
 		bClamped = true;
 		return &nullstart;
 	}
-	else if ( number >= GetRampCount() )
+	else if ( number >= GetCount() )
 	{
 		static CExpressionSample nullend;
-		nullend.time = GetDuration();
-		nullend.value = RampGetEdgeZeroValue( false );
-		nullend.SetCurveType( RampGetEdgeCurveType( false ) );
+		nullend.time = data->GetDuration();
+		nullend.value = GetEdgeZeroValue( false );
+		nullend.SetCurveType( GetEdgeCurveType( false ) );
 		bClamped = true;
 		return &nullend;
 	}
 	
 	bClamped = false;
-	return GetRamp( number );
+	return Get( number );
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CChoreoEvent::RemoveOutOfRangeRampSamples( void )
+void CCurveData::RemoveOutOfRangeSamples( ICurveDataAccessor *data )
 {
-	float duration = GetDuration();
+	float duration = data->GetDuration();
 
-	int c = GetRampCount();
+	int c = GetCount();
 	for ( int i = c-1; i >= 0; i-- )
 	{
 		CExpressionSample src = m_Ramp[ i ];
@@ -3374,7 +3605,7 @@ void CChoreoEvent::RemoveOutOfRangeRampSamples( void )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CChoreoEvent::RescaleGestureTimes( float newstart, float newend )
+void CChoreoEvent::RescaleGestureTimes( float newstart, float newend, bool bMaintainAbsoluteTagPositions )
 {
 	if ( GetType() != CChoreoEvent::GESTURE )
 		return;
@@ -3396,18 +3627,21 @@ void CChoreoEvent::RescaleGestureTimes( float newstart, float newend )
 		dt -= ( newstart - GetStartTime() );
 	}
 
-	int i;
-	int count = GetNumAbsoluteTags( CChoreoEvent::PLAYBACK );
-	for ( i = 0; i < count; i++ )
+	if ( bMaintainAbsoluteTagPositions )
 	{
-		CEventAbsoluteTag *tag = GetAbsoluteTag( CChoreoEvent::PLAYBACK, i );
-		float tagtime = tag->GetPercentage() * GetDuration();
-
-		tagtime += dt;
-
-		tagtime = clamp( tagtime / newduration, 0.0f, 1.0f );
-
-		tag->SetPercentage( tagtime );
+		int i;
+		int count = GetNumAbsoluteTags( CChoreoEvent::PLAYBACK );
+		for ( i = 0; i < count; i++ )
+		{
+			CEventAbsoluteTag *tag = GetAbsoluteTag( CChoreoEvent::PLAYBACK, i );
+			float tagtime = tag->GetPercentage() * GetDuration();
+	
+			tagtime += dt;
+	
+			tagtime = clamp( tagtime / newduration, 0.0f, 1.0f );
+	
+			tag->SetPercentage( tagtime );
+		}
 	}
 }
 
@@ -3502,7 +3736,7 @@ void CChoreoEvent::GetMovementStyle( char *style, int maxlen )
 
 	style[0] = 0;
 
-	const char *in = m_Parameters2.c_str();
+	const char *in = m_Parameters2.Get();
 	char *out = style;
 
 	while ( *in && *in != '\0' && *in != ' ' )
@@ -3526,7 +3760,7 @@ void CChoreoEvent::GetDistanceStyle( char *style, int maxlen )
 
 	style[0]= 0;
 
-	const char *in = Q_strstr( m_Parameters2.c_str(), " " );
+	const char *in = Q_strstr( m_Parameters2.Get(), " " );
 	if ( !in )
 		return;
 
@@ -3565,7 +3799,7 @@ void CChoreoEvent::SetCloseCaptionToken( char const *token )
 char const *CChoreoEvent::GetCloseCaptionToken() const
 {
 	Assert( m_fType == SPEAK );
-	return m_CCToken.c_str();
+	return m_CCToken.Get();
 }
 
 bool CChoreoEvent::GetPlaybackCloseCaptionToken( char *dest, int destlen )
@@ -3591,11 +3825,11 @@ bool CChoreoEvent::GetPlaybackCloseCaptionToken( char *dest, int destlen )
 
 			if ( m_CCToken[ 0 ] != 0 )
 			{
-				Q_strncpy( dest, m_CCToken.c_str(), destlen );
+				Q_strncpy( dest, m_CCToken.Get(), destlen );
 			}
 			else
 			{
-				Q_strncpy( dest, m_Parameters.c_str(), destlen );
+				Q_strncpy( dest, m_Parameters.Get(), destlen );
 			}
 			return true;
 		}
@@ -3605,11 +3839,11 @@ bool CChoreoEvent::GetPlaybackCloseCaptionToken( char *dest, int destlen )
 			//  parameter
 			if ( m_CCToken[ 0 ] != 0 )
 			{
-				Q_strncpy( dest, m_CCToken.c_str(), destlen );
+				Q_strncpy( dest, m_CCToken.Get(), destlen );
 			}
 			else
 			{
-				Q_strncpy( dest, m_Parameters.c_str(), destlen );
+				Q_strncpy( dest, m_Parameters.Get(), destlen );
 			}
 			return true;
 		}
@@ -3723,7 +3957,7 @@ bool CChoreoEvent::ComputeCombinedBaseFileName( char *dest, int destlen, bool cr
 
 	char vcdpath[ 512 ];
 	char cleanedtoken[ MAX_CCTOKEN_STRING ];
-	CleanupTokenName( m_CCToken.c_str(), cleanedtoken, sizeof( cleanedtoken ) );
+	CleanupTokenName( m_CCToken.Get(), cleanedtoken, sizeof( cleanedtoken ) );
 
 	if ( Q_strlen( cleanedtoken ) <= 0 )
 		return false;
@@ -3825,35 +4059,35 @@ void CChoreoEvent::GetEventDependencies( CUtlVector< CChoreoEvent * >& list )
 	}
 }
 
-void CChoreoEvent::RampSetEdgeInfo( bool leftEdge, int curveType, float zero )
+void CCurveData::SetEdgeInfo( bool leftEdge, int curveType, float zero )
 {
 	int idx = leftEdge ? 0 : 1;
 	m_RampEdgeInfo[ idx ].m_CurveType = curveType;
 	m_RampEdgeInfo[ idx ].m_flZeroPos = zero;
 }
 
-void CChoreoEvent::RampGetEdgeInfo( bool leftEdge, int& curveType, float& zero ) const
+void CCurveData::GetEdgeInfo( bool leftEdge, int& curveType, float& zero ) const
 {
 	int idx = leftEdge ? 0 : 1;
 	curveType = m_RampEdgeInfo[ idx ].m_CurveType;
 	zero = m_RampEdgeInfo[ idx ].m_flZeroPos;
 }
 
-void CChoreoEvent::RampSetEdgeActive( bool leftEdge, bool state )
+void CCurveData::SetEdgeActive( bool leftEdge, bool state )
 {
 	int idx = leftEdge ? 0 : 1;
 	m_RampEdgeInfo[ idx ].m_bActive = state;
 }
 
-bool CChoreoEvent::RampIsEdgeActive( bool leftEdge ) const
+bool CCurveData::IsEdgeActive( bool leftEdge ) const
 {
 	int idx = leftEdge ? 0 : 1;
 	return m_RampEdgeInfo[ idx ].m_bActive;
 }
 
-int CChoreoEvent::RampGetEdgeCurveType( bool leftEdge ) const
+int CCurveData::GetEdgeCurveType( bool leftEdge ) const
 {
-	if ( !RampIsEdgeActive( leftEdge ) )
+	if ( !IsEdgeActive( leftEdge ) )
 	{
 		return CURVE_DEFAULT;
 	}
@@ -3862,9 +4096,9 @@ int CChoreoEvent::RampGetEdgeCurveType( bool leftEdge ) const
 	return m_RampEdgeInfo[ idx ].m_CurveType;
 }
 
-float CChoreoEvent::RampGetEdgeZeroValue( bool leftEdge ) const
+float CCurveData::GetEdgeZeroValue( bool leftEdge ) const
 {
-	if ( !RampIsEdgeActive( leftEdge ) )
+	if ( !IsEdgeActive( leftEdge ) )
 	{
 		return 0.0f;
 	}
@@ -3874,46 +4108,65 @@ float CChoreoEvent::RampGetEdgeZeroValue( bool leftEdge ) const
 }
 
 
-void CChoreoEvent::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
+void CChoreoEvent::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool )
 {
 	buf.PutChar( GetType() );
-	buf.PutString( GetName() );
+	buf.PutShort( pStringPool->FindOrAddString( GetName() ) );
 
-	float st, et;
-	st = GetStartTime();
-	et = GetEndTime();
-
+	float st = GetStartTime();
 	buf.PutFloat( st );
+
+	float et = GetEndTime();
 	buf.PutFloat( et );
 
-	buf.PutString( GetParameters() );
-	buf.PutString( GetParameters2() );
+	buf.PutShort( pStringPool->FindOrAddString( GetParameters() ) );
+	buf.PutShort( pStringPool->FindOrAddString( GetParameters2() ) );
+	buf.PutShort( pStringPool->FindOrAddString( GetParameters3() ) );
 
-	SaveRampToBuffer( buf );  
+	m_Ramp.SaveToBuffer( buf, pStringPool );  
 
-	buf.PutChar( IsResumeCondition() ? 1 : 0 );
-	buf.PutChar( IsLockBodyFacing() ? 1 : 0 );
+	int flags = 0;
+	flags |= IsResumeCondition() ? 1<<0 : 0;
+	flags |= IsLockBodyFacing() ? 1<<1 : 0;
+	flags |= IsFixedLength() ? 1<<2 : 0;
+	flags |= GetActive() ? 1<<3 : 0;
+	flags |= GetForceShortMovement() ? 1<<4 : 0;
+	flags |= GetPlayOverScript() ? 1<<5 : 0;
+
+	buf.PutUnsignedChar( flags );
+
 	buf.PutFloat( GetDistanceToTarget() );
-	buf.PutChar( IsFixedLength() ? 1 : 0 );
 
-	buf.PutShort( GetNumRelativeTags() );
+	int numRelativeTags = GetNumRelativeTags();
+	Assert( numRelativeTags <= 255 );
+	buf.PutUnsignedChar( numRelativeTags );
 
-	for ( int t = 0; t < GetNumRelativeTags(); t++ )
+	for ( int t = 0; t < numRelativeTags; t++ )
 	{
 		CEventRelativeTag *rt = GetRelativeTag( t );
 		Assert( rt );
-		buf.PutString( rt->GetName() );
-		buf.PutFloat( rt->GetPercentage() );
+		buf.PutShort( pStringPool->FindOrAddString( rt->GetName() ) );
+
+		Assert( rt->GetPercentage() >= 0.0f && rt->GetPercentage() <= 1.0f );
+		unsigned char p = rt->GetPercentage() * 255.0f;
+		buf.PutUnsignedChar( p );
 	}
 
-	buf.PutShort( GetNumTimingTags() );
+	int numTimingTags = GetNumTimingTags(); 
+	Assert( numTimingTags <= 255 );
+	buf.PutUnsignedChar( numTimingTags );
 
-	for ( int t = 0; t < GetNumTimingTags(); t++ )
+	for ( int t = 0; t < numTimingTags; t++ )
 	{
 		CFlexTimingTag *tt = GetTimingTag( t );
 		Assert( tt );
-		buf.PutString( tt->GetName() );
-		buf.PutFloat( tt->GetPercentage() );
+		buf.PutShort( pStringPool->FindOrAddString( tt->GetName() ) );
+
+		// save as u0.8
+		Assert( tt->GetPercentage() >= 0.0f && tt->GetPercentage() <= 1.0f );
+		unsigned char p = tt->GetPercentage() * 255.0f;
+		buf.PutUnsignedChar( p );
+
 		// Don't save locked state, it's only used by the editor tt->GetLocked()
 	}
 
@@ -3921,13 +4174,19 @@ void CChoreoEvent::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	for ( tagtype = 0; tagtype < CChoreoEvent::NUM_ABS_TAG_TYPES; tagtype++ )
 	{
 		int num = GetNumAbsoluteTags( (CChoreoEvent::AbsTagType)tagtype );
-		buf.PutShort( num );
+		Assert( num <= 255 );
+		buf.PutUnsignedChar( num );
+
 		for ( int i = 0; i < num ; ++i )
 		{
 			CEventAbsoluteTag *abstag = GetAbsoluteTag( (CChoreoEvent::AbsTagType)tagtype, i );
 			Assert( abstag );
-			buf.PutString( abstag->GetName() );
-			buf.PutFloat( abstag->GetPercentage() );
+			buf.PutShort( pStringPool->FindOrAddString( abstag->GetName() ) );
+
+			// save as u4.12
+			Assert( abstag->GetPercentage() >= 0.0f && abstag->GetPercentage() <= 15.0f );
+			unsigned short p = abstag->GetPercentage() * 4096.0f;
+			buf.PutUnsignedShort( p );
 		}
 	}
 
@@ -3947,11 +4206,11 @@ void CChoreoEvent::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	buf.PutChar( IsUsingRelativeTag() ? 1 : 0 );
 	if ( IsUsingRelativeTag() )
 	{
-		buf.PutString( GetRelativeTagName() );
-		buf.PutString( GetRelativeWavName() );
+		buf.PutShort( pStringPool->FindOrAddString( GetRelativeTagName() ) );
+		buf.PutShort( pStringPool->FindOrAddString( GetRelativeWavName() ) );
 	}
 	
-	SaveFlexAnimationsToBuffer( buf );
+	SaveFlexAnimationsToBuffer( buf, pStringPool );
 
 	if ( GetType() == LOOP )
 	{
@@ -3961,8 +4220,8 @@ void CChoreoEvent::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	if ( GetType() == CChoreoEvent::SPEAK )
 	{
 		buf.PutChar( GetCloseCaptionType() );
-		buf.PutString( GetCloseCaptionToken() );
-		int flags = 0;
+		buf.PutShort( pStringPool->FindOrAddString( GetCloseCaptionToken() ) );
+		flags = 0;
 
 		if ( GetCloseCaptionType() != CChoreoEvent::CC_DISABLED &&
 			 IsUsingCombinedFile() )
@@ -3982,45 +4241,54 @@ void CChoreoEvent::SaveToBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	}
 }
 
-bool CChoreoEvent::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
+bool CChoreoEvent::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene, IChoreoStringPool *pStringPool )
 {
+	MEM_ALLOC_CREDIT();
+
 	SetType( (EVENTTYPE)buf.GetChar() );
 	char sz[ 256 ];
-	buf.GetString( sz, sizeof( sz ) );
+	pStringPool->GetString( buf.GetShort(), sz, sizeof( sz ) );
 	SetName( sz );
 
 	SetStartTime( buf.GetFloat() );
 	SetEndTime( buf.GetFloat() );
 
 	char params[ 2048 ];
-	buf.GetString( params, sizeof( params ) );
+	pStringPool->GetString( buf.GetShort(), params, sizeof( params ) );
 	SetParameters( params );
-	buf.GetString( params, sizeof( params ) );
+	pStringPool->GetString( buf.GetShort(), params, sizeof( params ) );
 	SetParameters2( params );
+	pStringPool->GetString( buf.GetShort(), params, sizeof( params ) );
+	SetParameters3( params );
 
-	if ( !RestoreRampFromBuffer( buf ) )
+	if ( !m_Ramp.RestoreFromBuffer( buf, pStringPool ) )
 		return false;
 
-	SetResumeCondition( buf.GetChar() == 1 ? true : false );
-	SetLockBodyFacing( buf.GetChar() == 1 ? true : false );
-	SetDistanceToTarget( buf.GetFloat() );
-	SetFixedLength( buf.GetChar() == 1 ? true : false );
+	int flags = buf.GetUnsignedChar();
+	SetResumeCondition( ( flags & ( 1<<0 ) ) ? true : false );
+	SetLockBodyFacing( ( flags & ( 1<<1 ) ) ? true : false );
+	SetFixedLength( ( flags & ( 1<<2 ) ) ? true : false );
+	SetActive( ( flags & ( 1<<3 ) ) ? true : false );
+	SetForceShortMovement( ( flags & ( 1<<4 ) ) ? true : false );
+	SetPlayOverScript( ( flags & ( 1<<5 ) ) ? true : false );
 
-	int numRelTags = buf.GetShort();
-	for ( int i = 0 ;i < numRelTags; ++i )
+	SetDistanceToTarget( buf.GetFloat() );
+
+	int numRelTags = buf.GetUnsignedChar();
+	for ( int i = 0; i < numRelTags; ++i )
 	{
 		char tagName[ 256 ];
-		buf.GetString( tagName, sizeof( tagName ) );
-		float percentage = buf.GetFloat();
+		pStringPool->GetString( buf.GetShort(), tagName, sizeof( tagName ) );
+		float percentage = (float)buf.GetUnsignedChar() * 1.0f/255.0f;
 		AddRelativeTag( tagName, percentage );
 	}
 
-	int numTimingTags = buf.GetShort();
-	for ( int i = 0 ;i < numTimingTags; ++i )
+	int numTimingTags = buf.GetUnsignedChar();
+	for ( int i = 0; i < numTimingTags; ++i )
 	{
 		char tagName[ 256 ];
-		buf.GetString( tagName, sizeof( tagName ) );
-		float percentage = buf.GetFloat();
+		pStringPool->GetString( buf.GetShort(), tagName, sizeof( tagName ) );
+		float percentage = (float)buf.GetUnsignedChar() * 1.0f/255.0f;
 		// Don't parse locked state, only used by editors
 		AddTimingTag( tagName, percentage, false );
 	}
@@ -4028,12 +4296,13 @@ bool CChoreoEvent::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	int tagtype;
 	for ( tagtype = 0; tagtype < CChoreoEvent::NUM_ABS_TAG_TYPES; tagtype++ )
 	{
-		int num = buf.GetShort();
-		for ( int i = 0 ; i < num ; ++i )
+		int num = buf.GetUnsignedChar();
+		for ( int i = 0; i < num; ++i )
 		{
 			char tagName[ 256 ];
-			buf.GetString( tagName, sizeof( tagName ) );
-			float percentage = buf.GetFloat();
+			pStringPool->GetString( buf.GetShort(), tagName, sizeof( tagName ) );
+			float percentage = (float)buf.GetUnsignedShort() * 1.0f/4096.0f;
+
 			// Don't parse locked state, only used by editors
 			AddAbsoluteTag( (CChoreoEvent::AbsTagType)tagtype, tagName, percentage );
 		}
@@ -4052,13 +4321,13 @@ bool CChoreoEvent::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	{
 		char tagname[ 256 ];
 		char wavname[ 256 ];
-		buf.GetString( tagname, sizeof( tagname ) );
-		buf.GetString( wavname, sizeof( wavname ) );
+		pStringPool->GetString( buf.GetShort(), tagname, sizeof( tagname ) );
+		pStringPool->GetString( buf.GetShort(), wavname, sizeof( wavname ) );
 
 		SetUsingRelativeTag( true, tagname, wavname );
 	}
 
-	if ( !RestoreFlexAnimationsFromBuffer( buf ) )
+	if ( !RestoreFlexAnimationsFromBuffer( buf, pStringPool ) )
 		return false;
 
 	if ( GetType() == LOOP )
@@ -4070,7 +4339,7 @@ bool CChoreoEvent::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	{
 		SetCloseCaptionType( (CLOSECAPTION)buf.GetChar() );
 		char cctoken[ 256 ];
-		buf.GetString( cctoken, sizeof( cctoken ) );
+		pStringPool->GetString( buf.GetShort(), cctoken, sizeof( cctoken ) );
 		SetCloseCaptionToken( cctoken );
 		int flags = buf.GetChar();
 		if ( flags & ( 1<<0 ) )
@@ -4090,46 +4359,55 @@ bool CChoreoEvent::RestoreFromBuffer( CUtlBuffer& buf, CChoreoScene *pScene )
 	return true;
 }
 
-void CChoreoEvent::SaveRampToBuffer( CUtlBuffer& buf )
+void CCurveData::SaveToBuffer( CUtlBuffer& buf, IChoreoStringPool *pStringPool )
 {
-	int c = GetRampCount();
-	buf.PutInt( c );
-	if ( c <= 0 )
-		return;
+	int c = GetCount();
+	Assert( c <= 255 );
+	buf.PutUnsignedChar( c );
 
 	for ( int i = 0; i < c; i++ )
 	{
-		CExpressionSample *sample = GetRamp( i );
+		CExpressionSample *sample = Get( i );
 		buf.PutFloat( sample->time );
-		buf.PutFloat( sample->value );
+
+		Assert( sample->value >= 0.0f && sample->value <= 1.0f );
+		unsigned char v = sample->value * 255.0f;
+		buf.PutUnsignedChar( v );
 	}	
 }
 
-bool CChoreoEvent::RestoreRampFromBuffer( CUtlBuffer& buf )
+bool CCurveData::RestoreFromBuffer( CUtlBuffer& buf, IChoreoStringPool *pStringPool )
 {
-	int c = buf.GetInt();
+	int c = buf.GetUnsignedChar();
 	for ( int i = 0; i < c; i++ )
 	{
 		float t, v;
 		t = buf.GetFloat();
-		v = buf.GetFloat();
+		v = (float)buf.GetUnsignedChar() * 1.0f/255.0f;
 
-		AddRamp( t, v, false );
+		Add( t, v, false );
 	}
 
 	return true;
 }
 
-void CChoreoEvent::SaveFlexAnimationsToBuffer( CUtlBuffer& buf )
+void CChoreoEvent::SaveFlexAnimationsToBuffer( CUtlBuffer& buf, IChoreoStringPool *pStringPool )
 {
-	buf.PutShort( GetNumFlexAnimationTracks() );
-	for ( int i = 0; i < GetNumFlexAnimationTracks(); i++ )
+	int numFlexAnimationTracks = GetNumFlexAnimationTracks();
+	Assert( numFlexAnimationTracks <= 255 );
+	buf.PutUnsignedChar( numFlexAnimationTracks );
+
+	for ( int i = 0; i < numFlexAnimationTracks; i++ )
 	{
 		CFlexAnimationTrack *track = GetFlexAnimationTrack( i );
 
-		buf.PutString( track->GetFlexControllerName() );
-		buf.PutChar( track->IsTrackActive() ? 1 : 0 );
-		buf.PutChar( track->IsComboType() ? 1 : 0 );
+		buf.PutShort( pStringPool->FindOrAddString( track->GetFlexControllerName() ) );
+
+		int flags = 0;
+		flags |= track->IsTrackActive() ? 1<<0 : 0;
+		flags |= track->IsComboType() ? 1<<1 : 0;
+		buf.PutUnsignedChar( flags );
+
 		buf.PutFloat( track->GetMin() );
 		buf.PutFloat( track->GetMax() );
 
@@ -4141,38 +4419,54 @@ void CChoreoEvent::SaveFlexAnimationsToBuffer( CUtlBuffer& buf )
 				continue;
 
 			buf.PutFloat( s->time );
-			buf.PutFloat( s->value );
+
+			Assert( s->value >= 0.0f && s->value <= 1.0f );
+			unsigned char v = s->value * 255.0f;
+			buf.PutUnsignedChar( v );
+
+			buf.PutUnsignedShort( s->GetCurveType() );
 		}
 
 		// Write out combo samples
 		if ( track->IsComboType() )
 		{
-			buf.PutShort( track->GetNumSamples( 1 ) );
-			for ( int j = 0 ; j < track->GetNumSamples( 1) ; j++ )
+			int numSamples = track->GetNumSamples( 1 );
+			Assert( numSamples <= 32767 );
+			buf.PutUnsignedShort( numSamples );
+
+			for ( int j = 0; j < numSamples; j++ )
 			{
 				CExpressionSample *s = track->GetSample( j, 1 );
 				if ( !s )
 					continue;
 
 				buf.PutFloat( s->time );
-				buf.PutFloat( s->value );
+
+				Assert( s->value >= 0.0f && s->value <= 1.0f );
+				unsigned char v = s->value * 255.0f;
+				buf.PutUnsignedChar( v );
+
+				buf.PutUnsignedShort( s->GetCurveType() );
 			}
 		}
 	}
 }
 
-bool CChoreoEvent::RestoreFlexAnimationsFromBuffer( CUtlBuffer& buf )
+bool CChoreoEvent::RestoreFlexAnimationsFromBuffer( CUtlBuffer& buf, IChoreoStringPool *pStringPool )
 {
-	int numTracks = buf.GetShort();
+	int numTracks = buf.GetUnsignedChar();
 
 	for ( int i = 0; i < numTracks; i++ )
 	{
 		char name[ 256 ];
-		buf.GetString( name, sizeof( name ) );
+		pStringPool->GetString( buf.GetShort(), name, sizeof( name ) );
 
 		CFlexAnimationTrack *track = AddTrack( name );
-		track->SetTrackActive( buf.GetChar() == 1 ? true : false );
-		track->SetComboType( buf.GetChar() == 1 ? true : false );
+
+		int flags = buf.GetUnsignedChar();
+		track->SetTrackActive( ( flags & ( 1<<0 ) ) ? true : false );
+		track->SetComboType( ( flags & ( 1<<1 ) ) ? true : false );
+
 		track->SetMin( buf.GetFloat() );
 		track->SetMax( buf.GetFloat() );
 
@@ -4181,24 +4475,40 @@ bool CChoreoEvent::RestoreFlexAnimationsFromBuffer( CUtlBuffer& buf )
 		{
 			float t, v;
 			t = buf.GetFloat();
-			v = buf.GetFloat();
+			v = (float)buf.GetUnsignedChar() * 1.0f/255.0f;
 
-			track->AddSample( t, v, 0 );
+			CExpressionSample *pSample = track->AddSample( t, v, 0 );
+			pSample->SetCurveType( buf.GetUnsignedShort() );
 		}
 
 		if ( track->IsComboType() )
 		{
-			int s = buf.GetShort();
+			int s = buf.GetUnsignedShort();
 			for ( int j = 0; j < s; ++j )
 			{
 				float t, v;
 				t = buf.GetFloat();
-				v = buf.GetFloat();
+				v = (float)buf.GetUnsignedChar() * 1.0f/255.0f;
 
-				track->AddSample( t, v, 1 );
+				CExpressionSample *pSample = track->AddSample( t, v, 1 );
+				pSample->SetCurveType( buf.GetUnsignedShort() );
 			}
 		}
 	}
 
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Marks the event as enabled/disabled
+// Input  : state - 
+//-----------------------------------------------------------------------------
+void CChoreoEvent::SetActive( bool state )
+{
+	m_bActive = state;
+}
+
+bool CChoreoEvent::GetActive() const
+{
+	return m_bActive;
 }

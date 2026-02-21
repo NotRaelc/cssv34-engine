@@ -214,7 +214,7 @@ C_CSRagdoll::~C_CSRagdoll()
 void C_CSRagdoll::GetRagdollInitBoneArrays( matrix3x4_t *pDeltaBones0, matrix3x4_t *pDeltaBones1, matrix3x4_t *pCurrentBones, float boneDt )
 {
 	// otherwise use the death pose to set up the ragdoll
-	//ForceSetupBonesAtTime( pDeltaBones0, gpGlobals->curtime - boneDt );
+	ForceSetupBonesAtTime( pDeltaBones0, gpGlobals->curtime - boneDt );
 	GetRagdollCurSequenceWithDeathPose( this, pDeltaBones1, gpGlobals->curtime, m_iDeathPose, m_iDeathFrame );
 	SetupBones( pCurrentBones, MAXSTUDIOBONES, BONE_USED_BY_ANYTHING, gpGlobals->curtime );
 }
@@ -441,7 +441,7 @@ void C_CSRagdoll::CreateCSRagdoll()
 		// Make us a ragdoll..
 		m_nRenderFX = kRenderFxRagdoll;
 
-		/*matrix3x4_t boneDelta0[MAXSTUDIOBONES];
+		matrix3x4_t boneDelta0[MAXSTUDIOBONES];
 		matrix3x4_t boneDelta1[MAXSTUDIOBONES];
 		matrix3x4_t currentBones[MAXSTUDIOBONES];
 		const float boneDt = 0.05f;
@@ -455,8 +455,7 @@ void C_CSRagdoll::CreateCSRagdoll()
 			GetRagdollInitBoneArrays( boneDelta0, boneDelta1, currentBones, boneDt );
 		}
 
-		InitAsClientRagdoll( boneDelta0, boneDelta1, currentBones, boneDt );*/
-		BecomeRagdollOnClient( false );
+		InitAsClientRagdoll( boneDelta0, boneDelta1, currentBones, boneDt );
 		m_flRagdollSinkStart = -1;
 	}
 	else
@@ -1307,7 +1306,7 @@ void C_CSPlayer::UpdateIDTarget()
 	//if it's more than 75 then we can't see what's going on so we don't display the id.
 	byte color[4];
 	bool blend;
-	vieweffects->GetFadeParams( 0, &color[0], &color[1], &color[2], &color[3], &blend );
+	vieweffects->GetFadeParams( &color[0], &color[1], &color[2], &color[3], &blend );
 
 	if ( color[3] > MAX_FLASHBANG_OPACITY && ( IsAlive() || GetObserverMode() == OBS_MODE_IN_EYE ) )
 		 return;
@@ -1380,12 +1379,12 @@ void C_CSPlayer::UpdateIDTarget()
 //-----------------------------------------------------------------------------
 // Purpose: Input handling
 //-----------------------------------------------------------------------------
-void C_CSPlayer::CreateMove( float flInputSampleTime, CUserCmd *pCmd )
+bool C_CSPlayer::CreateMove( float flInputSampleTime, CUserCmd *pCmd )
 {
 	// Bleh... we will wind up needing to access bones for attachments in here.
-	// C_BaseAnimating::AutoAllowBoneAccess boneaccess( true, true );
+	C_BaseAnimating::AutoAllowBoneAccess boneaccess( true, true );
 
-	BaseClass::CreateMove( flInputSampleTime, pCmd );
+	return BaseClass::CreateMove( flInputSampleTime, pCmd );
 }
 
 //-----------------------------------------------------------------------------
@@ -1870,7 +1869,7 @@ void C_CSPlayer::BuildTransformations( CStudioHdr *pHdr, Vector *pos, Quaternion
 }
 
 
-C_BaseAnimating * C_CSPlayer::BecomeRagdollOnClient( bool bCopyEntity )
+C_BaseAnimating * C_CSPlayer::BecomeRagdollOnClient()
 {
 	return NULL;
 }
@@ -1953,7 +1952,7 @@ void C_CSPlayer::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
 	}
 	else
 	{
-		m_PlayerAnimState->DoAnimationEvent( event );
+		m_PlayerAnimState->DoAnimationEvent( event, nData );
 	}
 }
 

@@ -37,6 +37,8 @@ BEGIN_DATADESC( CBaseHLCombatWeapon )
 	DEFINE_FIELD( m_bLowered,			FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flRaiseTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_flHolsterTime,		FIELD_TIME ),
+	DEFINE_FIELD( m_iPrimaryAttacks,	FIELD_INTEGER ),
+	DEFINE_FIELD( m_iSecondaryAttacks,	FIELD_INTEGER ),
 
 END_DATADESC()
 
@@ -189,6 +191,15 @@ void CBaseHLCombatWeapon::WeaponIdle( void )
 	//See if we should idle high or low
 	if ( WeaponShouldBeLowered() )
 	{
+#if !defined( CLIENT_DLL )
+		CHL2_Player *pPlayer = dynamic_cast<CHL2_Player*>(GetOwner());
+
+		if( pPlayer )
+		{
+			pPlayer->Weapon_Lower();
+		}
+#endif
+
 		// Move to lowered position if we're not there yet
 		if ( GetActivity() != ACT_VM_IDLE_LOWERED && GetActivity() != ACT_VM_IDLE_TO_LOWERED 
 			 && GetActivity() != ACT_TRANSITION )
@@ -218,7 +229,7 @@ void CBaseHLCombatWeapon::WeaponIdle( void )
 float	g_lateralBob;
 float	g_verticalBob;
 
-#if defined( CLIENT_DLL ) && !defined( HL2MP ) 
+#if defined( CLIENT_DLL ) && ( !defined( HL2MP ) && !defined( PORTAL ) )
 
 #define	HL2_BOB_CYCLE_MIN	1.0f
 #define	HL2_BOB_CYCLE_MAX	0.45f

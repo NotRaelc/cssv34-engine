@@ -17,6 +17,16 @@ class CUserCmd;
 class C_BaseCombatWeapon;
 struct kbutton_t;
 
+struct CameraThirdData_t
+{
+	float	m_flPitch;
+	float	m_flYaw;
+	float	m_flDist;
+	float	m_flLag;
+	Vector	m_vecHullMin;
+	Vector	m_vecHullMax;
+};
+
 abstract_class IInput
 {
 public:
@@ -39,7 +49,7 @@ public:
 	// Retrieve key state
 	virtual float		KeyState ( kbutton_t *key ) = 0;
 	// Issue key event
-	virtual int			KeyEvent( int eventcode, int keynum, const char *pszCurrentBinding ) = 0;
+	virtual int			KeyEvent( int eventcode, ButtonCode_t keynum, const char *pszCurrentBinding ) = 0;
 	// Look for key
 	virtual kbutton_t	*FindKey( const char *name ) = 0;
 
@@ -47,11 +57,11 @@ public:
 	virtual void		ControllerCommands( void ) = 0;
 	// Extra initialization for some joysticks
 	virtual void		Joystick_Advanced( void ) = 0;
+	virtual void		Joystick_SetSampleTime( float frametime ) = 0;
+	virtual void		IN_SetSampleTime( float frametime ) = 0;
 
 	// Accumulate mouse delta
 	virtual void		AccumulateMouse( void ) = 0;
-	// Notify about mouse event
-	virtual void		MouseEvent( int mstate, bool down ) = 0;
 	// Activate/deactivate mouse
 	virtual void		ActivateMouse( void ) = 0;
 	virtual void		DeactivateMouse( void ) = 0;
@@ -93,6 +103,9 @@ public:
 
 	// Causes an input to have to be re-pressed to become active
 	virtual void		ClearInputButton( int bits ) = 0;
+
+	virtual	void		CAM_SetCameraThirdData( CameraThirdData_t *pCameraData, const QAngle &vecCameraOffset ) = 0;
+	virtual void		CAM_CameraThirdThink( void ) = 0;
 };
 
 extern ::IInput *input;

@@ -60,13 +60,13 @@ static void usage(int iReturnCode = 0)
 {
 	fflush(stderr);
 	Msg(
-		"Usage: interfacetester <module> <interfacename>\n"
+		"Usage: interfacetester <module> <interfacename|/fn> <(/fn)functionName>\n"
 		"\n"
 		"<module>\n" 
 		"is a dll relative to bin folder\n"
 		"e.g: gameui.dll\n"
 		"\n"
-		"<interfacename>\n" 
+		"<interfacename|/fn>\n" 
 		"is the name of interface you want to test\n"
 		"e.g: GameUI or GameUI011\n"
 		"\n"
@@ -82,18 +82,8 @@ int main(int argc, char** argv) {
 
 	(void)_getcwd(BinPath, sizeof(BinPath));
 
-	if (argc > 3 && strcmp(argv[3], "customEnv") == 0) {
-		if (argc < 5)
-			puts("main: customEnv skipped\n");
-
-		sprintf(szBuf, "PATH=%s;%s", argv[4], pPath);
-		szBuf[sizeof(szBuf) - 1] = '\0';
-		printf("main: customEnv set to %s\n", argv[4]);
-	}
-	else {
-		sprintf(szBuf, "PATH=%s;%s", BinPath, pPath);
-		szBuf[sizeof(szBuf) - 1] = '\0';
-	}
+	sprintf(szBuf, "PATH=%s;%s", BinPath, pPath);
+	szBuf[sizeof(szBuf) - 1] = '\0';
 
 	_putenv(szBuf);
 
@@ -108,7 +98,20 @@ int main(int argc, char** argv) {
 		usage();
 
 	char outIntName[1024];
-	void* pInterface = RequestInterface(argv[1], argv[2], outIntName);
+	void* pInterface;
+
+	// FIXME: this is really bad
+	if (strcmp(argv[2], "/fn") == 0) {
+		if (argc < 4) 
+			Warning("Argument 3 is missing for /fn command.\n");
+		pInterface = ((void*(*)())GetProcAddress(GetModuleHandleA(argv[1]), argv[3]))();
+		Success("Using %s\n");
+	}
+	else
+	{
+		pInterface = RequestInterface(argv[1], argv[2], outIntName);
+	}
+
 	vtable pInterfaceVTable;
 	InitVTable(pInterface, pInterfaceVTable);
 

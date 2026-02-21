@@ -34,15 +34,58 @@ CLIENTEFFECT_MATERIAL( "effects/blood" )
 CLIENTEFFECT_MATERIAL( "effects/blood2" )
 CLIENTEFFECT_MATERIAL( "sprites/bloodspray" )
 CLIENTEFFECT_MATERIAL( "particle/particle_noisesphere" )
-CLIENTEFFECT_MATERIAL( "particle/particle_sphere" )
 CLIENTEFFECT_REGISTER_END()
 
-#ifdef _XBOX
-PMaterialHandle g_Fleck_Wood[2] = { NULL, NULL };
-PMaterialHandle g_Fleck_Cement[2] = { NULL, NULL };
-PMaterialHandle g_DustPuff = NULL;
-PMaterialHandle g_DustPuff2 = NULL; 
-#endif // _XBOX
+// Cached handles to commonly used materials
+PMaterialHandle g_Mat_Fleck_Wood[2] = { NULL, NULL };
+PMaterialHandle g_Mat_Fleck_Cement[2] = { NULL, NULL };
+PMaterialHandle g_Mat_Fleck_Antlion[2] = { NULL, NULL };
+PMaterialHandle g_Mat_Fleck_Glass[2] = { NULL, NULL };
+PMaterialHandle g_Mat_Fleck_Tile[2] = { NULL, NULL };
+PMaterialHandle g_Mat_DustPuff[2] = { NULL, NULL };
+PMaterialHandle g_Mat_BloodPuff[2] = { NULL, NULL };
+PMaterialHandle g_Mat_SMG_Muzzleflash[4] = { NULL, NULL, NULL, NULL };
+PMaterialHandle g_Mat_Combine_Muzzleflash[3] = { NULL, NULL, NULL };
+
+static ConVar fx_drawimpactdebris( "fx_drawimpactdebris", "1", FCVAR_DEVELOPMENTONLY, "Draw impact debris effects." );
+static ConVar fx_drawimpactdust( "fx_drawimpactdust", "1", FCVAR_DEVELOPMENTONLY, "Draw impact dust effects." );
+
+void FX_CacheMaterialHandles( void )
+{
+	g_Mat_Fleck_Wood[0] = ParticleMgr()->GetPMaterial( "effects/fleck_wood1" );
+	g_Mat_Fleck_Wood[1] = ParticleMgr()->GetPMaterial( "effects/fleck_wood2" );
+
+	g_Mat_Fleck_Cement[0] = ParticleMgr()->GetPMaterial( "effects/fleck_cement1");
+	g_Mat_Fleck_Cement[1] = ParticleMgr()->GetPMaterial( "effects/fleck_cement2" );
+
+	g_Mat_Fleck_Antlion[0] = ParticleMgr()->GetPMaterial( "effects/fleck_antlion1" );
+	g_Mat_Fleck_Antlion[1] = ParticleMgr()->GetPMaterial( "effects/fleck_antlion2" );
+
+	g_Mat_Fleck_Glass[0] = ParticleMgr()->GetPMaterial( "effects/fleck_glass1" );
+	g_Mat_Fleck_Glass[1] = ParticleMgr()->GetPMaterial( "effects/fleck_glass2" );
+
+	g_Mat_Fleck_Tile[0] = ParticleMgr()->GetPMaterial( "effects/fleck_tile1" );
+	g_Mat_Fleck_Tile[1] = ParticleMgr()->GetPMaterial( "effects/fleck_tile2" );
+
+	g_Mat_DustPuff[0] = ParticleMgr()->GetPMaterial( "particle/particle_smokegrenade" );
+	g_Mat_DustPuff[1] = ParticleMgr()->GetPMaterial( "particle/particle_noisesphere" );
+
+	g_Mat_BloodPuff[0] = ParticleMgr()->GetPMaterial( "effects/blood" );
+	g_Mat_BloodPuff[1] = ParticleMgr()->GetPMaterial( "effects/blood2" );
+	
+#ifndef TF_CLIENT_DLL
+	g_Mat_SMG_Muzzleflash[0] = ParticleMgr()->GetPMaterial( "effects/muzzleflash1" );
+	g_Mat_SMG_Muzzleflash[1] = ParticleMgr()->GetPMaterial( "effects/muzzleflash2" );
+	g_Mat_SMG_Muzzleflash[2] = ParticleMgr()->GetPMaterial( "effects/muzzleflash3" );
+	g_Mat_SMG_Muzzleflash[3] = ParticleMgr()->GetPMaterial( "effects/muzzleflash4" );
+
+	g_Mat_Combine_Muzzleflash[0] = ParticleMgr()->GetPMaterial( "effects/combinemuzzle1" );
+	g_Mat_Combine_Muzzleflash[1] = ParticleMgr()->GetPMaterial( "effects/combinemuzzle2" );
+	g_Mat_Combine_Muzzleflash[2] = ParticleMgr()->GetPMaterial( "effects/strider_muzzle" );
+#endif
+}
+
+extern PMaterialHandle g_Material_Spark;
 
 //-----------------------------------------------------------------------------
 // Purpose: Returns the color given trace information
@@ -115,34 +158,28 @@ static void CreateFleckParticles( const Vector& origin, const Vector &color, tra
 {
 	Vector	spawnOffset	= trace->endpos + ( trace->plane.normal * 1.0f );
 
-	CSmartPtr<CFleckParticles> fleckEmitter = CFleckParticles::Create( "FX_DebrisFlecks", spawnOffset );
+	CSmartPtr<CFleckParticles> fleckEmitter = CFleckParticles::Create( "FX_DebrisFlecks", spawnOffset, Vector(5,5,5) );
 
 	if ( !fleckEmitter )
 		return;
 
-	fleckEmitter->SetSortOrigin( spawnOffset );
-
 	// Handle increased scale
 	float flMaxSpeed = FLECK_MAX_SPEED * iScale;
 	float flAngularSpray = max( 0.2, FLECK_ANGULAR_SPRAY - ( (float)iScale * 0.2f) ); // More power makes the spray more controlled
-
 	// Setup our collision information
 	fleckEmitter->m_ParticleCollision.Setup( spawnOffset, &trace->plane.normal, flAngularSpray, FLECK_MIN_SPEED, flMaxSpeed, FLECK_GRAVITY, FLECK_DAMPEN );
 
-	PMaterialHandle	hMaterial[2];
-
+	PMaterialHandle	*hMaterial;
 	switch ( materialType )
 	{
 	case CHAR_TEX_WOOD:
-		hMaterial[0] = fleckEmitter->GetPMaterial( "effects/fleck_wood1" );
-		hMaterial[1] = fleckEmitter->GetPMaterial( "effects/fleck_wood2" );
+		hMaterial = g_Mat_Fleck_Wood;
 		break;
 
 	case CHAR_TEX_CONCRETE:
 	case CHAR_TEX_TILE:
 	default:
-		hMaterial[0] = fleckEmitter->GetPMaterial( "effects/fleck_cement1" );
-		hMaterial[1] = fleckEmitter->GetPMaterial( "effects/fleck_cement2" );
+		hMaterial = g_Mat_Fleck_Cement;
 		break;
 	}
 
@@ -198,6 +235,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 {
 	VPROF_BUDGET( "FX_DebrisFlecks", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
 
+	if ( !fx_drawimpactdebris.GetBool() )
+		return;
+
 #ifdef _XBOX
 
 	//
@@ -218,27 +258,17 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 	float	colorRamp;
 	GetColorForSurface( tr, &color );
 
-	if ( g_DustPuff == NULL )
-	{
-		g_DustPuff = ParticleMgr()->GetPMaterial( "particle/particle_smokegrenade" );
-	}
-
-	if ( g_DustPuff2 == NULL )
-	{
-		g_DustPuff2 = ParticleMgr()->GetPMaterial( "effects/blood" );
-	}
-
 	int i;
 	SimpleParticle	*pParticle;
 	for ( i = 0; i < 4; i++ )
 	{
 		if ( i == 3 )
 		{
-			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_DustPuff2, origin );
+			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[0], origin );
 		}
 		else
 		{
-			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_DustPuff, origin );
+			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], origin );
 		}
 
 		if ( pParticle != NULL )
@@ -328,7 +358,6 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 	Vector	offset = tr->endpos + ( tr->plane.normal * 2.0f );
 
 	SimpleParticle newParticle;
-	PMaterialHandle smokeMaterial = ParticleMgr()->GetPMaterial( "particle/particle_smokegrenade" );
 
 	int i;
 	for ( i = 0; i < 2; i++ )
@@ -361,10 +390,9 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 		newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
 		newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
 
-		AddSimpleParticle( &newParticle, smokeMaterial );
+		AddSimpleParticle( &newParticle, g_Mat_DustPuff[0] );
 	}
 
-	PMaterialHandle bloodMaterial = ParticleMgr()->GetPMaterial( "effects/blood" );
 
 	for ( i = 0; i < 4; i++ )
 	{
@@ -396,7 +424,7 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 		newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
 		newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
 
-		AddSimpleParticle( &newParticle, bloodMaterial );
+		AddSimpleParticle( &newParticle, g_Mat_BloodPuff[0] );
 	}
 
 	//
@@ -430,7 +458,7 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *tr, char materialType, int 
 	newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
 	newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
 
-	AddSimpleParticle( &newParticle, smokeMaterial );
+	AddSimpleParticle( &newParticle, g_Mat_DustPuff[0] );
 
 #endif
 }
@@ -458,9 +486,6 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 	// HACK: Blend a little toward white to match the materials...
 	VectorLerp( vecColor, Vector( 1, 1, 1 ), 0.3, vecColor );
 
-	PMaterialHandle hMaterial1 = pGlassEmitter->GetPMaterial( "effects/fleck_glass1" );
-	PMaterialHandle hMaterial2 = pGlassEmitter->GetPMaterial( "effects/fleck_glass2" );
-
 	float flShardSize	= random->RandomFloat( 2.0f, 6.0f );
 
 	unsigned char color[3] = { 200, 200, 210 };
@@ -475,14 +500,7 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 	{
 		Particle3D *pParticle;
 		
-		if ( random->RandomInt( 0 , 1 ) )
-		{
-			pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), hMaterial1, pos );
-		}
-		else
-		{
-			pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), hMaterial2, pos );
-		}
+		pParticle = (Particle3D *) pGlassEmitter->AddParticle( sizeof(Particle3D), g_Mat_Fleck_Glass[random->RandomInt(0,1)], pos );
 
 		if ( pParticle )
 		{
@@ -520,7 +538,6 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 	float	colorRamp;
 
 	SimpleParticle newParticle;
-	PMaterialHandle bloodMaterial = ParticleMgr()->GetPMaterial( "effects/blood" );
 
 	for ( int i = 0; i < 4; i++ )
 	{
@@ -551,7 +568,7 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 		newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
 		newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
 
-		AddSimpleParticle( &newParticle, bloodMaterial );
+		AddSimpleParticle( &newParticle, g_Mat_BloodPuff[0] );
 	}
 
 	//
@@ -584,7 +601,7 @@ void FX_GlassImpact( const Vector &pos, const Vector &normal )
 	newParticle.m_uchColor[1] = min( 1.0f, color[1]*colorRamp )*255.0f;
 	newParticle.m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
 
-	AddSimpleParticle( &newParticle, ParticleMgr()->GetPMaterial( "particle/particle_smokegrenade" ) );
+	AddSimpleParticle( &newParticle, g_Mat_DustPuff[0] );
 }
 
 void GlassImpactCallback( const CEffectData &data )
@@ -601,6 +618,10 @@ DECLARE_CLIENT_EFFECT( "GlassImpact", GlassImpactCallback );
 //-----------------------------------------------------------------------------
 void FX_AntlionImpact( const Vector &pos, trace_t *trace )
 {
+#if defined( _X360 )
+	return;
+#endif // _X360
+
 	VPROF_BUDGET( "FX_AntlionImpact", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
 
 	CSmartPtr<CSimple3DEmitter> fleckEmitter = CSimple3DEmitter::Create( "FX_DebrisFlecks" );
@@ -638,10 +659,6 @@ void FX_AntlionImpact( const Vector &pos, trace_t *trace )
 	// Setup our collision information
 	fleckEmitter->m_ParticleCollision.Setup( spawnOffset, &shotDir, flAngularSpray, 8.0f, flMaxSpeed, FLECK_GRAVITY, FLECK_DAMPEN );
 
-	PMaterialHandle antlionFleckMaterial[2];
-	antlionFleckMaterial[0] = fleckEmitter->GetPMaterial( "effects/fleck_antlion1" );
-	antlionFleckMaterial[1] = fleckEmitter->GetPMaterial( "effects/fleck_antlion2" );
-
 	Vector	dir, end;
 	Vector	color = Vector( 1, 0.9, 0.75 );
 	float	colorRamp;
@@ -654,7 +671,7 @@ void FX_AntlionImpact( const Vector &pos, trace_t *trace )
 	int i;
 	for ( i = 0; i < numFlecks; i++ )
 	{
-		pFleckParticle = (Particle3D *) fleckEmitter->AddParticle( sizeof(Particle3D), antlionFleckMaterial[random->RandomInt(0,1)], spawnOffset );
+		pFleckParticle = (Particle3D *) fleckEmitter->AddParticle( sizeof(Particle3D), g_Mat_Fleck_Antlion[random->RandomInt(0,1)], spawnOffset );
 		if ( pFleckParticle == NULL )
 			break;
 
@@ -694,11 +711,9 @@ void FX_AntlionImpact( const Vector &pos, trace_t *trace )
 	dustEmitter->SetSortOrigin( offset );
 	dustEmitter->GetBinding().SetBBox( spawnOffset-Vector(32,32,32), spawnOffset+Vector(32,32,32), true );
 
-	PMaterialHandle smokeMaterial = dustEmitter->GetPMaterial( "particle/particle_smokegrenade" );
-
 	for ( i = 0; i < 4; i++ )
 	{
-		pParticle = (SimpleParticle *) dustEmitter->AddParticle( sizeof(SimpleParticle), smokeMaterial, offset );
+		pParticle = (SimpleParticle *) dustEmitter->AddParticle( sizeof(SimpleParticle), g_Mat_DustPuff[0], offset );
 
 		if ( pParticle == NULL )
 			break;
@@ -728,8 +743,6 @@ void FX_AntlionImpact( const Vector &pos, trace_t *trace )
 		pParticle->m_uchColor[2] = min( 1.0f, color[2]*colorRamp )*255.0f;
 	}
 
-	// Blood spurt
-	FX_BugBlood( spawnOffset, shotDir, vWorldMins, vWorldMaxs );
 
 	CLocalPlayerFilter filter;
 	C_BaseEntity::EmitSound( filter, 0, "FX_AntlionImpact.ShellImpact", &trace->endpos );
@@ -768,12 +781,10 @@ void FX_BugBlood( Vector &pos, Vector &dir, Vector &vWorldMins, Vector &vWorldMa
 
 	VectorNormalize( vDir );
 
-	PMaterialHandle bloodMaterial = pSimple->GetPMaterial( "effects/blood" );
-
 	int i;
 	for ( i = 0; i < NUM_BUG_BLOOD; i++ )
 	{
-		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), bloodMaterial, pos );
+		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[0], pos );
 			
 		if ( sParticle == NULL )
 			return;
@@ -797,11 +808,9 @@ void FX_BugBlood( Vector &pos, Vector &dir, Vector &vWorldMins, Vector &vWorldMa
 		sParticle->m_flRollDelta	= random->RandomFloat( -2.0f, 2.0f );
 	}
 
-	bloodMaterial = pSimple->GetPMaterial( "effects/blood2" );
-
 	for ( i = 0; i < NUM_BUG_BLOOD2; i++ )
 	{
-		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), bloodMaterial, pos );
+		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[1], pos );
 			
 		if ( sParticle == NULL )
 		{
@@ -834,7 +843,7 @@ void FX_BugBlood( Vector &pos, Vector &dir, Vector &vWorldMins, Vector &vWorldMa
 		offset.Random( -2, 2 );
 		offset += pos;
 
-		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), bloodMaterial, offset );
+		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[1], offset );
 			
 		if ( sParticle == NULL )
 		{
@@ -884,12 +893,10 @@ void FX_Blood( Vector &pos, Vector &dir, float r, float g, float b, float a )
 
 	VectorNormalize( vDir );
 
-	PMaterialHandle bloodMaterial = pSimple->GetPMaterial( "effects/blood" );
-
 	int i;
 	for ( i = 0; i < 2; i++ )
 	{
-		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), bloodMaterial, pos );
+		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[0], pos );
 			
 		if ( sParticle == NULL )
 		{
@@ -915,11 +922,9 @@ void FX_Blood( Vector &pos, Vector &dir, float r, float g, float b, float a )
 		sParticle->m_flRollDelta	= random->RandomFloat( -2.0f, 2.0f );
 	}
 
-	bloodMaterial = pSimple->GetPMaterial( "effects/blood2" );
-
 	for ( i = 0; i < 2; i++ )
 	{
-		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), bloodMaterial, pos );
+		SimpleParticle *sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[1], pos );
 			
 		if ( sParticle == NULL )
 		{
@@ -952,6 +957,9 @@ void FX_Blood( Vector &pos, Vector &dir, float r, float g, float b, float a )
 //-----------------------------------------------------------------------------
 void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 {
+	if ( !fx_drawimpactdust.GetBool() )
+		return;
+
 #ifdef _XBOX
 
 	//
@@ -970,16 +978,6 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 	float	colorRamp;
 	GetColorForSurface( tr, &color );
 
-	if ( g_DustPuff == NULL )
-	{
-		g_DustPuff = ParticleMgr()->GetPMaterial( "particle/particle_smokegrenade" );
-	}
-	
-	if ( g_DustPuff2 == NULL )
-	{
-		g_DustPuff2 = ParticleMgr()->GetPMaterial( "effects/blood" );
-	}
-
 	int i;
 	SimpleParticle *pParticle;
 	for ( i = 0; i < 4; i++ )
@@ -987,11 +985,11 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 		// Last puff is gritty (hides end)
 		if ( i == 3 )
 		{
-			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_DustPuff2, origin );
+			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[0], origin );
 		}
 		else
 		{
-			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_DustPuff, origin );
+			pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], origin );
 		}
 
 		if ( pParticle != NULL )
@@ -1087,12 +1085,10 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 
 	GetColorForSurface( tr, &color );
 
-	PMaterialHandle smokeMaterial = pSimple->GetPMaterial( "particle/particle_smokegrenade" );
-	
 	int i;
 	for ( i = 0; i < 4; i++ )
 	{
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), smokeMaterial, origin );
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], origin );
 
 		if ( pParticle != NULL )
 		{
@@ -1129,12 +1125,10 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 		}
 	}			
 
-	PMaterialHandle bloodMaterial = pSimple->GetPMaterial( "effects/blood" );
-
 	//Dust specs
 	for ( i = 0; i < 4; i++ )
 	{
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), bloodMaterial, origin );
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_BloodPuff[0], origin );
 
 		if ( pParticle != NULL )
 		{
@@ -1170,7 +1164,7 @@ void FX_DustImpact( const Vector &origin, trace_t *tr, int iScale )
 	//Impact hit
 	for ( i = 0; i < 4; i++ )
 	{
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), smokeMaterial, origin );
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], origin );
 
 		if ( pParticle != NULL )
 		{
@@ -1233,7 +1227,7 @@ void FX_GaussExplosion( const Vector &pos, const Vector &dir, int type )
 
 	int i;
 
-#ifdef _XBOX
+#if defined(_XBOX) || defined(_X360)
 
 	//
 	// XBox version

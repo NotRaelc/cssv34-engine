@@ -10,7 +10,7 @@
 #pragma once
 #endif
 
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "cmodel.h"
 #include "utlvector.h"
 #include "networkvar.h"
@@ -20,6 +20,10 @@
 
 #ifdef CLIENT_DLL
 #include "cdll_client_int.h"
+#endif
+
+#ifdef PORTAL
+#include "portal_util_shared.h"
 #endif
 
 //-----------------------------------------------------------------------------
@@ -67,7 +71,7 @@ QAngle	SharedRandomAngle( const char *sharedname, float minVal, float maxVal, in
 // Standard collision filters...
 //-----------------------------------------------------------------------------
 bool PassServerEntityFilter( const IHandleEntity *pTouch, const IHandleEntity *pPass );
-bool StandardFilterRules( IHandleEntity *pServerEntity, int fContentsMask );
+bool StandardFilterRules( IHandleEntity *pHandleEntity, int fContentsMask );
 
 
 //-----------------------------------------------------------------------------
@@ -114,8 +118,9 @@ public:
 	DECLARE_CLASS_NOBASE( CTraceFilterSimple );
 	
 	CTraceFilterSimple( const IHandleEntity *passentity, int collisionGroup );
-	virtual bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
 	virtual void SetPassEntity( const IHandleEntity *pPassEntity ) { m_pPassEnt = pPassEntity; }
+	virtual void SetCollisionGroup( int iCollisionGroup ) { m_collisionGroup = iCollisionGroup; }
 
 	const IHandleEntity *GetPassEntity( void ){ return m_pPassEnt;}
 
@@ -131,7 +136,8 @@ public:
 	DECLARE_CLASS( CTraceFilterSkipTwoEntities, CTraceFilterSimple );
 	
 	CTraceFilterSkipTwoEntities( const IHandleEntity *passentity, const IHandleEntity *passentity2, int collisionGroup );
-	virtual bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+	virtual void SetPassEntity2( const IHandleEntity *pPassEntity2 ) { m_pPassEnt2 = pPassEntity2; }
 
 private:
 	const IHandleEntity *m_pPassEnt2;
@@ -141,10 +147,10 @@ class CTraceFilterSimpleList : public CTraceFilterSimple
 {
 public:
 	CTraceFilterSimpleList( int collisionGroup );
-	virtual bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
 
 	void	AddEntityToIgnore( IHandleEntity *pEntity );
-private:
+protected:
 	CUtlVector<IHandleEntity*>	m_PassEntities;
 };
 
@@ -161,7 +167,7 @@ public:
 		return TRACE_ENTITIES_ONLY;
 	}
 
-	virtual bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
 };
 
 class CTraceFilterNoNPCsOrPlayer : public CTraceFilterSimple
@@ -172,7 +178,7 @@ public:
 	{
 	}
 
-	virtual bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
 };
 
 //-----------------------------------------------------------------------------
@@ -182,7 +188,53 @@ class CTraceFilterLOS : public CTraceFilterSkipTwoEntities
 {
 public:
 	CTraceFilterLOS( IHandleEntity *pHandleEntity, int collisionGroup, IHandleEntity *pHandleEntity2 = NULL );
-	bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask );
+	bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+};
+
+class CTraceFilterSkipClassname : public CTraceFilterSimple
+{
+public:
+	CTraceFilterSkipClassname( const IHandleEntity *passentity, const char *pchClassname, int collisionGroup );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+
+private:
+
+	const char *m_pchClassname;
+};
+
+class CTraceFilterSkipTwoClassnames : public CTraceFilterSkipClassname
+{
+public:
+	// It does have a base, but we'll never network anything below here..
+	DECLARE_CLASS( CTraceFilterSkipTwoClassnames, CTraceFilterSkipClassname );
+
+	CTraceFilterSkipTwoClassnames( const IHandleEntity *passentity, const char *pchClassname, const char *pchClassname2, int collisionGroup );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+
+private:
+	const char *m_pchClassname2;
+};
+
+class CTraceFilterSimpleClassnameList : public CTraceFilterSimple
+{
+public:
+	CTraceFilterSimpleClassnameList( const IHandleEntity *passentity, int collisionGroup );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+
+	void	AddClassnameToIgnore( const char *pchClassname );
+private:
+	CUtlVector<const char*>	m_PassClassnames;
+};
+
+class CTraceFilterChain : public CTraceFilter
+{
+public:
+	CTraceFilterChain( ITraceFilter *pTraceFilter1, ITraceFilter *pTraceFilter2 );
+	virtual bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask );
+
+private:
+	ITraceFilter	*m_pTraceFilter1;
+	ITraceFilter	*m_pTraceFilter2;
 };
 
 // helper
@@ -198,7 +250,7 @@ inline void UTIL_TraceLine( const Vector& vecAbsStart, const Vector& vecAbsEnd, 
 	CTraceFilterSimple traceFilter( ignore, collisionGroup );
 
 	enginetrace->TraceRay( ray, mask, &traceFilter, ptr );
-	
+
 	if( r_visualizetraces.GetBool() )
 	{
 		DebugDrawLine( ptr->startpos, ptr->endpos, 255, 0, 0, true, -1.0f );
@@ -212,7 +264,6 @@ inline void UTIL_TraceLine( const Vector& vecAbsStart, const Vector& vecAbsEnd, 
 	ray.Init( vecAbsStart, vecAbsEnd );
 
 	enginetrace->TraceRay( ray, mask, pFilter, ptr );
-
 
 	if( r_visualizetraces.GetBool() )
 	{
@@ -283,7 +334,11 @@ void UTIL_TraceModel( const Vector &vecStart, const Vector &vecEnd, const Vector
 
 void UTIL_ClipTraceToPlayers( const Vector& vecAbsStart, const Vector& vecAbsEnd, unsigned int mask, ITraceFilter *filter, trace_t *tr );
 
-void		UTIL_Tracer( const Vector &vecStart, const Vector &vecEnd, int iEntIndex = 0, int iAttachment = TRACER_DONT_USE_ATTACHMENT, float flVelocity = 0, bool bWhiz = false, const char *pCustomTracerName = NULL);
+// Particle effect tracer
+void		UTIL_ParticleTracer( const char *pszTracerEffectName, const Vector &vecStart, const Vector &vecEnd, int iEntIndex = 0, int iAttachment = 0, bool bWhiz = false );
+
+// Old style, non-particle system, tracers
+void		UTIL_Tracer( const Vector &vecStart, const Vector &vecEnd, int iEntIndex = 0, int iAttachment = TRACER_DONT_USE_ATTACHMENT, float flVelocity = 0, bool bWhiz = false, const char *pCustomTracerName = NULL, int iParticleID = 0 );
 
 bool		UTIL_IsLowViolence( void );
 bool		UTIL_ShouldShowBlood( int bloodColor );
@@ -303,6 +358,8 @@ CBasePlayer *UTIL_PlayerByIndex( int entindex );
 
 // decodes a buffer using a 64bit ICE key (inplace)
 void		UTIL_DecodeICE( unsigned char * buffer, int size, const unsigned char *key);
+
+unsigned short UTIL_GetAchievementEventMask( void );	
 
 
 //--------------------------------------------------------------------------------------------------------------

@@ -13,6 +13,15 @@
 class CBaseFilter;
 
 
+const int SF_MICROPHONE_SOUND_COMBAT			= 0x01;
+const int SF_MICROPHONE_SOUND_WORLD				= 0x02;
+const int SF_MICROPHONE_SOUND_PLAYER			= 0x04;
+const int SF_MICROPHONE_SOUND_BULLET_IMPACT		= 0x08;
+const int SF_MICROPHONE_SWALLOW_ROUTED_SOUNDS	= 0x10;
+const int SF_MICROPHONE_SOUND_EXPLOSION			= 0x20;
+const int SF_MICROPHONE_IGNORE_NONATTENUATED	= 0x40;
+
+
 // Return codes from SoundPlayed
 enum MicrophoneResult_t
 {
@@ -38,6 +47,9 @@ public:
 	void Think(void);
 	bool CanHearSound(CSound *pSound, float &flVolume);
 	bool CanHearSound( int entindex, soundlevel_t soundlevel, float &flVolume, const Vector *pOrigin );
+
+	void SetSensitivity( float flSensitivity );
+	void SetSpeakerName( string_t iszSpeakerName );
 
 	void InputEnable( inputdata_t &inputdata );
 	void InputDisable( inputdata_t &inputdata );

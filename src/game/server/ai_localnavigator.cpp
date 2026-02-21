@@ -18,7 +18,7 @@
 
 ConVar ai_debug_directnavprobe("ai_debug_directnavprobe", "0");
 
-const float TIME_DELAY_FULL_DIRECT_PROBE = ( !AIStrongOpt() ) ? 0.25 : 0.35;
+const float TIME_DELAY_FULL_DIRECT_PROBE[2] = { 0.25, 0.35 };
 
 //-----------------------------------------------------------------------------
 
@@ -38,7 +38,7 @@ CAI_LocalNavigator::CAI_LocalNavigator(CAI_BaseNPC *pOuter) : CAI_Component( pOu
 	m_pPlaneSolver = new CAI_PlaneSolver( pOuter );
 
 	m_fLastWasClear = false;
-	memset( &m_LastMoveGoal, sizeof(m_LastMoveGoal), 0 );
+	memset( &m_LastMoveGoal, 0, sizeof(m_LastMoveGoal) );
 }
 
 //-------------------------------------
@@ -122,7 +122,7 @@ bool CAI_LocalNavigator::MoveCalcDirect( AILocalMoveGoal_t *pMoveGoal, bool bOnl
 
 		if ( bOnlyCurThink ) // Outer code claims to have done a validation (probably a simplify operation)
 		{
-			m_FullDirectTimer.Set( TIME_DELAY_FULL_DIRECT_PROBE );
+			m_FullDirectTimer.Set( TIME_DELAY_FULL_DIRECT_PROBE[AIStrongOpt()] );
 		}
 
 		// First, check the probable move for this cycle
@@ -237,7 +237,7 @@ bool CAI_LocalNavigator::MoveCalcDirect( AILocalMoveGoal_t *pMoveGoal, bool bOnl
 
 	m_LastMoveGoal = *pMoveGoal;
 	if ( bRetVal && m_FullDirectTimer.Expired() )
-		m_FullDirectTimer.Set( TIME_DELAY_FULL_DIRECT_PROBE );
+		m_FullDirectTimer.Set( TIME_DELAY_FULL_DIRECT_PROBE[AIStrongOpt()] );
 
 	return bRetVal;
 }

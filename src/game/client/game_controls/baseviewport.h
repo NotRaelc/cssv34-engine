@@ -40,9 +40,10 @@ public:
 
 	virtual void ShowPanel( const char *pName, bool state );
 	virtual void ShowPanel( IViewPortPanel* pPanel, bool state );
-	virtual bool AddNewPanel( IViewPortPanel* pPanel, char const *pchDebugName = NULL );
+	virtual bool AddNewPanel( IViewPortPanel* pPanel, char const *pchDebugName );
 	virtual void CreateDefaultPanels( void );
 	virtual void UpdateAllPanels( void );
+	virtual void PostMessageToPanel( const char *pName, KeyValues *pKeyValues );
 
 	virtual void Start( IGameUIFuncs *pGameUIFuncs, IGameEventManager2 *pGameEventManager );
 	virtual void SetParent(vgui::VPANEL parent);
@@ -74,6 +75,9 @@ public: // IGameEventListener:
 
 
 protected:
+
+	bool LoadHudAnimations( void );
+
 #ifndef _XBOX
 	class CBackGroundPanel : public vgui::Frame
 	{
@@ -89,6 +93,7 @@ protected:
 			SetSizeable(false);
 			SetProportional(true);
 		}
+		virtual ~CBackGroundPanel() {}
 	private:
 
 		virtual void ApplySchemeSettings(IScheme *pScheme)
@@ -121,6 +126,7 @@ protected:
 	virtual void Paint();
 	virtual void OnThink(); 
 	virtual void OnScreenSizeChanged(int iOldWide, int iOldTall);
+	void PostMessageToPanel( IViewPortPanel* pPanel, KeyValues *pKeyValues );
 
 protected:
 	IGameUIFuncs*		m_GameuiFuncs; // for key binding details

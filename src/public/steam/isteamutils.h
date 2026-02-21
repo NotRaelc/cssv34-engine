@@ -10,6 +10,8 @@
 #pragma once
 #endif
 
+#include "isteamclient.h"
+
 //-----------------------------------------------------------------------------
 // Purpose: interface to user independent utility functions
 //-----------------------------------------------------------------------------
@@ -28,4 +30,17 @@ public:
 };
 
 #define STEAMUTILS_INTERFACE_VERSION "SteamUtils001"
+
+
+// callbacks
+
+
+//-----------------------------------------------------------------------------
+// Purpose: The country 
+//-----------------------------------------------------------------------------
+struct IPCountry_t
+{
+	enum { k_iCallback = k_iSteamUtilsCallbacks + 1 };
+};
+
 #endif // ISTEAMUTILS_H

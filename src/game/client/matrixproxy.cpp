@@ -5,14 +5,18 @@
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
-#include "VMatrix.h"
+#include "mathlib/VMatrix.h"
 #include "FunctionProxy.h"
 #include "materialsystem/IMaterialVar.h"
 #include <KeyValues.h>
 #include "materialsystem/IMaterial.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+// forward declarations
+void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 class C_BaseEntity;
 
@@ -106,6 +110,11 @@ void CTextureTransformProxy::OnBind( void *pC_BaseEntity )
 	}
 
 	m_pResult->SetMatrixValue( mat );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 
@@ -160,6 +169,11 @@ void CMatrixRotateProxy::OnBind( void *pC_BaseEntity )
 
 	MatrixBuildRotationAboutAxis( mat, axis, m_Angle.GetFloat() );
 	m_pResult->SetMatrixValue( mat );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 

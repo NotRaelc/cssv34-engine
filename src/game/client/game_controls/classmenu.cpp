@@ -38,7 +38,13 @@ extern IGameUIFuncs *gameuifuncs; // for key binding details
 
 using namespace vgui;
 
-ConVar hud_classautokill( "hud_classautokill", "1", FCVAR_CLIENTDLL | FCVAR_ARCHIVE, "Automatically kill player after choosing a new playerclass." );
+#ifdef TF_CLIENT_DLL
+#define HUD_CLASSAUTOKILL_FLAGS		( FCVAR_CLIENTDLL | FCVAR_ARCHIVE | FCVAR_USERINFO )
+#else
+#define HUD_CLASSAUTOKILL_FLAGS		( FCVAR_CLIENTDLL | FCVAR_ARCHIVE )
+#endif // !TF_CLIENT_DLL
+
+ConVar hud_classautokill( "hud_classautokill", "1", HUD_CLASSAUTOKILL_FLAGS, "Automatically kill player after choosing a new playerclass." );
 
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
@@ -46,7 +52,7 @@ ConVar hud_classautokill( "hud_classautokill", "1", FCVAR_CLIENTDLL | FCVAR_ARCH
 CClassMenu::CClassMenu(IViewPort *pViewPort) : Frame(NULL, PANEL_CLASS)
 {
 	m_pViewPort = pViewPort;
-	m_iScoreBoardKey = -1; // this is looked up in Activate()
+	m_iScoreBoardKey = BUTTON_CODE_INVALID; // this is looked up in Activate()
 	m_iTeam = 0;
 
 	// initialize dialog
@@ -73,7 +79,7 @@ CClassMenu::CClassMenu(IViewPort *pViewPort) : Frame(NULL, PANEL_CLASS)
 CClassMenu::CClassMenu(IViewPort *pViewPort, const char *panelName) : Frame(NULL, panelName)
 {
 	m_pViewPort = pViewPort;
-	m_iScoreBoardKey = -1; // this is looked up in Activate()
+	m_iScoreBoardKey = BUTTON_CODE_INVALID; // this is looked up in Activate()
 	m_iTeam = 0;
 
 	// initialize dialog
@@ -156,27 +162,27 @@ void CClassMenu::Reset()
 //-----------------------------------------------------------------------------
 // Purpose: Called when the user picks a class
 //-----------------------------------------------------------------------------
-void CClassMenu::OnCommand( const char *command)
+void CClassMenu::OnCommand( const char *command )
 {
 	if ( Q_stricmp( command, "vguicancel" ) )
 	{
 		engine->ClientCmd( const_cast<char *>( command ) );
 
-#ifndef CSTRIKE_DLL
+#if !defined( CSTRIKE_DLL ) && !defined( TF_CLIENT_DLL )
 		// They entered a command to change their class, kill them so they spawn with 
 		// the new class right away
 		if ( hud_classautokill.GetBool() )
 		{
             engine->ClientCmd( "kill" );
 		}
-#endif // !CSTRIKE_DLL
+#endif // !CSTRIKE_DLL && !TF_CLIENT_DLL
 	}
 	
 	Close();
 
 	gViewPortInterface->ShowBackGround( false );
 
-	BaseClass::OnCommand(command);
+	BaseClass::OnCommand( command );
 }
 
 //-----------------------------------------------------------------------------
@@ -202,9 +208,9 @@ void CClassMenu::ShowPanel(bool bShow)
 			}
 		}
 		
-		if ( m_iScoreBoardKey < 0 ) 
+		if ( m_iScoreBoardKey == BUTTON_CODE_INVALID ) 
 		{
-			m_iScoreBoardKey = gameuifuncs->GetEngineKeyCodeForBind( "showscores" );
+			m_iScoreBoardKey = gameuifuncs->GetButtonCodeForBind( "showscores" );
 		}
 	}
 	else
@@ -248,11 +254,10 @@ void CClassMenu::SetVisibleButton(const char *textEntryName, bool state)
 
 void CClassMenu::OnKeyCodePressed(KeyCode code)
 {
-	int lastPressedEngineKey = engine->GetLastPressedEngineKey();
-
-	if ( m_iScoreBoardKey >= 0 && m_iScoreBoardKey == lastPressedEngineKey )
+	if ( m_iScoreBoardKey != BUTTON_CODE_INVALID && m_iScoreBoardKey == code )
 	{
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, true );
+		gViewPortInterface->PostMessageToPanel( PANEL_SCOREBOARD, new KeyValues( "PollHideCode", "code", code ) );
 	}
 	else
 	{

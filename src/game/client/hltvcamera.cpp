@@ -22,7 +22,7 @@
 	#include "c_cs_player.h"
 #endif
 
-ConVar spec_autodirector( "spec_autodirector", "1", FCVAR_CLIENTDLL, "Auto-director chooses best view modes while spectating" );
+ConVar spec_autodirector( "spec_autodirector", "1", FCVAR_CLIENTDLL | FCVAR_CLIENTCMD_CAN_EXECUTE, "Auto-director chooses best view modes while spectating" );
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -67,13 +67,13 @@ C_HLTVCamera::~C_HLTVCamera()
 
 void C_HLTVCamera::Init()
 {
-	gameeventmanager->AddListener( this, "game_newmap", false );
-	gameeventmanager->AddListener( this, "hltv_cameraman", false );
-	gameeventmanager->AddListener( this, "hltv_fixed", false );
-	gameeventmanager->AddListener( this, "hltv_chase", false );
-	gameeventmanager->AddListener( this, "hltv_message", false );
-	gameeventmanager->AddListener( this, "hltv_title", false );
-	gameeventmanager->AddListener( this, "hltv_status", false );
+	ListenForGameEvent( "game_newmap" );
+	ListenForGameEvent( "hltv_cameraman" );
+	ListenForGameEvent( "hltv_fixed" );
+	ListenForGameEvent( "hltv_chase" );
+	ListenForGameEvent( "hltv_message" );
+	ListenForGameEvent( "hltv_title" );
+	ListenForGameEvent( "hltv_status" );
 	
 	Reset();
 
@@ -82,11 +82,6 @@ void C_HLTVCamera::Init()
 
 	// get a handle to the engine convar
 	tv_transmitall = cvar->FindVar( "tv_transmitall" );
-}
-
-void C_HLTVCamera::Shutdown()
-{
-	gameeventmanager->RemoveListener( this );
 }
 
 void C_HLTVCamera::Reset()
@@ -104,6 +99,9 @@ void C_HLTVCamera::Reset()
 
 	m_vCamOrigin.Init();
 	m_aCamAngle.Init();
+
+	m_LastCmd.Reset();
+	m_vecVelocity.Init();
 }
 
 void C_HLTVCamera::CalcChaseCamView( Vector& eyeOrigin, QAngle& eyeAngles, float& fov )
@@ -341,16 +339,131 @@ void C_HLTVCamera::CalcInEyeCamView( Vector& eyeOrigin, QAngle& eyeAngles, float
 	}
 }
 
-void C_HLTVCamera::CalcRoamingView(Vector& eyeOrigin, QAngle& eyeAngles, float& fov)
+void C_HLTVCamera::Accelerate( Vector& wishdir, float wishspeed, float accel )
 {
-	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	float addspeed, accelspeed, currentspeed;
 
-	if ( !pPlayer )
+	// See if we are changing direction a bit
+	currentspeed =m_vecVelocity.Dot(wishdir);
+
+	// Reduce wishspeed by the amount of veer.
+	addspeed = wishspeed - currentspeed;
+
+	// If not going to add any speed, done.
+	if (addspeed <= 0)
 		return;
 
-	eyeOrigin = m_vCamOrigin = pPlayer->EyePosition();
-	eyeAngles = m_aCamAngle = pPlayer->EyeAngles();
-	fov = m_flFOV = pPlayer->GetFOV();
+	// Determine amount of acceleration.
+	accelspeed = accel * gpGlobals->frametime * wishspeed;
+
+	// Cap at addspeed
+	if (accelspeed > addspeed)
+		accelspeed = addspeed;
+
+	// Adjust velocity.
+	for (int i=0 ; i<3 ; i++)
+	{
+		m_vecVelocity[i] += accelspeed * wishdir[i];	
+	}
+}
+
+
+// movement code is a copy of CGameMovement::FullNoClipMove()
+void C_HLTVCamera::CalcRoamingView(Vector& eyeOrigin, QAngle& eyeAngles, float& fov)
+{
+	// only if PVS isn't locked by auto-director
+	if ( !IsPVSLocked() )
+	{
+
+		Vector wishvel;
+		Vector forward, right, up;
+		Vector wishdir;
+		float wishspeed;
+		float factor = sv_specspeed.GetFloat();
+		float maxspeed = sv_maxspeed.GetFloat() * factor;
+
+		AngleVectors ( m_LastCmd.viewangles, &forward, &right, &up);  // Determine movement angles
+
+		if ( m_LastCmd.buttons & IN_SPEED )
+		{
+			factor /= 2.0f;
+		}
+
+		// Copy movement amounts
+		float fmove = m_LastCmd.forwardmove * factor;
+		float smove = m_LastCmd.sidemove * factor;
+
+		VectorNormalize (forward);  // Normalize remainder of vectors
+		VectorNormalize (right);    // 
+
+		for (int i=0 ; i<3 ; i++)       // Determine x and y parts of velocity
+			wishvel[i] = forward[i]*fmove + right[i]*smove;
+		wishvel[2] += m_LastCmd.upmove * factor;
+
+		VectorCopy (wishvel, wishdir);   // Determine magnitude of speed of move
+		wishspeed = VectorNormalize(wishdir);
+
+		//
+		// Clamp to server defined max speed
+		//
+		if (wishspeed > maxspeed )
+		{
+			VectorScale (wishvel, maxspeed/wishspeed, wishvel);
+			wishspeed = maxspeed;
+		}
+
+		if ( sv_specaccelerate.GetFloat() > 0.0 )
+		{
+			// Set move velocity
+			Accelerate ( wishdir, wishspeed, sv_specaccelerate.GetFloat() );
+
+			float spd = VectorLength( m_vecVelocity );
+			if (spd < 1.0f)
+			{
+				m_vecVelocity.Init();
+			}
+			else
+			{
+				// Bleed off some speed, but if we have less than the bleed
+				//  threshold, bleed the threshold amount.
+				float control = (spd < maxspeed/4.0) ? maxspeed/4.0 : spd;
+
+				float friction = sv_friction.GetFloat();
+
+				// Add the amount to the drop amount.
+				float drop = control * friction * gpGlobals->frametime;
+
+				// scale the velocity
+				float newspeed = spd - drop;
+				if (newspeed < 0)
+					newspeed = 0;
+
+				// Determine proportion of old speed we are using.
+				newspeed /= spd;
+				VectorScale( m_vecVelocity, newspeed, m_vecVelocity );
+			}
+		}
+		else
+		{
+			VectorCopy( wishvel, m_vecVelocity );
+		}
+
+		// Just move ( don't clip or anything )
+		VectorMA( m_vCamOrigin, gpGlobals->frametime, m_vecVelocity, m_vCamOrigin );
+		
+		// get camera angle directly from engine
+		 engine->GetViewAngles( m_aCamAngle );
+
+		// Zero out velocity if in noaccel mode
+		if ( sv_specaccelerate.GetFloat() < 0.0f )
+		{
+			m_vecVelocity.Init();
+		}
+	}
+
+	eyeOrigin = m_vCamOrigin;
+	eyeAngles = m_aCamAngle;
+	fov = m_flFOV;
 }
 
 void C_HLTVCamera::CalcFixedView(Vector& eyeOrigin, QAngle& eyeAngles, float& fov)
@@ -436,7 +549,7 @@ void C_HLTVCamera::SetMode(int iMode)
 	if ( m_nCameraMode == iMode )
 		return;
 
-    Assert( iMode > OBS_MODE_NONE && iMode <= OBS_MODE_ROAMING );
+    Assert( iMode > OBS_MODE_NONE && iMode <= LAST_PLAYER_OBSERVERMODE );
 
 	m_nCameraMode = iMode;
 }
@@ -455,9 +568,6 @@ void C_HLTVCamera::SetPrimaryTarget( int nEntity )
 		float flFov;
 
 		CalcChaseCamView( vOrigin,  aAngles, flFov );
-
-		prediction->SetViewOrigin( vOrigin );
-		prediction->SetViewAngles( aAngles );
 	}
 	else if ( GetMode() == OBS_MODE_CHASE )
 	{
@@ -575,7 +685,7 @@ void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 		const char *pszText = event->GetString( "text", "" );
 		
 		char *tmpStr = hudtextmessage->LookupString( pszText );
-		const wchar_t *pBuf = vgui::localize()->Find( tmpStr );
+		const wchar_t *pBuf = g_pVGuiLocalize->Find( tmpStr );
 		if ( pBuf )
 		{
 			// Copy pBuf into szBuf[i].
@@ -585,7 +695,7 @@ void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 		}
 		else
 		{
-			vgui::localize()->ConvertANSIToUnicode( tmpStr, outputBuf, sizeof(outputBuf) );
+			g_pVGuiLocalize->ConvertANSIToUnicode( tmpStr, outputBuf, sizeof(outputBuf) );
 		}
 
 		internalCenterPrint->Print( ConvertCRtoNL( outputBuf ) );
@@ -686,58 +796,10 @@ void C_HLTVCamera::FireGameEvent( IGameEvent * event)
 // this is a cheap version of FullNoClipMove():
 void C_HLTVCamera::CreateMove( CUserCmd *cmd)
 {
-	// only if this is an HLTV server/demo
-	if ( !engine->IsHLTV() )
-		return;
-
-	// only if PVS isn't locked by auto-director
-	if ( IsPVSLocked() )
-		return;
-
-	Vector origin;
-	prediction->GetViewOrigin( origin );
-
-	float factor = sv_specspeed.GetFloat();
-	Vector wishvel;
-	Vector forward, right, up;
-	Vector wishdir;
-	float wishspeed;
-	float maxspeed = sv_maxspeed.GetFloat() * factor;
-
-	AngleVectors ( cmd->viewangles, &forward, &right, &up);  // Determine movement angles
-
-	if ( cmd->buttons & IN_SPEED )
+	if ( cmd )
 	{
-		factor /= 2.0f;
+		m_LastCmd = *cmd;
 	}
-
-	// Copy movement amounts
-	float fmove = cmd->forwardmove * factor;
-	float smove = cmd->sidemove * factor;
-
-	VectorNormalize (forward);  // Normalize remainder of vectors
-	VectorNormalize (right);    // 
-
-	for (int i=0 ; i<3 ; i++)       // Determine x and y parts of velocity
-		wishvel[i] = forward[i]*fmove + right[i]*smove;
-	wishvel[2] += cmd->upmove * factor;
-
-	VectorCopy (wishvel, wishdir);   // Determine magnitude of speed of move
-	wishspeed = VectorNormalize(wishdir);
-
-	//
-	// Clamp to server defined max speed
-	//
-	if (wishspeed > maxspeed )
-	{
-		VectorScale (wishvel, maxspeed/wishspeed, wishvel);
-		wishspeed = maxspeed;
-	}
-
-	// Just move ( don't clip or anything )
-	VectorMA( origin, TICK_INTERVAL, wishvel, origin );
-
-	prediction->SetViewOrigin( origin );
 }
 
 void C_HLTVCamera::SetCameraAngle( QAngle& targetAngle )

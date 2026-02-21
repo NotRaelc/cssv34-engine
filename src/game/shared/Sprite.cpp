@@ -15,6 +15,9 @@
 	#include "enginesprite.h"
 	#include "iclientmode.h"
 	#include "c_baseviewmodel.h"
+#	ifdef PORTAL
+		#include "c_prop_portal.h"
+#	endif //ifdef PORTAL
 #else
 	#include "baseviewmodel.h"
 #endif
@@ -26,6 +29,7 @@ const float MAX_SPRITE_SCALE = 64.0f;
 const float MAX_GLOW_PROXY_SIZE = 64.0f;
 
 LINK_ENTITY_TO_CLASS( env_sprite, CSprite );
+LINK_ENTITY_TO_CLASS( env_sprite_oriented, CSpriteOriented );
 #if !defined( CLIENT_DLL )
 LINK_ENTITY_TO_CLASS( env_glow, CSprite ); // For backwards compatibility, remove when no longer needed.
 #endif
@@ -45,6 +49,10 @@ BEGIN_DATADESC( CSprite )
 	DEFINE_KEYFIELD( m_flSpriteScale, FIELD_FLOAT, "scale" ),
 	DEFINE_KEYFIELD( m_flSpriteFramerate, FIELD_FLOAT, "framerate" ),
 	DEFINE_KEYFIELD( m_flFrame, FIELD_FLOAT, "frame" ),
+#ifdef PORTAL
+	DEFINE_FIELD( m_bDrawInMainRender, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_bDrawInPortalRender, FIELD_BOOLEAN ),
+#endif
 	DEFINE_KEYFIELD( m_flHDRColorScale, FIELD_FLOAT, "HDRColorScale" ),
 
 	DEFINE_KEYFIELD( m_flGlowProxySize,	FIELD_FLOAT, "GlowProxySize" ),
@@ -86,6 +94,10 @@ BEGIN_PREDICTION_DATA( CSprite )
 	DEFINE_PRED_FIELD( m_flSpriteScale, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_flSpriteFramerate, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_flFrame, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
+#ifdef PORTAL
+	DEFINE_PRED_FIELD( m_bDrawInMainRender, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
+	DEFINE_PRED_FIELD( m_bDrawInPortalRender, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
+#endif
 	DEFINE_PRED_FIELD( m_flBrightnessTime, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_nBrightness, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
 
@@ -133,6 +145,10 @@ BEGIN_NETWORK_TABLE( CSprite, DT_Sprite )
 
 	SendPropFloat( SENDINFO(m_flSpriteFramerate ), 8,	SPROP_ROUNDUP,	0,	60.0f),
 	SendPropFloat( SENDINFO(m_flFrame),		20, SPROP_ROUNDDOWN,	0.0f,   256.0f),
+#ifdef PORTAL
+	SendPropBool( SENDINFO(m_bDrawInMainRender) ),
+	SendPropBool( SENDINFO(m_bDrawInPortalRender) ),
+#endif //#ifdef PORTAL
 	SendPropFloat( SENDINFO(m_flBrightnessTime ), 0,	SPROP_NOSCALE ),
 	SendPropInt( SENDINFO(m_nBrightness), 8, SPROP_UNSIGNED ),
 	SendPropBool( SENDINFO(m_bWorldSpaceScale) ),
@@ -147,6 +163,10 @@ BEGIN_NETWORK_TABLE( CSprite, DT_Sprite )
 	RecvPropFloat( RECVINFO(m_flHDRColorScale )),
 
 	RecvPropFloat(RECVINFO(m_flFrame)),
+#ifdef PORTAL
+	RecvPropBool( RECVINFO(m_bDrawInMainRender) ),
+	RecvPropBool( RECVINFO(m_bDrawInPortalRender) ),
+#endif //#ifdef PORTAL
 	RecvPropFloat(RECVINFO(m_flBrightnessTime)),
 	RecvPropInt(RECVINFO(m_nBrightness)),
 	RecvPropBool( RECVINFO(m_bWorldSpaceScale) ),
@@ -158,6 +178,11 @@ CSprite::CSprite()
 {
 	m_flGlowProxySize = 2.0f;
 	m_flHDRColorScale = 1.0f;
+
+#ifdef PORTAL
+	m_bDrawInMainRender = true;
+	m_bDrawInPortalRender = true;
+#endif
 }
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -367,7 +392,7 @@ CSprite *CSprite::SpriteCreate( const char *pSpriteName, const Vector &origin, b
 	pSprite->SpriteInit( pSpriteName, origin );
 	pSprite->SetSolid( SOLID_NONE );
 	UTIL_SetSize( pSprite, vec3_origin, vec3_origin );
-	pSprite->SetMoveType( MOVETYPE_NOCLIP );
+	pSprite->SetMoveType( MOVETYPE_NONE );
 	if ( animate )
 		pSprite->TurnOn();
 
@@ -390,7 +415,7 @@ CSprite *CSprite::SpriteCreatePredictable( const char *module, int line, const c
 		pSprite->SpriteInit( pSpriteName, origin );
 		pSprite->SetSolid( SOLID_NONE );
 		pSprite->SetSize( vec3_origin, vec3_origin );
-		pSprite->SetMoveType( MOVETYPE_NOCLIP );
+		pSprite->SetMoveType( MOVETYPE_NONE );
 		if ( animate )
 			pSprite->TurnOn();
 	}
@@ -642,8 +667,11 @@ void CSprite::GetRenderBounds( Vector &vecMins, Vector &vecMaxs )
 	if ( m_bWorldSpaceScale == false )
 	{
 		CEngineSprite *psprite = (CEngineSprite *) modelinfo->GetModelExtraData( GetModel() );
-		float flSize = max( psprite->GetWidth(), psprite->GetHeight() );
-		flScale *= flSize;
+		if ( psprite )
+		{
+			float flSize = max( psprite->GetWidth(), psprite->GetHeight() );
+			flScale *= flSize;
+		}
 	}
 
 	vecMins.Init( -flScale, -flScale, -flScale );
@@ -715,6 +743,7 @@ void CSprite::ClientThink( void )
 
 extern bool g_bRenderingScreenshot;
 extern ConVar r_drawviewmodel;
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : flags - 
@@ -726,6 +755,14 @@ int CSprite::DrawModel( int flags )
 	//See if we should draw
 	if ( !IsVisible() || ( m_bReadyToDraw == false ) )
 		return 0;
+
+#ifdef PORTAL
+	if ( ( !g_pPortalRender->IsRenderingPortal() && !m_bDrawInMainRender ) || 
+		( g_pPortalRender->IsRenderingPortal() && !m_bDrawInPortalRender ) )
+	{
+		return 0;
+	}
+#endif //#ifdef PORTAL
 
 	// Tracker 16432:  If rendering a savegame screenshot then don't draw sprites 
 	//   who have viewmodels as their moveparent
@@ -792,6 +829,42 @@ const Vector& CSprite::GetRenderOrigin()
 	}
 
 	return vOrigin;
+}
+
+#endif
+
+//-----------------------------------------------------------------------------
+// Purpose: oriented sprites
+//			CSprites swap the roll and yaw angle inputs, and rotate the yaw 180 degrees
+//-----------------------------------------------------------------------------
+
+#if !defined( CLIENT_DLL )
+IMPLEMENT_SERVERCLASS_ST( CSpriteOriented, DT_SpriteOriented )
+END_SEND_TABLE()
+#else
+#undef CSpriteOriented
+IMPLEMENT_CLIENTCLASS_DT(C_SpriteOriented, DT_SpriteOriented, CSpriteOriented)
+#define CSpriteOriented C_SpriteOriented
+END_RECV_TABLE()
+#endif
+
+#if !defined( CLIENT_DLL )
+
+void CSpriteOriented::Spawn( void )
+{
+	// save a copy of the angles, CSprite swaps the yaw and roll
+	QAngle angles = GetAbsAngles();
+	BaseClass::Spawn();
+	// ORIENTED sprites "forward" vector points in the players "view" direction, not the direction "out" from the sprite (gah)
+	angles.y = anglemod( angles.y + 180 );
+	SetAbsAngles( angles );
+}
+
+#else
+
+bool CSpriteOriented::IsTransparent( void )
+{
+	return true;
 }
 
 #endif

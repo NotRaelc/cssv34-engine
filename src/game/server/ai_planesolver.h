@@ -15,7 +15,7 @@
 #include "utlvector.h"
 #include "ai_movesolver.h"
 #include "ehandle.h"
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "simtimer.h"
 #include "ai_navtype.h"
 
@@ -99,7 +99,7 @@ private:
 	void				 GenerateSuggestionFromTrace( const AILocalMoveGoal_t &goal,
 													  const AIMoveTrace_t &moveTrace, float probeDist, 
 													  float arcCenter, float arcSpan, int probeOffset );
-	bool				 GenerateCircleObstacleSuggestions( float probeDist );
+	bool				 GenerateCircleObstacleSuggestions( const AILocalMoveGoal_t &moveGoal, float probeDist );
 
 	void				 CalcYawsFromOffset( float yawScanCenter, float spanPerProbe, int probeOffset,
 											 float *pYawTest, float *pYawCenter );

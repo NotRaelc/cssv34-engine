@@ -76,6 +76,7 @@ BEGIN_DATADESC( CWeaponHopwire )
 	DEFINE_FIELD( m_bRedraw, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_AttackPaused, FIELD_INTEGER ),
 	DEFINE_FIELD( m_fDrawbackFinished, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_hActiveHopWire, FIELD_EHANDLE ),
 END_DATADESC()
 
 acttable_t	CWeaponHopwire::m_acttable[] = 
@@ -240,7 +241,7 @@ bool CWeaponHopwire::Reload( void )
 //-----------------------------------------------------------------------------
 void CWeaponHopwire::SecondaryAttack( void )
 {
-	/*
+
 	if ( m_bRedraw )
 		return;
 
@@ -270,7 +271,6 @@ void CWeaponHopwire::SecondaryAttack( void )
 	{
 		pPlayer->SwitchToNextBestWeapon( this );
 	}
-	*/
 }
 
 //-----------------------------------------------------------------------------

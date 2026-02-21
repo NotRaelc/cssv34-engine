@@ -11,7 +11,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-ConVar mat_hdr_tonemapscale( "mat_hdr_tonemapscale", "1", FCVAR_NONE, "The HDR tonemap scale. 1 = Use autoexposure, 0 = eyes fully closed, 16 = eyes wide open." );
+ConVar mat_hdr_tonemapscale( "mat_hdr_tonemapscale", "1.0", FCVAR_CHEAT, "The HDR tonemap scale. 1 = Use autoexposure, 0 = eyes fully closed, 16 = eyes wide open." );
 
 // 0 - eyes fully closed / fully black
 // 1 - nominal 
@@ -70,6 +70,7 @@ BEGIN_DATADESC( CEnvTonemapController )
 	DEFINE_FIELD( m_flCustomAutoExposureMax, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flCustomBloomScale, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flCustomBloomScaleMinimum, FIELD_FLOAT ),
+	DEFINE_FIELD( m_bUseCustomBloomScale, FIELD_BOOLEAN ),
 
 	DEFINE_THINKFUNC( UpdateTonemapScaleBlend ),
 
@@ -177,11 +178,11 @@ void CEnvTonemapController::InputSetBloomScaleRange( inputdata_t &inputdata )
 void CEnvTonemapController::InputSetTonemapRate( inputdata_t &inputdata )
 {
 	// TODO: There should be a better way to do this.
-	ConVar *pConVarTonemapRate = ( ConVar* )cvar->FindVar( "mat_hdr_manual_tonemap_rate" );
-	if ( pConVarTonemapRate )
+	ConVarRef mat_hdr_manual_tonemap_rate( "mat_hdr_manual_tonemap_rate" );
+	if ( mat_hdr_manual_tonemap_rate.IsValid() )
 	{
 		float flTonemapRate = inputdata.value.Float();
-		pConVarTonemapRate->SetValue( flTonemapRate );
+		mat_hdr_manual_tonemap_rate.SetValue( flTonemapRate );
 	}
 }
 

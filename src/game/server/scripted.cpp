@@ -28,6 +28,10 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+
+ConVar ai_task_pre_script(  "ai_task_pre_script", "0", FCVAR_NONE );
+
+
 //
 // targetname "me" - there can be more than one with the same name, and they act in concert
 // target "the_entity_I_want_to_start_playing" or "class entity_classname" will pick the closest inactive scientist
@@ -54,13 +58,17 @@ BEGIN_DATADESC( CAI_ScriptedSequence )
 	DEFINE_FIELD( m_bIsPlayingEntry, FIELD_BOOLEAN ),
 	DEFINE_KEYFIELD( m_bLoopActionSequence, FIELD_BOOLEAN, "m_bLoopActionSequence" ),
 	DEFINE_KEYFIELD( m_bSynchPostIdles, FIELD_BOOLEAN, "m_bSynchPostIdles" ),
+	DEFINE_KEYFIELD( m_bIgnoreGravity, FIELD_BOOLEAN, "m_bIgnoreGravity" ),
+	DEFINE_KEYFIELD( m_bDisableNPCCollisions, FIELD_BOOLEAN, "m_bDisableNPCCollisions" ),
 
 	DEFINE_FIELD( m_iDelay, FIELD_INTEGER ),
+	DEFINE_FIELD( m_bDelayed, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_startTime, FIELD_TIME ),
 	DEFINE_FIELD( m_bWaitForBeginSequence, FIELD_BOOLEAN ),
 
 	DEFINE_FIELD( m_saved_effects, FIELD_INTEGER ),
 	DEFINE_FIELD( m_savedFlags, FIELD_INTEGER ),
+	DEFINE_FIELD( m_savedCollisionGroup, FIELD_INTEGER ),
 	
 	DEFINE_FIELD( m_interruptable, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_sequenceStarted, FIELD_BOOLEAN ),
@@ -112,7 +120,6 @@ END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( scripted_sequence, CAI_ScriptedSequence );
 #define CLASSNAME "scripted_sequence"
-
 
 //-----------------------------------------------------------------------------
 // Purpose: Cancels the given scripted sequence.
@@ -437,11 +444,7 @@ bool CAI_ScriptedSequence::IsTimeToStart( void )
 {
 	Assert( !m_bWaitForBeginSequence );
 
-	// A delay of <0 means that there's a logic bug going on. The code recovers
-	// and plays as if it's 0, but you should find out how it managed to occur.
-	Assert( m_iDelay >= 0 );
-
-	return ( m_iDelay <= 0 );
+	return ( m_iDelay == 0 );
 }
 
 
@@ -658,6 +661,9 @@ void CAI_ScriptedSequence::StartScript( void )
 		pTarget->ForceDecisionThink();
 		pTarget->m_hCine = this;
 		pTarget->SetTarget( this );
+		
+		// Notify the NPC tat we're stomping them into a scene!
+		pTarget->OnStartScene();
 
 		{
 			m_bTargetWasAsleep = ( pTarget->GetSleepState() != AISS_AWAKE ) ? true : false;
@@ -683,12 +689,25 @@ void CAI_ScriptedSequence::StartScript( void )
 		m_saved_effects = pTarget->GetEffects() & ~EF_NODRAW;
 		pTarget->AddEffects( GetEffects() );
 		m_savedFlags = pTarget->GetFlags();
+		m_savedCollisionGroup = pTarget->GetCollisionGroup();
+		
+		if ( m_bDisableNPCCollisions )
+		{
+			pTarget->SetCollisionGroup( COLLISION_GROUP_NPC_SCRIPTED );
+		}
 
 		switch (m_fMoveTo)
 		{
 		case CINE_MOVETO_WAIT: 
 		case CINE_MOVETO_WAIT_FACING:
 			pTarget->m_scriptState = CAI_BaseNPC::SCRIPT_WAIT; 
+
+			if ( m_bIgnoreGravity )
+			{
+				pTarget->AddFlag( FL_FLY );
+				pTarget->SetGroundEntity( NULL );
+			}
+
 			break;
 
 		case CINE_MOVETO_WALK:
@@ -714,21 +733,32 @@ void CAI_ScriptedSequence::StartScript( void )
 			angles.y = GetLocalAngles().y;
 			pTarget->SetLocalAngles( angles );
 			pTarget->m_scriptState = CAI_BaseNPC::SCRIPT_WAIT;
+
+			if ( m_bIgnoreGravity )
+			{
+				pTarget->AddFlag( FL_FLY );
+				pTarget->SetGroundEntity( NULL );
+			}
+
 			// UNDONE: Add a flag to do this so people can fixup physics after teleporting NPCs
 			//pTarget->SetGroundEntity( NULL );
 			break;
 		}
 		//DevMsg( 2,  "\"%s\" found and used (INT: %s)\n", STRING( pTarget->m_iName ), FBitSet(m_spawnflags, SF_SCRIPT_NOINTERRUPT)?"No":"Yes" );
 
-		if ( m_iDelay )
-		{
-			Warning("Scripted Sequence attempting to start twice. %s already has a delay.\n", GetDebugName() );
-		}
 
 		// Wait until all scripts of the same name are ready to play.
+		m_bDelayed = false;
 		DelayStart( true ); 
 
 		pTarget->SetIdealState(NPC_STATE_SCRIPT);
+
+		// FIXME: not sure why this is happening, or what to do about truely dormant NPCs
+		if ( pTarget->IsEFlagSet( EFL_NO_THINK_FUNCTION ) && pTarget->GetNextThink() != TICK_NEVER_THINK )
+		{
+			DevWarning( "scripted_sequence %d:%s - restarting dormant entity %d:%s : %.1f:%.1f\n", entindex(), GetDebugName(), pTarget->entindex(), pTarget->GetDebugName(), gpGlobals->curtime, pTarget->GetNextThink() );
+			pTarget->SetNextThink( gpGlobals->curtime );
+		}
 	}
 }
 
@@ -740,17 +770,17 @@ void CAI_ScriptedSequence::ScriptThink( void )
 {
 	if ( g_pAINetworkManager && !g_pAINetworkManager->IsInitialized() )
 	{
-		SetNextThink( gpGlobals->curtime + 1.0f );
+		SetNextThink( gpGlobals->curtime + 0.1f );
 	}
 	else if (FindEntity())
 	{
 		StartScript( );
-		DevMsg( 2,  "scripted_sequence \"%s\" using NPC \"%s\"(%s)\n", GetDebugName(), STRING( m_iszEntity ), GetTarget()->GetEntityName() );
+		DevMsg( 2,  "scripted_sequence %d:\"%s\" using NPC %d:\"%s\"(%s)\n", entindex(), GetDebugName(), GetTarget()->entindex(), GetTarget()->GetEntityName().ToCStr(), STRING( m_iszEntity ) );
 	}
 	else
 	{
 		CancelScript( );
-		DevMsg( 2,  "scripted_sequence \"%s\" can't find NPC \"%s\"\n", GetDebugName(), STRING( m_iszEntity ) );
+		DevMsg( 2,  "scripted_sequence %d:\"%s\" can't find NPC \"%s\"\n", entindex(), GetDebugName(), STRING( m_iszEntity ) );
 		// FIXME: just trying again is bad.  This should fire an output instead.
 		// FIXME: Think about puting output triggers in both StartScript() and CancelScript().
 		SetNextThink( gpGlobals->curtime + 1.0f );
@@ -833,15 +863,19 @@ void CAI_ScriptedSequence::SynchronizeSequence( CAI_BaseNPC *pNPC )
 	float flCycleRate = pNPC->GetSequenceCycleRate( pNPC->GetSequence() );
 	float flInterval = gpGlobals->curtime - m_startTime;
 
-	// Msg("%.2f \"%s\"  %s : %f (%f): interval %f\n", gpGlobals->curtime, GetEntityName(), pNPC->GetClassname(), pNPC->m_flAnimTime.Get(), m_startTime, flInterval );
+	// Msg("%.2f \"%s\"  %s : %f (%f): interval %f\n", gpGlobals->curtime, GetEntityName().ToCStr(), pNPC->GetClassname(), pNPC->m_flAnimTime.Get(), m_startTime, flInterval );
 	//Assert( flInterval >= 0.0 && flInterval <= 0.15 );
 	flInterval = clamp( flInterval, 0, 0.15 );
 
 	if (flInterval == 0)
 		return;
 
-	pNPC->SetCycle( flInterval * flCycleRate );
+	// do the movement for the missed portion of the sequence
+	pNPC->SetCycle( 0.0f );
 	pNPC->AutoMovement( flInterval );
+
+	// reset the cycle to a common basis
+	pNPC->SetCycle( flInterval * flCycleRate );
 }
 
 //-----------------------------------------------------------------------------
@@ -1061,17 +1095,17 @@ void CAI_ScriptedSequence::FixScriptNPCSchedule( CAI_BaseNPC *pNPC, int iSavedCi
 
 	FixFlyFlag( pNPC, iSavedCineFlags );
 
-	pNPC->ClearSchedule();
+	pNPC->ClearSchedule( "Finished scripted sequence" );
 }
 
 void CAI_ScriptedSequence::FixFlyFlag( CAI_BaseNPC *pNPC, int iSavedCineFlags )
 {
 	//Adrian: We NEED to clear this or the NPC's FL_FLY flag will never be removed cause of ClearSchedule!
-	if ( pNPC->GetTask() && pNPC->GetTask()->iTask == TASK_PLAY_SCRIPT )
+	if ( pNPC->GetTask() && ( pNPC->GetTask()->iTask == TASK_PLAY_SCRIPT || pNPC->GetTask()->iTask == TASK_PLAY_SCRIPT_POST_IDLE ) )
 	{
 		if ( !(iSavedCineFlags & FL_FLY) )
 		{
-			if ( pNPC->HasMovement( pNPC->GetSequence() ))
+			if ( pNPC->GetFlags() & FL_FLY )
 			{
 				 pNPC->RemoveFlag( FL_FLY );
 			}
@@ -1305,7 +1339,7 @@ void CAI_ScriptedSequence::CancelScript( void )
 	// succeed in starting, in which case we should always cancel. This fixes
 	// dynamic interactions where an NPC was killed the same frame another NPC
 	// started a dynamic interaction with him.
-	bool bDontCancelOther = (m_bDontCancelOtherSequences && (m_startTime != 0));
+	bool bDontCancelOther = ((m_bDontCancelOtherSequences || HasSpawnFlags( SF_SCRIPT_ALLOW_DEATH ) )&& (m_startTime != 0));
 	if ( bDontCancelOther || !GetEntityName() )
 	{
 		ScriptEntityCancel( this );
@@ -1337,6 +1371,14 @@ void CAI_ScriptedSequence::CancelScript( void )
 void CAI_ScriptedSequence::DelayStart( bool bDelay )
 {
 	//Msg("SSEQ: %.2f \"%s\" (%d) DelayStart( %d ). Current m_iDelay is: %d\n", gpGlobals->curtime, GetDebugName(), entindex(), bDelay, m_iDelay );
+	
+	if ( ai_task_pre_script.GetBool() )
+	{
+		if ( bDelay == m_bDelayed )
+			return;
+	
+		m_bDelayed = bDelay;
+	}
 
 	// Without a name, we cannot synchronize with anything else
 	if ( GetEntityName() == NULL_STRING )
@@ -1358,7 +1400,7 @@ void CAI_ScriptedSequence::DelayStart( bool bDelay )
 				// if delaying, add up the number of other scripts in the group
 				m_iDelay++;
 
-				//Msg("SSEQ: Found matching SS (%d). Incrementing MY m_iDelay to %d.\n", pTarget->entindex(), m_iDelay );
+				//Msg("SSEQ: (%d) Found matching SS (%d). Incrementing MY m_iDelay to %d.\n", entindex(), pTarget->entindex(), m_iDelay );
 			}
 			else
 			{
@@ -1366,15 +1408,11 @@ void CAI_ScriptedSequence::DelayStart( bool bDelay )
 				// members not yet delayed will decrement below zero.
 				pTarget->m_iDelay--;
 
-				//Msg("SSEQ: Found matching SS (%d). Decrementing THEIR m_iDelay to %d.\n", pTarget->entindex(), pTarget->m_iDelay );
+				//Msg("SSEQ: (%d) Found matching SS (%d). Decrementing THEIR m_iDelay to %d.\n", entindex(), pTarget->entindex(), pTarget->m_iDelay );
 
 				// once everything is balanced, everyone will start.
-				if (pTarget->m_iDelay <= 0)
+				if (pTarget->m_iDelay == 0)
 				{
-					// A delay of <0 means that there's a logic bug going on. The code recovers
-					// and plays as if it's 0, but you should find out how it managed to occur.
-					Assert( pTarget->m_iDelay == 0 );
-
 					pTarget->m_startTime = gpGlobals->curtime;
 
 					//Msg("SSEQ: STARTING SEQUENCE for \"%s\" (%d) (m_iDelay reached 0).\n", pTarget->GetDebugName(), pTarget->entindex() );
@@ -1526,6 +1564,9 @@ int CAI_ScriptedSequence::DrawDebugTextOverlays( void )
 class CAI_ScriptedSchedule : public CBaseEntity
 {
 	DECLARE_CLASS( CAI_ScriptedSchedule, CBaseEntity );
+public:
+	CAI_ScriptedSchedule( void );
+
 private:
 
 	void StartSchedule( CAI_BaseNPC *pTarget );
@@ -1550,17 +1591,12 @@ private:
 		SCHED_SCRIPT_RUN_PATH_GOAL,
 		SCHED_SCRIPT_ENEMY_IS_GOAL_AND_RUN_TO_GOAL,
 	};
-
-	enum Interruptability_t
-	{
-		GENERAL_INTERRUPTABILITY,
-		DAMAGEORDEATH_INTERRUPTABILITY,
-		DEATH_INTERRUPTABILITY
-	};
 	
 	//---------------------------------
 
 	EHANDLE 	m_hLastFoundEntity;
+	EHANDLE		m_hActivator;		// Held from the input to allow procedural calls
+
 	string_t 	m_iszEntity;		// Entity that is wanted for this script
 	float 		m_flRadius;			// Range to search for an NPC to possess.
 
@@ -1593,6 +1629,7 @@ BEGIN_DATADESC( CAI_ScriptedSchedule )
 	DEFINE_KEYFIELD( m_Interruptability, FIELD_INTEGER, "interruptability"),
 
 	DEFINE_FIELD( m_bDidFireOnce, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_hActivator, FIELD_EHANDLE ),
 
 	DEFINE_THINKFUNC( ScriptThink ),
 
@@ -1603,6 +1640,13 @@ END_DATADESC()
 
 
 LINK_ENTITY_TO_CLASS( aiscripted_schedule, CAI_ScriptedSchedule );
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+CAI_ScriptedSchedule::CAI_ScriptedSchedule( void ) : m_hActivator( NULL )
+{
+}
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -1616,7 +1660,7 @@ void CAI_ScriptedSchedule::ScriptThink( void )
 		pTarget = FindScriptEntity( (m_spawnflags & SF_SCRIPT_SEARCH_CYCLICALLY) != 0 );
 		if ( pTarget )
 		{
-			DevMsg( 2,  "scripted_schedule \"%s\" using NPC \"%s\"(%s)\n", GetDebugName(), STRING( m_iszEntity ), pTarget->GetEntityName() );
+			DevMsg( 2,  "scripted_schedule \"%s\" using NPC \"%s\"(%s)\n", GetDebugName(), STRING( m_iszEntity ), pTarget->GetEntityName().ToCStr() );
 			StartSchedule( pTarget );
 			success = true;
 		}
@@ -1626,7 +1670,7 @@ void CAI_ScriptedSchedule::ScriptThink( void )
 		m_hLastFoundEntity = NULL;
 		while ( ( pTarget = FindScriptEntity( true ) ) != NULL )
 		{
-			DevMsg( 2,  "scripted_schedule \"%s\" using NPC \"%s\"(%s)\n", GetDebugName(), pTarget->GetEntityName(), STRING( m_iszEntity ) );
+			DevMsg( 2,  "scripted_schedule \"%s\" using NPC \"%s\"(%s)\n", GetDebugName(), pTarget->GetEntityName().ToCStr(), STRING( m_iszEntity ) );
 			StartSchedule( pTarget );
 			success = true;
 		}
@@ -1650,7 +1694,7 @@ void CAI_ScriptedSchedule::ScriptThink( void )
 //-----------------------------------------------------------------------------
 CAI_BaseNPC *CAI_ScriptedSchedule::FindScriptEntity( bool bCyclic )
 {
-	CBaseEntity *pEntity = gEntList.FindEntityGenericWithin( m_hLastFoundEntity, STRING( m_iszEntity ), GetAbsOrigin(), m_flRadius, this, NULL );
+	CBaseEntity *pEntity = gEntList.FindEntityGenericWithin( m_hLastFoundEntity, STRING( m_iszEntity ), GetAbsOrigin(), m_flRadius, this, m_hActivator );
 
 	while ( pEntity != NULL )
 	{
@@ -1794,39 +1838,8 @@ void CAI_ScriptedSchedule::StartSchedule( CAI_BaseNPC *pTarget )
 
 	if ( bDidSetSchedule )
 	{
-		static int g_GeneralConditions[] = 
-		{
-			COND_CAN_MELEE_ATTACK1,
-			COND_CAN_MELEE_ATTACK2,
-			COND_CAN_RANGE_ATTACK1,
-			COND_CAN_RANGE_ATTACK2,
-			COND_ENEMY_DEAD,
-			COND_HEAR_BULLET_IMPACT,
-			COND_HEAR_COMBAT,
-			COND_HEAR_DANGER,
-			COND_HEAR_PHYSICS_DANGER,
-			COND_NEW_ENEMY,
-			COND_PROVOKED,
-			COND_SEE_ENEMY,
-			COND_SEE_FEAR,
-			COND_SMELL,
-		};
-
-		static int g_DamageConditions[] = 
-		{
-			COND_HEAVY_DAMAGE,
-			COND_LIGHT_DAMAGE,
-			COND_RECEIVED_ORDERS,
-		};
-
-		pTarget->ClearIgnoreConditions( g_GeneralConditions, ARRAYSIZE(g_GeneralConditions) );
-		pTarget->ClearIgnoreConditions( g_DamageConditions, ARRAYSIZE(g_DamageConditions) );
-
-		if ( m_Interruptability > GENERAL_INTERRUPTABILITY )
-			pTarget->SetIgnoreConditions( g_GeneralConditions, ARRAYSIZE(g_GeneralConditions) );
-
-		if ( m_Interruptability > DAMAGEORDEATH_INTERRUPTABILITY )
-			pTarget->SetIgnoreConditions( g_DamageConditions, ARRAYSIZE(g_DamageConditions) );
+		// Chain this to the target so that it can add the base and any custom interrupts to this
+		pTarget->SetScriptedScheduleIgnoreConditions( m_Interruptability );
 	}
 }
 
@@ -1845,6 +1858,7 @@ void CAI_ScriptedSchedule::InputStartSchedule( inputdata_t &inputdata )
 	if ( !m_bDidFireOnce || ( m_spawnflags & SF_SCRIPT_REPEATABLE ) )
 	{
 		// DVS TODO: Is the NPC already playing the script?
+		m_hActivator = inputdata.pActivator;
 		SetThink( &CAI_ScriptedSchedule::ScriptThink );
 		SetNextThink( gpGlobals->curtime );
 	}
@@ -1892,7 +1906,7 @@ void CAI_ScriptedSchedule::StopSchedule( CAI_BaseNPC *pTarget )
 	if ( pTarget->IsCurSchedule( SCHED_IDLE_WALK ) )
 	{
 		DevMsg( 2, "%s (%s): StopSchedule called on NPC %s.\n", GetClassname(), GetDebugName(), pTarget->GetDebugName() );
-		pTarget->ClearSchedule();
+		pTarget->ClearSchedule( "Stopping scripted schedule" );
 	}
 }
 

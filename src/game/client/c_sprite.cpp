@@ -19,6 +19,7 @@
 #include "viewrender.h"
 #include "tier1/KeyValues.h"
 #include "toolframework/itoolframework.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -65,14 +66,16 @@ void DrawSpriteModel( IClientEntity *baseentity, CEngineSprite *psprite, const V
 	psprite->SetRenderMode( rendermode );
 	psprite->SetFrame( frame );
 
+	CMatRenderContextPtr pRenderContext( materials );
+	
 	if ( ShouldDrawInWireFrameMode() || r_drawsprites.GetInt() == 2 )
 	{
 		IMaterial *pMaterial = materials->FindMaterial( "debug/debugspritewireframe", TEXTURE_GROUP_OTHER );
-		materials->Bind( pMaterial, NULL );
+		pRenderContext->Bind( pMaterial, NULL );
 	}
 	else
 	{
-		materials->Bind( material, (IClientRenderable*)baseentity );
+		pRenderContext->Bind( material, (IClientRenderable*)baseentity );
 	}
 
 	unsigned char color[4];
@@ -88,7 +91,7 @@ void DrawSpriteModel( IClientEntity *baseentity, CEngineSprite *psprite, const V
 	}
 
 	Vector point;
-	IMesh* pMesh = materials->GetDynamicMesh();
+	IMesh* pMesh = pRenderContext->GetDynamicMesh();
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
@@ -490,6 +493,7 @@ void CSprite::GetToolRecordingState( KeyValues *msg )
 	static SpriteRecordingState_t state;
 	state.m_flRenderScale = renderscale;
 	state.m_flFrame = m_flFrame;
+	state.m_flProxyRadius = m_flGlowProxySize;
 	state.m_nRenderMode = GetRenderMode();
 	state.m_nRenderFX = m_nRenderFX;
 	state.m_Color.SetColor( m_clrRender.GetR(), m_clrRender.GetG(), m_clrRender.GetB(), GetRenderBrightness() );

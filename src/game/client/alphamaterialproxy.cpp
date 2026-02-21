@@ -20,6 +20,7 @@ public:
 	virtual ~CAlphaMaterialProxy();
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( C_BaseEntity *pEntity );
+	virtual IMaterial *GetMaterial();
 
 private:
 	IMaterialVar *m_AlphaVar;
@@ -48,6 +49,14 @@ void CAlphaMaterialProxy::OnBind( C_BaseEntity *pEnt )
 	{
 		m_AlphaVar->SetFloatValue( pEnt->m_clrRender->a );
 	}
+}
+
+IMaterial *CAlphaMaterialProxy::GetMaterial()
+{
+	if ( !m_AlphaVar )
+		return NULL;
+
+	return m_AlphaVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CAlphaMaterialProxy, IMaterialProxy, "Alpha" IMATERIAL_PROXY_INTERFACE_VERSION );

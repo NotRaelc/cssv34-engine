@@ -95,6 +95,7 @@ public:
 	void	DrawHeadLabels();
 	void	SetHeadLabelOffset( float offset );
 	float	GetHeadLabelOffset( void ) const;
+	void	SetHeadLabelsDisabled( bool bDisabled ) { m_bHeadLabelsDisabled = bDisabled; }
 
 	// Called when the server registers a change to who this client can hear.
 	void	HandleVoiceMaskMsg(bf_read &msg);
@@ -126,6 +127,10 @@ public:
 
 	// blocks the target client from being heard
 	void	SetPlayerBlockedState(int iPlayerIndex, bool blocked);
+
+	void	SetHeadLabelMaterial( const char *pszMaterial );
+
+	IMaterial *GetHeadLabelMaterial( void ) { return m_pHeadLabelMaterial; }
 
 private:
 
@@ -172,6 +177,8 @@ private:
 	bool				m_bBanMgrInitialized;
 
 	int					m_nControlSize;
+
+	bool				m_bHeadLabelsDisabled;
 };
 
 

@@ -117,8 +117,8 @@ private:
 	void 			BeginBuild();
 	void			EndBuild();
 
-	CUtlVector<CBitString>	m_NeighborsTable;
-	CBitString				m_DidSetNeighborsTable;
+	CUtlVector<CVarBitVec>	m_NeighborsTable;
+	CVarBitVec				m_DidSetNeighborsTable;
 	CAI_TestHull *			m_pTestHull;
 };
 
@@ -147,6 +147,7 @@ public:
 	static bool			m_bLinkEditMode;						// Editing Links
 	static float		m_flAirEditDistance;					// Distance editing Air Nodes
 
+	static void			DrawHull(Hull_t eHull);
 	static void			DrawNextHull(const char *ainet_name);			// Draws next hull set for the named ai network
 	static void			SetDebugBits(const char *ainet_name,int debug_bit);
 

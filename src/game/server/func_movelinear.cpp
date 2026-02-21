@@ -45,6 +45,7 @@ BEGIN_DATADESC( CFuncMoveLinear )
 	DEFINE_INPUTFUNC( FIELD_VOID,  "Open", InputOpen ),
 	DEFINE_INPUTFUNC( FIELD_VOID,  "Close", InputClose ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetPosition", InputSetPosition ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetSpeed", InputSetSpeed ),
 
 	// Outputs
 	DEFINE_OUTPUT( m_OnFullyOpen, "OnFullyOpen" ),
@@ -345,6 +346,23 @@ void CFuncMoveLinear::Blocked( CBaseEntity *pOther )
 	}
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : &inputdata - 
+//-----------------------------------------------------------------------------
+void CFuncMoveLinear::InputSetSpeed( inputdata_t &inputdata )
+{
+	// Set the new speed
+	m_flSpeed = inputdata.value.Float();
+
+	// FIXME: This is a little questionable.  Do we want to fix the speed, or let it continue on at the old speed?
+	float flDistToGoalSqr = ( m_vecFinalDest - GetAbsOrigin() ).LengthSqr();
+	if ( flDistToGoalSqr > Square( FLT_EPSILON ) )
+	{
+		// NOTE: We do NOT want to call sound functions here, just vanilla position changes
+		LinearMove( m_vecFinalDest, m_flSpeed );
+	}
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Draw any debug text overlays

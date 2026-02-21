@@ -102,7 +102,7 @@ public:
 	void CommandNavDeleteMarked( void );								///< delete current marked area
 	void CommandNavSplit( void );										///< split current area
 	void CommandNavMerge( void );										///< merge adjacent areas
-	void CommandNavMark( void );										///< mark an area for further operations
+	void CommandNavMark( const CCommand &args );						///< mark an area for further operations
 	void CommandNavUnmark( void );										///< removes the mark
 	void CommandNavBeginArea( void );									///< begin creating a new nav area
 	void CommandNavEndArea( void );										///< end creation of the new nav area
@@ -119,7 +119,7 @@ public:
 	void CommandNavCornerSelect( void );								///< select a corner on the current area
 	void CommandNavCornerRaise( void );									///< raise a corner on the current area
 	void CommandNavCornerLower( void );									///< lower a corner on the current area
-	void CommandNavCornerPlaceOnGround( void );							///< position a corner on the current area at ground height
+	void CommandNavCornerPlaceOnGround( const CCommand &args );			///< position a corner on the current area at ground height
 	void CommandNavWarpToMark( void );									///< warp a spectating local player to the selected mark
 	void CommandNavLadderFlip( void );									///< Flips the direction a ladder faces
 	void CommandNavToggleAttribute( NavAttributeType attribute );		///< toggle an attribute on current area

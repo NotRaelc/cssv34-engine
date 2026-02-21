@@ -11,7 +11,7 @@
 #include "ai_basenpc.h"
 #include "IEffects.h"
 #include "vstdlib/random.h"
-#include "vstdlib/strtools.h"
+#include "tier1/strtools.h"
 #include "shareddefs.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -104,7 +104,10 @@ public:
 	void Precache( void );
 	void Spawn( );
 	void Smoke ( void );
+	void SetCustomDamageType( int iType ) { m_iCustomDamageType = iType; }
 	bool KeyValue( const char *szKeyName, const char *szValue );
+
+	int DrawDebugTextOverlays(void);
 
 	// Input handlers
 	void InputExplode( inputdata_t &inputdata );
@@ -118,6 +121,12 @@ public:
 	string_t m_iszFireballSprite;
 	short m_sFireballSprite;
 	EHANDLE m_hInflictor;
+	int m_iCustomDamageType;
+
+	// passed along to the RadiusDamage call
+	int m_iClassIgnore;
+	EHANDLE m_hEntityIgnore;
+
 };
 
 LINK_ENTITY_TO_CLASS( env_explosion, CEnvExplosion );
@@ -131,6 +140,10 @@ BEGIN_DATADESC( CEnvExplosion )
 	DEFINE_FIELD( m_iszFireballSprite, FIELD_STRING ),
 	DEFINE_FIELD( m_sFireballSprite, FIELD_SHORT ),
 	DEFINE_FIELD( m_hInflictor, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_iCustomDamageType, FIELD_INTEGER ),
+
+	DEFINE_FIELD( m_iClassIgnore, FIELD_INTEGER ),
+	DEFINE_KEYFIELD( m_hEntityIgnore, FIELD_EHANDLE, "ignoredEntity" ),
 
 	// Function Pointers
 	DEFINE_THINKFUNC( Smoke ),
@@ -215,6 +228,7 @@ void CEnvExplosion::Spawn( void )
 	}
 
 	m_spriteScale = (int)flSpriteScale;
+	m_iCustomDamageType = -1;
 }
 
 
@@ -309,7 +323,15 @@ void CEnvExplosion::InputExplode( inputdata_t &inputdata )
 	if ( !( m_spawnflags & SF_ENVEXPLOSION_NODAMAGE ) )
 	{
 		CBaseEntity *pAttacker = GetOwnerEntity() ? GetOwnerEntity() : this;
-		CTakeDamageInfo info( m_hInflictor ? m_hInflictor : this, pAttacker, m_iMagnitude, DMG_BLAST );
+
+		// Only calculate damage type if we didn't get a custom one passed in
+		int iDamageType = m_iCustomDamageType;
+		if ( iDamageType == -1 )
+		{
+			iDamageType = HasSpawnFlags( SF_ENVEXPLOSION_GENERIC_DAMAGE ) ? DMG_GENERIC : DMG_BLAST;
+		}
+
+		CTakeDamageInfo info( m_hInflictor ? m_hInflictor : this, pAttacker, m_iMagnitude, iDamageType );
 
 		if( HasSpawnFlags( SF_ENVEXPLOSION_SURFACEONLY ) )
 		{
@@ -322,7 +344,8 @@ void CEnvExplosion::InputExplode( inputdata_t &inputdata )
 			info.SetDamagePosition( GetAbsOrigin() );
 			info.SetDamageForce( Vector( m_flDamageForce, 0, 0 ) );
 		}
-		RadiusDamage( info, GetAbsOrigin(), iRadius, CLASS_NONE, NULL );
+
+		RadiusDamage( info, GetAbsOrigin(), iRadius, m_iClassIgnore, m_hEntityIgnore.Get() );
 	}
 
 	SetThink( &CEnvExplosion::Smoke );
@@ -358,7 +381,8 @@ void CEnvExplosion::Smoke( void )
 
 // HACKHACK -- create one of these and fake a keyvalue to get the right explosion setup
 void ExplosionCreate( const Vector &center, const QAngle &angles, 
-	CBaseEntity *pOwner, int magnitude, int radius, int nSpawnFlags, float flExplosionForce, CBaseEntity *pInflictor )
+	CBaseEntity *pOwner, int magnitude, int radius, int nSpawnFlags, float flExplosionForce, CBaseEntity *pInflictor, int iCustomDamageType,
+	const EHANDLE *ignoredEntity , Class_T ignoredClass )
 {
 	char			buf[128];
 
@@ -387,12 +411,19 @@ void ExplosionCreate( const Vector &center, const QAngle &angles,
 	pExplosion->SetOwnerEntity( pOwner );
 	pExplosion->Spawn();
 	pExplosion->m_hInflictor = pInflictor;
+	pExplosion->SetCustomDamageType( iCustomDamageType );
+	if (ignoredEntity)
+	{
+		pExplosion->m_hEntityIgnore = *ignoredEntity;
+	}
+	pExplosion->m_iClassIgnore = ignoredClass;
+
 	pExplosion->AcceptInput( "Explode", NULL, NULL, emptyVariant, 0 );
 }
 
 
 void ExplosionCreate( const Vector &center, const QAngle &angles, 
-	CBaseEntity *pOwner, int magnitude, int radius, bool doDamage, float flExplosionForce, bool bSurfaceOnly, bool bSilent )
+	CBaseEntity *pOwner, int magnitude, int radius, bool doDamage, float flExplosionForce, bool bSurfaceOnly, bool bSilent, int iCustomDamageType )
 {
 	// For E3, no sparks
 	int nFlags = SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE;
@@ -411,5 +442,50 @@ void ExplosionCreate( const Vector &center, const QAngle &angles,
 		nFlags |= SF_ENVEXPLOSION_NOSOUND;
 	}
 
-	ExplosionCreate( center, angles, pOwner, magnitude, radius, nFlags, flExplosionForce );
+	ExplosionCreate( center, angles, pOwner, magnitude, radius, nFlags, flExplosionForce, NULL, iCustomDamageType );
+}
+
+// this version lets you specify classes or entities to be ignored
+void ExplosionCreate( const Vector &center, const QAngle &angles, 
+					 CBaseEntity *pOwner, int magnitude, int radius, bool doDamage, 
+					 const EHANDLE *ignoredEntity, Class_T ignoredClass,
+					 float flExplosionForce , bool bSurfaceOnly , bool bSilent , int iCustomDamageType )
+{
+	// For E3, no sparks
+	int nFlags = SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE;
+	if ( !doDamage )
+	{
+		nFlags |= SF_ENVEXPLOSION_NODAMAGE;
+	}
+
+	if( bSurfaceOnly )
+	{
+		nFlags |= SF_ENVEXPLOSION_SURFACEONLY;
+	}
+
+	if( bSilent )
+	{
+		nFlags |= SF_ENVEXPLOSION_NOSOUND;
+	}
+
+	ExplosionCreate( center, angles, pOwner, magnitude, radius, nFlags, flExplosionForce, NULL, iCustomDamageType, ignoredEntity, ignoredClass );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Draw any debug text overlays
+// Output : Current text offset from the top
+//-----------------------------------------------------------------------------
+int CEnvExplosion::DrawDebugTextOverlays( void ) 
+{
+	int text_offset = BaseClass::DrawDebugTextOverlays();
+
+	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
+	{
+		char tempstr[512];
+
+		Q_snprintf(tempstr,sizeof(tempstr),"    magnitude: %i", m_iMagnitude);
+		EntityText(text_offset,tempstr,0);
+		text_offset++;
+	}
+	return text_offset;
 }

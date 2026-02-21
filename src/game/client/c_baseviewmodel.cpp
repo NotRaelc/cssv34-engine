@@ -12,7 +12,7 @@
 #include "view_shared.h"
 #include "iviewrender.h"
 #include "view.h"
-#include "vmatrix.h"
+#include "mathlib/vmatrix.h"
 #include "cl_animevent.h"
 #include "eventlist.h"
 #include "tools/bonelist.h"
@@ -75,9 +75,12 @@ void FormatViewModelAttachment( Vector &vOrigin, bool bInverse )
 }
 
 
-void C_BaseViewModel::FormatViewModelAttachment( int nAttachment, Vector &vecOrigin, QAngle &angle )
+void C_BaseViewModel::FormatViewModelAttachment( int nAttachment, matrix3x4_t &attachmentToWorld )
 {
+	Vector vecOrigin;
+	MatrixPosition( attachmentToWorld, vecOrigin );
 	::FormatViewModelAttachment( vecOrigin, false );
+	PositionMatrix( vecOrigin, attachmentToWorld );
 }
 
 
@@ -261,8 +264,10 @@ int C_BaseViewModel::DrawModel( int flags )
 		render->SetColorModulation(	color );
 	}
 	
+	CMatRenderContextPtr pRenderContext( materials );
+	
 	if ( ShouldFlipViewModel() )
-		materials->CullMode( MATERIAL_CULLMODE_CW );
+		pRenderContext->CullMode( MATERIAL_CULLMODE_CW );
 
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	int ret;
@@ -276,7 +281,7 @@ int C_BaseViewModel::DrawModel( int flags )
 		ret = BaseClass::DrawModel( flags );
 	}
 
-	materials->CullMode( MATERIAL_CULLMODE_CCW );
+	pRenderContext->CullMode( MATERIAL_CULLMODE_CCW );
 
 	// Now that we've rendered, reset the animation restart flag
 	if ( flags & STUDIO_RENDER )
@@ -286,7 +291,7 @@ int C_BaseViewModel::DrawModel( int flags )
 			m_nOldAnimationParity = m_nAnimationParity;
 		}
 		// Tell the weapon itself that we've rendered, in case it wants to do something
-		C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
+		C_BaseCombatWeapon *pWeapon = GetOwningWeapon();
 		if ( pWeapon )
 		{
 			pWeapon->ViewModelDrawn( this );
@@ -314,6 +319,7 @@ int C_BaseViewModel::GetFxBlend( void )
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	if ( pPlayer && pPlayer->IsOverridingViewmodel() )
 	{
+		pPlayer->ComputeFxBlend();
 		return pPlayer->GetFxBlend();
 	}
 

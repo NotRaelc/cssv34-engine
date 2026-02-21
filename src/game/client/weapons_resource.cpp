@@ -86,8 +86,6 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 	// WeaponsResource is a friend of C_BaseCombatWeapon
 	FileWeaponInfo_t *pWeaponInfo = GetFileWeaponInfoFromHandle( hWeaponFileInfo );
 
-	char sz[128];
-
 	if ( !pWeaponInfo )
 		return;
 
@@ -103,7 +101,9 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 	pWeaponInfo->iconAmmo2 = NULL;
 	pWeaponInfo->iconCrosshair = NULL;
 	pWeaponInfo->iconAutoaim = NULL;
+	pWeaponInfo->iconSmall = NULL;
 
+	char sz[128];
 	Q_snprintf(sz, sizeof( sz ), "scripts/%s", pWeaponInfo->szClassName);
 
 	CUtlDict< CHudTexture *, int > tempList;
@@ -120,21 +120,20 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 	}
 
 	CHudTexture *p;
-	
 	p = FindHudTextureInDict( tempList, "crosshair" );
-	if (p)
+	if ( p )
 	{
 		pWeaponInfo->iconCrosshair = gHUD.AddUnsearchableHudIconToList( *p );
 	}
 
 	p = FindHudTextureInDict( tempList, "autoaim" );
-	if (p)
+	if ( p )
 	{
 		pWeaponInfo->iconAutoaim = gHUD.AddUnsearchableHudIconToList( *p );
 	}
 
 	p = FindHudTextureInDict( tempList, "zoom" );
-	if (p)
+	if ( p )
 	{
 		pWeaponInfo->iconZoomedCrosshair = gHUD.AddUnsearchableHudIconToList( *p );
 	}
@@ -144,7 +143,7 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 	}
 
 	p = FindHudTextureInDict( tempList, "zoom_autoaim" );
-	if (p)
+	if ( p )
 	{
 		pWeaponInfo->iconZoomedAutoaim = gHUD.AddUnsearchableHudIconToList( *p );
 	}
@@ -154,41 +153,57 @@ void WeaponsResource::LoadWeaponSprites( WEAPON_FILE_INFO_HANDLE hWeaponFileInfo
 	}
 
 	CHudHistoryResource *pHudHR = GET_HUDELEMENT( CHudHistoryResource );	
-
 	if( pHudHR )
 	{
 		p = FindHudTextureInDict( tempList, "weapon" );
-		if (p)
+		if ( p )
 		{
 			pWeaponInfo->iconInactive = gHUD.AddUnsearchableHudIconToList( *p );
 			if ( pWeaponInfo->iconInactive )
 			{
+				pWeaponInfo->iconInactive->Precache();
 				pHudHR->SetHistoryGap( pWeaponInfo->iconInactive->Height() );
 			}
 		}
 
 		p = FindHudTextureInDict( tempList, "weapon_s" );
-		if (p)
+		if ( p )
 		{
 			pWeaponInfo->iconActive = gHUD.AddUnsearchableHudIconToList( *p );
+			if ( pWeaponInfo->iconActive )
+			{
+				pWeaponInfo->iconActive->Precache();
+			}
+		}
+
+		p = FindHudTextureInDict( tempList, "weapon_small" );
+		if ( p )
+		{
+			pWeaponInfo->iconSmall = gHUD.AddUnsearchableHudIconToList( *p );
+			if ( pWeaponInfo->iconSmall )
+			{
+				pWeaponInfo->iconSmall->Precache();
+			}
 		}
 
 		p = FindHudTextureInDict( tempList, "ammo" );
-		if (p)
+		if ( p )
 		{
 			pWeaponInfo->iconAmmo = gHUD.AddUnsearchableHudIconToList( *p );
 			if ( pWeaponInfo->iconAmmo )
 			{
+				pWeaponInfo->iconAmmo->Precache();
 				pHudHR->SetHistoryGap( pWeaponInfo->iconAmmo->Height() );
 			}
 		}
 
 		p = FindHudTextureInDict( tempList, "ammo2" );
-		if (p)
+		if ( p )
 		{
 			pWeaponInfo->iconAmmo2 = gHUD.AddUnsearchableHudIconToList( *p );
 			if ( pWeaponInfo->iconAmmo2 )
 			{
+				pWeaponInfo->iconAmmo2->Precache();
 				pHudHR->SetHistoryGap( pWeaponInfo->iconAmmo2->Height() );
 			}
 		}

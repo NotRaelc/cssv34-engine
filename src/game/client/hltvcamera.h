@@ -10,9 +10,9 @@
 #pragma once
 #endif
 
-#include <igameevents.h>
+#include "gameeventlistener.h"
 
-class C_HLTVCamera : IGameEventListener2
+class C_HLTVCamera : CGameEventListener
 {
 public:
 	C_HLTVCamera();
@@ -20,7 +20,6 @@ public:
 
 	void Init();
 	void Reset();
-	void Shutdown();
 
 	void CalcView(Vector& origin, QAngle& angles, float& fov);
 	void FireGameEvent( IGameEvent *event );
@@ -53,6 +52,7 @@ protected:
 
 	void SmoothCameraAngle( QAngle& targetAngle );
 	void SetCameraAngle( QAngle& targetAngle );
+	void Accelerate( Vector& wishdir, float wishspeed, float accel );
 
 	int			m_nCameraMode; // current camera mode
 	int			m_iCameraMan; // camera man entindex or 0
@@ -71,6 +71,8 @@ protected:
 	bool		m_bEntityPacketReceived;	// true after a new packet was received
 	int			m_nNumSpectators;
 	char		m_szTitleText[64];
+	CUserCmd	m_LastCmd;
+	Vector		m_vecVelocity;
 };
 
 

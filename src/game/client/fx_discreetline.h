@@ -17,7 +17,7 @@
 #pragma once
 #endif
 
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "clientsideeffects.h"
 
 class IMaterial;

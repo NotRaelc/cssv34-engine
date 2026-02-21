@@ -151,7 +151,7 @@ void CHostage::Spawn( void )
 
 
 	// set up think callback
-	SetNextThink( HOSTAGE_THINK_INTERVAL );
+	SetNextThink( gpGlobals->curtime + HOSTAGE_THINK_INTERVAL );
 	SetThink( &CHostage::HostageThink );
 
 	SetContextThink( &CHostage::PushawayThink, gpGlobals->curtime + PUSHAWAY_THINK_INTERVAL, HOSTAGE_PUSHAWAY_THINK_CONTEXT );

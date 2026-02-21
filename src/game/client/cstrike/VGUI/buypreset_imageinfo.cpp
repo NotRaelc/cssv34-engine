@@ -96,7 +96,7 @@ void WeaponImageInfo::SetWeapon( const BuyPresetWeapon *pWeapon, bool isPrimary,
 	if ( !pWeapon )
 		return;
 
-	wchar_t *multiplierString = vgui::localize()->Find( "#Cstrike_BuyMenuPresetMultiplier" );
+	wchar_t *multiplierString = g_pVGuiLocalize->Find("#Cstrike_BuyMenuPresetMultiplier");
 	if ( !multiplierString )
 		multiplierString = L"";
 	const int BufLen = 32;
@@ -134,7 +134,7 @@ void WeaponImageInfo::SetWeapon( const BuyPresetWeapon *pWeapon, bool isPrimary,
 
 			if ( numClips > 1 )
 			{
-				vgui::localize()->ConstructString( buf, sizeof(buf), multiplierString, 1, NumAsWString( numClips ) );
+				g_pVGuiLocalize->ConstructString( buf, sizeof(buf), multiplierString, 1, NumAsWString( numClips ) );
 				m_pAmmoText->SetText( buf );
 			}
 			else
@@ -185,7 +185,7 @@ void WeaponImageInfo::SetWeapon( const BuyPresetWeapon *pWeapon, bool isPrimary,
 			}
 			if ( numClips > 1 )
 			{
-				vgui::localize()->ConstructString( buf, sizeof(buf), multiplierString, 1, NumAsWString( numClips ) );
+				g_pVGuiLocalize->ConstructString( buf, sizeof(buf), multiplierString, 1, NumAsWString( numClips ) );
 				m_pAmmoText->SetText( buf );
 			}
 			else
@@ -358,13 +358,13 @@ void ItemImageInfo::SetItem( const char *imageFname, int count )
 
 	if ( count > 1 )
 	{
-		wchar_t *multiplierString = vgui::localize()->Find( "#Cstrike_BuyMenuPresetMultiplier" );
+		wchar_t *multiplierString = g_pVGuiLocalize->Find("#Cstrike_BuyMenuPresetMultiplier");
 		if ( !multiplierString )
 			multiplierString = L"";
 		const int BufLen = 32;
 		wchar_t buf[BufLen];
 
-		vgui::localize()->ConstructString( buf, sizeof(buf), multiplierString, 1, NumAsWString( count ) );
+		g_pVGuiLocalize->ConstructString( buf, sizeof(buf), multiplierString, 1, NumAsWString( count ) );
 		m_pText->SetText( buf );
 	}
 	m_needLayout = true;

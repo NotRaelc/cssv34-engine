@@ -55,8 +55,6 @@ public:
 	void	HookMessage( const char *name, pfnUserMsgHook hook );
 	bool	DispatchUserMessage( int msg_type, bf_read &msg_data );
 
-	void	ListUserMessages();
-	
 private:
 
 	CUtlDict< CUserMessage*, int >	m_UserMessages;

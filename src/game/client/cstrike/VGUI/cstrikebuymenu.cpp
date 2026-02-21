@@ -277,10 +277,10 @@ void CCSBaseBuyMenu::Paint()
 
 		const int BufLen = 128;
 		wchar_t wbuf[BufLen] = L"";
-		wchar_t *formatStr = vgui::localize()->Find("#Cstrike_Current_Money");
+		wchar_t *formatStr = g_pVGuiLocalize->Find("#Cstrike_Current_Money");
 		if ( !formatStr )
 			formatStr = L"%s1";
-		vgui::localize()->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, NumAsWString( m_lastMoney ) );
+		g_pVGuiLocalize->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, NumAsWString( m_lastMoney ) );
 		m_pMoney->SetText( wbuf );
 	}
 #endif // USE_BUY_PRESETS
@@ -364,7 +364,7 @@ void CCSBaseBuyMenu::UpdateBuyPresets( bool showDefaultPanel )
 		const int BufLen = 1024;
 		char aBuf[BufLen];
 		Q_snprintf(aBuf, BufLen, "#Cstrike_BuyMenuPreset%d", i + 1);
-		m_pBuyPresetButtons[i]->SetText( vgui::localize()->Find(aBuf) );
+		m_pBuyPresetButtons[i]->SetText( g_pVGuiLocalize->Find(aBuf) );
 		Q_snprintf(aBuf, BufLen, "cl_buy_favorite %d", i + 1);
 		m_pBuyPresetButtons[i]->SetCommand( aBuf );
 		m_pBuyPresetButtons[i]->SetVisible( true );
@@ -482,7 +482,7 @@ void CCSBaseBuyMenu::HandleBlackMarket( void )
 			int iBargain = GetWeeklyBargain();
 			CCSWeaponInfo *info = GetWeaponInfo( (CSWeaponID)iBargain );
 
-			wchar_t *wszWeaponName = vgui::localize()->Find( g_pWeaponNames[iBargain]);
+			wchar_t *wszWeaponName = g_pVGuiLocalize->Find( g_pWeaponNames[iBargain]);
 
 			if ( wszWeaponName == NULL )
 				return;
@@ -505,12 +505,12 @@ void CCSBaseBuyMenu::HandleBlackMarket( void )
 				const int BufLen = 2048;
 				
 				wchar_t wbuf[BufLen] = L"";
-				wchar_t *formatStr = vgui::localize()->Find("#Cstrike_MarketHeadline");
+				wchar_t *formatStr = g_pVGuiLocalize->Find("#Cstrike_MarketHeadline");
 	
 				if ( !formatStr )
 					formatStr = L"%s1";
 
-				vgui::localize()->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, wszWeaponName );
+				g_pVGuiLocalize->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, wszWeaponName );
 				pLabel->SetText( wbuf );
 			}
 
@@ -520,12 +520,12 @@ void CCSBaseBuyMenu::HandleBlackMarket( void )
 			{
 				const int BufLen = 2048;
 				wchar_t wbuf[BufLen] = L"";
-				wchar_t *formatStr = vgui::localize()->Find("#Cstrike_MarketBargain");
+				wchar_t *formatStr = g_pVGuiLocalize->Find("#Cstrike_MarketBargain");
 				
 				if ( !formatStr )
 					formatStr = L"%s1";
 
-				vgui::localize()->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, wszWeaponName );
+				g_pVGuiLocalize->ConstructString( wbuf, sizeof(wbuf), formatStr, 1, wszWeaponName );
 				pLabel->SetText( wbuf );
 			}
 
@@ -545,13 +545,13 @@ void CCSBaseBuyMenu::HandleBlackMarket( void )
 			if ( pText )
 			{
 				char wbuf[2048];
-				vgui::localize()->ConvertUnicodeToANSI( vgui::localize()->Find("#Cstrike_MarketDescription"), wbuf, 2048 );
+				g_pVGuiLocalize->ConvertUnicodeToANSI( g_pVGuiLocalize->Find("#Cstrike_MarketDescription"), wbuf, 2048 );
 
 				pText->SetText( "" );
 				pText->InsertPossibleURLString( wbuf, Color( 255, 255, 255, 255 ), Color( 255, 176, 0, 255 ) );
 				pText->SetVerticalScrollbar( false );
 				pText->SetPaintBorderEnabled( false );
-				//pText->SetUnderlineFont( m_hUnderlineFont );
+				pText->SetUnderlineFont( m_hUnderlineFont );
 			}
 
 			pLabel = dynamic_cast< Label * >(m_pBlackMarket->FindChildByName( "MarketBargainIcon" ));

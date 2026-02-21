@@ -49,7 +49,8 @@ public:
 		Vector color;
 		VectorScale( m_vColor, shade, color );
 
-		IMesh *pMesh = materials->GetDynamicMesh();
+		CMatRenderContextPtr pRenderContext( materials );
+		IMesh *pMesh = pRenderContext->GetDynamicMesh();
 		
 		CMeshBuilder builder;
 		builder.Begin(pMesh, MATERIAL_TRIANGLE_STRIP, 2);
@@ -80,8 +81,9 @@ public:
 
 	virtual void		Draw( double frametime )
 	{
+		CMatRenderContextPtr pRenderContext( materials );
 		// Draw it.
-		materials->Bind( m_pMaterial );
+		pRenderContext->Bind( m_pMaterial );
 		
 		Vector vLightDir(-1,-2,-3);
 		VectorNormalize( vLightDir );

@@ -1,4 +1,4 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2006, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -12,7 +12,6 @@
 #endif
 
 #include "igameevents.h"
-extern IGameEventManager2 *gameeventmanager;
 
 // A safer method than inheriting straight from IGameEventListener2.
 // Avoids requiring the user to remove themselves as listeners in 
@@ -39,8 +38,8 @@ public:
 #else
 		bool bServerSide = true;
 #endif
-		if ( gameeventmanager )
-			gameeventmanager->AddListener( this, name, bServerSide );
+
+		gameeventmanager->AddListener( this, name, bServerSide );
 	}
 
 	void StopListeningForAllEvents()
@@ -48,8 +47,7 @@ public:
 		// remove me from list
 		if ( m_bRegisteredForEvents )
 		{
-			if ( gameeventmanager )
-				gameeventmanager->RemoveListener( this );
+			gameeventmanager->RemoveListener( this );
 			m_bRegisteredForEvents = false;
 		}
 	}

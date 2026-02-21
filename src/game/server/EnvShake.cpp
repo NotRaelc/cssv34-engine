@@ -74,6 +74,8 @@ public:
 	inline	void	SetDuration( float duration ) { m_Duration = duration; }
 	inline	void	SetRadius( float radius ) { m_Radius = radius; }
 
+	int DrawDebugTextOverlays(void);
+
 	// Input handlers
 	void InputStartShake( inputdata_t &inputdata );
 	void InputStopShake( inputdata_t &inputdata );
@@ -177,7 +179,7 @@ void CEnvShake::OnRestore( void )
 //-----------------------------------------------------------------------------
 void CEnvShake::ApplyShake( ShakeCommand_t command )
 {
-	if ( !HasSpawnFlags( SF_SHAKE_NO_VIEW ) )
+	if ( !HasSpawnFlags( SF_SHAKE_NO_VIEW ) || !HasSpawnFlags( SF_SHAKE_NO_RUMBLE ) )
 	{
 		bool air = (GetSpawnFlags() & SF_SHAKE_INAIR) ? true : false;
 		UTIL_ScreenShake( GetAbsOrigin(), Amplitude(), Frequency(), Duration(), Radius(), command, air );
@@ -199,6 +201,7 @@ void CEnvShake::ApplyShake( ShakeCommand_t command )
 		{
 		case SHAKE_START:
 		case SHAKE_START_NORUMBLE:
+		case SHAKE_START_RUMBLEONLY:
 			{
 				m_stopTime = gpGlobals->curtime + Duration();
 				m_nextShake = 0;
@@ -255,9 +258,13 @@ void CEnvShake::ApplyShake( ShakeCommand_t command )
 //-----------------------------------------------------------------------------
 void CEnvShake::InputStartShake( inputdata_t &inputdata )
 {
-	if( HasSpawnFlags(SF_SHAKE_NO_RUMBLE) )
+	if ( HasSpawnFlags( SF_SHAKE_NO_RUMBLE ) )
 	{
 		ApplyShake( SHAKE_START_NORUMBLE );
+	}
+	else if ( HasSpawnFlags( SF_SHAKE_NO_VIEW ) )
+	{
+		ApplyShake( SHAKE_START_RUMBLEONLY );
 	}
 	else
 	{
@@ -364,4 +371,43 @@ void CC_Shake( void )
 	}
 }
 
+
+//-----------------------------------------------------------------------------
+// Purpose: Draw any debug text overlays
+// Returns current text offset from the top
+//-----------------------------------------------------------------------------
+int CEnvShake::DrawDebugTextOverlays( void ) 
+{
+	int text_offset = BaseClass::DrawDebugTextOverlays();
+
+	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
+	{
+		char tempstr[512];
+
+		// print amplitude
+		Q_snprintf(tempstr,sizeof(tempstr),"    magnitude: %f", m_Amplitude);
+		EntityText(text_offset,tempstr,0);
+		text_offset++;
+
+		// print frequency
+		Q_snprintf(tempstr,sizeof(tempstr),"    frequency: %f", m_Frequency);
+		EntityText(text_offset,tempstr,0);
+		text_offset++;
+
+		// print duration
+		Q_snprintf(tempstr,sizeof(tempstr),"    duration: %f", m_Duration);
+		EntityText(text_offset,tempstr,0);
+		text_offset++;
+
+		// print radius
+		Q_snprintf(tempstr,sizeof(tempstr),"    radius: %f", m_Radius);
+		EntityText(text_offset,tempstr,0);
+		text_offset++;
+
+	}
+	return text_offset;
+}
+
 static ConCommand shake("shake", CC_Shake, "Shake the screen.", FCVAR_CHEAT );
+
+

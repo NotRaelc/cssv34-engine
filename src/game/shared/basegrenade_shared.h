@@ -99,6 +99,7 @@ public:
 
 	CBaseCombatCharacter *GetThrower( void );
 	void				  SetThrower( CBaseCombatCharacter *pThrower );
+	CBaseEntity *GetOriginalThrower() { return m_hOriginalThrower; }
 
 #if !defined( CLIENT_DLL )
 	// Allow +USE pickup
@@ -127,6 +128,7 @@ protected:
 
 private:
 	CNetworkHandle( CBaseEntity, m_hThrower );					// Who threw this grenade
+	EHANDLE			m_hOriginalThrower;							// Who was the original thrower of this grenade
 
 	CBaseGrenade( const CBaseGrenade & ); // not defined, not accessible
 

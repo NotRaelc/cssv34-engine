@@ -41,8 +41,8 @@ extern ConVar hl2_episodic;
 // How many bits are used to transmit parent attachment indices?
 #define NUM_PARENTATTACHMENT_BITS	6
 
-// no entities have more than 32 vphysics objects, so you only need an array this big
-#define VPHYSICS_MAX_OBJECT_LIST_COUNT	32
+// Maximum number of vphysics objects per entity
+#define VPHYSICS_MAX_OBJECT_LIST_COUNT	1024
 
 //-----------------------------------------------------------------------------
 // For invalidate physics recursive
@@ -209,12 +209,14 @@ inline void CBaseEntity::RemoveEffects( int nEffects )
 
 	m_fEffects &= ~nEffects;
 	if ( nEffects & EF_NODRAW )
+	{
 #ifndef CLIENT_DLL
-		AddEFlags( EFL_DIRTY_PVS_INFORMATION );
+		NetworkProp()->MarkPVSInformationDirty();
 		DispatchUpdateTransmitState();
 #else
 		UpdateVisibility();
 #endif
+	}
 }
 
 inline void CBaseEntity::ClearEffects( void ) 
@@ -247,25 +249,5 @@ inline bool CBaseEntity::IsEffectActive( int nEffects ) const
 
 // Shared EntityMessage between game and client .dlls
 #define BASEENTITY_MSG_REMOVE_DECALS	1
-
-#ifdef BUGFIXED
-extern float k_flMaxEntityPosCoord;
-extern float k_flMaxEntityEulerAngle;
-
-inline bool IsEntityCoordinateReasonable ( const vec_t c )
-{
-	float r = k_flMaxEntityPosCoord;
-	return c > -r && c < r;
-}
-
-inline bool IsEntityQAngleReasonable( const QAngle &q )
-{
-	float r = k_flMaxEntityEulerAngle;
-	return
-		q.x > -r && q.x < r &&
-		q.y > -r && q.y < r &&
-		q.z > -r && q.z < r;
-}
-#endif
 
 #endif // BASEENTITY_SHARED_H

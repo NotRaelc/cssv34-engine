@@ -102,7 +102,8 @@ void TE_DispatchEffect( IRecipientFilter& filter, float delay,
 				const Vector &pos, const char *pName, const CEffectData &data );
 void TE_PhysicsProp( IRecipientFilter& filter, float delay,
 	int modelindex, int skin, const Vector& pos, const QAngle &angles, const Vector& vel, int flags, int effects );
-	
+void TE_ClientProjectile( IRecipientFilter& filter, float delay,
+	 const Vector* vecOrigin, const Vector* vecVelocity, int modelindex, int lifetime, CBaseEntity *pOwner );
 
 #ifdef HL2_DLL
 void TE_GaussExplosion( IRecipientFilter& filter, float delayt,
@@ -508,6 +509,15 @@ public:
 	virtual void TriggerTempEntity( KeyValues *pKeyValues )
 	{
 		Assert(0);
+	}
+
+	virtual void ClientProjectile( IRecipientFilter& filter, float delay,
+		const Vector* vecOrigin, const Vector* vecVelocity, int modelindex, int lifetime, CBaseEntity *pOwner )
+	{
+		if ( !SuppressTE( filter ) )
+		{
+			TE_ClientProjectile( filter, delay, vecOrigin, vecVelocity, modelindex, lifetime, pOwner );
+		}
 	}
 };
 

@@ -241,18 +241,12 @@ bool CEventLog::PrintOtherEvent( IGameEvent *event )
 
 bool CEventLog::Init()
 {
-	gameeventmanager->AddListener( this, "player_changename", true );
-	gameeventmanager->AddListener( this, "player_activate", true );
-	gameeventmanager->AddListener( this, "player_death", true );
-	gameeventmanager->AddListener( this, "player_team", true );
-	gameeventmanager->AddListener( this, "player_disconnect", true );
-	gameeventmanager->AddListener( this, "player_connect", true );
+	ListenForGameEvent( "player_changename" );
+	ListenForGameEvent( "player_activate" );
+	ListenForGameEvent( "player_death" );
+	ListenForGameEvent( "player_team" );
+	ListenForGameEvent( "player_disconnect" );
+	ListenForGameEvent( "player_connect" );
 
 	return true;
 }
-
-void CEventLog::Shutdown()
-{
-	gameeventmanager->RemoveListener( this );
-}
-

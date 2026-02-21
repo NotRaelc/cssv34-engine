@@ -11,7 +11,7 @@
 #include "SoundEmitterSystem/isoundemittersystembase.h"
 #include "physics_saverestore.h"
 #include "datacache/imdlcache.h"
-#include "haptics/haptic_utils.h"
+
 
 #if !defined( CLIENT_DLL )
 
@@ -19,6 +19,7 @@
 #include "soundent.h"
 #include "eventqueue.h"
 #include "fmtstr.h"
+#include "gameweaponmanager.h"
 
 #ifdef HL2MP
 	#include "hl2mp_gamerules.h"
@@ -29,6 +30,15 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+// The minimum time a hud hint for a weapon should be on screen. If we switch away before
+// this, then teh hud hint counter will be deremented so the hint will be shown again, as
+// if it had never been seen. The total display time for a hud hint is specified in client
+// script HudAnimations.txt (which I can't read here). 
+#define MIN_HUDHINT_DISPLAY_TIME 7.0f
+
+#define HIDEWEAPON_THINK_CONTEXT			"BaseCombatWeapon_HideThink"
+
+extern bool UTIL_ItemCanBeTouchedByPlayer( CBaseEntity *pItem, CBasePlayer *pPlayer );
 
 CBaseCombatWeapon::CBaseCombatWeapon()
 {
@@ -60,6 +70,10 @@ CBaseCombatWeapon::CBaseCombatWeapon()
 #endif
 
 	m_hWeaponFileInfo = GetInvalidWeaponInfoHandle();
+
+#if defined( TF_DLL )
+	UseClientSideAnimation();
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -94,23 +108,8 @@ void CBaseCombatWeapon::Activate( void )
 #endif
 
 }
-//-----------------------------------------------------------------------------
-// Purpose: Set mode to world model and start falling to the ground
-//-----------------------------------------------------------------------------
-void CBaseCombatWeapon::Spawn( void )
+void CBaseCombatWeapon::GiveDefaultAmmo( void )
 {
-	Precache();
-
-	SetSolid( SOLID_BBOX );
-	m_flNextEmptySoundTime = 0.0f;
-
-	// Weapons won't show up in trace calls if they are being carried...
-	RemoveEFlags( EFL_USE_PARTITION_WHEN_NOT_SOLID );
-
-	m_iState = WEAPON_NOT_CARRIED;
-	// Assume 
-	m_nViewModelIndex = 0;
-
 	// If I use clips, set my clips to the default
 	if ( UsesClipsForAmmo1() )
 	{
@@ -130,11 +129,31 @@ void CBaseCombatWeapon::Spawn( void )
 		SetSecondaryAmmoCount( GetDefaultClip2() );
 		m_iClip2 = WEAPON_NOCLIP;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Set mode to world model and start falling to the ground
+//-----------------------------------------------------------------------------
+void CBaseCombatWeapon::Spawn( void )
+{
+	Precache();
+
+	SetSolid( SOLID_BBOX );
+	m_flNextEmptySoundTime = 0.0f;
+
+	// Weapons won't show up in trace calls if they are being carried...
+	RemoveEFlags( EFL_USE_PARTITION_WHEN_NOT_SOLID );
+
+	m_iState = WEAPON_NOT_CARRIED;
+	// Assume 
+	m_nViewModelIndex = 0;
+
+	GiveDefaultAmmo();
 
 	SetModel( GetWorldModel() );
 
 #if !defined( CLIENT_DLL )
-	if( IsXbox() )
+	if( IsX360() )
 	{
 		AddEffects( EF_ITEM_BLINK );
 	}
@@ -159,7 +178,9 @@ void CBaseCombatWeapon::Spawn( void )
 	// characters even when they're not in the frustum.
 	AddEffects( EF_BONEMERGE_FASTCULL );
 
-	m_iHudHintCount = 0;
+	m_iReloadHudHintCount = 0;
+	m_iAltFireHudHintCount = 0;
+	m_flHudHintMinDisplayTime = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -208,8 +229,16 @@ void CBaseCombatWeapon::Precache( void )
 		gWR.LoadWeaponSprites( GetWeaponFileInfoHandle() );
 #endif
 		// Precache models (preload to avoid hitch)
-		m_iViewModelIndex	= CBaseEntity::PrecacheModel( GetViewModel() );
-		m_iWorldModelIndex	= CBaseEntity::PrecacheModel( GetWorldModel());
+		m_iViewModelIndex = 0;
+		m_iWorldModelIndex = 0;
+		if ( GetViewModel() && GetViewModel()[0] )
+		{
+			m_iViewModelIndex = CBaseEntity::PrecacheModel( GetViewModel() );
+		}
+		if ( GetWorldModel() && GetWorldModel()[0] )
+		{
+			m_iWorldModelIndex = CBaseEntity::PrecacheModel( GetWorldModel() );
+		}
 
 		// Precache sounds, too
 		for ( int i = 0; i < NUM_SHOOT_SOUND_TYPES; ++i )
@@ -223,10 +252,8 @@ void CBaseCombatWeapon::Precache( void )
 	}
 	else
 	{
-		Assert( !"Missing weapon script file" );
-
 		// Couldn't read data file, remove myself
-		Msg( "Error reading weapon data file for: %s\n", GetClassname() );
+		Warning( "Error reading weapon data file for: %s\n", GetClassname() );
 	//	Remove( );	//don't remove, this gets released soon!
 	}
 }
@@ -561,10 +588,6 @@ float CBaseCombatWeapon::GetWeaponIdleTime( void )
 	return m_flTimeWeaponIdle;
 }
 
-#if !defined( CLIENT_DLL )
-void WeaponManager_AmmoMod( CBaseCombatWeapon *pWeapon );
-#endif
-
 //-----------------------------------------------------------------------------
 // Purpose: Drop/throw the weapon with the given velocity.
 //-----------------------------------------------------------------------------
@@ -697,21 +720,21 @@ void CBaseCombatWeapon::MakeTracer( const Vector &vecTracerSrc, const trace_t &t
 	Vector vNewSrc = vecTracerSrc;
 	int iEntIndex = pOwner->entindex();
 
-	int iFlags = TRACER_DONT_USE_ATTACHMENT;
 	if ( g_pGameRules->IsMultiplayer() )
 	{
-		iFlags = 0;
 		iEntIndex = entindex();
 	}
+
+	int iAttachment = GetTracerAttachment();
 
 	switch ( iTracerType )
 	{
 	case TRACER_LINE:
-		UTIL_Tracer( vNewSrc, tr.endpos, iEntIndex, iFlags, 0.0f, true, pszTracerName );
+		UTIL_Tracer( vNewSrc, tr.endpos, iEntIndex, iAttachment, 0.0f, true, pszTracerName );
 		break;
 
 	case TRACER_LINE_AND_WHIZ:
-		UTIL_Tracer( vNewSrc, tr.endpos, iEntIndex, iFlags, 0.0f, true, pszTracerName );
+		UTIL_Tracer( vNewSrc, tr.endpos, iEntIndex, iAttachment, 0.0f, true, pszTracerName );
 		break;
 	}
 }
@@ -733,6 +756,16 @@ void CBaseCombatWeapon::DefaultTouch( CBaseEntity *pOther )
 	if ( !pPlayer )
 		return;
 
+	if( UTIL_ItemCanBeTouchedByPlayer(this, pPlayer) )
+	{
+		// This makes sure the player could potentially take the object
+		// before firing the cache interaction output. That doesn't mean
+		// the player WILL end up taking the object, but cache interactions
+		// are fired as soon as you prove you have found the object, not
+		// when you finally acquire it.
+		m_OnCacheInteraction.FireOutput( pOther, this );
+	}
+
 	if( HasSpawnFlags(SF_WEAPON_NO_PLAYER_PICKUP) )
 		return;
 
@@ -747,8 +780,11 @@ void CBaseCombatWeapon::DefaultTouch( CBaseEntity *pOther )
 // It's OK for base classes to override this completely 
 // without calling up. (sjb)
 //---------------------------------------------------------
-bool CBaseCombatWeapon::ShouldDisplayHUDHint()
+bool CBaseCombatWeapon::ShouldDisplayAltFireHUDHint()
 {
+	if( m_iAltFireHudHintCount >= WEAPON_RELOAD_HUD_HINT_COUNT )
+		return false;
+
 	if( UsesSecondaryAmmo() && HasSecondaryAmmo() )
 	{
 		return true;
@@ -770,10 +806,70 @@ void CBaseCombatWeapon::DisplayAltFireHudHint()
 	CFmtStr hint;
 	hint.sprintf( "#valve_hint_alt_%s", GetClassname() );
 	UTIL_HudHintText( GetOwner(), hint.Access() );
-	m_iHudHintCount++;
-	m_bHudHintDisplayed = true;
+	m_iAltFireHudHintCount++;
+	m_bAltFireHudHintDisplayed = true;
+	m_flHudHintMinDisplayTime = gpGlobals->curtime + MIN_HUDHINT_DISPLAY_TIME;
 #endif//CLIENT_DLL
 }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CBaseCombatWeapon::RescindAltFireHudHint()
+{
+#if !defined( CLIENT_DLL )
+	Assert(m_bAltFireHudHintDisplayed);
+	
+	UTIL_HudHintText( GetOwner(), "" );
+	--m_iAltFireHudHintCount;
+	m_bAltFireHudHintDisplayed = false;
+#endif//CLIENT_DLL
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CBaseCombatWeapon::ShouldDisplayReloadHUDHint()
+{
+	if( m_iReloadHudHintCount >= WEAPON_RELOAD_HUD_HINT_COUNT )
+		return false;
+
+	CBaseCombatCharacter *pOwner = GetOwner();
+
+	if( pOwner != NULL && pOwner->IsPlayer() && UsesClipsForAmmo1() && m_iClip1 < (GetMaxClip1() / 2) )
+	{
+		// I'm owned by a player, I use clips, I have less then half a clip loaded. Now, does the player have more ammo?
+		if ( pOwner )
+		{
+			if ( pOwner->GetAmmoCount( m_iPrimaryAmmoType ) > 0 ) 
+				return true;
+		}
+	}
+
+	return false;
+}
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CBaseCombatWeapon::DisplayReloadHudHint()
+{
+#if !defined( CLIENT_DLL )
+	UTIL_HudHintText( GetOwner(), "valve_hint_reload" );
+	m_iReloadHudHintCount++;
+	m_bReloadHudHintDisplayed = true;
+	m_flHudHintMinDisplayTime = gpGlobals->curtime + MIN_HUDHINT_DISPLAY_TIME;
+#endif//CLIENT_DLL
+}
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CBaseCombatWeapon::RescindReloadHudHint()
+{
+#if !defined( CLIENT_DLL )
+	Assert(m_bReloadHudHintDisplayed);
+
+	UTIL_HudHintText( GetOwner(), "" );
+	--m_iReloadHudHintCount;
+	m_bReloadHudHintDisplayed = false;
+#endif//CLIENT_DLL
+}
+
 
 void CBaseCombatWeapon::SetPickupTouch( void )
 {
@@ -844,7 +940,7 @@ void CBaseCombatWeapon::Equip( CBaseCombatCharacter *pOwner )
 void CBaseCombatWeapon::SetActivity( Activity act, float duration ) 
 { 
 	//Adrian: Oh man...
-#if !defined( CLIENT_DLL ) && defined( HL2MP )
+#if !defined( CLIENT_DLL ) && (defined( HL2MP ) || defined( PORTAL ))
 	SetModel( GetWorldModel() );
 #endif
 	
@@ -855,8 +951,9 @@ void CBaseCombatWeapon::SetActivity( Activity act, float duration )
 		sequence = SelectWeightedSequence( ACT_VM_IDLE );
 
 	//Adrian: Oh man again...
-#if !defined( CLIENT_DLL ) && defined( HL2MP )
-	SetModel( GetViewModel() );
+#if !defined( CLIENT_DLL ) && (defined( HL2MP ) || defined( PORTAL ))
+	if ( GetOwner()->IsPlayer() )
+		SetModel( GetViewModel() );
 #endif
 
 	if ( sequence != ACTIVITY_NOT_AVAILABLE )
@@ -884,20 +981,27 @@ void CBaseCombatWeapon::SetActivity( Activity act, float duration )
 //====================================================================================
 int CBaseCombatWeapon::UpdateClientData( CBasePlayer *pPlayer )
 {
+	int iNewState = WEAPON_IS_CARRIED_BY_PLAYER;
+
 	if ( pPlayer->GetActiveWeapon() == this )
 	{
 		if ( pPlayer->m_fOnTarget ) 
 		{
-			m_iState = WEAPON_IS_ONTARGET;
+			iNewState = WEAPON_IS_ONTARGET;
 		}
 		else
 		{
-			m_iState = WEAPON_IS_ACTIVE;
+			iNewState = WEAPON_IS_ACTIVE;
 		}
 	}
 	else
 	{
-		m_iState = WEAPON_IS_CARRIED_BY_PLAYER;
+		iNewState = WEAPON_IS_CARRIED_BY_PLAYER;
+	}
+
+	if ( m_iState != iNewState )
+	{
+		m_iState = iNewState;
 	}
 	return 1;
 }
@@ -1006,8 +1110,6 @@ void CBaseCombatWeapon::SetViewModel()
 //-----------------------------------------------------------------------------
 bool CBaseCombatWeapon::SendWeaponAnim( int iActivity )
 {
-	HapticSendWeaponAnim(this, iActivity);
-	
 	//For now, just set the ideal activity and be done with it
 	return SetIdealActivity( (Activity) iActivity );
 }
@@ -1227,19 +1329,12 @@ bool CBaseCombatWeapon::DefaultDeploy( char *szViewModel, char *szWeaponModel, i
 	// Can't shoot again until we've finished deploying
 	m_flNextPrimaryAttack	= gpGlobals->curtime + SequenceDuration();
 	m_flNextSecondaryAttack	= gpGlobals->curtime + SequenceDuration();
+	m_flHudHintMinDisplayTime = 0;
 
+	m_bAltFireHudHintDisplayed = false;
+	m_bReloadHudHintDisplayed = false;
+	m_flHudHintPollTime = gpGlobals->curtime + 5.0f;
 	
-	if( m_iHudHintCount < WEAPON_ALTFIRE_HUD_HINT_COUNT )
-	{
-		m_bHudHintDisplayed = false;
-		m_flHudHintPollTime = gpGlobals->curtime + 5.0f;
-	}
-	else
-	{
-		// Set this to prevent the polling.
-		m_bHudHintDisplayed = true;
-	}
-
 	SetWeaponVisible( true );
 
 /*
@@ -1249,10 +1344,7 @@ selects and deploys each weapon as you pass it. (sjb)
 
 */
 
-#ifndef CLIENT_DLL
-	// Cancel any pending hide events
-	g_EventQueue.CancelEventOn( this, "HideWeapon" );
-#endif
+	SetContextThink( NULL, 0, HIDEWEAPON_THINK_CONTEXT );
 
 	return true;
 }
@@ -1276,6 +1368,8 @@ Activity CBaseCombatWeapon::GetDrawActivity( void )
 //-----------------------------------------------------------------------------
 bool CBaseCombatWeapon::Holster( CBaseCombatWeapon *pSwitchingTo )
 { 
+	MDLCACHE_CRITICAL_SECTION();
+
 	// cancel any reload in progress.
 	m_bInReload = false; 
 
@@ -1298,7 +1392,6 @@ bool CBaseCombatWeapon::Holster( CBaseCombatWeapon *pSwitchingTo )
 		pOwner->SetNextAttack( gpGlobals->curtime + flSequenceDuration );
 	}
 
-#ifndef CLIENT_DLL
 	// If we don't have a holster anim, hide immediately to avoid timing issues
 	if ( !flSequenceDuration )
 	{
@@ -1307,9 +1400,18 @@ bool CBaseCombatWeapon::Holster( CBaseCombatWeapon *pSwitchingTo )
 	else
 	{
 		// Hide the weapon when the holster animation's finished
-		g_EventQueue.AddEvent( this, "HideWeapon", flSequenceDuration, NULL, NULL );
+		SetContextThink( &CBaseCombatWeapon::HideThink, gpGlobals->curtime + flSequenceDuration, HIDEWEAPON_THINK_CONTEXT );
 	}
-#endif
+
+	// if we were displaying a hud hint, squelch it.
+	if (m_flHudHintMinDisplayTime && gpGlobals->curtime < m_flHudHintMinDisplayTime)
+	{
+		if( m_bAltFireHudHintDisplayed )
+			RescindAltFireHudHint();
+
+		if( m_bReloadHudHintDisplayed )
+			RescindReloadHudHint();
+	}
 
 	return true;
 }
@@ -1346,31 +1448,52 @@ void CBaseCombatWeapon::InputHideWeapon( inputdata_t &inputdata )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CBaseCombatWeapon::HideThink( void )
+{
+	// Only hide if we're still the active weapon. If we're not the active weapon
+	if ( GetOwner() && GetOwner()->GetActiveWeapon() == this )
+	{
+		SetWeaponVisible( false );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CBaseCombatWeapon::ItemPreFrame( void )
 {
 	MaintainIdealActivity();
 
 #ifndef CLIENT_DLL
-	// If we haven't displayed the hint enough times yet, it's time to try to 
-	// display the hint, and the player is not standing still, try to show a hud hint.
-	// If the player IS standing still, assume they could change away from this weapon at
-	// any second.
-	if( !m_bHudHintDisplayed && gpGlobals->curtime > m_flHudHintPollTime && GetOwner() && GetOwner()->IsPlayer() )
+#ifndef HL2_EPISODIC
+	if ( IsX360() )
+#endif
 	{
-		CBasePlayer *pPlayer = (CBasePlayer*)(GetOwner());
+		// If we haven't displayed the hint enough times yet, it's time to try to 
+		// display the hint, and the player is not standing still, try to show a hud hint.
+		// If the player IS standing still, assume they could change away from this weapon at
+		// any second.
+		if( (!m_bAltFireHudHintDisplayed || !m_bReloadHudHintDisplayed) && gpGlobals->curtime > m_flHudHintMinDisplayTime && gpGlobals->curtime > m_flHudHintPollTime && GetOwner() && GetOwner()->IsPlayer() )
+		{
+			CBasePlayer *pPlayer = (CBasePlayer*)(GetOwner());
 
-		if( pPlayer && pPlayer->GetStickDist() > 0.0f )
-		{
-			// If the player is moving, they're unlikely to switch away from the current weapon
-			// the moment this weapon displays its HUD hint.
-			if( ShouldDisplayHUDHint() )
+			if( pPlayer && pPlayer->GetStickDist() > 0.0f )
 			{
-				DisplayAltFireHudHint();
+				// If the player is moving, they're unlikely to switch away from the current weapon
+				// the moment this weapon displays its HUD hint.
+				if( ShouldDisplayReloadHUDHint() )
+				{
+					DisplayReloadHudHint();
+				}
+				else if( ShouldDisplayAltFireHUDHint() )
+				{
+					DisplayAltFireHudHint();
+				}
 			}
-		}
-		else
-		{
-			m_flHudHintPollTime = gpGlobals->curtime + 1.0f;
+			else
+			{
+				m_flHudHintPollTime = gpGlobals->curtime + 2.0f;
+			}
 		}
 	}
 #endif
@@ -1418,7 +1541,16 @@ void CBaseCombatWeapon::ItemPostFrame( void )
 		else
 		{
 			// FIXME: This isn't necessarily true if the weapon doesn't have a secondary fire!
-			bFired = true;
+			// For instance, the crossbow doesn't have a 'real' secondary fire, but it still 
+			// stops the crossbow from firing on the 360 if the player chooses to hold down their
+			// zoom button. (sjb) Orange Box 7/25/2007
+#if !defined(CLIENT_DLL)
+			if( !IsX360() || !ClassMatches("weapon_crossbow") )
+#endif
+			{
+				bFired = true;
+			}
+
 			SecondaryAttack();
 
 			// Secondary ammo doesn't have a reload animation
@@ -1897,9 +2029,6 @@ void CBaseCombatWeapon::PrimaryAttack( void )
 		return;
 	}
 
-	// MUST call sound before removing a round from the clip of a CMachineGun
-	WeaponSound(SINGLE);
-
 	pPlayer->DoMuzzleFlash();
 
 	SendWeaponAnim( GetPrimaryAttackActivity() );
@@ -1919,6 +2048,8 @@ void CBaseCombatWeapon::PrimaryAttack( void )
 
 	while ( m_flNextPrimaryAttack <= gpGlobals->curtime )
 	{
+		// MUST call sound before removing a round from the clip of a CMachineGun
+		WeaponSound(SINGLE, m_flNextPrimaryAttack);
 		m_flNextPrimaryAttack = m_flNextPrimaryAttack + fireRate;
 		info.m_iShots++;
 		if ( !fireRate )
@@ -2083,237 +2214,7 @@ Activity CBaseCombatWeapon::ActivityOverride( Activity baseAct, bool *pRequired 
 }
 
 
-//=========================================================
-//=========================================================
-class CGameWeaponManager : public CBaseEntity
-{
-	DECLARE_CLASS( CGameWeaponManager, CBaseEntity );
-
-
-#if !defined( CLIENT_DLL )
-	DECLARE_DATADESC();
-#endif
-
-public:
-	void Spawn();
-	CGameWeaponManager()
-	{
-		m_flAmmoMod = 1.0f;
-	}
-
-#if !defined( CLIENT_DLL )
-	void Think();
-	void InputSetMaxPieces( inputdata_t &inputdata );
-	void InputSetAmmoModifier( inputdata_t &inputdata );
-#endif
-
-	string_t	m_iszWeaponName;
-	int			m_iMaxPieces;
-	float		m_flAmmoMod;
-};
-
-#if !defined( CLIENT_DLL )
-
-BEGIN_DATADESC( CGameWeaponManager )
-
-//fields	
-	DEFINE_KEYFIELD( m_iszWeaponName, FIELD_STRING, "weaponname" ),
-	DEFINE_KEYFIELD( m_iMaxPieces, FIELD_INTEGER, "maxpieces" ),
-	DEFINE_KEYFIELD( m_flAmmoMod, FIELD_FLOAT, "ammomod" ),
-// funcs
-	DEFINE_FUNCTION( Think ),
-// inputs
-	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetMaxPieces", InputSetMaxPieces ),
-	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetAmmoModifier", InputSetAmmoModifier ),
-
-END_DATADESC()
-
-#endif
-
-LINK_ENTITY_TO_CLASS( game_weapon_manager, CGameWeaponManager );
-
-#if !defined( CLIENT_DLL )
-void CreateWeaponManager( const char *pWeaponName, int iMaxPieces )
-{
-	CGameWeaponManager *pManager = (CGameWeaponManager *)CreateEntityByName( "game_weapon_manager");
-
-	if( pManager )
-	{
-		pManager->m_iszWeaponName = MAKE_STRING( pWeaponName );
-		pManager->m_iMaxPieces = iMaxPieces;
-		DispatchSpawn( pManager );
-	}
-}
-
-void WeaponManager_AmmoMod( CBaseCombatWeapon *pWeapon )
-{
-	CGameWeaponManager *pWeaponManager = (CGameWeaponManager *)gEntList.FindEntityByClassname( NULL, "game_weapon_manager" );
-
-	while ( pWeaponManager )
-	{
-		if ( pWeaponManager->m_iszWeaponName == pWeapon->m_iClassname )
-		{
-			int iNewClip = (int)(pWeapon->m_iClip1 * pWeaponManager->m_flAmmoMod);
-			int iNewRandomClip = iNewClip + RandomInt( -2, 2 );
-
-			if ( iNewRandomClip > pWeapon->GetMaxClip1() )
-			{
-				iNewRandomClip = pWeapon->GetMaxClip1();
-			}
-			else if ( iNewRandomClip <= 0 )
-			{
-				//Drop at least one bullet.
-				iNewRandomClip = 1;
-			}
-
-			pWeapon->m_iClip1 = iNewRandomClip;
-		}
-		
-		pWeaponManager = (CGameWeaponManager *)gEntList.FindEntityByClassname( pWeaponManager, "game_weapon_manager" );
-	}
-}
-#endif
-
-//---------------------------------------------------------
-//---------------------------------------------------------
-void CGameWeaponManager::Spawn()
-{
-#if !defined( CLIENT_DLL )
-	SetThink( &CGameWeaponManager::Think );
-	SetNextThink( gpGlobals->curtime );
-#endif
-}
-
-//---------------------------------------------------------
-// Count of all the weapons in the world of my type and
-// see if we have a surplus. If there is a surplus, try
-// to find suitable candidates for removal.
-//
-// Right now we just remove the first weapons we find that
-// are behind the player, or are out of the player's PVS. 
-// Later, we may want to score the results so that we
-// removed the farthest gun that's not in the player's 
-// viewcone, etc.
-//
-// Some notes and thoughts:
-//
-// This code is designed NOT to remove weapons that are 
-// hand-placed by level designers. It should only clean
-// up weapons dropped by dead NPCs, which is useful in
-// situations where enemies are spawned in for a sustained
-// period of time.
-//
-// Right now we PREFER to remove weapons that are not in the
-// player's PVS, but this could be opposite of what we 
-// really want. We may only want to conduct the cleanup on
-// weapons that are IN the player's PVS.
-//---------------------------------------------------------
-#if !defined( CLIENT_DLL )
-
-void CGameWeaponManager::Think()
-{
-
-	// Don't have to think all that often. 
-	SetNextThink( gpGlobals->curtime + 2.0 );
-
-	CBaseCombatWeapon *pWeapon = NULL;
-	const char *pszWeaponName = STRING( m_iszWeaponName );
-	int count = 0;
-	int removeableCount = 0;
-
-	// Firstly, count the total number of weapons of this type in the world.
-	// Also count how many of those can potentially be removed.
-	pWeapon = (CBaseCombatWeapon *)gEntList.FindEntityByClassname( pWeapon, pszWeaponName );
-	while( pWeapon )
-	{
-		count++;
-
-		if( pWeapon->IsRemoveable() )
-		{
-			removeableCount++;
-		}
-
-		pWeapon = (CBaseCombatWeapon *)gEntList.FindEntityByClassname( pWeapon, pszWeaponName );
-	}
-
-	// Calculate the surplus.
-	int surplus = removeableCount - m_iMaxPieces;
-
-	// Based on what the player can see, try to clean up the world by removing weapons that
-	// the player cannot see right at the moment.
-	while( surplus > 0 )
-	{
-		bool fRemovedOne = false;
-
-		pWeapon = (CBaseCombatWeapon *)gEntList.FindEntityByClassname( NULL, pszWeaponName );
-		while( pWeapon )
-		{
-			if( !pWeapon->IsEffectActive( EF_NODRAW ) && pWeapon->IsRemoveable() )
-			{
-				if ( gpGlobals->maxClients == 1 )
-				{
-					CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
-					// Nodraw serves as a flag that this weapon is already being removed since
-					// all we're really doing inside this loop is marking them for removal by
-					// the entity system. We don't want to count the same weapon as removed
-					// more than once.
-					if( !UTIL_FindClientInPVS( pWeapon->edict() ) )
-					{
-						fRemovedOne = true;
-					}
-					else if( !pPlayer->FInViewCone( pWeapon ) )
-					{
-						fRemovedOne = true;
-					}
-					else if ( UTIL_DistApprox( pPlayer->GetAbsOrigin(), pWeapon->GetAbsOrigin() ) > (30*12) )
-					{
-						fRemovedOne = true;
-					}
-				}
-				else
-				{
-					fRemovedOne = true;
-				}
-
-				if( fRemovedOne )
-				{
-					pWeapon->AddEffects( EF_NODRAW );
-					UTIL_Remove( pWeapon );
-
-					DevMsg( 2, "Surplus %s removed\n", pszWeaponName);
-					surplus--;
-
-					if( surplus == 0 )
-						break;
-				}
-			}
-
-			pWeapon = (CBaseCombatWeapon *)gEntList.FindEntityByClassname( pWeapon, pszWeaponName );
-		}
-
-		if( !fRemovedOne )
-		{
-			// No suitable candidates for removal right now.
-			break;
-		}
-	}
-}
-
-//---------------------------------------------------------
-//---------------------------------------------------------
-void CGameWeaponManager::InputSetMaxPieces( inputdata_t &inputdata )
-{
-	m_iMaxPieces = inputdata.value.Int();
-}
-
-//---------------------------------------------------------
-//---------------------------------------------------------
-void CGameWeaponManager::InputSetAmmoModifier( inputdata_t &inputdata )
-{
-	m_flAmmoMod = inputdata.value.Float();
-}
-
-#else
+#if defined( CLIENT_DLL )
 
 BEGIN_PREDICTION_DATA( CBaseCombatWeapon )
 
@@ -2423,9 +2324,12 @@ BEGIN_DATADESC( CBaseCombatWeapon )
 
 	DEFINE_PHYSPTR( m_pConstraint ),
 
-	DEFINE_FIELD( m_iHudHintCount,	FIELD_INTEGER ),
-	DEFINE_FIELD( m_bHudHintDisplayed, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_iReloadHudHintCount,	FIELD_INTEGER ),
+	DEFINE_FIELD( m_iAltFireHudHintCount,	FIELD_INTEGER ),
+	DEFINE_FIELD( m_bReloadHudHintDisplayed, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_bAltFireHudHintDisplayed, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flHudHintPollTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flHudHintMinDisplayTime, FIELD_TIME ),
 
 	// Just to quiet classcheck.. this field exists only on the client
 //	DEFINE_FIELD( m_iOldState, FIELD_INTEGER ),
@@ -2439,12 +2343,14 @@ BEGIN_DATADESC( CBaseCombatWeapon )
 	DEFINE_FUNCTION( DestroyItem ),
 	DEFINE_FUNCTION( SetPickupTouch ),
 
+	DEFINE_FUNCTION( HideThink ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "HideWeapon", InputHideWeapon ),
 
 	// Outputs
 	DEFINE_OUTPUT( m_OnPlayerUse, "OnPlayerUse"),
 	DEFINE_OUTPUT( m_OnPlayerPickup, "OnPlayerPickup"),
 	DEFINE_OUTPUT( m_OnNPCPickup, "OnNPCPickup"),
+	DEFINE_OUTPUT( m_OnCacheInteraction, "OnCacheInteraction" ),
 
 END_DATADESC()
 
@@ -2498,6 +2404,11 @@ void* SendProxy_SendLocalWeaponDataTable( const SendProp *pProp, const void *pSt
 REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendLocalWeaponDataTable );
 #endif
 
+#if PREDICTION_ERROR_CHECK_LEVEL > 1
+#define SendPropTime SendPropFloat
+#define RecvPropTime RecvPropFloat
+#endif
+
 //-----------------------------------------------------------------------------
 // Purpose: Propagation data for weapons. Only sent when a player's holding it.
 //-----------------------------------------------------------------------------
@@ -2507,6 +2418,11 @@ BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalActiveWeaponData )
 	SendPropTime( SENDINFO( m_flNextSecondaryAttack ) ),
 	SendPropInt( SENDINFO( m_nNextThinkTick ) ),
 	SendPropTime( SENDINFO( m_flTimeWeaponIdle ) ),
+
+#if defined( TF_DLL )
+	SendPropExclude( "DT_AnimTimeMustBeFirst" , "m_flAnimTime" ),
+#endif
+
 #else
 	RecvPropTime( RECVINFO( m_flNextPrimaryAttack ) ),
 	RecvPropTime( RECVINFO( m_flNextSecondaryAttack ) ),
@@ -2526,6 +2442,10 @@ BEGIN_NETWORK_TABLE_NOBASE( CBaseCombatWeapon, DT_LocalWeaponData )
 	SendPropInt( SENDINFO(m_iSecondaryAmmoType ), 8 ),
 
 	SendPropInt( SENDINFO( m_nViewModelIndex ), VIEWMODEL_INDEX_BITS, SPROP_UNSIGNED ),
+
+#if defined( TF_DLL )
+	SendPropExclude( "DT_AnimTimeMustBeFirst" , "m_flAnimTime" ),
+#endif
 
 #else
 	RecvPropIntWithMinusOneFlag( RECVINFO(m_iClip1 )),

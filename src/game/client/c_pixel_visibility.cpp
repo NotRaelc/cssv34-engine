@@ -1,10 +1,10 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//=============================================================================//
+//===========================================================================//
 #include "cbase.h"
 #include "c_pixel_visibility.h"
 #include "materialsystem/imesh.h"
@@ -12,8 +12,9 @@
 #include "ClientEffectPrecacheSystem.h"
 #include "view.h"
 #include "utlmultilist.h"
+#include "vprof.h"
 
-static void PixelvisDrawChanged( ConVar *pPixelvisVar, const char *pOld );
+static void PixelvisDrawChanged( IConVar *pPixelvisVar, const char *pOld, float flOldValue );
 
 ConVar r_pixelvisibility_partial( "r_pixelvisibility_partial", "1" );
 ConVar r_dopixelvisibility( "r_dopixelvisibility", "1" );
@@ -22,9 +23,13 @@ ConVar r_pixelvisibility_spew( "r_pixelvisibility_spew", "0" );
 
 extern ConVar building_cubemaps;
 
+#ifndef _X360
 const float MIN_PROXY_PIXELS = 5.0f;
+#else
+const float MIN_PROXY_PIXELS = 25.0f;
+#endif
 
-float PixelVisibility_DrawProxy( OcclusionQueryObjectHandle_t queryHandle, Vector origin, float scale, float proxyAspect, IMaterial *pMaterial, bool screenspace )
+float PixelVisibility_DrawProxy( IMatRenderContext *pRenderContext, OcclusionQueryObjectHandle_t queryHandle, Vector origin, float scale, float proxyAspect, IMaterial *pMaterial, bool screenspace )
 {
 	Vector point;
 
@@ -32,12 +37,12 @@ float PixelVisibility_DrawProxy( OcclusionQueryObjectHandle_t queryHandle, Vecto
 	// only expand the parts perpendicular to the view
 	float forwardScale = scale;
 	// draw a pyramid of points touching a sphere of radius "scale" at origin
-	float pixelsPerUnit = materials->ComputePixelWidthOfSphere( origin, 1.0f );
+	float pixelsPerUnit = pRenderContext->ComputePixelDiameterOfSphere( origin, 1.0f );
 	pixelsPerUnit = max( pixelsPerUnit, 1e-4f );
 	if ( screenspace )
 	{
 		// Force this to be the size of a sphere of diameter "scale" at some reference distance (1.0 unit)
-		float pixelsPerUnit2 = materials->ComputePixelWidthOfSphere( CurrentViewOrigin() + CurrentViewForward()*1.0f, scale*0.5f );
+		float pixelsPerUnit2 = pRenderContext->ComputePixelDiameterOfSphere( CurrentViewOrigin() + CurrentViewForward()*1.0f, scale*0.5f );
 		// force drawing of "scale" pixels
 		scale = pixelsPerUnit2 / pixelsPerUnit;
 	}
@@ -76,7 +81,7 @@ float PixelVisibility_DrawProxy( OcclusionQueryObjectHandle_t queryHandle, Vecto
 	{
 		extern int ScreenTransform( const Vector& point, Vector& screen );
 		if ( ScreenTransform( verts[i+1], screen[i] ) )
-			return 0;
+			return -1;
 	}
 
 	// compute area and screen-clipped area
@@ -94,10 +99,9 @@ float PixelVisibility_DrawProxy( OcclusionQueryObjectHandle_t queryHandle, Vecto
 		ratio = clamp(ratio, 0.0f, 1.0f);
 	}
 
-	IMesh* pMesh = materials->GetDynamicMesh( true, NULL, NULL, pMaterial );
-
+	pRenderContext->BeginOcclusionQueryDrawing( queryHandle );
 	CMeshBuilder meshBuilder;
-	materials->BeginOcclusionQueryDrawing( queryHandle );
+	IMesh* pMesh = pRenderContext->GetDynamicMesh( false, NULL, NULL, pMaterial );
 	meshBuilder.Begin( pMesh, MATERIAL_TRIANGLES, 4 );
 	// draw a pyramid
 	for ( int i = 0; i < 4; i++ )
@@ -141,7 +145,7 @@ float PixelVisibility_DrawProxy( OcclusionQueryObjectHandle_t queryHandle, Vecto
 	meshBuilder.End();
 	pMesh->Draw();
 #endif
-	materials->EndOcclusionQueryDrawing( queryHandle );
+	pRenderContext->EndOcclusionQueryDrawing( queryHandle );
 
 	// fraction clipped by frustum
 	return ratio;
@@ -201,7 +205,6 @@ bool CPixelVisSet::IsActive()
 	return (gpGlobals->framecount - frameIssued) > 1 ? false : true;
 }
 
-
 class CPixelVisibilityQuery
 {
 public:
@@ -211,8 +214,9 @@ public:
 	bool IsForView( int viewID );
 	bool IsActive();
 	float GetFractionVisible( float fadeTimeInv );
-	void IssueQuery( float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace );
-	void IssueCountingQuery( float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace );
+	void IssueQuery( IMatRenderContext *pRenderContext, float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace );
+	void IssueCountingQuery( IMatRenderContext *pRenderContext, float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace );
+	void ResetOcclusionQueries();
 	void SetView( int viewID ) 
 	{ 
 		m_viewID = viewID;	
@@ -237,24 +241,52 @@ private:
 	unsigned short					m_hasValidQueryResults : 1;
 	unsigned short					m_pad : 13;
 	unsigned short					m_viewID;
+
+	friend void PixelVisibility_ShiftVisibilityViews( int iSourceViewID, int iDestViewID ); //need direct access to private data to make shifting smooth
 };
 
 CPixelVisibilityQuery::CPixelVisibilityQuery()
 {
+	CMatRenderContextPtr pRenderContext( materials );
 	SetView( 0xFFFF );
-	m_queryHandle = materials->CreateOcclusionQueryObject();
-	m_queryHandleCount = materials->CreateOcclusionQueryObject();
+	m_queryHandle = pRenderContext->CreateOcclusionQueryObject();
+	m_queryHandleCount = pRenderContext->CreateOcclusionQueryObject();
 }
 
 CPixelVisibilityQuery::~CPixelVisibilityQuery()
 {
+	CMatRenderContextPtr pRenderContext( materials );
 	if ( m_queryHandle != INVALID_OCCLUSION_QUERY_OBJECT_HANDLE )
 	{
-		materials->DestroyOcclusionQueryObject( m_queryHandle );
+		pRenderContext->DestroyOcclusionQueryObject( m_queryHandle );
 	}
 	if ( m_queryHandleCount != INVALID_OCCLUSION_QUERY_OBJECT_HANDLE )
 	{
-		materials->DestroyOcclusionQueryObject( m_queryHandleCount );
+		pRenderContext->DestroyOcclusionQueryObject( m_queryHandleCount );
+	}
+}
+
+void CPixelVisibilityQuery::ResetOcclusionQueries()
+{
+	// NOTE: Since we're keeping the CPixelVisibilityQuery objects around in a pool
+	// and not actually deleting them, this means that our material system occlusion queries are
+	// not being deleted either. Which means that if a CPixelVisibilityQuery is 
+	// put into the free list and then immediately re-used, then we have an opportunity for
+	// a bug: What can happen on the first frame of the material system query
+	// is that if the query isn't done yet, it will use the last queried value
+	// which will happen to be set to the value of the last query done
+	// for the previous CPixelVisSet the CPixelVisibilityQuery happened to be associated with
+	// which makes queries have an invalid value for the first frame
+
+	// This will mark the occlusion query objects as not ever having been read from before
+	CMatRenderContextPtr pRenderContext( materials );
+	if ( m_queryHandle != INVALID_OCCLUSION_QUERY_OBJECT_HANDLE )
+	{
+		pRenderContext->ResetOcclusionQueryObject( m_queryHandle );
+	}
+	if ( m_queryHandleCount != INVALID_OCCLUSION_QUERY_OBJECT_HANDLE )
+	{
+		pRenderContext->ResetOcclusionQueryObject( m_queryHandleCount );
 	}
 }
 
@@ -279,6 +311,7 @@ float CPixelVisibilityQuery::GetFractionVisible( float fadeTimeInv )
 
 	if ( !m_wasQueriedThisFrame )
 	{
+		CMatRenderContextPtr pRenderContext( materials );
 		m_wasQueriedThisFrame = true;
 		int pixels = -1;
 		int pixelsPossible = -1;
@@ -286,8 +319,8 @@ float CPixelVisibilityQuery::GetFractionVisible( float fadeTimeInv )
 		{
 			if ( m_frameIssued != -1 )
 			{
-				pixelsPossible = materials->OcclusionQuery_GetNumPixelsRendered( m_queryHandleCount );
-				pixels = materials->OcclusionQuery_GetNumPixelsRendered( m_queryHandle );
+				pixelsPossible = pRenderContext->OcclusionQuery_GetNumPixelsRendered( m_queryHandleCount );
+				pixels = pRenderContext->OcclusionQuery_GetNumPixelsRendered( m_queryHandle );
 			}
 
 			if ( r_pixelvisibility_spew.GetBool() && CurrentViewID() == 0 ) 
@@ -297,7 +330,7 @@ float CPixelVisibilityQuery::GetFractionVisible( float fadeTimeInv )
 
 			if ( pixels < 0 || pixelsPossible < 0 )
 			{
-				m_failed = m_frameIssued != -1 ? true : false;
+				m_failed = ( m_frameIssued >= 0 ) ? true : false;
 				return m_brightnessTarget * m_clipFraction;
 			}
 			m_hasValidQueryResults = true;
@@ -318,7 +351,7 @@ float CPixelVisibilityQuery::GetFractionVisible( float fadeTimeInv )
 		{
 			if ( m_frameIssued != -1 )
 			{
-				pixels = materials->OcclusionQuery_GetNumPixelsRendered( m_queryHandle );
+				pixels = pRenderContext->OcclusionQuery_GetNumPixelsRendered( m_queryHandle );
 			}
 
 			if ( r_pixelvisibility_spew.GetBool() && CurrentViewID() == 0 ) 
@@ -328,7 +361,7 @@ float CPixelVisibilityQuery::GetFractionVisible( float fadeTimeInv )
 
 			if ( pixels < 0 )
 			{
-				m_failed = m_frameIssued != -1 ? true : false;
+				m_failed = ( m_frameIssued >= 0 ) ? true : false;
 				return m_brightnessTarget * m_clipFraction;
 			}
 			m_hasValidQueryResults = true;
@@ -354,7 +387,7 @@ float CPixelVisibilityQuery::GetFractionVisible( float fadeTimeInv )
 	return m_brightnessTarget * m_clipFraction;
 }
 
-void CPixelVisibilityQuery::IssueQuery( float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace )
+void CPixelVisibilityQuery::IssueQuery( IMatRenderContext *pRenderContext, float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace )
 {
 	if ( !m_failed )
 	{
@@ -365,16 +398,27 @@ void CPixelVisibilityQuery::IssueQuery( float proxySize, float proxyAspect, IMat
 			DevMsg( 1, "Draw Proxy: qh:%d org:<%d,%d,%d> (frame:%d)\n", m_queryHandle, (int)m_origin[0], (int)m_origin[1], (int)m_origin[2], gpGlobals->framecount );
 		}
 
-		m_clipFraction = PixelVisibility_DrawProxy( m_queryHandle, m_origin, proxySize, proxyAspect, pMaterial, sizeIsScreenSpace );
-
-
+		m_clipFraction = PixelVisibility_DrawProxy( pRenderContext, m_queryHandle, m_origin, proxySize, proxyAspect, pMaterial, sizeIsScreenSpace );
+		if ( m_clipFraction < 0 )
+		{
+			// NOTE: In this case, the proxy wasn't issued cause it was offscreen
+			// can't set the m_frameissued field since that would cause it to get marked as failed
+			m_clipFraction = 0;
+			m_wasQueriedThisFrame = false;
+			m_failed = false;
+			return;
+		}
 	}
+#ifndef PORTAL // FIXME: In portal we query visibility multiple times per frame because of portal renders!
+	Assert(m_frameIssued != gpGlobals->framecount);
+#endif
+
 	m_frameIssued = gpGlobals->framecount;
 	m_wasQueriedThisFrame = false;
 	m_failed = false;
 }
 
-void CPixelVisibilityQuery::IssueCountingQuery( float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace )
+void CPixelVisibilityQuery::IssueCountingQuery( IMatRenderContext *pRenderContext, float proxySize, float proxyAspect, IMaterial *pMaterial, bool sizeIsScreenSpace )
 {
 	if ( !m_failed )
 	{
@@ -389,12 +433,11 @@ void CPixelVisibilityQuery::IssueCountingQuery( float proxySize, float proxyAspe
 		float dot = DotProduct(CurrentViewForward(), origin);
 		origin = CurrentViewOrigin() + dot * CurrentViewForward();
 #endif
-		PixelVisibility_DrawProxy( m_queryHandleCount, m_origin, proxySize, proxyAspect, pMaterial, sizeIsScreenSpace );
+		PixelVisibility_DrawProxy( pRenderContext, m_queryHandleCount, m_origin, proxySize, proxyAspect, pMaterial, sizeIsScreenSpace );
 	}
 }
 
-
-//Precahce the effects
+//Precache the effects
 CLIENTEFFECT_REGISTER_BEGIN( PrecacheOcclusionProxy )
 CLIENTEFFECT_MATERIAL( "engine/occlusionproxy" )
 CLIENTEFFECT_MATERIAL( "engine/occlusionproxy_countdraw" )
@@ -429,6 +472,7 @@ public:
 		Msg("Pixel vis system using %d sets total (%d in free list), %d queries total (%d in free list)\n", 
 			m_setList.TotalCount(), m_setList.Count(m_freeSetsList), m_queryList.TotalCount(), m_queryList.Count( m_freeQueriesList ) );
 	}
+
 private:
 	CUtlMultiList< CPixelVisSet, unsigned short >	m_setList;
 	CUtlMultiList<CPixelVisibilityQuery, unsigned short> m_queryList;
@@ -441,6 +485,9 @@ private:
 	IMaterial	*m_pDrawMaterial;
 	bool		m_hwCanTestGlows;
 	bool		m_drawQueries;
+
+
+	friend void PixelVisibility_ShiftVisibilityViews( int iSourceViewID, int iDestViewID ); //need direct access to private data to make shifting smooth
 };
 
 static CPixelVisibilitySystem g_PixelVisibilitySystem;
@@ -456,10 +503,12 @@ void CPixelVisibilitySystem::LevelInitPreEntity()
 	m_hwCanTestGlows = r_dopixelvisibility.GetBool() && engine->GetDXSupportLevel() >= 80;
 	if ( m_hwCanTestGlows )
 	{
-		unsigned short query = materials->CreateOcclusionQueryObject();
+		CMatRenderContextPtr pRenderContext( materials );
+
+		OcclusionQueryObjectHandle_t query = pRenderContext->CreateOcclusionQueryObject();
 		if ( query != INVALID_OCCLUSION_QUERY_OBJECT_HANDLE )
 		{
-			materials->DestroyOcclusionQueryObject( query );
+			pRenderContext->DestroyOcclusionQueryObject( query );
 		}
 		else
 		{
@@ -505,8 +554,6 @@ float CPixelVisibilitySystem::GetFractionVisible( const pixelvis_queryparams_t &
 	m_queryList[node].m_origin = params.position;
 	float fraction = m_queryList[node].GetFractionVisible( pSet->fadeTimeInv );
 	pSet->MarkActive();
-
-
 	return fraction;
 }
 
@@ -518,13 +565,15 @@ void CPixelVisibilitySystem::EndView()
 	if ( m_setList.Head( m_activeSetsList ) == m_setList.InvalidIndex() )
 		return;
 
+	CMatRenderContextPtr pRenderContext( materials );
+
 	IMaterial *pProxy = m_drawQueries ? m_pDrawMaterial : m_pProxyMaterial;
-	materials->Bind( pProxy );
+	pRenderContext->Bind( pProxy );
 
 	// BUGBUG: If you draw both queries, the measure query fails for some reason.
 	if ( r_pixelvisibility_partial.GetBool() && !m_drawQueries )
 	{
-		materials->DepthRange( 0.0f, 0.01f );
+		pRenderContext->DepthRange( 0.0f, 0.01f );
 		unsigned short node = m_setList.Head( m_activeSetsList );
 		while( node != m_setList.InvalidIndex() )
 		{
@@ -532,11 +581,11 @@ void CPixelVisibilitySystem::EndView()
 			unsigned short queryNode = FindQueryForView( pSet, CurrentViewID() );
 			if ( queryNode != m_queryList.InvalidIndex() )
 			{
-				m_queryList[queryNode].IssueCountingQuery( pSet->proxySize, pSet->proxyAspect, pProxy, pSet->sizeIsScreenSpace );
+				m_queryList[queryNode].IssueCountingQuery( pRenderContext, pSet->proxySize, pSet->proxyAspect, pProxy, pSet->sizeIsScreenSpace );
 			}
 			node = m_setList.Next( node );
 		}
-		materials->DepthRange( 0.0f, 1.0f );
+		pRenderContext->DepthRange( 0.0f, 1.0f );
 	}
 
 	{
@@ -547,7 +596,7 @@ void CPixelVisibilitySystem::EndView()
 			unsigned short queryNode = FindQueryForView( pSet, CurrentViewID() );
 			if ( queryNode != m_queryList.InvalidIndex() )
 			{
-				m_queryList[queryNode].IssueQuery( pSet->proxySize, pSet->proxyAspect, pProxy, pSet->sizeIsScreenSpace );
+				m_queryList[queryNode].IssueQuery( pRenderContext, pSet->proxySize, pSet->proxyAspect, pProxy, pSet->sizeIsScreenSpace );
 			}
 			node = m_setList.Next( node );
 		}
@@ -631,6 +680,7 @@ unsigned short CPixelVisibilitySystem::AllocQuery()
 	if ( node != m_queryList.InvalidIndex() )
 	{
 		m_queryList.Unlink( m_freeQueriesList, node );
+		m_queryList[node].ResetOcclusionQueries();
 	}
 	else
 	{
@@ -686,9 +736,10 @@ CPixelVisSet *CPixelVisibilitySystem::FindOrCreatePixelVisSet( const pixelvis_qu
 }
 
 
-void PixelvisDrawChanged( ConVar *pPixelvisVar, const char *pOld )
+void PixelvisDrawChanged( IConVar *pPixelvisVar, const char *pOld, float flOldValue )
 {
-	g_PixelVisibilitySystem.ShowQueries( pPixelvisVar->GetBool() );
+	ConVarRef var( pPixelvisVar );
+	g_PixelVisibilitySystem.ShowQueries( var.GetBool() );
 }
 
 class CTraceFilterGlow : public CTraceFilterSimple
@@ -761,6 +812,41 @@ float PixelVisibility_FractionVisible( const pixelvis_queryparams_t &params, pix
 bool PixelVisibility_IsAvailable()
 {
 	return r_dopixelvisibility.GetBool() && g_PixelVisibilitySystem.SupportsOcclusion();
+}
+
+//this originally called a class function of CPixelVisibiltySystem to keep the work clean, but that function needed friend access to CPixelVisibilityQuery 
+//and I didn't want to make the whole class a friend or shift all the functions and class declarations around in this file
+void PixelVisibility_ShiftVisibilityViews( int iSourceViewID, int iDestViewID )
+{
+	unsigned short node = g_PixelVisibilitySystem.m_setList.Head( g_PixelVisibilitySystem.m_activeSetsList );
+	while ( node != g_PixelVisibilitySystem.m_setList.InvalidIndex() )
+	{
+		unsigned short next = g_PixelVisibilitySystem.m_setList.Next( node );
+		CPixelVisSet *pSet = &g_PixelVisibilitySystem.m_setList[node];
+
+		unsigned short iSourceQueryNode = g_PixelVisibilitySystem.FindQueryForView( pSet, iSourceViewID );
+		unsigned short iDestQueryNode = g_PixelVisibilitySystem.FindQueryForView( pSet, iDestViewID );
+
+		if( iDestQueryNode != g_PixelVisibilitySystem.m_queryList.InvalidIndex() )
+		{
+			//delete the destination if found
+			g_PixelVisibilitySystem.m_queryList.Unlink( pSet->queryList, iDestQueryNode );
+			g_PixelVisibilitySystem.m_queryList.LinkToHead( g_PixelVisibilitySystem.m_freeQueriesList, iDestQueryNode );
+
+			if ( g_PixelVisibilitySystem.m_queryList.Head(pSet->queryList) == g_PixelVisibilitySystem.m_queryList.InvalidIndex() )
+			{
+				g_PixelVisibilitySystem.FreeSet( node );
+			}
+		}
+
+		if( iSourceQueryNode != g_PixelVisibilitySystem.m_queryList.InvalidIndex() )
+		{
+			//make the source believe it's the destination
+			g_PixelVisibilitySystem.m_queryList[iSourceQueryNode].m_viewID = iDestViewID;
+		}		
+
+		node = next;
+	}
 }
 
 CON_COMMAND( pixelvis_debug, "Dump debug info" )

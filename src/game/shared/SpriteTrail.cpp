@@ -12,7 +12,7 @@
 #include "clientsideeffects.h"
 #include "materialsystem/IMaterialSystem.h"
 #include "materialsystem/IMesh.h"
-#include "VMatrix.h"
+#include "mathlib/VMatrix.h"
 #include "view.h"
 #include "beamdraw.h"
 #include "enginesprite.h"
@@ -434,8 +434,9 @@ int CSpriteTrail::DrawModel( int flags )
 		return 0;
 
 	// Specify all the segments.
+	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	CBeamSegDraw segDraw;
-	segDraw.Start( m_nStepCount + 1, pSprite->GetMaterial() );
+	segDraw.Start( pRenderContext, m_nStepCount + 1, pSprite->GetMaterial() );
 	
 	// Setup the first point, always emanating from the attachment point
 	TrailPoint_t *pLast = GetTrailPoint( m_nStepCount-1 );
@@ -461,7 +462,7 @@ int CSpriteTrail::DrawModel( int flags )
 		float flLifePerc = (pPoint->m_flDieTime - gpGlobals->curtime) / m_flLifeTime;
 		flLifePerc = clamp( flLifePerc, 0.0f, 1.0f );
 
-		CBeamSeg curSeg;
+		BeamSeg_t curSeg;
 		curSeg.m_vColor.x = (float) m_clrRender->r / 255.0f;
 		curSeg.m_vColor.y = (float) m_clrRender->g / 255.0f;
 		curSeg.m_vColor.z = (float) m_clrRender->b / 255.0f;

@@ -171,11 +171,11 @@ void AI_CriteriaSet::Describe()
 }
 
 BEGIN_SIMPLE_DATADESC( AI_ResponseParams )
-	DEFINE_FIELD( flags,	FIELD_CHARACTER ),
+	DEFINE_FIELD( flags,	FIELD_SHORT ),
 	DEFINE_FIELD( odds,	FIELD_SHORT ),	
 	DEFINE_FIELD( soundlevel,	FIELD_CHARACTER ),	
 	DEFINE_FIELD( delay,	FIELD_INTEGER ),		// These are compressed down to two float16s, so treat as an INT for saverestore
-	DEFINE_FIELD( respeakdelay,	FIELD_INTEGER ),	//  "
+	DEFINE_FIELD( respeakdelay,	FIELD_INTEGER ),	//  
 END_DATADESC()
 
 BEGIN_SIMPLE_DATADESC( AI_Response )
@@ -196,6 +196,7 @@ AI_Response::AI_Response()
 	m_pCriteria = NULL;
 	m_szMatchingRule[0]=0;
 	m_szContext = NULL;
+	m_bApplyContextToWorld = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -208,6 +209,7 @@ AI_Response::AI_Response( const AI_Response &from )
 	m_pCriteria = NULL;
 	m_szContext = NULL;
 	SetContext( from.m_szContext );
+	m_bApplyContextToWorld = from.m_bApplyContextToWorld;
 }
 
 //-----------------------------------------------------------------------------
@@ -229,6 +231,7 @@ AI_Response &AI_Response::operator=( const AI_Response &from )
 	m_pCriteria = NULL;
 	m_szContext = NULL;
 	SetContext( from.m_szContext );
+	m_bApplyContextToWorld = from.m_bApplyContextToWorld;
 	return *this;
 }
 
@@ -237,7 +240,7 @@ AI_Response &AI_Response::operator=( const AI_Response &from )
 // Input  : *response - 
 //			*criteria - 
 //-----------------------------------------------------------------------------
-void AI_Response::Init( ResponseType_t type, const char *responseName, const AI_CriteriaSet& criteria, const AI_ResponseParams& responseparams, const char *ruleName, const char *applyContext )
+void AI_Response::Init( ResponseType_t type, const char *responseName, const AI_CriteriaSet& criteria, const AI_ResponseParams& responseparams, const char *ruleName, const char *applyContext, bool bApplyContextToWorld )
 {
 	m_Type = type;
 	Q_strncpy( m_szResponseName, responseName, sizeof( m_szResponseName ) );
@@ -246,6 +249,7 @@ void AI_Response::Init( ResponseType_t type, const char *responseName, const AI_
 	Q_strncpy( m_szMatchingRule, ruleName ? ruleName : "NULL", sizeof( m_szMatchingRule ) );
 	m_Params = responseparams;
 	SetContext( applyContext );
+	m_bApplyContextToWorld = bApplyContextToWorld;
 }
 
 //-----------------------------------------------------------------------------
@@ -264,7 +268,7 @@ void AI_Response::Describe()
 	}
 	if ( m_szContext )
 	{
-		DevMsg( "Contexts to set '%s', ", m_szContext );
+		DevMsg( "Contexts to set '%s' on %s, ", m_szContext, m_bApplyContextToWorld ? "world" : "speaker" );
 	}
 
 	DevMsg( "response %s = '%s'\n", DescribeResponse( (ResponseType_t)m_Type ),  m_szResponseName );
@@ -420,6 +424,17 @@ float AI_Response::GetDelay() const
 	return 0.0f;
 }
 
+float AI_Response::GetPreDelay() const
+{
+	if ( m_Params.flags & AI_ResponseParams::RG_DELAYBEFORESPEAK )
+	{
+		interval_t temp;
+		m_Params.predelay.ToInterval( temp );
+		return RandomInterval( temp );
+	}
+	return 0.0f;
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Sets context string
 // Output : void
@@ -454,6 +469,7 @@ const char *SplitContext( const char *raw, char *key, int keylen, char *value, i
 	if ( !colon1 )
 	{
 		DevMsg( "SplitContext:  warning, ignoring context '%s', missing colon separator!\n", raw );
+		*key = *value = 0;
 		return NULL;
 	}
 

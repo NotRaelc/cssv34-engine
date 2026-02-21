@@ -70,7 +70,7 @@ void TE_DispatchEffect( IRecipientFilter& filter, float delay, const Vector &pos
 	g_TEEffectDispatch.m_EffectData = data;
 
 	// Get the entry index in the string table.
-	g_TEEffectDispatch.m_EffectData.m_iEffectName = g_pStringTableEffectDispatch->AddString( pName );
+	g_TEEffectDispatch.m_EffectData.m_iEffectName = g_pStringTableEffectDispatch->AddString( CBaseEntity::IsServer(), pName );
 
 	// Send it to anyone who can see the effect's origin.
 	g_TEEffectDispatch.Create( filter, 0 );

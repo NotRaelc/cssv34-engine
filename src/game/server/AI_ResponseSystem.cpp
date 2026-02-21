@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -14,12 +14,14 @@
 #include "filesystem.h"
 #include "utldict.h"
 #include "ai_speech.h"
-#include "vstdlib/ICommandLine.h"
+#include "tier0/icommandline.h"
 #include <ctype.h>
 #include "sceneentity.h"
 #include "isaverestore.h"
 #include "utlbuffer.h"
 #include "stringpool.h"
+#include "fmtstr.h"
+#include "multiplay_gamerules.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -459,6 +461,7 @@ struct Rule
 		m_bMatchOnce = false;
 		m_bEnabled = true;
 		m_szContext = NULL;
+		m_bApplyContextToWorld = false;
 	}
 
 	Rule& operator =( const Rule& src )
@@ -484,6 +487,7 @@ struct Rule
 		SetContext( src.m_szContext );
 		m_bMatchOnce = src.m_bMatchOnce;
 		m_bEnabled = src.m_bEnabled;
+		m_bApplyContextToWorld = src.m_bApplyContextToWorld;
 		return *this;
 	}
 
@@ -507,6 +511,7 @@ struct Rule
 		SetContext( src.m_szContext );
 		m_bMatchOnce = src.m_bMatchOnce;
 		m_bEnabled = src.m_bEnabled;
+		m_bApplyContextToWorld = src.m_bApplyContextToWorld;
 	}
 
 	~Rule()
@@ -525,12 +530,14 @@ struct Rule
 	bool	IsEnabled() const { return m_bEnabled; }
 	void	Disable() { m_bEnabled = false; }
 	bool	IsMatchOnce() const { return m_bMatchOnce; }
+	bool	IsApplyContextToWorld() const { return m_bApplyContextToWorld; }
 
 	// Indices into underlying criteria and response dictionaries
 	CUtlVector< unsigned short >	m_Criteria;
 	CUtlVector< unsigned short>		m_Responses;
 
 	char				*m_szContext;
+	bool				m_bApplyContextToWorld : 1;
 
 	bool				m_bMatchOnce : 1;
 	bool				m_bEnabled : 1;
@@ -561,9 +568,12 @@ public:
 		m_bPrecache = bEnable;
 	}
 
-	bool		ShouldPrecache() { return m_bPrecache; }
-	
+	bool		ShouldPrecache()	{ return m_bPrecache; }
+	bool		IsCustomManagable()	{ return m_bCustomManagable; }
+
 	void		Clear();
+
+	void		DumpDictionary( const char *pszName );
 
 protected:
 
@@ -571,12 +581,18 @@ protected:
 	void		LoadRuleSet( const char *setname );
 
 	void		ResetResponseGroups();
+
+	float		LookForCriteria( const AI_CriteriaSet &criteriaSet, int iCriteria );
+	float		RecursiveLookForCriteria( const AI_CriteriaSet &criteriaSet, Criteria *pParent );
+
 public:
 
+	void		CopyRuleFrom( Rule *pSrcRule, int iRule, CResponseSystem *pCustomSystem );
+	void		CopyCriteriaFrom( Rule *pSrcRule, Rule *pDstRule, CResponseSystem *pCustomSystem );
+	void		CopyResponsesFrom( Rule *pSrcRule, Rule *pDstRule, CResponseSystem *pCustomSystem );
+	void		CopyEnumerationsFrom( CResponseSystem *pCustomSystem );
 
-	
-
-private:
+//private:
 
 	struct Enumeration
 	{
@@ -679,8 +695,6 @@ private:
 
 	void		LoadFromBuffer( const char *scriptfile, const char *buffer, CStringPool &includedFiles );
 
-//	void		TouchReferencedScenes();
-
 	void		GetCurrentScript( char *buf, size_t buflen );
 	int			GetCurrentToken() const;
 	void		SetCurrentScript( const char *script );
@@ -700,6 +714,8 @@ private:
 
 	bool		m_bUnget;
 	bool		m_bPrecache;	
+
+	bool		m_bCustomManagable;
 
 	struct ScriptEntry
 	{
@@ -745,6 +761,7 @@ CResponseSystem::CResponseSystem()
 	token[0] = 0;
 	m_bUnget = false;
 	m_bPrecache = true;
+	m_bCustomManagable = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1093,6 +1110,38 @@ float CResponseSystem::RecursiveScoreSubcriteriaAgainstRule( const AI_CriteriaSe
 	exclude = ( parent->required && score == 0.0f ) ? true : false;
 
 	return score * parent->weight.GetFloat();
+}
+
+float CResponseSystem::RecursiveLookForCriteria( const AI_CriteriaSet &criteriaSet, Criteria *pParent )
+{
+	float flScore = 0.0f;
+	int nSubCount = pParent->subcriteria.Count();
+	for ( int iSub = 0; iSub < nSubCount; ++iSub )
+	{
+		int iCriteria = pParent->subcriteria[iSub];
+		flScore += LookForCriteria( criteriaSet, iCriteria );
+	}
+
+	return flScore;
+}
+
+float CResponseSystem::LookForCriteria( const AI_CriteriaSet &criteriaSet, int iCriteria )
+{
+	Criteria *pCriteria = &m_Criteria[iCriteria];
+	if ( pCriteria->IsSubCriteriaType() )
+	{
+		return RecursiveLookForCriteria( criteriaSet, pCriteria );
+	}
+
+	int iIndex = criteriaSet.FindCriterionIndex( pCriteria->name );
+	if ( iIndex == -1 )
+		return 0.0f;
+
+	Assert( criteriaSet.GetValue( iIndex ) );
+	if ( Q_stricmp( criteriaSet.GetValue( iIndex ), pCriteria->value ) )
+		return 0.0f;
+
+	return 1.0f;
 }
 
 float CResponseSystem::ScoreCriteriaAgainstRuleCriteria( const AI_CriteriaSet& set, int icriterion, bool& exclude, bool verbose /*=false*/ )
@@ -1687,8 +1736,8 @@ bool CResponseSystem::FindBestResponse( const AI_CriteriaSet& set, AI_Response& 
 	bool showRules = ( iDbgResponse == 2 );
 	bool showResult = ( iDbgResponse == 1 || iDbgResponse == 2 );
 
-	// Look for match
-	int bestRule = FindBestMatchingRule( set, showRules );
+	// Look for match. verbose mode used to be at level 2, but disabled because the writers don't actually care for that info.
+	int bestRule = FindBestMatchingRule( set, false ); 
 
 	ResponseType_t responseType = RESPONSE_NONE;
 	AI_ResponseParams rp;
@@ -1696,9 +1745,11 @@ bool CResponseSystem::FindBestResponse( const AI_CriteriaSet& set, AI_Response& 
 	char ruleName[ 128 ];
 	char responseName[ 128 ];
 	const char *context;
+	bool bcontexttoworld;
 	ruleName[ 0 ] = 0;
 	responseName[ 0 ] = 0;
 	context = NULL;
+	bcontexttoworld = false;
 	if ( bestRule != -1 )
 	{
 		Rule *r = &m_Rules[ bestRule ];
@@ -1719,19 +1770,24 @@ bool CResponseSystem::FindBestResponse( const AI_CriteriaSet& set, AI_Response& 
 			r->Disable();
 		}
 		context = r->GetContext();
+		bcontexttoworld = r->IsApplyContextToWorld();
 
 		valid = true;
 	}
 
-	response.Init( responseType, responseName, set, rp, ruleName, context );
+	response.Init( responseType, responseName, set, rp, ruleName, context, bcontexttoworld );
 
 	if ( showResult )
 	{
+		/*
+		// clipped -- chet doesn't really want this info
 		if ( valid )
 		{
 			// Rescore the winner and dump to console
 			ScoreCriteriaAgainstRule( set, bestRule, true );
 		}
+		*/
+		
 	
 		if ( valid || showRules )
 		{
@@ -1757,11 +1813,16 @@ void CResponseSystem::GetAllResponses( CUtlVector<AI_Response *> *pResponses )
 			if ( response.type != RESPONSE_RESPONSE )
 			{
 				AI_Response *pResponse = new AI_Response;
-				pResponse->Init( response.GetType(), response.value, AI_CriteriaSet(), group.rp, NULL, NULL );
+				pResponse->Init( response.GetType(), response.value, AI_CriteriaSet(), group.rp, NULL, NULL, false );
 				pResponses->AddToTail(pResponse);
 			}
 		}
 	}
+}
+
+static void TouchFile( char const *pchFileName )
+{
+	filesystem->Size( pchFileName );
 }
 
 //-----------------------------------------------------------------------------
@@ -1769,6 +1830,8 @@ void CResponseSystem::GetAllResponses( CUtlVector<AI_Response *> *pResponses )
 //-----------------------------------------------------------------------------
 void CResponseSystem::Precache()
 {
+	bool bTouchFiles = CommandLine()->FindParm( "-makereslists" ) != 0;
+
 	// enumerate and mark all the scripts so we know they're referenced
 	for ( int i = 0; i < (int)m_Responses.Count(); i++ )
 	{
@@ -1777,6 +1840,7 @@ void CResponseSystem::Precache()
 		for ( int j = 0; j < group.group.Count(); j++)
 		{
 			Response &response = group.group[j];
+
 			switch ( response.type )
 			{
 			default:
@@ -1797,14 +1861,26 @@ void CResponseSystem::Precache()
 						Q_snprintf( genderFile, sizeof(genderFile), "%smale%s", file, postGender);
 
 						PrecacheInstancedScene( genderFile );
+						if ( bTouchFiles )
+						{
+							TouchFile( genderFile );
+						}
 
 						Q_snprintf( genderFile, sizeof(genderFile), "%sfemale%s", file, postGender);
 
 						PrecacheInstancedScene( genderFile );
+						if ( bTouchFiles )
+						{
+							TouchFile( genderFile );
+						}
 					}
 					else
 					{
 						PrecacheInstancedScene( file );
+						if ( bTouchFiles )
+						{
+							TouchFile( file );
+						}
 					}
 				}
 				break;
@@ -1818,66 +1894,6 @@ void CResponseSystem::Precache()
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: Does any necessary resource allocation for resources references in the script file
-//-----------------------------------------------------------------------------
-/*
-I think this is obsolete in view of having to precache all of the scenes, etc.
-void CResponseSystem::TouchReferencedScenes()
-{
-	if (CommandLine()->CheckParm("-makereslists"))
-	{
-		// enumerate and mark all the scripts so we know they're referenced
-		for ( int i = 0; i < (int)m_Responses.Count(); i++ )
-		{
-			ResponseGroup &group = m_Responses[i];
-
-			for ( int j = 0; j < group.group.Count(); j++)
-			{
-				Response &response = group.group[j];
-				if (response.type == RESPONSE_SCENE)
-				{
-					// fixup $gender references
-					char file[_MAX_PATH];
-					Q_strncpy( file, response.value, sizeof(file) );
-					char *gender = strstr( file, "$gender" );
-					if ( gender )
-					{
-						// replace with male & female
-						const char *postGender = gender + strlen("$gender");
-						*gender = 0;
-						char genderFile[_MAX_PATH];
-						// male
-						Q_snprintf( genderFile, sizeof(genderFile), "%smale%s", file, postGender);
-						FileHandle_t f = filesystem->Open(genderFile, "rb");
-						if (f)
-						{
-							filesystem->Close(f);
-						}
-						// female
-						Q_snprintf( genderFile, sizeof(genderFile), "%sfemale%s", file, postGender);
-						f = filesystem->Open(genderFile, "rb");
-						if (f)
-						{
-							filesystem->Close(f);
-						}
-					}
-					else
-					{
-						// just force the file open and closed so the filesystem can log it
-						FileHandle_t f = filesystem->Open(file, "rb");
-						if (f)
-						{
-							filesystem->Close(f);
-						}
-					}
-				}
-			}
-		}
-	}
-}
-*/
-
 void CResponseSystem::ParseInclude( CStringPool &includedFiles )
 {
 	char includefile[ 256 ];
@@ -1889,6 +1905,8 @@ void CResponseSystem::ParseInclude( CStringPool &includedFiles )
 	{
 		return;
 	}
+
+	MEM_ALLOC_CREDIT();
 
 	// Try and load it
 	CUtlBuffer buf;
@@ -1986,8 +2004,6 @@ void CResponseSystem::LoadRuleSet( const char *basescript )
 	UTIL_FreeFile( buffer );
 
 	Assert( m_ScriptStack.Count() == 0 );
-
-	//TouchReferencedScenes();
 }
 
 static ResponseType_t ComputeResponseType( const char *s )
@@ -2039,6 +2055,14 @@ void CResponseSystem::ParseOneResponse( const char *responseGroupName, ResponseG
 		{
 			ParseToken();
 			newResponse.weight.SetFloat( (float)atof( token ) );
+			continue;
+		}
+
+		if ( !Q_stricmp( token, "predelay" ) )
+		{
+			ParseToken();
+			rp->flags |= AI_ResponseParams::RG_DELAYBEFORESPEAK;
+			rp->predelay.FromInterval( ReadInterval( token ) );
 			continue;
 		}
 
@@ -2130,6 +2154,8 @@ void CResponseSystem::ParseOneResponse( const char *responseGroupName, ResponseG
 			group.m_bHasLast= true;
 			continue;
 		}
+
+		ResponseWarning( "response entry '%s' with unknown command '%s'\n", responseGroupName, token );
 	}
 
 	group.group.AddToTail( newResponse );
@@ -2210,6 +2236,14 @@ void CResponseSystem::ParseResponse( void )
 				ParseOneResponse( responseGroupName, newGroup );
 			}
 			break;
+		}
+
+		if ( !Q_stricmp( token, "predelay" ) )
+		{
+			ParseToken();
+			rp->flags |= AI_ResponseParams::RG_DELAYBEFORESPEAK;
+			rp->predelay.FromInterval( ReadInterval( token ) );
+			continue;
 		}
 
 		if ( !Q_stricmp( token, "nodelay" ) )
@@ -2441,10 +2475,12 @@ void CResponseSystem::ParseEnumeration( void )
 		{
 			m_Enumerations.Insert( sz, newEnum );
 		}
+		/*
 		else
 		{
 			ResponseWarning( "Ignoring duplication enumeration '%s'\n", sz );
 		}
+		*/
 	}
 }
 
@@ -2490,6 +2526,12 @@ void CResponseSystem::ParseRule( void )
 		if ( !Q_stricmp( token, "matchonce" ) )
 		{
 			newRule.m_bMatchOnce = true;
+			continue;
+		}
+
+		if ( !Q_stricmp( token, "applyContextToWorld" ) )
+		{
+			newRule.m_bApplyContextToWorld = true;
 			continue;
 		}
 
@@ -2602,6 +2644,167 @@ void CResponseSystem::ResponseWarning( const char *fmt, ... )
 	DevMsg( 1, "%s(token %i) : %s", cur, GetCurrentToken(), string );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CResponseSystem::CopyCriteriaFrom( Rule *pSrcRule, Rule *pDstRule, CResponseSystem *pCustomSystem )
+{
+	// Add criteria from this rule to global list in custom response system.
+	int nCriteriaCount = pSrcRule->m_Criteria.Count();
+	for ( int iCriteria = 0; iCriteria < nCriteriaCount; ++iCriteria )
+	{
+		int iSrcIndex = pSrcRule->m_Criteria[iCriteria];
+		Criteria *pSrcCriteria = &m_Criteria[iSrcIndex];
+		if ( pSrcCriteria )
+		{
+			int iIndex = pCustomSystem->m_Criteria.Find( m_Criteria.GetElementName( iSrcIndex ) );
+			if ( iIndex != pCustomSystem->m_Criteria.InvalidIndex() )
+			{
+				pDstRule->m_Criteria.AddToTail( iIndex );
+				continue;
+			}
+
+			// Add the criteria.
+			Criteria dstCriteria;
+
+			dstCriteria.name = CopyString( pSrcCriteria->name );
+			dstCriteria.value = CopyString( pSrcCriteria->value );
+			dstCriteria.weight = pSrcCriteria->weight;
+			dstCriteria.required = pSrcCriteria->required;
+			dstCriteria.matcher = pSrcCriteria->matcher;
+
+			int nSubCriteriaCount = pSrcCriteria->subcriteria.Count();
+			for ( int iSubCriteria = 0; iSubCriteria < nSubCriteriaCount; ++iSubCriteria )
+			{
+				int iSrcSubIndex = pSrcCriteria->subcriteria[iSubCriteria];
+				Criteria *pSrcSubCriteria = &m_Criteria[iSrcSubIndex];
+				if ( pSrcCriteria )
+				{
+					int iSubIndex = pCustomSystem->m_Criteria.Find( pSrcSubCriteria->value );
+					if ( iSubIndex != pCustomSystem->m_Criteria.InvalidIndex() )
+						continue;
+
+					// Add the criteria.
+					Criteria dstSubCriteria;
+
+					dstSubCriteria.name = CopyString( pSrcSubCriteria->name );
+					dstSubCriteria.value = CopyString( pSrcSubCriteria->value );
+					dstSubCriteria.weight = pSrcSubCriteria->weight;
+					dstSubCriteria.required = pSrcSubCriteria->required;
+					dstSubCriteria.matcher = pSrcSubCriteria->matcher;
+
+					int iSubInsertIndex = pCustomSystem->m_Criteria.Insert( pSrcSubCriteria->value, dstSubCriteria );
+					dstCriteria.subcriteria.AddToTail( iSubInsertIndex );
+				}
+			}
+
+			int iInsertIndex = pCustomSystem->m_Criteria.Insert( m_Criteria.GetElementName( iSrcIndex ), dstCriteria );
+			pDstRule->m_Criteria.AddToTail( iInsertIndex );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void CResponseSystem::CopyResponsesFrom( Rule *pSrcRule, Rule *pDstRule, CResponseSystem *pCustomSystem )
+{
+	// Add responses from this rule to global list in custom response system.
+	int nResponseGroupCount = pSrcRule->m_Responses.Count();
+	for ( int iResponseGroup = 0; iResponseGroup < nResponseGroupCount; ++iResponseGroup )
+	{
+		int iSrcResponseGroup = pSrcRule->m_Responses[iResponseGroup];
+		ResponseGroup *pSrcResponseGroup = &m_Responses[iSrcResponseGroup];
+		if ( pSrcResponseGroup )
+		{
+			// Add response group.			
+			ResponseGroup dstResponseGroup;
+
+			dstResponseGroup.rp = pSrcResponseGroup->rp;
+			dstResponseGroup.m_bDepleteBeforeRepeat = pSrcResponseGroup->m_bDepleteBeforeRepeat;
+			dstResponseGroup.m_nDepletionCount = pSrcResponseGroup->m_nDepletionCount;
+			dstResponseGroup.m_bHasFirst = pSrcResponseGroup->m_bHasFirst;
+			dstResponseGroup.m_bHasLast = pSrcResponseGroup->m_bHasLast;
+			dstResponseGroup.m_bSequential = pSrcResponseGroup->m_bSequential;
+			dstResponseGroup.m_bNoRepeat = pSrcResponseGroup->m_bNoRepeat;
+			dstResponseGroup.m_bEnabled = pSrcResponseGroup->m_bEnabled;
+			dstResponseGroup.m_nCurrentIndex = pSrcResponseGroup->m_nCurrentIndex;
+
+			int nSrcResponseCount = pSrcResponseGroup->group.Count();
+			for ( int iResponse = 0; iResponse < nSrcResponseCount; ++iResponse )
+			{
+				Response *pSrcResponse = &pSrcResponseGroup->group[iResponse];
+				if ( pSrcResponse )
+				{
+					// Add Response
+					Response dstResponse;
+
+					dstResponse.weight = pSrcResponse->weight;
+					dstResponse.type = pSrcResponse->type;
+					dstResponse.value = CopyString( pSrcResponse->value );
+					dstResponse.depletioncount = pSrcResponse->depletioncount;
+					dstResponse.first = pSrcResponse->first;
+					dstResponse.last = pSrcResponse->last;
+
+					dstResponseGroup.group.AddToTail( dstResponse );
+				}
+			}
+
+			int iInsertIndex = pCustomSystem->m_Responses.Insert( m_Responses.GetElementName( iSrcResponseGroup ), dstResponseGroup );
+			pDstRule->m_Responses.AddToTail( iInsertIndex );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CResponseSystem::CopyEnumerationsFrom( CResponseSystem *pCustomSystem )
+{
+	int nEnumerationCount = m_Enumerations.Count();
+	for ( int iEnumeration = 0; iEnumeration < nEnumerationCount; ++iEnumeration )
+	{
+		Enumeration *pSrcEnumeration = &m_Enumerations[iEnumeration];
+		if ( pSrcEnumeration )
+		{
+			Enumeration dstEnumeration;
+			dstEnumeration.value = pSrcEnumeration->value;
+			pCustomSystem->m_Enumerations.Insert( m_Enumerations.GetElementName( iEnumeration ), dstEnumeration );
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CResponseSystem::CopyRuleFrom( Rule *pSrcRule, int iRule, CResponseSystem *pCustomSystem )
+{
+	// Verify data.
+	Assert( pSrcRule );
+	Assert( pCustomSystem );
+	if ( !pSrcRule || !pCustomSystem )
+		return;
+
+	// New rule
+	Rule dstRule;
+
+	dstRule.SetContext( pSrcRule->GetContext() );
+	dstRule.m_bMatchOnce = pSrcRule->m_bMatchOnce;
+	dstRule.m_bEnabled = pSrcRule->m_bEnabled;
+	dstRule.m_bApplyContextToWorld = pSrcRule->m_bApplyContextToWorld;
+
+	// Copy off criteria.
+	CopyCriteriaFrom( pSrcRule, &dstRule, pCustomSystem );
+
+	// Copy off responses.
+	CopyResponsesFrom( pSrcRule, &dstRule, pCustomSystem );
+
+	// Copy off enumerations - Don't think we use these.
+//	CopyEnumerationsFrom( pCustomSystem );
+
+	// Add rule.
+	pCustomSystem->m_Rules.Insert( m_Rules.GetElementName( iRule ), dstRule );
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: A special purpose response system associated with a custom entity
@@ -2722,6 +2925,9 @@ public:
 		return ( IResponseSystem * )sys;
 	}
 
+	IResponseSystem *BuildCustomResponseSystemGivenCriteria( const char *pszBaseFile, const char *pszCustomName, AI_CriteriaSet &criteriaSet, float flCriteriaScore );
+	void DestroyCustomResponseSystems();
+
 	virtual void LevelInitPreEntity()
 	{
 		// This will precache the default system
@@ -2745,8 +2951,16 @@ public:
 		for ( int i = c - 1 ; i >= 0; i-- )
 		{
 			CInstancedResponseSystem *sys = m_InstancedSystems[ i ];
-			sys->Clear();
-			sys->Init();
+			if ( !IsCustomManagable() )
+			{
+				sys->Clear();
+				sys->Init();
+			}
+			else
+			{
+				// Custom reponse rules will manage/reload themselves - remove them.
+				m_InstancedSystems.RemoveAt( i );
+			}
 		}
 
 	}
@@ -2767,15 +2981,71 @@ private:
 	CUtlDict< CInstancedResponseSystem *, int > m_InstancedSystems;
 };
 
+IResponseSystem *CDefaultResponseSystem::BuildCustomResponseSystemGivenCriteria( const char *pszBaseFile, const char *pszCustomName, AI_CriteriaSet &criteriaSet, float flCriteriaScore )
+{
+	// Create a instanced response system. 
+	CInstancedResponseSystem *pCustomSystem = new CInstancedResponseSystem( pszCustomName );
+	if ( !pCustomSystem )
+	{
+		Error( "BuildCustomResponseSystemGivenCriterea: Failed to create custom response system %s!", pszCustomName );
+	}
+
+	pCustomSystem->Clear();
+
+	// Copy the relevant rules and data.
+	int nRuleCount = m_Rules.Count();
+	for ( int iRule = 0; iRule < nRuleCount; ++iRule )
+	{
+		Rule *pRule = &m_Rules[iRule];
+		if ( pRule )
+		{
+			float flScore = 0.0f;
+
+			int nCriteriaCount = pRule->m_Criteria.Count();
+			for ( int iCriteria = 0; iCriteria < nCriteriaCount; ++iCriteria )
+			{
+				int iRuleCriteria = pRule->m_Criteria[iCriteria];
+
+				flScore += LookForCriteria( criteriaSet, iRuleCriteria );
+				if ( flScore >= flCriteriaScore )
+				{
+					CopyRuleFrom( pRule, iRule, pCustomSystem );
+					break;
+				}
+			}
+		}
+	}
+
+	// Set as a custom response system.
+	m_bCustomManagable = true;
+	AddInstancedResponseSystem( pszCustomName, pCustomSystem );
+
+//	pCustomSystem->DumpDictionary( pszCustomName );
+
+	return pCustomSystem;
+}
+
+void CDefaultResponseSystem::DestroyCustomResponseSystems()
+{
+	ClearInstanced();
+}
+
+
 static CDefaultResponseSystem defaultresponsesytem;
 IResponseSystem *g_pResponseSystem = &defaultresponsesytem;
 
 CON_COMMAND( rr_reloadresponsesystems, "Reload all response system scripts." )
 {
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-	
 	defaultresponsesytem.ReloadAllResponseSystems();
+
+#if defined( TF_DLL )
+	// This is kind of hacky, but I need to get it in for now!
+	if( g_pGameRules->IsMultiplayer() )
+	{
+		CMultiplayRules *pMultiplayRules = static_cast<CMultiplayRules*>( g_pGameRules );
+		pMultiplayRules->InitCustomResponseRulesDicts();
+	}
+#endif
 }
 
 static short RESPONSESYSTEM_SAVE_RESTORE_VERSION = 1;
@@ -3060,6 +3330,25 @@ IResponseSystem *PrecacheCustomResponseSystem( const char *scriptfile )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: Instance a custom response system
+// Input  : *scriptfile -
+//			set - 
+// Output : IResponseSystem
+//-----------------------------------------------------------------------------
+IResponseSystem *BuildCustomResponseSystemGivenCriteria( const char *pszBaseFile, const char *pszCustomName, AI_CriteriaSet &criteriaSet, float flCriteriaScore )
+{
+	return defaultresponsesytem.BuildCustomResponseSystemGivenCriteria( pszBaseFile, pszCustomName, criteriaSet, flCriteriaScore );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void DestroyCustomResponseSystems()
+{
+	defaultresponsesytem.DestroyCustomResponseSystems();
+}
+
+//-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 void CResponseSystem::DumpRules()
 {
@@ -3069,5 +3358,44 @@ void CResponseSystem::DumpRules()
 	for ( i = 0; i < c; i++ )
 	{
 		Msg("%s\n", m_Rules.GetElementName( i ) );
+	}
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CResponseSystem::DumpDictionary( const char *pszName )
+{
+	Msg( "\nDictionary: %s\n", pszName );
+
+	int nRuleCount = m_Rules.Count();
+	for ( int iRule = 0; iRule < nRuleCount; ++iRule )
+	{
+		Msg("	Rule %d: %s\n", iRule, m_Rules.GetElementName( iRule ) );
+
+		Rule *pRule = &m_Rules[iRule];
+
+		int nCriteriaCount = pRule->m_Criteria.Count();
+		for( int iCriteria = 0; iCriteria < nCriteriaCount; ++iCriteria )
+		{
+			int iRuleCriteria = pRule->m_Criteria[iCriteria];
+			Criteria *pCriteria = &m_Criteria[iRuleCriteria];
+			Msg( "		Criteria %d: %s %s\n", iCriteria, pCriteria->name, pCriteria->value );
+		}
+
+		int nResponseGroupCount = pRule->m_Responses.Count();
+		for ( int iResponseGroup = 0; iResponseGroup < nResponseGroupCount; ++iResponseGroup )
+		{
+			int iRuleResponse = pRule->m_Responses[iResponseGroup];
+			ResponseGroup *pResponseGroup = &m_Responses[iRuleResponse];
+
+			Msg( "		ResponseGroup %d: %s\n", iResponseGroup, m_Responses.GetElementName( iRuleResponse ) );
+
+			int nResponseCount = pResponseGroup->group.Count();
+			for ( int iResponse = 0; iResponse < nResponseCount; ++iResponse )
+			{
+				Response *pResponse = &pResponseGroup->group[iResponse];
+				Msg( "			Response %d: %s\n", iResponse, pResponse->value );
+			}
+		}
 	}
 }

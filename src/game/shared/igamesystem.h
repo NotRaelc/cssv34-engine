@@ -32,6 +32,7 @@ public:
 	// Init, shutdown
 	// return true on success. false to abort DLL init!
 	virtual bool Init() = 0;
+	virtual void PostInit() = 0;
 	virtual void Shutdown() = 0;
 
 	// Level init, shutdown
@@ -70,6 +71,7 @@ public:
 
 	// These methods are used to initialize, shutdown, etc all systems
 	static bool InitAllSystems();
+	static void PostInitAllSystems();
 	static void ShutdownAllSystems();
 	static void LevelInitPreEntityAllSystems( char const* pMapName );
 	static void LevelInitPostEntityAllSystems();
@@ -86,8 +88,6 @@ public:
 	static void UpdateAllSystems( float frametime );
 	static void PostRenderAllSystems();
 #else
-	// Called at the start of running the player usercmd, to allow gamesystems to change it
-	static void FrameUpdatePrePlayerRunCommandAllSystems( CBasePlayer *player, CUserCmd *ucmd );
 	static void FrameUpdatePreEntityThinkAllSystems();
 	static void FrameUpdatePostEntityThinkAllSystems();
 	static void PreClientUpdateAllSystems();
@@ -114,10 +114,6 @@ public:
 	// Called after rendering
 	virtual void PostRender() = 0;
 #else
-	// Called at the start of running the player usercmd, to allow gamesystems to change it
-	virtual void FrameUpdatePrePlayerRunCommand() = 0;
-
-
 	// Called each frame before entities think
 	virtual void FrameUpdatePreEntityThink() = 0;
 	// called after entities think
@@ -137,6 +133,7 @@ public:
 	// Init, shutdown
 	// return true on success. false to abort DLL init!
 	virtual bool Init() { return true; }
+	virtual void PostInit() {}
 	virtual void Shutdown() {}
 
 	// Level init, shutdown
@@ -164,10 +161,6 @@ private:
 	// Called after rendering
 	virtual void PostRender() {}
 #else
-	// Called at the start of running the player usercmd, to allow gamesystems to change it
-	virtual void FrameUpdatePrePlayerRunCommand() {}
-
-
 	// Called each frame before entities think
 	virtual void FrameUpdatePreEntityThink() {}
 	// called after entities think
@@ -186,6 +179,7 @@ public:
 	// Init, shutdown
 	// return true on success. false to abort DLL init!
 	virtual bool Init() { return true; }
+	virtual void PostInit() {}
 	virtual void Shutdown() {}
 
 	// Level init, shutdown
@@ -210,8 +204,6 @@ public:
 	// Called after rendering
 	virtual void PostRender () { }
 #else
-	// Called at the start of running the player usercmd, to allow gamesystems to change it
-	virtual void FrameUpdatePrePlayerRunCommand() { }
 	// Called each frame before entities think
 	virtual void FrameUpdatePreEntityThink() { }
 	// called after entities think
@@ -249,5 +241,15 @@ private:
 	char const *m_pszName;
 };
 
+
+//-----------------------------------------------------------------------------
+// Purpose: This interface is here to add more hooks than IGameSystemPerFrame exposes,
+// so we don't pollute it with hooks that only the tool cares about
+//-----------------------------------------------------------------------------
+class IToolFrameworkServer
+{
+public:
+	virtual void PreSetupVisibility() = 0;
+};
 
 #endif // IGAMESYSTEM_H

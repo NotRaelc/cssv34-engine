@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 #if !defined( BEAMDRAW_H )
 #define BEAMDRAW_H
 #ifdef _WIN32
@@ -12,7 +12,8 @@
 
 #include "materialsystem/imaterial.h"
 #include "materialsystem/imesh.h"
-#include "vector.h"
+#include "mathlib/vector.h"
+#include "tier2/beamsegdraw.h"
 #include "c_pixel_visibility.h"
 
 #define NOISE_DIVISIONS		128
@@ -119,60 +120,13 @@ public:
 	bool			m_bCalculatedNoise;
 
 	float			m_flHDRColorScale;
+
+#ifdef PORTAL
+	bool m_bDrawInMainRender;
+	bool m_bDrawInPortalRender;
+#endif //#ifdef PORTAL
 };
 
-// ---------------------------------------------------------------- //
-// CBeamSegDraw is a simple interface to beam rendering.
-// ---------------------------------------------------------------- //
-class CBeamSeg
-{
-public:
-	Vector		m_vPos;
-	Vector		m_vColor;
-	float		m_flTexCoord;	// Y texture coordinate
-	float		m_flWidth;
-	float		m_flAlpha;
-};
-
-class CBeamSegDraw
-{
-public:
-	// Pass null for pMaterial if you have already set the material you want.
-	void			Start( int nSegs, IMaterial *pMaterial=0, CMeshBuilder *pMeshBuilder = NULL, int nMeshVertCount = 0 );
-	virtual void	NextSeg( CBeamSeg *pSeg );
-	void			End();
-
-protected:
-
-	void			SpecifySeg( const Vector &vNextPos );
-	void			ComputeNormal( const Vector &vStartPos, const Vector &vNextPos, Vector *pNormal );
-
-	CMeshBuilder	*m_pMeshBuilder;
-	int				m_nMeshVertCount;
-
-	CMeshBuilder	m_Mesh;
-	CBeamSeg		m_Seg;	
-
-	int				m_nTotalSegs;
-	int				m_nSegsDrawn;
-
-	Vector			m_vNormalLast;	
-};
-
-class CBeamSegDrawArbitrary : public CBeamSegDraw
-{
-public:
-
-	void	SetNormal( const Vector &normal );
-
-	void	NextSeg( CBeamSeg *pSeg );
-
-protected:
-	
-	CBeamSeg		m_PrevSeg;
-
-	void	SpecifySeg( const Vector &vNextPos );
-};
 
 int ScreenTransform( const Vector& point, Vector& screen );
 

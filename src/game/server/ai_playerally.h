@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -100,6 +100,26 @@
 #define TLK_SPOTTED_HEADCRAB_LEAVING_ZOMBIE	"TLK_SPOTTED_HEADCRAB_LEAVING_ZOMBIE"
 #define TLK_DANGER_ZOMBINE_GRENADE			"TLK_DANGER_ZOMBINE_GRENADE"
 #define TLK_BALLSOCKETED					"TLK_BALLSOCKETED"
+
+// Vehicle passenger
+#define	TLK_PASSENGER_WARN_COLLISION	"TLK_PASSENGER_WARN_COLLISION"	// About to collide with something
+#define	TLK_PASSENGER_IMPACT			"TLK_PASSENGER_IMPACT"			// Just hit something
+#define	TLK_PASSENGER_OVERTURNED		"TLK_PASSENGER_OVERTURNED"		// Vehicle has just overturned
+#define	TLK_PASSENGER_REQUEST_UPRIGHT	"TLK_PASSENGER_REQUEST_UPRIGHT" // Vehicle needs to be put upright
+#define TLK_PASSENGER_ERRATIC_DRIVING	"TLK_PASSENGER_ERRATIC_DRIVING"	// Vehicle is moving erratically
+#define TLK_PASSENGER_VEHICLE_STARTED	"TLK_PASSENGER_VEHICLE_STARTED" // Vehicle has started moving
+#define	TLK_PASSENGER_VEHICLE_STOPPED	"TLK_PASSENGER_VEHICLE_STOPPED"	// Vehicle has stopped moving
+#define TLK_PASSENGER_BEGIN_ENTRANCE	"TLK_PASSENGER_BEGIN_ENTRANCE"	// Passenger started entering
+#define TLK_PASSENGER_FINISH_ENTRANCE	"TLK_PASSENGER_FINISH_ENTRANCE" // Passenger finished entering (is in seat)
+#define TLK_PASSENGER_BEGIN_EXIT		"TLK_PASSENGER_BEGIN_EXIT"		// Passenger started exiting
+#define TLK_PASSENGER_FINISH_EXIT		"TLK_PASSENGER_FINISH_EXIT"		// Passenger finished exiting (seat is vacated)
+#define TLK_PASSENGER_PLAYER_ENTERED	"TLK_PASSENGER_PLAYER_ENTERED"	// Player entered the vehicle
+#define TLK_PASSENGER_PLAYER_EXITED		"TLK_PASSENGER_PLAYER_EXITED"	// Player exited the vehicle
+#define TLK_PASSENGER_NEW_RADAR_CONTACT	"TLK_PASSENGER_NEW_RADAR_CONTACT"	// Noticed a brand new contact on the radar
+#define TLK_PASSENGER_PUNTED			"TLK_PASSENGER_PUNTED"			// The player has punted us while we're sitting in the vehicle
+
+// Vortigaunt
+#define TLK_VORTIGAUNT_DISPEL	"TLK_VORTIGAUNT_DISPEL"	// Dispel attack starting
 
 // resume is "as I was saying..." or "anyhow..."
 #define TLK_RESUME 		"TLK_RESUME"
@@ -362,7 +382,7 @@ public:
 	//---------------------------------
 	// NPC Event Response System
 	virtual bool CanRespondToEvent( const char *ResponseConcept );
-	virtual bool RespondedTo( const char *ResponseConcept, bool bForce );
+	virtual bool RespondedTo( const char *ResponseConcept, bool bForce, bool bCancelScene );
 
 	//---------------------------------
 
@@ -380,7 +400,9 @@ public:
 	void			InputMakeRegularAlly( inputdata_t &inputdata );
 	void			InputAnswerQuestion( inputdata_t &inputdata );
 	void			InputAnswerQuestionHello( inputdata_t &inputdata );
-
+	void			InputEnableSpeakWhileScripting( inputdata_t &inputdata );
+	void			InputDisableSpeakWhileScripting( inputdata_t &inputdata );
+	
 	void			AnswerQuestion( CAI_PlayerAlly *pQuestioner, int iQARandomNum, bool bAnsweringHello );
 
 protected:
@@ -389,6 +411,14 @@ protected:
 	// Health regeneration for friendly allies
 	virtual bool ShouldRegenerateHealth( void ) { return ( Classify() == CLASS_PLAYER_ALLY_VITAL ); }
 #endif
+
+	inline bool CanSpeakWhileScripting();
+
+	// Whether we are a vital ally (useful for wrting Classify() for classes that are only sometimes vital, 
+	// such as the Lone Vort in Ep2.) The usual means by which any other function should determine if a character
+	// is vital is to determine Classify() == CLASS_PLAYER_ALLY_VITAL. Do not use this function outside that
+	// context. 
+	inline bool IsGameEndAlly( void ) { return m_bGameEndAlly; }
 
 	//-----------------------------------------------------
 	// Conditions, Schedules, Tasks
@@ -439,6 +469,7 @@ private:
 	CHandle<CAI_SpeechFilter>	m_hSpeechFilter;
 
 	bool m_bGameEndAlly;
+	bool m_bCanSpeakWhileScripting;	// Allows mapmakers to override NPC_STATE_SCRIPT or IsScripting() for responses.
 
 	float	m_flTimeLastRegen;		// Last time I regenerated a bit of health.
 	float	m_flHealthAccumulator;	// Counterpart to the damage accumulator in CBaseCombatCharacter. So ally health regeneration is accurate over time.
@@ -450,6 +481,12 @@ protected:
 protected:
 	DEFINE_CUSTOM_AI;
 };
+
+
+bool CAI_PlayerAlly::CanSpeakWhileScripting()
+{
+	return m_bCanSpeakWhileScripting;
+}
 
 //-----------------------------------------------------------------------------
 

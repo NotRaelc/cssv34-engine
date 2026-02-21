@@ -10,6 +10,7 @@
 #include "decals.h"
 #include "model_types.h"
 #include "IEffects.h"
+#include "util_shared.h"
 
 #if !defined( CLIENT_DLL )
 #include "ndebugoverlay.h"
@@ -18,6 +19,13 @@
 #include "iviewrender_beams.h"
 #include "c_pixel_visibility.h"
 #include "iclientmode.h"
+#include "viewrender.h"
+#include "view.h"
+
+#ifdef PORTAL
+	#include "c_prop_portal.h"
+#endif //ifdef PORTAL
+
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -27,7 +35,27 @@
 
 #if !defined( CLIENT_DLL )
 // Lightning target, just alias landmark
-LINK_ENTITY_TO_CLASS( info_target, CPointEntity );
+
+class CInfoTarget : public CPointEntity
+{
+public:
+	DECLARE_CLASS( CInfoTarget, CPointEntity );
+
+	void	Spawn( void );
+};
+
+//info targets are like point entities except you can force them to spawn on the client
+void CInfoTarget::Spawn( void )
+{
+	BaseClass::Spawn();
+
+	if ( HasSpawnFlags(0x01) )
+	{
+		SetEFlags( EFL_FORCE_CHECK_TRANSMIT );
+	}
+}
+
+LINK_ENTITY_TO_CLASS( info_target, CInfoTarget );
 #endif
 
 
@@ -121,15 +149,15 @@ BEGIN_NETWORK_TABLE_NOBASE( CBeam, DT_Beam )
 	SendPropInt		(SENDINFO(m_nBeamType),		Q_log2(NUM_BEAM_TYPES)+1,	SPROP_UNSIGNED ),
 	SendPropInt		(SENDINFO(m_nBeamFlags),	NUM_BEAM_FLAGS,	SPROP_UNSIGNED ),
 	SendPropInt		(SENDINFO(m_nNumBeamEnts ),			5,	SPROP_UNSIGNED ),
-	SendPropArray
+	SendPropArray3
 	(
-		SendPropEHandle( SENDINFO_ARRAY(m_hAttachEntity) ),
-		m_hAttachEntity
+		SENDINFO_ARRAY3(m_hAttachEntity), 
+		SendPropEHandle( SENDINFO_ARRAY(m_hAttachEntity) )
 	),
-	SendPropArray
+	SendPropArray3
 	(
-		SendPropInt( SENDINFO_ARRAY(m_nAttachIndex), ATTACHMENT_INDEX_BITS, SPROP_UNSIGNED),
-		m_nAttachIndex
+		SENDINFO_ARRAY3(m_nAttachIndex), 
+		SendPropInt( SENDINFO_ARRAY(m_nAttachIndex), ATTACHMENT_INDEX_BITS, SPROP_UNSIGNED)
 	),
 	SendPropInt		(SENDINFO(m_nHaloIndex),	16, SPROP_UNSIGNED ),
 	SendPropFloat	(SENDINFO(m_fHaloScale),	0,	SPROP_NOSCALE ),
@@ -143,12 +171,17 @@ BEGIN_NETWORK_TABLE_NOBASE( CBeam, DT_Beam )
 	SendPropInt		(SENDINFO(m_nRenderMode),	8,	SPROP_UNSIGNED ),
 	SendPropFloat	(SENDINFO(m_flFrameRate),	10, SPROP_ROUNDUP, -25.0f, 25.0f ),
 	SendPropFloat	(SENDINFO(m_flHDRColorScale),	0, SPROP_NOSCALE, 0.0f, 100.0f ),
-	SendPropFloat	(SENDINFO(m_flFrame),		20, SPROP_ROUNDDOWN,	0.0f,   256.0f),
-	SendPropInt		(SENDINFO(m_clrRender),		32,	SPROP_UNSIGNED ),
+	SendPropFloat	(SENDINFO(m_flFrame),		20, SPROP_ROUNDDOWN | SPROP_CHANGES_OFTEN,	0.0f,   256.0f),
+	SendPropInt		(SENDINFO(m_clrRender),		32,	SPROP_UNSIGNED | SPROP_CHANGES_OFTEN ),
 	SendPropVector	(SENDINFO(m_vecEndPos),		-1,	SPROP_COORD ),
+#ifdef PORTAL
+	SendPropBool	(SENDINFO(m_bDrawInMainRender) ),
+	SendPropBool	(SENDINFO(m_bDrawInPortalRender) ),
+#endif
 	SendPropModelIndex(SENDINFO(m_nModelIndex) ),
-	SendPropVector (SENDINFO(m_vecOrigin), 19, 0,	MIN_COORD_INTEGER, MAX_COORD_INTEGER),
+	SendPropVector (SENDINFO(m_vecOrigin), 19, SPROP_CHANGES_OFTEN,	MIN_COORD_INTEGER, MAX_COORD_INTEGER),
 	SendPropEHandle(SENDINFO_NAME(m_hMoveParent, moveparent) ),
+	SendPropInt		(SENDINFO(m_nMinDXLevel),	8,	SPROP_UNSIGNED ),
 #if !defined( NO_ENTITY_PREDICTION )
 	SendPropDataTable( "beampredictable_id", 0, &REFERENCE_SEND_TABLE( DT_BeamPredictableId ), SendProxy_SendPredictableId ),
 #endif
@@ -157,15 +190,15 @@ BEGIN_NETWORK_TABLE_NOBASE( CBeam, DT_Beam )
 	RecvPropInt		(RECVINFO(m_nBeamType)),
 	RecvPropInt		(RECVINFO(m_nBeamFlags)),
 	RecvPropInt		(RECVINFO(m_nNumBeamEnts)),
-	RecvPropArray	
+	RecvPropArray3
 	(
-		RecvPropEHandle (RECVINFO(m_hAttachEntity[0])), 
-		m_hAttachEntity
+		RECVINFO_ARRAY( m_hAttachEntity ),
+		RecvPropEHandle (RECVINFO(m_hAttachEntity[0]))
 	),
-	RecvPropArray	
+	RecvPropArray3	
 	(
-		RecvPropInt (RECVINFO(m_nAttachIndex[0])), 
-		m_nAttachIndex
+		RECVINFO_ARRAY( m_nAttachIndex ),
+		RecvPropInt (RECVINFO(m_nAttachIndex[0]))
 	),
 	RecvPropInt		(RECVINFO(m_nHaloIndex)),
 	RecvPropFloat	(RECVINFO(m_fHaloScale)),
@@ -182,7 +215,12 @@ BEGIN_NETWORK_TABLE_NOBASE( CBeam, DT_Beam )
 	RecvPropInt(RECVINFO(m_nRenderMode)),
 	RecvPropFloat(RECVINFO(m_flFrame)),
 	RecvPropVector(RECVINFO(m_vecEndPos)),
+#ifdef PORTAL
+	RecvPropBool(RECVINFO(m_bDrawInMainRender) ),
+	RecvPropBool(RECVINFO(m_bDrawInPortalRender) ),
+#endif
 	RecvPropInt(RECVINFO(m_nModelIndex)),
+	RecvPropInt(RECVINFO(m_nMinDXLevel)),
 
 	RecvPropVector(RECVINFO_NAME(m_vecNetworkOrigin, m_vecOrigin)),
 	RecvPropInt( RECVINFO_NAME(m_hNetworkMoveParent, moveparent), 0, RecvProxy_IntToMoveParent ),
@@ -201,6 +239,7 @@ BEGIN_DATADESC( CBeam )
 	DEFINE_FIELD( m_nNumBeamEnts, FIELD_INTEGER ),
 	DEFINE_ARRAY( m_hAttachEntity, FIELD_EHANDLE, MAX_BEAM_ENTS ),
 	DEFINE_ARRAY( m_nAttachIndex, FIELD_INTEGER, MAX_BEAM_ENTS ),
+	DEFINE_FIELD( m_nMinDXLevel, FIELD_INTEGER ),
 
 	DEFINE_FIELD( m_fWidth, FIELD_FLOAT ),
 	DEFINE_FIELD( m_fEndWidth, FIELD_FLOAT ),
@@ -222,6 +261,11 @@ BEGIN_DATADESC( CBeam )
 	DEFINE_FIELD( m_hEndEntity, FIELD_EHANDLE ),
 
 	DEFINE_KEYFIELD( m_nDissolveType, FIELD_INTEGER, "dissolvetype" ),
+
+#ifdef PORTAL
+	DEFINE_FIELD( m_bDrawInMainRender, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_bDrawInPortalRender, FIELD_BOOLEAN ),
+#endif
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "Width", InputWidth ),
@@ -258,7 +302,12 @@ BEGIN_PREDICTION_DATA( CBeam )
 	DEFINE_PRED_FIELD( m_flFrameRate, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_flFrame, FIELD_FLOAT, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_clrRender, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
+	DEFINE_PRED_FIELD( m_nMinDXLevel, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD_TOL( m_vecEndPos, FIELD_VECTOR, FTYPEDESC_INSENDTABLE, 0.125f ),
+#ifdef PORTAL
+	DEFINE_PRED_FIELD( m_bDrawInMainRender, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
+	DEFINE_PRED_FIELD( m_bDrawInPortalRender, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
+#endif
 	DEFINE_PRED_FIELD( m_nModelIndex, FIELD_INTEGER, FTYPEDESC_INSENDTABLE | FTYPEDESC_MODELINDEX ),
 	DEFINE_PRED_FIELD_TOL( m_vecOrigin, FIELD_VECTOR, FTYPEDESC_INSENDTABLE, 0.125f ),
 	
@@ -279,12 +328,18 @@ CBeam::CBeam( void )
 	m_vecEndPos.Init();
 #endif
 
+	m_nMinDXLevel = 0;
 	m_flHDRColorScale = 1.0f; // default value.
 
 #if !defined( CLIENT_DLL )
 	m_nDissolveType = -1;
 #else
 	m_queryHandleHalo = 0;
+#endif
+
+#ifdef PORTAL
+	m_bDrawInMainRender = true;
+	m_bDrawInPortalRender = true;
 #endif
 }
 
@@ -631,7 +686,24 @@ void CBeam::RelinkBeam( void )
 	// It seems that we don't need to recompute the absbox
 	// in CBaseEntity::SetObjectCollisionBox, in fact the absbox
 	// computed there seems way too big
-	const Vector &startPos = GetAbsStartPos(), &endPos = GetAbsEndPos();
+	Vector startPos = GetAbsStartPos(), endPos = GetAbsEndPos();
+
+	Vector vecAbsExtra1, vecAbsExtra2;
+	bool bUseExtraPoints = false;
+
+#ifdef PORTAL
+	CBaseEntity *pStartEntity = GetStartEntityPtr();
+	
+	CTraceFilterSkipClassname traceFilter( pStartEntity, "prop_energy_ball", COLLISION_GROUP_NONE );
+	
+	ITraceFilter *pEntityBeamTraceFilter = NULL;
+	if ( pStartEntity )
+		pEntityBeamTraceFilter = pStartEntity->GetBeamTraceFilter();
+
+	CTraceFilterChain traceFilterChain( &traceFilter, pEntityBeamTraceFilter );
+
+	bUseExtraPoints = UTIL_Portal_Trace_Beam( this, startPos, endPos, vecAbsExtra1, vecAbsExtra2, &traceFilterChain );
+#endif
 
 	// UNDONE: Should we do this to make the boxes smaller?
 	//SetAbsOrigin( startPos );
@@ -639,6 +711,14 @@ void CBeam::RelinkBeam( void )
 	Vector vecBeamMin, vecBeamMax;
 	VectorMin( startPos, endPos, vecBeamMin );
 	VectorMax( startPos, endPos, vecBeamMax );
+
+	if ( bUseExtraPoints )
+	{
+		VectorMin( vecBeamMin, vecAbsExtra1, vecBeamMin );
+		VectorMin( vecBeamMin, vecAbsExtra2, vecBeamMin );
+		VectorMax( vecBeamMax, vecAbsExtra1, vecBeamMax );
+		VectorMax( vecBeamMax, vecAbsExtra2, vecBeamMax );
+	}
 
 	SetCollisionBounds( vecBeamMin - GetAbsOrigin(), vecBeamMax - GetAbsOrigin() );
 }
@@ -891,6 +971,17 @@ int CBeam::DrawModel( int flags )
 	if ( IsMarkedForDeletion() )
 		return 0;
 
+	if ( CurrentViewID() == VIEW_SHADOW_DEPTH_TEXTURE )
+		return 0;
+
+#ifdef PORTAL
+	if ( ( !g_pPortalRender->IsRenderingPortal() && !m_bDrawInMainRender ) || 
+		( g_pPortalRender->IsRenderingPortal() && !m_bDrawInPortalRender ) )
+	{
+		return 0;
+	}
+#endif //#ifdef PORTAL
+
 	// Tracker 16432:  If rendering a savegame screenshot don't draw beams 
 	//   who have viewmodels as their attached entity
 	if ( g_bRenderingScreenshot || !r_drawviewmodel.GetBool() )
@@ -949,6 +1040,16 @@ bool CBeam::IsTransparent( void )
 	return true;
 }
 
+bool CBeam::ShouldDraw()
+{
+	if ( m_nMinDXLevel != 0 )
+	{
+		if ( m_nMinDXLevel > g_pMaterialSystemHardwareConfig->GetDXSupportLevel() )
+			return false;
+	}
+	return BaseClass::ShouldDraw();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Adds to beam entity list
 //-----------------------------------------------------------------------------
@@ -978,6 +1079,27 @@ void CBeam::AddEntity( void )
 //-----------------------------------------------------------------------------
 void CBeam::ComputeBounds( Vector& mins, Vector& maxs )
 {
+	Vector vecAbsStart = GetAbsStartPos();
+	Vector vecAbsEnd = GetAbsEndPos();
+
+	// May need extra points for creating the min/max bounds
+	bool bUseExtraPoints = false;
+	Vector vecAbsExtra1, vecAbsExtra2;
+
+#ifdef PORTAL
+	CBaseEntity *pStartEntity = GetStartEntityPtr();
+
+	CTraceFilterSkipClassname traceFilter( pStartEntity, "prop_energy_ball", COLLISION_GROUP_NONE );
+
+	ITraceFilter *pEntityBeamTraceFilter = NULL;
+	if ( pStartEntity )
+		pEntityBeamTraceFilter = pStartEntity->GetBeamTraceFilter();
+
+	CTraceFilterChain traceFilterChain( &traceFilter, pEntityBeamTraceFilter );
+
+	bUseExtraPoints = UTIL_Portal_Trace_Beam( this, vecAbsStart, vecAbsEnd, vecAbsExtra1, vecAbsExtra2, &traceFilterChain );
+#endif
+
 	switch( GetType() )
 	{
 	case BEAM_LASER:
@@ -1018,11 +1140,11 @@ void CBeam::ComputeBounds( Vector& mins, Vector& maxs )
 				{
 					if (i == 0)
 					{
-						VectorCopy( GetAbsStartPos(), attachmentPoint );
+						VectorCopy( vecAbsStart, attachmentPoint );
 					}
 					else if (i == 1)
 					{
-						VectorCopy( GetAbsEndPos(), attachmentPoint );
+						VectorCopy( vecAbsEnd, attachmentPoint );
 					}
 					else
 					{
@@ -1039,9 +1161,6 @@ void CBeam::ComputeBounds( Vector& mins, Vector& maxs )
 	case BEAM_POINTS:
 	default:
 		{
-			Vector vecAbsStart = GetAbsStartPos();
-			Vector vecAbsEnd = GetAbsEndPos();
-
 			for (int i = 0; i < 3; ++i)
 			{
 				if (vecAbsStart[i] < vecAbsEnd[i])
@@ -1057,6 +1176,14 @@ void CBeam::ComputeBounds( Vector& mins, Vector& maxs )
 			}
 		}
 		break;
+	}
+
+	if ( bUseExtraPoints )
+	{
+		mins = mins.Min( vecAbsExtra1 );
+		mins = mins.Min( vecAbsExtra2 );
+		maxs = maxs.Max( vecAbsExtra1 );
+		maxs = maxs.Max( vecAbsExtra2 );
 	}
 
 	// Make sure the bounds are measured in *relative coords*

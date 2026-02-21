@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #include "cbase.h"
 #include "func_areaportalbase.h"
@@ -26,6 +26,7 @@ BEGIN_DATADESC( CFuncAreaPortalBase )
 
 	DEFINE_FIELD( m_portalNumber,			FIELD_INTEGER ),
 	DEFINE_KEYFIELD( m_iPortalVersion,		FIELD_INTEGER, "PortalVersion" )
+//	DEFINE_FIELD( m_AreaPortalsElement,		FIELD_SHORT ),
 
 END_DATADESC()
 

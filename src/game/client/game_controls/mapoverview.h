@@ -13,7 +13,7 @@
 
 #include <vgui_controls/Panel.h>
 #include <game/client/iviewport.h>
-#include <vector.h>
+#include "mathlib/vector.h"
 #include <igameevents.h>
 #include <shareddefs.h>
 #include <const.h>

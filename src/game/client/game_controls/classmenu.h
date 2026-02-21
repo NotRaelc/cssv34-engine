@@ -68,7 +68,7 @@ protected:
 	void OnCommand( const char *command );
 
 	IViewPort	*m_pViewPort;
-	int			m_iScoreBoardKey;
+	ButtonCode_t m_iScoreBoardKey;
 	int			m_iTeam;
 	vgui::EditablePanel *m_pPanel;
 

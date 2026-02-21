@@ -8,7 +8,7 @@
 #include "env_headcrabcanister_shared.h"
 #include "mapdata_shared.h"
 #include "sharedInterface.h"
-#include "vmatrix.h"
+#include "mathlib/vmatrix.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

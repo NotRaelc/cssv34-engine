@@ -10,6 +10,7 @@
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
 #include "fx.h"
+#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -98,6 +99,8 @@ static inline void RecordWorldDecal( const Vector *pos, int index )
 //-----------------------------------------------------------------------------
 void C_TEWorldDecal::PostDataUpdate( DataUpdateType_t updateType )
 {
+	VPROF( "C_TEWorldDecal::PostDataUpdate" );
+
 	if ( r_decals.GetInt() )
 	{
 		C_BaseEntity *ent = cl_entitylist->GetEnt( 0 );

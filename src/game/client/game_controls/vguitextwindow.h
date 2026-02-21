@@ -16,6 +16,7 @@
 #include <vgui_controls/HTML.h>
 
 #include <game/client/iviewport.h>
+#include "shareddefs.h"
 
 namespace vgui
 {
@@ -25,14 +26,6 @@ namespace vgui
 //-----------------------------------------------------------------------------
 // Purpose: displays the MOTD
 //-----------------------------------------------------------------------------
-
-enum
-{
-	TYPE_TEXT = 0,	// just display this plain text
-	TYPE_INDEX,		// lookup text & title in stringtable
-	TYPE_URL,		// show this URL
-	TYPE_FILE,		// show this local file
-} ;
 
 class CTextWindow : public vgui::Frame, public IViewPortPanel
 {
@@ -64,6 +57,8 @@ public:
 	virtual void ShowURL( const char *URL);
 	virtual void ShowIndex( const char *entry);
 
+	virtual void ApplySchemeSettings( vgui::IScheme *pScheme );
+
 protected:	
 	// vgui overrides
 	virtual void OnCommand( const char *command);
@@ -77,7 +72,7 @@ protected:
 	vgui::TextEntry	*m_pTextMessage;
 	vgui::HTML		*m_pHTMLMessage;
 	vgui::Button	*m_pOK;
-	vgui::Label		*m_pTitleLable;
+	vgui::Label		*m_pTitleLabel;
 };
 
 

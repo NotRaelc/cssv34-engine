@@ -11,6 +11,7 @@
 #include "iefx.h"
 #include "engine/IStaticPropMgr.h"
 #include "tier1/keyvalues.h"
+#include "tier0/vprof.h"
 #include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -152,6 +153,8 @@ void TE_Decal( IRecipientFilter& filter, float delay,
 //-----------------------------------------------------------------------------
 void C_TEDecal::PostDataUpdate( DataUpdateType_t updateType )
 {
+	VPROF( "C_TEDecal::PostDataUpdate" );
+
 	CBroadcastRecipientFilter filter;
 	TE_Decal( filter, 0.0f, &m_vecOrigin, &m_vecStart, m_nEntity, m_nHitbox, m_nIndex );
 }

@@ -32,20 +32,22 @@ public:
 		C_SDKPlayer *pPlayer = dynamic_cast< C_SDKPlayer* >( m_hPlayer.Get() );
 		if ( pPlayer && !pPlayer->IsDormant() )
 		{
-			pPlayer->DoAnimationEvent( (PlayerAnimEvent_t)m_iEvent.Get() );
+			pPlayer->DoAnimationEvent( (PlayerAnimEvent_t)m_iEvent.Get(), m_nData );
 		}	
 	}
 
 public:
 	CNetworkHandle( CBasePlayer, m_hPlayer );
 	CNetworkVar( int, m_iEvent );
+	CNetworkVar( int, m_nData );
 };
 
 IMPLEMENT_CLIENTCLASS_EVENT( C_TEPlayerAnimEvent, DT_TEPlayerAnimEvent, CTEPlayerAnimEvent );
 
 BEGIN_RECV_TABLE_NOBASE( C_TEPlayerAnimEvent, DT_TEPlayerAnimEvent )
 	RecvPropEHandle( RECVINFO( m_hPlayer ) ),
-	RecvPropInt( RECVINFO( m_iEvent ) )
+	RecvPropInt( RECVINFO( m_iEvent ) ),
+	RecvPropInt( RECVINFO( m_nData ) )
 END_RECV_TABLE()
 
 BEGIN_RECV_TABLE_NOBASE( C_SDKPlayer, DT_SDKLocalPlayerExclusive )
@@ -241,12 +243,24 @@ void C_SDKRagdoll::CreateRagdoll()
 
 	SetModelIndex( m_nModelIndex );
 
-	// Turn it into a ragdoll.
 	// Make us a ragdoll..
 	m_nRenderFX = kRenderFxRagdoll;
 
-	BecomeRagdollOnClient( false );
+	matrix3x4_t boneDelta0[MAXSTUDIOBONES];
+	matrix3x4_t boneDelta1[MAXSTUDIOBONES];
+	matrix3x4_t currentBones[MAXSTUDIOBONES];
+	const float boneDt = 0.05f;
 
+	if ( pPlayer && !pPlayer->IsDormant() )
+	{
+		pPlayer->GetRagdollInitBoneArrays( boneDelta0, boneDelta1, currentBones, boneDt );
+	}
+	else
+	{
+		GetRagdollInitBoneArrays( boneDelta0, boneDelta1, currentBones, boneDt );
+	}
+
+	InitAsClientRagdoll( boneDelta0, boneDelta1, currentBones, boneDt );
 }
 
 
@@ -257,17 +271,6 @@ void C_SDKRagdoll::OnDataChanged( DataUpdateType_t type )
 	if ( type == DATA_UPDATE_CREATED )
 	{
 		CreateRagdoll();
-	
-		IPhysicsObject *pPhysicsObject = VPhysicsGetObject();
-
-		if( pPhysicsObject )
-		{
-			AngularImpulse aVelocity(0,0,0);
-
-			Vector vecExaggeratedVelocity = 3 * m_vecRagdollVelocity;
-
-			pPhysicsObject->AddVelocity( &vecExaggeratedVelocity, &aVelocity );
-		}
 	}
 }
 
@@ -276,7 +279,7 @@ IRagdoll* C_SDKRagdoll::GetIRagdoll() const
 	return m_pRagdoll;
 }
 
-C_BaseAnimating * C_SDKPlayer::BecomeRagdollOnClient( bool bCopyEntity )
+C_BaseAnimating * C_SDKPlayer::BecomeRagdollOnClient()
 {
 	// Let the C_CSRagdoll entity do this.
 	// m_builtRagdoll = true;
@@ -370,7 +373,7 @@ void C_SDKPlayer::OnDataChanged( DataUpdateType_t type )
 }
 
 
-void C_SDKPlayer::DoAnimationEvent( PlayerAnimEvent_t event )
+void C_SDKPlayer::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
 {
 	if ( event == PLAYERANIMEVENT_THROW_GRENADE )
 	{
@@ -379,7 +382,7 @@ void C_SDKPlayer::DoAnimationEvent( PlayerAnimEvent_t event )
 	}
 	else	
 	{
-		m_PlayerAnimState->DoAnimationEvent( event );
+		m_PlayerAnimState->DoAnimationEvent( event, nData );
 	}
 }
 

@@ -43,8 +43,9 @@ class CFleckParticles : public CSimpleEmitter
 {
 public:
 
-							CFleckParticles( const char *pDebugName ) : CSimpleEmitter( pDebugName ) {}
-	static CSmartPtr<CFleckParticles> Create( const char *pDebugName, const Vector &vCenter );
+							CFleckParticles( const char *pDebugName );
+							~CFleckParticles();
+	static CSmartPtr<CFleckParticles> Create( const char *pDebugName, const Vector &vCenter, const Vector &extents );
 
 	virtual void RenderParticles( CParticleRenderIterator *pIterator );
 	virtual void SimulateParticles( CParticleSimulateIterator *pIterator );
@@ -54,6 +55,7 @@ public:
 
 	CParticleCollision m_ParticleCollision;
 
+	CFleckParticles *m_pNextParticleSystem;
 private:
 	CFleckParticles( const CFleckParticles & ); // not defined, not accessible
 };

@@ -11,8 +11,6 @@
 #pragma once
 #endif
 
-#include <vgui_controls/Menu.h>
-
 //-----------------------------------------------------------------------------
 // Purpose: Basic right-click context menu for servers
 //-----------------------------------------------------------------------------
@@ -23,7 +21,13 @@ public:
 	~CServerContextMenu();
 
 	// call this to Activate the menu
-	void ShowMenu(vgui::Panel *target, unsigned int serverID, bool showConnect, bool showRefresh, bool showAddToFavorites);
+	void ShowMenu(
+		vgui::Panel *target, 
+		unsigned int serverID, 
+		bool showConnect, 
+		bool showViewGameInfo,
+		bool showRefresh, 
+		bool showAddToFavorites);
 };
 
 

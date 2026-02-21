@@ -48,7 +48,7 @@ const char * g_ppszTaskFailureText[] =
 const char *TaskFailureToString( AI_TaskFailureCode_t code )
 {
 	const char *pszResult;
-	if ( code >= NUM_FAIL_CODES )
+	if ( code < 0 || code >= NUM_FAIL_CODES )
 		pszResult = (const char *)code;
 	else
 		pszResult = g_ppszTaskFailureText[code];
@@ -100,6 +100,8 @@ void CAI_BaseNPC::InitDefaultTaskSR(void)
 	ADD_DEF_TASK( TASK_GET_PATH_TO_ENEMY_CORPSE );
 	ADD_DEF_TASK( TASK_GET_PATH_TO_PLAYER );
 	ADD_DEF_TASK( TASK_GET_PATH_TO_ENEMY_LOS );
+	ADD_DEF_TASK( TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS );
+	ADD_DEF_TASK( TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS );
 	ADD_DEF_TASK( TASK_GET_PATH_TO_TARGET );
 	ADD_DEF_TASK( TASK_GET_PATH_TO_TARGET_WEAPON );
 	ADD_DEF_TASK( TASK_CREATE_PENDING_WEAPON );
@@ -219,6 +221,7 @@ void CAI_BaseNPC::InitDefaultTaskSR(void)
 	ADD_DEF_TASK( TASK_DEBUG_BREAK );
 	ADD_DEF_TASK( TASK_ADD_HEALTH );
 	ADD_DEF_TASK( TASK_GET_PATH_TO_INTERACTION_PARTNER );
+	ADD_DEF_TASK( TASK_PRE_SCRIPT );
 }
 
 

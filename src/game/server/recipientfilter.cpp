@@ -139,6 +139,13 @@ void CRecipientFilter::RemoveRecipient( CBasePlayer *player )
 	}
 }
 
+void CRecipientFilter::RemoveRecipientByPlayerIndex( int playerindex )
+{
+	Assert( playerindex >= 1 && playerindex <= ABSOLUTE_PLAYER_LIMIT );
+
+	m_Recipients.FindAndRemove( playerindex );
+}
+
 void CRecipientFilter::AddRecipientsByTeam( CTeam *team )
 {
 	Assert( team );
@@ -168,6 +175,24 @@ void CRecipientFilter::RemoveRecipientsByTeam( CTeam *team )
 			continue;
 
 		RemoveRecipient( player );
+	}
+}
+
+void CRecipientFilter::RemoveRecipientsNotOnTeam( CTeam *team )
+{
+	Assert( team );
+
+	int i;
+	for ( i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CBasePlayer *player = UTIL_PlayerByIndex( i );
+		if ( !player )
+			continue;
+
+		if ( player->GetTeam() != team )
+		{
+			RemoveRecipient( player );
+		}
 	}
 }
 
@@ -312,7 +337,19 @@ CTeamRecipientFilter::CTeamRecipientFilter( int team, bool isReliable )
 
 		if ( pPlayer->GetTeamNumber() != team )
 		{
-			continue;
+			//If we're in the spectator team then we should be getting whatever messages the person I'm spectating gets.
+			if ( pPlayer->GetTeamNumber() == TEAM_SPECTATOR && (pPlayer->GetObserverMode() == OBS_MODE_IN_EYE || pPlayer->GetObserverMode() == OBS_MODE_CHASE) )
+			{
+				if ( pPlayer->GetObserverTarget() )
+				{
+					if ( pPlayer->GetObserverTarget()->GetTeamNumber() != team )
+						continue;
+				}
+			}
+			else
+			{
+				continue;
+			}
 		}
 
 		AddRecipient( pPlayer );

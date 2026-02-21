@@ -18,6 +18,7 @@
 // Flags
 #define	FXQUAD_BIAS_SCALE	0x0001	//Bias the scale's interpolation function
 #define	FXQUAD_BIAS_ALPHA	0x0002	//Bias the alpha's interpolation function
+#define FXQUAD_COLOR_FADE	0x0004	//Blend the color towards black via the alpha (overcomes additive ignoring alpha)
 
 struct FXQuadData_t
 {

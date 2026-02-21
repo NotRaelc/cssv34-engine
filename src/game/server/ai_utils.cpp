@@ -353,6 +353,35 @@ END_DATADESC()
 //---------------------------------------------------------
 //---------------------------------------------------------
 
+void CAI_FreePass::Reset( float passTime, float moveTolerance )
+{
+	CBaseEntity *pTarget = GetPassTarget();
+
+	if ( !pTarget || m_Params.duration < 0.1 )
+		return;
+
+	if ( passTime == -1 )
+	{
+		m_FreePassTimeRemaining = m_Params.duration;
+	}
+	else
+	{
+		m_FreePassTimeRemaining = passTime;
+	}
+
+	if ( moveTolerance == -1  )
+	{
+		m_FreePassMoveMonitor.SetMark( pTarget, m_Params.moveTolerance );
+	}
+	else
+	{
+		m_FreePassMoveMonitor.SetMark( pTarget, moveTolerance );
+	}
+}
+
+//---------------------------------------------------------
+//---------------------------------------------------------
+
 void CAI_FreePass::Update( )
 {
 	CBaseEntity *pTarget = GetPassTarget();
@@ -374,7 +403,7 @@ void CAI_FreePass::Update( )
 		if ( timePlayerLastSeen == AI_INVALID_TIME || gpGlobals->curtime - timePlayerLastSeen > .15 ) // If didn't see the player last think
 		{
 			trace_t tr;
-			UTIL_TraceLine( pTarget->EyePosition(), GetOuter()->EyePosition(), MASK_OPAQUE, GetOuter(), COLLISION_GROUP_NONE, &tr );
+			UTIL_TraceLine( pTarget->EyePosition(), GetOuter()->EyePosition(), MASK_BLOCKLOS, GetOuter(), COLLISION_GROUP_NONE, &tr );
 			if ( tr.fraction != 1.0 && tr.m_pEnt != pTarget )
 			{
 				float dist = (tr.endpos - tr.startpos).Length() * tr.fraction;
@@ -464,7 +493,7 @@ bool CAI_FreePass::ShouldAllowFVisible(bool bBaseResult )
 			Vector vecRight( -vToTarget.y, vToTarget.x, 0.0f );
 			trace_t	tr;
 
-			UTIL_TraceLine( GetOuter()->EyePosition(), pTarget->EyePosition() + (vecRight * m_Params.peekEyeDist - Vector( 0, 0, m_Params.peekEyeDistZ )), MASK_OPAQUE, GetOuter(), COLLISION_GROUP_NONE, &tr );
+			UTIL_TraceLine( GetOuter()->EyePosition(), pTarget->EyePosition() + (vecRight * m_Params.peekEyeDist - Vector( 0, 0, m_Params.peekEyeDistZ )), MASK_BLOCKLOS, GetOuter(), COLLISION_GROUP_NONE, &tr );
 			if ( tr.fraction != 1.0 && tr.m_pEnt != pTarget )
 			{
 				if ( free_pass_peek_debug.GetBool() )
@@ -474,7 +503,7 @@ bool CAI_FreePass::ShouldAllowFVisible(bool bBaseResult )
 			
 			if ( bIsVisible )
 			{
-				UTIL_TraceLine( GetOuter()->EyePosition(), pTarget->EyePosition() + (-vecRight * m_Params.peekEyeDist - Vector( 0, 0, m_Params.peekEyeDistZ )), MASK_OPAQUE, GetOuter(), COLLISION_GROUP_NONE, &tr );
+				UTIL_TraceLine( GetOuter()->EyePosition(), pTarget->EyePosition() + (-vecRight * m_Params.peekEyeDist - Vector( 0, 0, m_Params.peekEyeDistZ )), MASK_BLOCKLOS, GetOuter(), COLLISION_GROUP_NONE, &tr );
 				if ( tr.fraction != 1.0 && tr.m_pEnt != pTarget )
 				{
 					if ( free_pass_peek_debug.GetBool() )
@@ -498,10 +527,11 @@ bool CAI_FreePass::ShouldAllowFVisible(bool bBaseResult )
 string_t g_iszFuncBrushClassname = NULL_STRING;
 
 //-----------------------------------------------------------------------------
-CTraceFilterNav::CTraceFilterNav( CAI_BaseNPC *pProber, bool bIgnoreTransientEntities, const IServerEntity *passedict, int collisionGroup ) : 
+CTraceFilterNav::CTraceFilterNav( CAI_BaseNPC *pProber, bool bIgnoreTransientEntities, const IServerEntity *passedict, int collisionGroup, bool bAllowPlayerAvoid ) : 
 	CTraceFilterSimple( passedict, collisionGroup ),
 	m_pProber(pProber),
-	m_bIgnoreTransientEntities(bIgnoreTransientEntities)
+	m_bIgnoreTransientEntities(bIgnoreTransientEntities),
+	m_bAllowPlayerAvoid(bAllowPlayerAvoid)
 {
 	m_bCheckCollisionTable = g_EntityCollisionHash->IsObjectInHash( pProber );
 }
@@ -531,7 +561,7 @@ bool CTraceFilterNav::ShouldHitEntity( IHandleEntity *pHandleEntity, int content
 
 	//Adrian - If I'm flagged as using the new collision method, then ignore the player when trying
 	//to check if I can get somewhere.
-	if ( m_pProber->ShouldPlayerAvoid() && pEntity->IsPlayer() )
+	if ( m_bAllowPlayerAvoid && m_pProber->ShouldPlayerAvoid() && pEntity->IsPlayer() )
 		return false;
 
 	if ( pEntity->IsNavIgnored() )

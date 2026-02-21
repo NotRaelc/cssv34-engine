@@ -13,6 +13,8 @@ extern float g_flCustomAutoExposureMax;
 extern float g_flCustomBloomScale;
 extern float g_flCustomBloomScaleMinimum;
 
+EHANDLE g_hTonemapControllerInUse = NULL;
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -67,9 +69,12 @@ C_EnvTonemapController::C_EnvTonemapController( void )
 //-----------------------------------------------------------------------------
 C_EnvTonemapController::~C_EnvTonemapController( void )
 {
-	g_bUseCustomAutoExposureMin = false;
-	g_bUseCustomAutoExposureMax = false;
-	g_bUseCustomBloomScale = false;
+	if ( g_hTonemapControllerInUse == this )
+	{
+		g_bUseCustomAutoExposureMin = false;
+		g_bUseCustomAutoExposureMax = false;
+		g_bUseCustomBloomScale = false;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -86,5 +91,7 @@ void C_EnvTonemapController::OnDataChanged( DataUpdateType_t updateType )
 	g_flCustomAutoExposureMax = m_flCustomAutoExposureMax;
 	g_flCustomBloomScale = m_flCustomBloomScale;
 	g_flCustomBloomScaleMinimum = m_flCustomBloomScaleMinimum;
+
+	g_hTonemapControllerInUse = this;
 }
 

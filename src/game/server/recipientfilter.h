@@ -49,8 +49,10 @@ public:
 	void			AddRecipient( CBasePlayer *player );
 	void			RemoveAllRecipients( void );
 	void			RemoveRecipient( CBasePlayer *player );
+	void			RemoveRecipientByPlayerIndex( int playerindex );
 	void			AddRecipientsByTeam( CTeam *team );
 	void			RemoveRecipientsByTeam( CTeam *team );
+	void			RemoveRecipientsNotOnTeam( CTeam *team );
 
 	void			UsePredictionRules( void );
 	bool			IsUsingPredictionRules( void ) const;

@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -13,10 +13,10 @@
 #pragma once
 #endif
 
-#include <igameevents.h>
+#include "GameEventListener.h"
 #include <igamesystem.h>
 
-class CEventLog : public IGameEventListener2, public CBaseGameSystem
+class CEventLog : public CGameEventListener, public CBaseGameSystem
 {
 	
 public:
@@ -30,7 +30,7 @@ public: // IGameEventListener Interface
 public: // CBaseGameSystem overrides
 
 	virtual bool Init();
-	virtual void Shutdown();
+	//virtual void Shutdown() {}
 
 protected:
 

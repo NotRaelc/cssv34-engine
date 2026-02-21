@@ -19,7 +19,7 @@ extern ConVar cl_pitchup;
 CViewAngleAnimation *g_pTestAnimation = NULL;
 
 // create a view animation object to be used for creating an animation. parameter is flags
-void ViewAnim_Create( void )
+CON_COMMAND( viewanim_create, "viewanim_create" )
 {
 	if ( g_pTestAnimation )
 	{
@@ -28,9 +28,9 @@ void ViewAnim_Create( void )
 	}
 
 	int flags = 0;
-	if (engine->Cmd_Argc() > 1 )
+	if ( args.ArgC() > 1 )
 	{
-		flags = atoi(engine->Cmd_Argv(1) );
+		flags = atoi( args[1] );
 	}
 
 	g_pTestAnimation = CREATE_ENTITY( CViewAngleAnimation, "viewangleanim" );
@@ -40,7 +40,6 @@ void ViewAnim_Create( void )
 		g_pTestAnimation->Spawn();
 	}	
 }
-ConCommand viewanim_create( "viewanim_create", ViewAnim_Create );
 
 // run the test animation
 void TestViewAnim( void )
@@ -67,7 +66,7 @@ void ResetViewAngles( void )
 ConCommand viewanim_reset( "viewanim_reset", ResetViewAngles, "reset view angles!", FCVAR_CHEAT );
 
 // add a key frame to the test animation. first parameter is the time taken to get to this keyframe
-void ViewAnim_AddKeyFrame( void )
+CON_COMMAND_F( viewanim_addkeyframe, "", FCVAR_CHEAT )
 {
 	if ( g_pTestAnimation )
 	{
@@ -75,15 +74,15 @@ void ViewAnim_AddKeyFrame( void )
 		engine->GetViewAngles( vecTarget );
 
 		float flDelay = 0.2;
-		if (engine->Cmd_Argc() > 1)
+		if (args.ArgC() > 1)
 		{
-			flDelay = atof( engine->Cmd_Argv(1) );
+			flDelay = atof( args[1] );
 		}
 
 		int iFlags = 0;
-		if (engine->Cmd_Argc() > 1)
+		if (args.ArgC() > 1)
 		{
-			iFlags = atof( engine->Cmd_Argv(2) );
+			iFlags = atof( args[2] );
 		}
 
 		g_pTestAnimation->AddKeyFrame( new CViewAngleKeyFrame( vecTarget, flDelay, iFlags ) );
@@ -91,37 +90,37 @@ void ViewAnim_AddKeyFrame( void )
 	else
 		Msg( "No view anim created, use viewanim_create" );
 }
-ConCommand viewanim_addkeyframe( "viewanim_addkeyframe", ViewAnim_AddKeyFrame, "", FCVAR_CHEAT );
+
 
 // save the current test anim, pass filename
-void ViewAnim_Save( void )
+CON_COMMAND( viewanim_save, "Save current animation to file" )
 {
-	if (engine->Cmd_Argc() < 2)
+	if (args.ArgC() < 2)
 		return;
 
 	if ( g_pTestAnimation )
 	{	
-		g_pTestAnimation->SaveAsAnimFile( engine->Cmd_Argv(1) );
+		g_pTestAnimation->SaveAsAnimFile( args[1] );
 	}
 	else
+	{
 		Msg( "No view anim created\n" );
+	}
 }
-ConCommand viewanim_save( "viewanim_save", ViewAnim_Save, "Save current animation to file" );
 
 // load a view animation file into the test anim
-void ViewAnim_Load( void )
+CON_COMMAND( viewanim_load, "load animation from file" )
 {
-	if (engine->Cmd_Argc() < 2)
+	if (args.ArgC() < 2)
 		return;
 
 	if ( g_pTestAnimation )
 	{	
-		g_pTestAnimation->LoadViewAnimFile( engine->Cmd_Argv(1) );
+		g_pTestAnimation->LoadViewAnimFile( args[1] );
 	}
 	else
 		Msg( "No view anim created\n" );
 }
-ConCommand viewanim_load( "viewanim_load", ViewAnim_Load, "load animation from file" );
 
 LINK_ENTITY_TO_CLASS( viewangleanim, CViewAngleAnimation );
 

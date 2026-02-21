@@ -31,7 +31,7 @@ public:
 	// Initialize after each level change
 	virtual void	LevelInit( void ) = 0;
 	// Called each frame to determine the current view fade parameters ( color and alpha )
-	virtual void	GetFadeParams( int context, unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *a, bool *blend ) = 0;
+	virtual void	GetFadeParams( unsigned char *r, unsigned char *g, unsigned char *b, unsigned char *a, bool *blend ) = 0;
 	// Apply directscreen shake
 	virtual void	Shake( ScreenShake_t &data ) = 0;
 	// Apply direct screen fade

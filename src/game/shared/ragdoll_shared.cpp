@@ -69,7 +69,6 @@ void CRagdollLowViolenceManager::SetLowViolence( const char *pMapName )
 	}
 }
 
-#if !defined(USE_PHX_FILES)
 class CRagdollCollisionRules : public IVPhysicsKeyHandler
 {
 public:
@@ -147,21 +146,6 @@ public:
 private:
 	ragdoll_t *m_ragdoll;
 };
-#else
-void CopyPackedAnimatedFriction( CPackedPhysicsDescription *pPacked, ragdoll_t *ragdoll )
-{
-	if ( pPacked->m_animatedFrictionCount )
-	{
-		animatedfriction_t desc;
-		pPacked->GetAnimatedFriction(&desc, 0);
-		ragdoll->animfriction.iMinAnimatedFriction = desc.m_iMinAnimatedFriction;
-		ragdoll->animfriction.iMaxAnimatedFriction = desc.m_iMaxAnimatedFriction;
-		ragdoll->animfriction.flFrictionTimeIn = desc.m_flFrictionTimeIn;
-		ragdoll->animfriction.flFrictionTimeOut = desc.m_flFrictionTimeOut;
-		ragdoll->animfriction.flFrictionTimeHold = desc.m_flFrictionTimeHold;
-	}
-}
-#endif
 
 void RagdollSetupAnimatedFriction( IPhysicsEnvironment *pPhysEnv, ragdoll_t *ragdoll, int iModelIndex )
 {
@@ -169,7 +153,6 @@ void RagdollSetupAnimatedFriction( IPhysicsEnvironment *pPhysEnv, ragdoll_t *rag
 
 	if ( pCollide )
 	{
-#if !defined(USE_PHX_FILES)
 		IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( pCollide->pKeyValues );
 
 		while ( !pParse->Finished() )
@@ -188,12 +171,6 @@ void RagdollSetupAnimatedFriction( IPhysicsEnvironment *pPhysEnv, ragdoll_t *rag
 		}
 
 		physcollision->VPhysicsKeyParserDestroy( pParse );
-#else
-		Assert( pCollide->isPacked );
-		CPackedPhysicsDescription *pPacked = physcollision->CreatePackedDesc( pCollide->pKeyValues, pCollide->descSize );
-		CopyPackedAnimatedFriction( pPacked, ragdoll );
-		physcollision->DestroyPackedDesc( pPacked );
-#endif
 	}
 }
 
@@ -216,7 +193,7 @@ static void RagdollAddSolid( IPhysicsEnvironment *pPhysEnv, ragdoll_t &ragdoll, 
 
 			solid.params.pName = params.pStudioHdr->pszName();
 			ragdoll.list[ragdoll.listCount].pObject = pPhysEnv->CreatePolyObject( params.pCollide->solids[solid.index], surfaceData, vec3_origin, vec3_angle, &solid.params );
-			ragdoll.list[ragdoll.listCount].pObject->SetPositionMatrix( params.pCurrentBones.GetBone( boneIndex ), true );
+			ragdoll.list[ragdoll.listCount].pObject->SetPositionMatrix( params.pCurrentBones[boneIndex], true );
 			ragdoll.list[ragdoll.listCount].parentIndex = -1;
 			ragdoll.list[ragdoll.listCount].pObject->SetGameIndex( ragdoll.listCount );
 
@@ -271,6 +248,7 @@ static void RagdollCreateObjects( IPhysicsEnvironment *pPhysEnv, ragdoll_t &ragd
 {
 	ragdoll.listCount = 0;
 	ragdoll.pGroup = NULL;
+	ragdoll.allowStretch = params.allowStretch;
 	memset( ragdoll.list, 0, sizeof(ragdoll.list) );
 	memset( &ragdoll.animfriction, 0, sizeof(ragdoll.animfriction) );
 	
@@ -280,7 +258,7 @@ static void RagdollCreateObjects( IPhysicsEnvironment *pPhysEnv, ragdoll_t &ragd
 	constraint_groupparams_t group;
 	group.Defaults();
 	ragdoll.pGroup = pPhysEnv->CreateConstraintGroup( group );
-#if !defined(USE_PHX_FILES)
+ 
 	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( params.pCollide->pKeyValues );
 	while ( !pParse->Finished() )
 	{
@@ -315,37 +293,6 @@ static void RagdollCreateObjects( IPhysicsEnvironment *pPhysEnv, ragdoll_t &ragd
 		}
 	}
 	physcollision->VPhysicsKeyParserDestroy( pParse );
-#else
-	Assert( params.pCollide->isPacked );
-	CPackedPhysicsDescription *pPacked = physcollision->CreatePackedDesc( params.pCollide->pKeyValues, params.pCollide->descSize );
-	int i;
-	for ( i = 0; i < pPacked->m_solidCount; i++ )
-	{
-		solid_t solid;
-
-		pPacked->GetSolid( &solid, i );
-		RagdollAddSolid( pPhysEnv, ragdoll, params, solid );
-	}
-	for ( i = 0; i < pPacked->m_constraintCount; i++ )
-	{
-		constraint_ragdollparams_t constraint;
-		pPacked->GetRagdollConstraint( &constraint, i );
-		RagdollAddConstraint( pPhysEnv, ragdoll, params, constraint );
-	}
-	if ( pPacked->m_collisionRuleCount )
-	{
-		IPhysicsCollisionSet *pSet = physics->FindOrCreateCollisionSet( params.modelIndex, ragdoll.listCount );
-		if ( !pPacked->m_pCollisionRules[0].noselfCollisions )
-		{
-			for ( i = 0; i < pPacked->m_collisionRuleCount; i++ )
-			{
-				pSet->EnableCollisions( pPacked->m_pCollisionRules[i].index0, pPacked->m_pCollisionRules[i].index1 );
-			}
-		}
-	}
-	CopyPackedAnimatedFriction( pPacked, &ragdoll );
-	physcollision->DestroyPackedDesc( pPacked );
-#endif
 }
 
 void RagdollSetupCollisions( ragdoll_t &ragdoll, vcollide_t *pCollide, int modelIndex )
@@ -362,7 +309,7 @@ void RagdollSetupCollisions( ragdoll_t &ragdoll, vcollide_t *pCollide, int model
 			return;
 
 		bool bFoundRules = false;
-#if !defined(USE_PHX_FILES)
+
 		IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( pCollide->pKeyValues );
 		while ( !pParse->Finished() )
 		{
@@ -380,23 +327,7 @@ void RagdollSetupCollisions( ragdoll_t &ragdoll, vcollide_t *pCollide, int model
 			}
 		}
 		physcollision->VPhysicsKeyParserDestroy( pParse );
-#else
-		Assert( pCollide->isPacked );
-		CPackedPhysicsDescription *pPacked = physcollision->CreatePackedDesc( pCollide->pKeyValues, pCollide->descSize );
-		int i;
-		if ( pPacked->m_collisionRuleCount )
-		{
-			bFoundRules = true;
-			if ( !pPacked->m_pCollisionRules[0].noselfCollisions )
-			{
-				for ( i = 0; i < pPacked->m_collisionRuleCount; i++ )
-				{
-					pSet->EnableCollisions( pPacked->m_pCollisionRules[i].index0, pPacked->m_pCollisionRules[i].index1 );
-				}
-			}
-		}
-		physcollision->DestroyPackedDesc( pPacked );
-#endif
+
 		if ( !bFoundRules )
 		{
 			// these are the default rules - each piece collides with everything
@@ -440,7 +371,17 @@ void RagdollActivate( ragdoll_t &ragdoll, vcollide_t *pCollide, int modelIndex, 
 	}
 	if ( ragdoll.pGroup )
 	{
+		// NOTE: This also wakes the objects
 		ragdoll.pGroup->Activate();
+		// so if we didn't want that, we'll need to put them back to sleep here
+		if ( !bForceWake )
+		{
+			for ( int i = 0; i < ragdoll.listCount; i++ )
+			{
+				ragdoll.list[i].pObject->Sleep();
+			}
+
+		}
 	}
 }
 
@@ -493,13 +434,11 @@ bool RagdollCreate( ragdoll_t &ragdoll, const ragdollparams_t &params, IPhysicsE
 		}
 	}
 
-	RagdollApplyAnimationAsVelocity( ragdoll, params.pPrevBones, params.pCurrentBones, params.boneDt );
-
 	return true;
 }
 
 
-void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const CBoneAccessor &pPrevBones, const CBoneAccessor &pCurrentBones, float dt )
+void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const matrix3x4_t *pPrevBones, const matrix3x4_t *pCurrentBones, float dt )
 {
 	for ( int i = 0; i < ragdoll.listCount; i++ )
 	{
@@ -508,22 +447,15 @@ void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const CBoneAccessor &p
 		int boneIndex = ragdoll.boneIndex[i];
 		CalcBoneDerivatives( velocity, angVel, pPrevBones[boneIndex], pCurrentBones[boneIndex], dt );
 		
-		Vector localVelocity;
 		AngularImpulse localAngVelocity;
 
-		// move these derivatives into the local bone space of the "current" bone
-		VectorIRotate( velocity, pCurrentBones[boneIndex], localVelocity );
-		VectorIRotate( angVel, pCurrentBones[boneIndex], localAngVelocity );
-
-		// move those bone-local coords back to world space using the ragdoll transform
-		ragdoll.list[i].pObject->LocalToWorldVector( &velocity, localVelocity );
-		ragdoll.list[i].pObject->LocalToWorldVector( &angVel, localAngVelocity );
-
-		ragdoll.list[i].pObject->AddVelocity( &velocity, &angVel );
+		// Angular velocity is always applied in local space in vphysics
+		ragdoll.list[i].pObject->WorldToLocalVector( &localAngVelocity, angVel );
+		ragdoll.list[i].pObject->AddVelocity( &velocity, &localAngVelocity );
 	}
 }
 
-void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const CBoneAccessor &pBoneToWorld )
+void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const matrix3x4_t *pBoneToWorld )
 {
 	for ( int i = 0; i < ragdoll.listCount; i++ )
 	{
@@ -546,9 +478,8 @@ void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const CBoneAccessor &p
 
 		// move those bone-local coords back to world space using the ragdoll transform
 		ragdoll.list[i].pObject->LocalToWorldVector( &velocity, localVelocity );
-		ragdoll.list[i].pObject->LocalToWorldVector( &angVel, localAngVelocity );
 
-		ragdoll.list[i].pObject->AddVelocity( &velocity, &angVel );
+		ragdoll.list[i].pObject->AddVelocity( &velocity, &localAngVelocity );
 	}
 }
 
@@ -587,7 +518,6 @@ int RagdollExtractBoneIndices( int *boneIndexOut, CStudioHdr *pStudioHdr, vcolli
 {
 	int elementCount = 0;
 
-#if !defined(USE_PHX_FILES)
 	IVPhysicsKeyParser *pParse = physcollision->VPhysicsKeyParserCreate( pCollide->pKeyValues );
 	while ( !pParse->Finished() )
 	{
@@ -608,21 +538,6 @@ int RagdollExtractBoneIndices( int *boneIndexOut, CStudioHdr *pStudioHdr, vcolli
 		}
 	}
 	physcollision->VPhysicsKeyParserDestroy( pParse );
-#else
-	Assert( pCollide->isPacked );
-	CPackedPhysicsDescription *pPacked = physcollision->CreatePackedDesc( pCollide->pKeyValues, pCollide->descSize );
-	for ( int i = 0; i < pPacked->m_solidCount; i++ )
-	{
-		solid_t solid;
-		pPacked->GetSolid( &solid, i );
-		if ( elementCount < RAGDOLL_MAX_ELEMENTS )
-		{
-			boneIndexOut[elementCount] = Studio_BoneIndexByName( pStudioHdr, solid.name );
-			elementCount++;
-		}
-	}
-	physcollision->DestroyPackedDesc( pPacked );
-#endif
 
 	return elementCount;
 }
@@ -635,8 +550,11 @@ bool RagdollGetBoneMatrix( const ragdoll_t &ragdoll, CBoneAccessor &pBoneToWorld
 
 	const ragdollelement_t &element = ragdoll.list[objectIndex];
 
+	// during restore if a model has changed since the file was saved, this could be NULL
+	if ( !element.pObject )
+		return false;
 	element.pObject->GetPositionMatrix( &pBoneToWorld.GetBoneForWrite( boneIndex ) );
-	if ( element.parentIndex >= 0 )
+	if ( element.parentIndex >= 0 && !ragdoll.allowStretch )
 	{
 		// overwrite the position from physics to force rigid attachment
 		// UNDONE: If we support other types of constraints (or multiple constraints per object)
@@ -661,7 +579,7 @@ void RagdollComputeExactBbox( const ragdoll_t &ragdoll, const Vector &origin, Ve
 		QAngle objectAng;
 		IPhysicsObject *pObject = ragdoll.list[i].pObject;
 		pObject->GetPosition( &objectOrg, &objectAng );
-		physcollision->CollideGetAABB( mins, maxs, pObject->GetCollide(), objectOrg, objectAng );
+		physcollision->CollideGetAABB( &mins, &maxs, pObject->GetCollide(), objectOrg, objectAng );
 		for ( int j = 0; j < 3; j++ )
 		{
 			if ( mins[j] < outMins[j] )
@@ -680,7 +598,7 @@ bool RagdollIsAsleep( const ragdoll_t &ragdoll )
 {
 	for ( int i = 0; i < ragdoll.listCount; i++ )
 	{
-		if ( !ragdoll.list[i].pObject->IsAsleep() )
+		if ( ragdoll.list[i].pObject && !ragdoll.list[i].pObject->IsAsleep() )
 			return false;
 	}
 
@@ -689,45 +607,83 @@ bool RagdollIsAsleep( const ragdoll_t &ragdoll )
 
 void RagdollSolveSeparation( ragdoll_t &ragdoll, CBaseEntity *pEntity )
 {
-	bool fixed = false;
-	int checkSep = 1;
+	byte needsFix[256];
+	int fixCount = 0;
+	Assert(ragdoll.listCount<=ARRAYSIZE(needsFix));
 	for ( int i = 0; i < ragdoll.listCount; i++ )
 	{
+		needsFix[i] = 0;
 		const ragdollelement_t &element = ragdoll.list[i];
 		if ( element.pConstraint && element.parentIndex >= 0 )
 		{
-			checkSep |= 2;
 			Vector start, target;
 			element.pObject->GetPosition( &start, NULL );
 			ragdoll.list[element.parentIndex].pObject->LocalToWorld( &target, element.originParentSpace );
-
-			Vector dir = target-start;
-			if ( dir.LengthSqr() > 1.0f && PhysHasContactWithOtherInDirection(element.pObject, dir) )
+			if ( needsFix[element.parentIndex] )
 			{
-				checkSep |= 4;
-				Ray_t ray;
-				trace_t tr;
-				ray.Init( target, start );
-				UTIL_TraceRay( ray, MASK_SOLID, pEntity, COLLISION_GROUP_NONE, &tr );
-				if ( tr.DidHit() )
+				needsFix[i] = 1;
+				++fixCount;
+				continue;
+			}
+			Vector dir = target-start;
+			if ( dir.LengthSqr() > 1.0f )
+			{
+				// this fixes a bug in ep2 with antlion grubs, but causes problems in TF2 - revisit, but disable for TF now
+#if !defined(TF_CLIENT_DLL)
+				// heuristic: guess that anything separated and small mass ratio is in some state that's 
+				// keeping the solver from fixing it
+				float mass = element.pObject->GetMass();
+				float massParent = ragdoll.list[element.parentIndex].pObject->GetMass();
+
+				if ( mass*2.0f < massParent )
 				{
-					fixed = true;
-					checkSep |= 8;
-					matrix3x4_t xform;
-					element.pObject->GetPositionMatrix( &xform );
-					MatrixSetColumn( target, 3, xform );
-					element.pObject->SetPositionMatrix( xform, true );
+					// if this is <0.5 mass of parent and still separated it's attached to something heavy or 
+					// in a bad state
+					needsFix[i] = 1;
+					++fixCount;
+					continue;
+				}
+#endif
+
+				if ( PhysHasContactWithOtherInDirection(element.pObject, dir) )
+				{
+					Ray_t ray;
+					trace_t tr;
+					ray.Init( target, start );
+					UTIL_TraceRay( ray, MASK_SOLID, pEntity, COLLISION_GROUP_NONE, &tr );
+					if ( tr.DidHit() )
+					{
+						needsFix[i] = 1;
+						++fixCount;
+					}
 				}
 			}
 		}
 	}
 
-	if ( !fixed )
+	if ( fixCount )
+	{
+		for ( int i = 0; i < ragdoll.listCount; i++ )
+		{
+			if ( !needsFix[i] )
+				continue;
+
+			const ragdollelement_t &element = ragdoll.list[i];
+			Vector target, velocity;
+			ragdoll.list[element.parentIndex].pObject->LocalToWorld( &target, element.originParentSpace );
+			ragdoll.list[element.parentIndex].pObject->GetVelocityAtPoint( target, &velocity );
+			matrix3x4_t xform;
+			element.pObject->GetPositionMatrix( &xform );
+			MatrixSetColumn( target, 3, xform );
+			element.pObject->SetPositionMatrix( xform, true );
+			element.pObject->SetVelocity( &velocity, &vec3_origin );
+		}
+		DevMsg(2, "TICK:%5d:Ragdoll separation count: %d\n", gpGlobals->tickcount, fixCount );
+	}
+	else
 	{
 		ragdoll.pGroup->ClearErrorState();
 	}
-
-	DevMsg(2, "Ragdoll separation flags: %04lx (%d)\n", checkSep, gpGlobals->tickcount );
 }
 
 //-----------------------------------------------------------------------------
@@ -759,9 +715,15 @@ bool ShouldRemoveThisRagdoll( CBaseAnimating *pRagdoll )
 
 #ifdef CLIENT_DLL
 
+	/* we no longer ignore enemies just because they are on fire -- a ragdoll in front of me
+	   is always a higher priority for retention than a flaming zombie behind me. At the 
+	   time I put this in, the ragdolls do clean up their own effects if culled via SUB_Remove().
+	   If you're encountering trouble with ragdolls leaving effects behind, try renabling the code below.
+    /////////////////////
 	//Just ignore it until we're done burning/dissolving.
 	if ( pRagdoll->GetEffectEntity() )
 		return false;
+	*/
 
 	Vector vMins, vMaxs;
 		
@@ -812,10 +774,153 @@ bool ShouldRemoveThisRagdoll( CBaseAnimating *pRagdoll )
 	return false;
 }
 
+
+
+
 //-----------------------------------------------------------------------------
-// Methods of IGameSystem
+// Cull stale ragdolls. There is an ifdef here: one version for episodic, 
+// one for everything else.
 //-----------------------------------------------------------------------------
-void CRagdollLRURetirement::Update( float frametime )
+#if HL2_EPISODIC
+
+void CRagdollLRURetirement::Update( float frametime ) // EPISODIC VERSION
+{
+	VPROF( "CRagdollLRURetirement::Update" );
+	// Compress out dead items
+	int i, next;
+
+	int iMaxRagdollCount = m_iMaxRagdolls;
+
+	if ( iMaxRagdollCount == -1 )
+	{
+		iMaxRagdollCount = g_ragdoll_maxcount.GetInt();
+	}
+
+	// fade them all for the low violence version
+	if ( g_RagdollLVManager.IsLowViolence() )
+	{
+		iMaxRagdollCount = 0;
+	}
+	m_iRagdollCount = 0;
+	m_iSimulatedRagdollCount = 0;
+
+	// First, find ragdolls that are good candidates for deletion because they are not
+	// visible at all, or are in a culled visibility box
+	for ( i = m_LRU.Head(); i < m_LRU.InvalidIndex(); i = next )
+	{
+		next = m_LRU.Next(i);
+		CBaseAnimating *pRagdoll = m_LRU[i].Get();
+		if ( pRagdoll )
+		{
+			m_iRagdollCount++;
+			IPhysicsObject *pObject = pRagdoll->VPhysicsGetObject();
+			if (pObject && !pObject->IsAsleep())
+			{
+				m_iSimulatedRagdollCount++;
+			}
+			if ( m_LRU.Count() > iMaxRagdollCount )
+			{
+				//Found one, we're done.
+				if ( ShouldRemoveThisRagdoll( m_LRU[i] ) == true )
+				{
+#ifdef CLIENT_DLL
+					m_LRU[ i ]->SUB_Remove();
+#else
+					m_LRU[ i ]->SUB_StartFadeOut( 0 );
+#endif
+
+					m_LRU.Remove(i);
+					return;
+				}
+			}
+		}
+		else 
+		{
+			m_LRU.Remove(i);
+		}
+	}
+
+	//////////////////////////////
+	///   EPISODIC ALGORITHM   ///
+	//////////////////////////////
+	// If we get here, it means we couldn't find a suitable ragdoll to remove,
+	// so just remove the furthest one.
+	int furthestOne = m_LRU.Head();
+	float furthestDistSq = 0;
+#ifdef CLIENT_DLL
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+#else
+	CBasePlayer  *pPlayer = UTIL_GetLocalPlayer();
+#endif
+
+	if (pPlayer && m_LRU.Count() > iMaxRagdollCount) // find the furthest one algorithm
+	{
+		Vector PlayerOrigin = pPlayer->GetAbsOrigin();
+		// const CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+	
+		for ( i = m_LRU.Head(); i < m_LRU.InvalidIndex(); i = next )
+		{
+			CBaseAnimating *pRagdoll = m_LRU[i].Get();
+
+			next = m_LRU.Next(i);
+			IPhysicsObject *pObject = pRagdoll->VPhysicsGetObject();
+			if ( pRagdoll && (pRagdoll->GetEffectEntity() || ( pObject && !pObject->IsAsleep()) ) )
+				continue;
+
+			if ( pRagdoll )
+			{
+				// float distToPlayer = (pPlayer->GetAbsOrigin() - pRagdoll->GetAbsOrigin()).LengthSqr();
+				float distToPlayer = (PlayerOrigin - pRagdoll->GetAbsOrigin()).LengthSqr();
+
+				if (distToPlayer > furthestDistSq)
+				{
+					furthestOne = i;
+					furthestDistSq = distToPlayer;
+				}
+			}
+			else // delete bad rags first.
+			{
+				furthestOne = i;
+				break;
+			}
+		}
+
+#ifdef CLIENT_DLL
+		m_LRU[ furthestOne ]->SUB_Remove();
+#else
+		m_LRU[ furthestOne ]->SUB_StartFadeOut( 0 );
+#endif
+
+	}
+	else // fall back on old-style pick the oldest one algorithm
+	{
+		for ( i = m_LRU.Head(); i < m_LRU.InvalidIndex(); i = next )
+		{
+			if ( m_LRU.Count() <=  iMaxRagdollCount )
+				break;
+
+			next = m_LRU.Next(i);
+
+			CBaseAnimating *pRagdoll = m_LRU[i].Get();
+
+			//Just ignore it until we're done burning/dissolving.
+			IPhysicsObject *pObject = pRagdoll->VPhysicsGetObject();
+			if ( pRagdoll && (pRagdoll->GetEffectEntity() || ( pObject && !pObject->IsAsleep()) ) )
+				continue;
+
+	#ifdef CLIENT_DLL
+			m_LRU[ i ]->SUB_Remove();
+	#else
+			m_LRU[ i ]->SUB_StartFadeOut( 0 );
+	#endif
+			m_LRU.Remove(i);
+		}
+	}
+}
+
+#else
+
+void CRagdollLRURetirement::Update( float frametime ) // Non-episodic version
 {
 	VPROF( "CRagdollLRURetirement::Update" );
 	// Compress out dead items
@@ -871,7 +976,11 @@ void CRagdollLRURetirement::Update( float frametime )
 	}
 
 
-	//If we get here, it means we couldn't find a suitable ragdoll to remove, so just remove one.
+	//////////////////////////////
+	///   ORIGINAL ALGORITHM   ///
+	//////////////////////////////
+	// not episodic -- this is the original mechanism
+
 	for ( i = m_LRU.Head(); i < m_LRU.InvalidIndex(); i = next )
 	{
 		if ( m_LRU.Count() <=  iMaxRagdollCount )
@@ -893,6 +1002,8 @@ void CRagdollLRURetirement::Update( float frametime )
 		m_LRU.Remove(i);
 	}
 }
+
+#endif // HL2_EPISODIC
 
 //This is pretty hacky, it's only called on the server so it just calls the update method.
 void CRagdollLRURetirement::FrameUpdatePostEntityThink( void )
@@ -1008,9 +1119,8 @@ C_EntityFlame *FireEffect( C_BaseAnimating *pTarget, C_BaseEntity *pServerFire, 
 		
 		pTarget->AddFlag( FL_ONFIRE );
 		pFire->SetParent( pTarget );
-		pFire->m_hEntAttached = pTarget;
-		pFire->m_bUseHitboxes = true;
-		pFire->m_bCreatedClientside = true;
+		pFire->m_hEntAttached = (C_BaseEntity *) pTarget;
+
 		pFire->OnDataChanged( DATA_UPDATE_CREATED );
 		pFire->SetAbsOrigin( pTarget->GetAbsOrigin() );
 
@@ -1032,13 +1142,6 @@ C_EntityFlame *FireEffect( C_BaseAnimating *pTarget, C_BaseEntity *pServerFire, 
 		CPASAttenuationFilter filter( pTarget );
 		pTarget->EmitSound( filter, pTarget->GetSoundSourceIndex(), "General.BurningFlesh" );
 
-		for ( int i = 0; i < NUM_HITBOX_FIRES; i++ )
-		{
-			 pFire->m_pFireSmoke[i]->m_flScaleEnd = flScaleEnd[i];
-			 pFire->m_pFireSmoke[i]->m_flScaleTimeStart = flTimeStart[i];
-			 pFire->m_pFireSmoke[i]->m_flScaleTimeEnd = flTimeEnd[i];
-		}
-
 		pFire->SetNextClientThink( gpGlobals->curtime + 7.0f );
 	}
 
@@ -1056,28 +1159,7 @@ void C_BaseAnimating::IgniteRagdoll( C_BaseAnimating *pSource )
 
 		if ( pFireChild )
 		{
-			float flScaleEnd[NUM_HITBOX_FIRES];
-			float flScaleTimeStart[NUM_HITBOX_FIRES];
-			float flScaleTimeEnd[NUM_HITBOX_FIRES];
-
-			for ( int i = 0; i < NUM_HITBOX_FIRES; i++ )
-			{
-				if ( pFireChild->m_pFireSmoke[i] != NULL )
-				{
-					 flScaleEnd[i] = pFireChild->m_pFireSmoke[i]->m_flScaleEnd;
-					 flScaleTimeStart[i] = pFireChild->m_pFireSmoke[i]->m_flScaleTimeStart;
-					 flScaleTimeEnd[i] = pFireChild->m_pFireSmoke[i]->m_flScaleTimeEnd;
-				}
-				else
-				{
-					//Adrian: Ugh, have to do this just in case the entities flame haven't been setup.
-					flScaleEnd[i] = 0.2f;
-					flScaleTimeStart[i] = 1.0f;
-					flScaleTimeEnd[i] = 2.0f;
-				}
-			}
-
-			pRagdoll->SetEffectEntity ( FireEffect( pRagdoll, pFireChild, flScaleEnd, flScaleTimeStart, flScaleTimeEnd ) );
+			pRagdoll->SetEffectEntity ( FireEffect( pRagdoll, pFireChild, NULL, NULL, NULL ) );
 		}
 	}
 }

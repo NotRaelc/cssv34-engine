@@ -16,6 +16,8 @@
 #include "ai_moveshoot.h"
 #include "ai_utils.h"
 
+#define CUE_POINT_TOLERANCE (3.0*12.0)
+
 enum RallySelectMethod_t
 {
 	RALLY_POINT_SELECT_DEFAULT = 0,
@@ -55,7 +57,11 @@ class CRallyPoint : public CPointEntity
 	DECLARE_CLASS( CRallyPoint, CPointEntity );
 
 public:
-	CRallyPoint() { m_hLockedBy.Set(NULL); }
+	CRallyPoint()
+	{
+		m_hLockedBy.Set(NULL);
+		m_sExclusivity = RALLY_EXCLUSIVE_NOT_EVALUATED;
+	}
 
 	bool Lock( CBaseEntity *pLocker )
 	{
@@ -86,6 +92,16 @@ public:
 
 	bool IsLocked( void ) { return (m_hLockedBy.Get() != NULL); }
 
+	int DrawDebugTextOverlays();
+	bool IsExclusive();
+
+	enum
+	{
+		RALLY_EXCLUSIVE_NOT_EVALUATED = -1,
+		RALLY_EXCLUSIVE_NO,
+		RALLY_EXCLUSIVE_YES,
+	};
+
 	string_t	m_AssaultPointName;
 	string_t	m_RallySequenceName;
 	float		m_flAssaultDelay;
@@ -93,6 +109,7 @@ public:
 	int			m_iStrictness;
 	bool		m_bForceCrouch;
 	bool		m_bIsUrgent;
+	short		m_sExclusivity;
 
 	COutputEvent	m_OnArrival;
 
@@ -109,6 +126,14 @@ class CAssaultPoint : public CPointEntity
 	DECLARE_CLASS( CAssaultPoint, CPointEntity );
 
 public:
+	CAssaultPoint()
+	{
+		// This used to be a constant in code. Now it's a keyfield in hammer. 
+		// So in the constructor, we set this value to the former constant
+		// default value, for legacy maps. (sjb)
+		m_flAssaultPointTolerance = CUE_POINT_TOLERANCE;
+	}
+
 	void 			InputSetClearOnContact( inputdata_t &inputdata )
 	{
 		m_bClearOnContact = inputdata.value.Bool();
@@ -137,6 +162,8 @@ public:
 	bool			m_bForceCrouch;
 	bool			m_bIsUrgent;
 	bool			m_bInputForcedClear;
+	float			m_flAssaultPointTolerance;
+	float			m_flTimeLastUsed;
 
 	COutputEvent	m_OnArrival;
 
@@ -173,13 +200,16 @@ public:
 	bool HasAssaultCue( void ) { return m_AssaultCue != CUE_NO_ASSAULT; }
 	bool AssaultHasBegun();
 
+	CAssaultPoint *FindAssaultPoint( string_t iszAssaultPointName );
+	void SetAssaultPoint( CAssaultPoint *pAssaultPoint );
+
 	void GatherConditions( void );
 	void StartTask( const Task_t *pTask );
 	void RunTask( const Task_t *pTask );
 	void BuildScheduleTestBits();
 	int TranslateSchedule( int scheduleType );
 	void OnStartSchedule( int scheduleType );
-	void ClearSchedule();
+	void ClearSchedule( const char *szReason );
 
 	void InitializeBehavior();
 	void SetParameters( string_t rallypointname, AssaultCue_t assaultcue, int rallySelectMethod );
@@ -206,6 +236,7 @@ public:
 		SCHED_ASSAULT_FAILED_TO_MOVE,
 		SCHED_FAIL_MOVE_TO_RALLY_POINT,
 		SCHED_MOVE_TO_ASSAULT_POINT,
+		SCHED_AT_ASSAULT_POINT,
 		SCHED_HOLD_RALLY_POINT,
 		SCHED_HOLD_ASSAULT_POINT,
 		SCHED_WAIT_AND_CLEAR,
@@ -239,7 +270,11 @@ public:
 	CHandle<CAssaultPoint> m_hAssaultPoint;
 	CHandle<CRallyPoint> m_hRallyPoint;
 
+public:
+	void			UnlockRallyPoint( void );
+
 private:
+	void			OnScheduleChange();
 	virtual int		SelectSchedule();
 
 	AssaultCue_t	m_AssaultCue;			// the cue we're waiting for to begin the assault

@@ -30,6 +30,7 @@
 #include "tier0/memdbgon.h"
 
 //Precahce the effects
+#ifndef TF_CLIENT_DLL
 CLIENTEFFECT_REGISTER_BEGIN( PrecacheMuzzleFlash )
 CLIENTEFFECT_MATERIAL( "effects/muzzleflash1" )
 CLIENTEFFECT_MATERIAL( "effects/muzzleflash2" )
@@ -38,11 +39,13 @@ CLIENTEFFECT_MATERIAL( "effects/muzzleflash4" )
 CLIENTEFFECT_MATERIAL( "effects/bluemuzzle" )
 CLIENTEFFECT_MATERIAL( "effects/gunshipmuzzle" )
 CLIENTEFFECT_MATERIAL( "effects/gunshiptracer" )
+CLIENTEFFECT_MATERIAL( "effects/huntertracer" )
 CLIENTEFFECT_MATERIAL( "sprites/physcannon_bluelight2" )
 CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1" )
 CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2" )
 CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2_nocull" )
 CLIENTEFFECT_REGISTER_END()
+#endif
 
 //Whether or not we should emit a dynamic light
 ConVar muzzleflash_light( "muzzleflash_light", "1", FCVAR_ARCHIVE );
@@ -298,6 +301,12 @@ void FX_MuzzleEffectAttached(
 	VPROF_BUDGET( "FX_MuzzleEffect", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
 	
 	CSmartPtr<CLocalSpaceEmitter> pSimple = CLocalSpaceEmitter::Create( "MuzzleFlash", hEntity, attachmentIndex );
+	Assert( pSimple );
+	if ( pSimple == NULL )
+		return;
+	
+	// Lock our bounding box
+	pSimple->GetBinding().SetBBox( -( Vector( 16, 16, 16 ) * scale ), ( Vector( 16, 16, 16 ) * scale ) );
 	
 	SimpleParticle *pParticle;
 	Vector			forward(1,0,0), offset;
@@ -322,7 +331,7 @@ void FX_MuzzleEffectAttached(
 	{
 		offset = (forward * (i*2.0f*scale));
 
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( VarArgs( "effects/muzzleflash%d", random->RandomInt(1,4) ) ), offset );
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_SMG_Muzzleflash[random->RandomInt(0,3)], offset );
 			
 		if ( pParticle == NULL )
 			return;
@@ -370,7 +379,7 @@ void FX_MuzzleEffectAttached(
 	// NOTE: Particle system destruction message will be sent by the particle effect itself.
 	int nId = pSimple->AllocateToolParticleEffectId();
 
-	KeyValues *msg = new KeyValues( "ParticleSystem_Create" );
+	KeyValues *msg = new KeyValues( "OldParticleSystem_Create" );
 	msg->SetString( "name", "FX_MuzzleEffectAttached" );
 	msg->SetInt( "id", nId );
 	msg->SetFloat( "time", gpGlobals->curtime );
@@ -622,7 +631,7 @@ public:
 	void CreateSpurtParticles( void )
 	{
 		SimpleParticle *pParticle;
-		PMaterialHandle hMaterial = GetPMaterial( "particle/particle_smokegrenade" );
+		// PMaterialHandle hMaterial = GetPMaterial( "particle/particle_smokegrenade" );
 
 		Vector vecOrigin = m_vSortOrigin;
 		IClientRenderable *pRenderable = ClientEntityList().GetClientRenderableFromHandle(m_hEntity);
@@ -637,7 +646,7 @@ public:
 		int numParticles = RandomInt( 1,2 );
 		for ( int i = 0; i < numParticles; i++ )
 		{
-			pParticle = (SimpleParticle *) AddParticle( sizeof( SimpleParticle ), hMaterial, vecOrigin );			
+			pParticle = (SimpleParticle *) AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], vecOrigin );			
 			if ( pParticle == NULL )
 				break;
 
@@ -914,6 +923,40 @@ void FX_StriderTracer( Vector& start, Vector& end, int velocity, bool makeWhiz )
 	FX_AddDiscreetLine( start, shotDir, velocity, length, totalDist, 2.5f, life, "effects/gunshiptracer" );
 
 	if( makeWhiz )
+	{
+		FX_TracerSound( start, end, TRACER_TYPE_STRIDER );
+	}
+}
+
+	
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : start - 
+//			end - 
+//			velocity - 
+//			makeWhiz - 
+//-----------------------------------------------------------------------------
+void FX_HunterTracer( Vector& start, Vector& end, int velocity, bool makeWhiz )
+{
+	VPROF_BUDGET( "FX_HunterTracer", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
+	Vector	vNear, dStart, dEnd, shotDir;
+	float	totalDist;
+
+	// Get out shot direction and length
+	VectorSubtract( end, start, shotDir );
+	totalDist = VectorNormalize( shotDir );
+
+	// Make short tracers in close quarters
+	// float flMinLength = min( totalDist, 128.0f );
+	// float flMaxLength = min( totalDist, 128.0f );
+
+	float length = 128.0f;//random->RandomFloat( flMinLength, flMaxLength );
+	float life = ( totalDist + length ) / velocity;	// NOTENOTE: We want the tail to finish its run as well
+	
+	// Add it
+	FX_AddDiscreetLine( start, shotDir, velocity*0.5f, length, totalDist, 2.0f, life, "effects/huntertracer" );
+
+	if( makeWhiz ) 
 	{
 		FX_TracerSound( start, end, TRACER_TYPE_STRIDER );
 	}

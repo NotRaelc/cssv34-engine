@@ -67,6 +67,7 @@ public:
 	bool CreateVPhysics( void );
 	void Precache( void );
 	void UpdateOnRemove();
+	void MoveDone();
 
 	void Blocked( CBaseEntity *pOther );
 	bool KeyValue( const char *szKeyName, const char *szValue );
@@ -121,8 +122,6 @@ private:
 	void ArriveAtNode( CPathTrack *pNode );
 	void FirePassInputs( CPathTrack *pStart, CPathTrack *pEnd, bool forward );
 
-	CBaseEntity *FindPhysicsBlocker( IPhysicsObject *pPhysics );
-
 public:
 
 	// UNDONE: Add accessors?
@@ -147,20 +146,19 @@ private:
 
 	void TeleportToPathTrack( CPathTrack *pTeleport );
 
-	TrainVelocityType_t m_eVelocityType;
 
-	float		m_height;
-	float		m_maxSpeed;
-
-	float		m_dir;
 	Vector		m_controlMins;
 	Vector		m_controlMaxs;
-	bool		m_bSoundPlaying;
+	Vector		m_lastBlockPos;				// These are used to build a heuristic decision about being temporarily blocked by physics objects
+	int			m_lastBlockTick;			// ^^^^^^^
 	float		m_flVolume;
 	float		m_flBank;
 	float		m_oldSpeed;
 	float		m_flBlockDamage;			// Damage to inflict when blocked.
-	TrainOrientationType_t m_eOrientationType;
+	float		m_height;
+	float		m_maxSpeed;
+	float		m_dir;
+
 
 	string_t	m_iszSoundMove;				// Looping sound to play while moving. Pitch shifted based on speed.
 	string_t	m_iszSoundMovePing;			// Ping sound to play while moving. Interval decreased based on speed.
@@ -173,6 +171,12 @@ private:
 
 	int			m_nMoveSoundMinPitch;		// The sound pitch to approach as we come to a stop
 	int			m_nMoveSoundMaxPitch;		// The sound pitch to approach as we approach our max speed (actually, it's hardcoded to 1000 in/sec)
+
+	TrainOrientationType_t m_eOrientationType;
+	TrainVelocityType_t m_eVelocityType;
+	bool		m_bSoundPlaying;
+
+	COutputEvent m_OnStart,m_OnNext; 
 };
 
 

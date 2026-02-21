@@ -46,18 +46,39 @@ int	C_BaseCombatCharacter::GetAmmoCount( char *szName ) const
 }
 */
 
+//-----------------------------------------------------------------------------
+// Purpose: Overload our muzzle flash and send it to any actively held weapon
+//-----------------------------------------------------------------------------
+void C_BaseCombatCharacter::DoMuzzleFlash()
+{
+	// Our weapon takes our muzzle flash command
+	C_BaseCombatWeapon *pWeapon = GetActiveWeapon();
+	if ( pWeapon )
+	{
+		pWeapon->DoMuzzleFlash();
+		//NOTENOTE: We do not chain to the base here
+	}
+	else
+	{
+		BaseClass::DoMuzzleFlash();
+	}
+}
 IMPLEMENT_CLIENTCLASS(C_BaseCombatCharacter, DT_BaseCombatCharacter, CBaseCombatCharacter);
 
 // Only send active weapon index to local player
 BEGIN_RECV_TABLE_NOBASE( C_BaseCombatCharacter, DT_BCCLocalPlayerExclusive )
 	RecvPropTime( RECVINFO( m_flNextAttack ) ),
-	RecvPropArray3( RECVINFO_ARRAY(m_hMyWeapons), RecvPropEHandle( RECVINFO( m_hMyWeapons[0] ) ) ),
 END_RECV_TABLE();
 
 
 BEGIN_RECV_TABLE(C_BaseCombatCharacter, DT_BaseCombatCharacter)
 	RecvPropDataTable( "bcc_localdata", 0, 0, &REFERENCE_RECV_TABLE(DT_BCCLocalPlayerExclusive) ),
 	RecvPropEHandle( RECVINFO( m_hActiveWeapon ) ),
+	RecvPropArray3( RECVINFO_ARRAY(m_hMyWeapons), RecvPropEHandle( RECVINFO( m_hMyWeapons[0] ) ) ),
+
+#ifdef INVASION_CLIENT_DLL
+	RecvPropInt( RECVINFO( m_iPowerups ) ),
+#endif
 
 END_RECV_TABLE()
 

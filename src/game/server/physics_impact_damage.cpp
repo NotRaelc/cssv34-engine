@@ -637,7 +637,7 @@ float CalculateObjectStress( IPhysicsObject *pObject, CBaseEntity *pInputOwnerEn
 
 	// sum is kg in / s
 	Vector gravVector;
-	physenv->GetGravity( gravVector );
+	physenv->GetGravity( &gravVector );
 	float gravity = gravVector.Length();
 	if ( pInputOwnerEntity->GetMoveType() != MOVETYPE_VPHYSICS && pObject->IsMoveable() )
 	{

@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -310,6 +310,10 @@ bool CAI_BaseActor::StartSceneEvent( CSceneEventInfo *info, CChoreoScene *scene,
 					return false;
 				}
 			}
+			else if (stricmp( event->GetParameters(), "AI_DISABLEAI") == 0)
+			{
+				info->m_nType = SCENE_AI_DISABLEAI;
+			}
 			else
 			{
 				return BaseClass::StartSceneEvent( info, scene, event, actor, pTarget );
@@ -341,8 +345,16 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 
 			bool bInScene = false;
 			
+			// lockbodyfacing is designed to run on top of both normal AI and on top of
+			// scripted_sequences.  By allowing torso turns during post-idles, pre-idles, 
+			// act-busy's, scripted_sequences, normal AI movements, etc., it increases 
+			// the functionality of those AI features without breaking their assuptions 
+			// that the entity won't be made to "turn" by something outside of those 
+			// AI's control.
+			// lockbody facing is also usefull when npcs are moving and you want them to turn
+			// towards something but still walk in the direction of travel.
 			if (!event->IsLockBodyFacing())
-				bInScene = EnterSceneSequence( true );
+				bInScene = EnterSceneSequence( scene, event, true );
 
 			// make sure we're still able to play this command
 			if (!info->m_bStarted)
@@ -374,7 +386,7 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 
 			// Msg("%f : %f - %f\n", scene->GetTime(), event->GetStartTime(), event->GetEndTime() );
 			float flTime = clamp( scene->GetTime(), event->GetStartTime(), event->GetEndTime() - 0.1 );
-			float intensity = event->GetIntensity( event, flTime );
+			float intensity = event->GetIntensity( flTime );
 
 			// clamp in-ramp to 0.5 seconds
 			float flDuration = scene->GetTime() - event->GetStartTime();
@@ -422,9 +434,20 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 			NDebugOverlay::YawArrow( GetAbsOrigin() + Vector( 0, 0, 24 ), info->m_flTargetYaw, 64, 16, 128, 128, 255, 0, true, 0.1 );
 			*/
 
-			float goalYaw = CalcIdealYaw( info->m_hTarget->EyePosition() );
+			CAI_BaseNPC *pGoalNpc = info->m_hTarget->MyNPCPointer();
 
-			if (scene_showfaceto.GetBool())
+			float goalYaw = GetLocalAngles().y;
+			
+			if ( pGoalNpc )
+			{
+				goalYaw = CalcIdealYaw( pGoalNpc->FacingPosition() );
+			}
+			else
+			{
+				goalYaw = CalcIdealYaw( info->m_hTarget->EyePosition() );
+			}
+
+			if (developer.GetInt() > 0 && scene_showfaceto.GetBool())
 			{
 				NDebugOverlay::YawArrow( GetAbsOrigin() + Vector( 0, 0, 1 ), goalYaw, 8 + 32 * intensity, 8, 255, 255, 255, 0, true, 0.12 );
 			}
@@ -456,12 +479,6 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 			if (!event->IsLockBodyFacing())
 			{
 				AddFacingTarget( info->m_hTarget, intensity, 0.2 ); // facing targets are lagged by one frame
-			}
-
-			if (bInScene)
-			{
-				// FIXME: what's a reasonable time to wait?
-				AddSceneLock( min( 2.0, event->GetEndTime() - scene->GetTime() + 0.2 ) );
 			}
 			return true;
 		}
@@ -525,6 +542,12 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 
 					// FIXME: needs to handle scene pause
 					return true;
+				case SCENE_AI_DISABLEAI:
+					if (!(GetState() == NPC_STATE_SCRIPT  || IsCurSchedule( SCHED_SCENE_GENERIC )) )
+					{
+						EnterSceneSequence( scene, event );
+					}
+					return true;
 				default:
 					return false;
 			}
@@ -538,8 +561,6 @@ bool CAI_BaseActor::ProcessSceneEvent( CSceneEventInfo *info, CChoreoScene *scen
 
 bool CAI_BaseActor::RandomFaceFlex( CSceneEventInfo *info, CChoreoScene *scene, CChoreoEvent *event )
 {
-	int i;
-
 	if (info->m_flNext < gpGlobals->curtime)
 	{
 		const flexsettinghdr_t *pSettinghdr = ( const flexsettinghdr_t * )FindSceneFile( event->GetParameters2() );
@@ -559,6 +580,7 @@ bool CAI_BaseActor::RandomFaceFlex( CSceneEventInfo *info, CChoreoScene *scene, 
 			if ( !pWeights )
 				return false;
 
+			int i;
 			for (i = 0; i < truecount; i++, pWeights++)
 			{
 				// Translate to local flex controller
@@ -579,10 +601,10 @@ bool CAI_BaseActor::RandomFaceFlex( CSceneEventInfo *info, CChoreoScene *scene, 
 	}
 
 	// adjust intensity if this is a background scene and there's other flex animations playing
-	float intensity = info->UpdateWeight( this ) * event->GetIntensity( event, scene->GetTime() );
+	float intensity = info->UpdateWeight( this ) * event->GetIntensity( scene->GetTime() );
 
 	// slide it up.
-	for (i = 0; i < GetNumFlexControllers(); i++)
+	for (LocalFlexController_t i = LocalFlexController_t(0); i < GetNumFlexControllers(); i++)
 	{
 		float weight = GetFlexWeight( i );
 
@@ -800,7 +822,7 @@ float CAI_BaseActor::HeadTargetValidity(const Vector &lookTargetPos)
 	// Only look if it doesn't crank my head too far
 	float dotPr = DotProduct(lookTargetDir, vFacing);
 	// only look if target is within +-135 degrees
-	// scale 1..-0.5 == 1..1,  -.5..-1 == 1..0
+	// scale 1..-0.707 == 1..1,  -.707..-1 == 1..0
 	// 	X * b + b = 1 == 1 / (X + 1) = b, 3.4142
 	float flInterest = clamp( 3.4142 + 3.4142 * dotPr, 0, 1 );
 
@@ -869,7 +891,26 @@ bool CAI_BaseActor::SetAccumulatedYawAndUpdate( void )
 // Purpose: match actors "forward" attachment to point in direction of vHeadTarget
 //-----------------------------------------------------------------------------
 
-void CAI_BaseActor::UpdateHeadBodyControl( const Vector &vHeadTarget, float flHeadInfluence, const Vector &vBodyTarget, float flBodyInfluence )
+void CAI_BaseActor::UpdateBodyControl( )
+{
+	// FIXME: only during idle, or in response to accel/decel
+	//Set( m_ParameterBodyTransY, Get( m_FlexweightMoveRightLeft ) );
+	//Set( m_ParameterBodyTransX, Get( m_FlexweightMoveForwardBack ) );
+	//Set( m_ParameterBodyLift, Get( m_FlexweightMoveUpDown ) );
+	Set( m_ParameterBodyYaw, Get( m_FlexweightBodyRightLeft ) + m_goalBodyYaw );
+	//Set( m_ParameterBodyPitch, Get( m_FlexweightBodyUpDown ) );
+	//Set( m_ParameterBodyRoll, Get( m_FlexweightBodyTilt ) );
+	Set( m_ParameterSpineYaw, Get( m_FlexweightChestRightLeft ) + m_goalSpineYaw );
+	//Set( m_ParameterSpinePitch, Get( m_FlexweightChestUpDown ) );
+	//Set( m_ParameterSpineRoll, Get( m_FlexweightChestTilt ) );
+	Set( m_ParameterNeckTrans, Get( m_FlexweightHeadForwardBack ) );
+}
+
+
+static ConVar scene_clamplookat( "scene_clamplookat", "1", FCVAR_NONE, "Clamp head turns to a max of 20 degrees per think." );
+
+
+void CAI_BaseActor::UpdateHeadControl( const Vector &vHeadTarget, float flHeadInfluence )
 {
 	float flTarget;
 	float flLimit;
@@ -901,9 +942,11 @@ void CAI_BaseActor::UpdateHeadBodyControl( const Vector &vHeadTarget, float flHe
 
 	GetAttachment( iEyes, eyesToWorld );
 
+	GetAttachment( iForward, forwardToWorld );
+	MatrixInvert( forwardToWorld, worldToForward );
+
 	// Lookup chest attachment to do compounded range limit checks
-	// FIXME: disable head-bias until bouncing can get fixed.
-	if (0 && iChest > 0)
+	if (iChest > 0)
 	{
 		matrix3x4_t chestToWorld, worldToChest;
 		GetAttachment( iChest, chestToWorld );
@@ -911,29 +954,66 @@ void CAI_BaseActor::UpdateHeadBodyControl( const Vector &vHeadTarget, float flHe
 		matrix3x4_t tmpM;
 		ConcatTransforms( worldToChest, eyesToWorld, tmpM );
 		MatrixAngles( tmpM, angBias );
+
+		angBias.y -= Get( m_ParameterHeadYaw );
+		angBias.x -= Get( m_ParameterHeadPitch );
+		angBias.z -= Get( m_ParameterHeadRoll );
+
+		/*
+		if ( (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT) )
+		{
+			// Msg("bias %f %f %f\n", angBias.x, angBias.y, angBias.z );
+
+			Vector tmp1, tmp2;
+			
+			VectorTransform( Vector( 0, 0, 0), chestToWorld, tmp1 );
+			VectorTransform( Vector( 100, 0, 0), chestToWorld, tmp2 );
+			NDebugOverlay::Line( tmp1, tmp2, 0,0,255, false, 0.12 );
+
+			VectorTransform( Vector( 0, 0, 0), eyesToWorld, tmp1 );
+			VectorTransform( Vector( 100, 0, 0), eyesToWorld, tmp2 );
+			NDebugOverlay::Line( tmp1, tmp2, 0,0,255, false, 0.12 );
+
+			// NDebugOverlay::Line( EyePosition(), pEntity->EyePosition(), 0,0,255, false, 0.5);
+		}
+		*/
 	}
 	else
 	{
 		angBias.Init( 0, 0, 0 );
 	}
 
-	GetAttachment( iForward, forwardToWorld );
-	MatrixInvert( forwardToWorld, worldToForward );
-
 	matrix3x4_t targetXform;
 	targetXform = forwardToWorld;
 	Vector vTargetDir = vHeadTarget - EyePosition();
+
+	if (scene_clamplookat.GetBool())
+	{
+		// scale down pitch when the target is behind the head
+		Vector vTargetLocal;
+		VectorNormalize( vTargetDir );
+		VectorIRotate( vTargetDir, forwardToWorld, vTargetLocal );
+		vTargetLocal.z *= clamp( vTargetLocal.x, 0.1, 1.0 );
+		VectorNormalize( vTargetLocal );
+		VectorRotate( vTargetLocal, forwardToWorld, vTargetDir );
+
+		// clamp local influence when target is behind the head
+		flHeadInfluence = flHeadInfluence * clamp( vTargetLocal.x * 2.0 + 2.0, 0.0, 1.0 );
+	}
+
 	Studio_AlignIKMatrix( targetXform, vTargetDir );
 
 	matrix3x4_t headXform;
 	ConcatTransforms( worldToForward, targetXform, headXform );
 	MatrixAngles( headXform, vTargetAngles );
 
-
 	// partially debounce head goal
-	m_goalHeadCorrection.x = m_goalHeadCorrection.x * 0.3 + vTargetAngles.x * 0.7 * flHeadInfluence;
-	m_goalHeadCorrection.y = m_goalHeadCorrection.y * 0.3 + vTargetAngles.y * 0.7 * flHeadInfluence;
-	m_goalHeadCorrection.z = m_goalHeadCorrection.z * 0.3 + vTargetAngles.z * 0.7 * flHeadInfluence;
+	float s0 = 1.0 - flHeadInfluence + GetHeadDebounce() * flHeadInfluence;
+	float s1 = (1.0 - s0);
+	// limit velocity of head turns
+	m_goalHeadCorrection.x = UTIL_Approach( m_goalHeadCorrection.x * s0 + vTargetAngles.x * s1, m_goalHeadCorrection.x, 10.0 );
+	m_goalHeadCorrection.y = UTIL_Approach( m_goalHeadCorrection.y * s0 + vTargetAngles.y * s1, m_goalHeadCorrection.y, 30.0 );
+	m_goalHeadCorrection.z = UTIL_Approach( m_goalHeadCorrection.z * s0 + vTargetAngles.z * s1, m_goalHeadCorrection.z, 10.0 );
 
 	/*
 	if ( (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT) )
@@ -945,30 +1025,33 @@ void CAI_BaseActor::UpdateHeadBodyControl( const Vector &vHeadTarget, float flHe
 
 	flTarget = m_goalHeadCorrection.y + Get( m_FlexweightHeadRightLeft );
 	flLimit = ClampWithBias( m_ParameterHeadYaw, flTarget, angBias.y );
+	/*
+	if ( (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT) )
+	{
+		Msg( "yaw  %5.1f : (%5.1f : %5.1f) %5.1f (%5.1f)\n", flLimit, m_goalHeadCorrection.y, Get( m_FlexweightHeadRightLeft ), angBias.y, Get( m_ParameterHeadYaw ) );
+	}
+	*/
 	Set( m_ParameterHeadYaw, flLimit );
-
-	//Msg( "yaw %.1f ", flLimit );
 
 	flTarget = m_goalHeadCorrection.x + Get( m_FlexweightHeadUpDown );
 	flLimit = ClampWithBias( m_ParameterHeadPitch, flTarget, angBias.x );
+	/*
+	if ( (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT) )
+	{
+		Msg( "pitch %5.1f : (%5.1f : %5.1f) %5.1f (%5.1f)\n", flLimit, m_goalHeadCorrection.x, Get( m_FlexweightHeadUpDown ), angBias.x, Get( m_ParameterHeadPitch ) );
+	}
+	*/
 	Set( m_ParameterHeadPitch, flLimit );
-	//Msg( "pitch %.1f\n", flLimit );
 
 	flTarget = m_goalHeadCorrection.z + Get( m_FlexweightHeadTilt );
 	flLimit = ClampWithBias( m_ParameterHeadRoll, flTarget, angBias.z );
+	/*
+	if ( (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT) )
+	{
+		Msg( "roll  %5.1f : (%5.1f : %5.1f) %5.1f (%5.1f)\n", flLimit, m_goalHeadCorrection.z, Get( m_FlexweightHeadTilt ), angBias.z, Get( m_ParameterHeadRoll ) );
+	}
+	*/
 	Set( m_ParameterHeadRoll, flLimit );
-
-	// FIXME: only during idle, or in response to accel/decel
-	//Set( m_ParameterBodyTransY, Get( m_FlexweightMoveRightLeft ) );
-	//Set( m_ParameterBodyTransX, Get( m_FlexweightMoveForwardBack ) );
-	//Set( m_ParameterBodyLift, Get( m_FlexweightMoveUpDown ) );
-	Set( m_ParameterBodyYaw, Get( m_FlexweightBodyRightLeft ) + m_goalBodyYaw );
-	//Set( m_ParameterBodyPitch, Get( m_FlexweightBodyUpDown ) );
-	//Set( m_ParameterBodyRoll, Get( m_FlexweightBodyTilt ) );
-	Set( m_ParameterSpineYaw, Get( m_FlexweightChestRightLeft ) + m_goalSpineYaw );
-	//Set( m_ParameterSpinePitch, Get( m_FlexweightChestUpDown ) );
-	//Set( m_ParameterSpineRoll, Get( m_FlexweightChestTilt ) );
-	Set( m_ParameterNeckTrans, Get( m_FlexweightHeadForwardBack ) );
 }
 
 
@@ -1298,7 +1381,19 @@ void CAI_BaseActor::MakeRandomLookTarget( AILookTargetArgs_t *pArgs, float minTi
 	GetVectors( &forward, &right, &up );
 
 	// DevMsg("random view\n");
-	pArgs->vTarget = EyePosition() + forward * 128 + right * random->RandomFloat(-32,32) + up * random->RandomFloat(-16,16);
+
+	// For now, just look farther afield while driving in the vehicle.  Without this we look around wildly!
+#ifdef HL2_EPISODIC
+	if ( MyCombatCharacterPointer() && MyCombatCharacterPointer()->IsInAVehicle() )
+	{
+		pArgs->vTarget = EyePosition() + forward * 2048 + right * random->RandomFloat(-650,650) + up * random->RandomFloat(-32,32);
+	}
+	else
+#endif // HL2_EPISODIC
+	{
+		pArgs->vTarget = EyePosition() + forward * 128 + right * random->RandomFloat(-32,32) + up * random->RandomFloat(-16,16);
+	}
+
 	pArgs->flDuration = random->RandomFloat( minTime, maxTime );
 	pArgs->flInfluence = 0.01;
 	pArgs->flRamp = random->RandomFloat( 0.8, 2.8 );
@@ -1353,6 +1448,9 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 	SetAccumulatedYawAndUpdate( );
 	ProcessSceneEvents( );
 	MaintainTurnActivity( );
+	DoBodyLean( );
+	UpdateBodyControl( );
+	InvalidateBoneCache();
 
 	// cached versions of the current eye position
 	Vector vEyePosition = EyePosition( );
@@ -1494,7 +1592,7 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 	// turn head toward target
 	if (bValidHeadTarget)
 	{
-		UpdateHeadBodyControl( vEyePosition + vHead * 100, flHeadInfluence, vEyePosition + vHead * 100, 0.0  );
+		UpdateHeadControl( vEyePosition + vHead * 100, flHeadInfluence );
 		m_goalHeadDirection = vHead;
 		m_goalHeadInfluence = flHeadInfluence;
 	}
@@ -1506,7 +1604,7 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 		m_goalHeadInfluence = max( m_goalHeadInfluence - 0.2, 0 );
 
 		VectorNormalize( m_goalHeadDirection );
-		UpdateHeadBodyControl( vEyePosition + m_goalHeadDirection * 100, m_goalHeadInfluence, vEyePosition + m_goalHeadDirection * 100, 0.0 );
+		UpdateHeadControl( vEyePosition + m_goalHeadDirection * 100, m_goalHeadInfluence );
 		// NDebugOverlay::Line( vEyePosition, vEyePosition + m_goalHeadDirection * 100, 255,0,0, false, 0.1);
 	}
 
@@ -1521,7 +1619,7 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 	{
 		if (active[i]->IsThis( this ))
 		{
-			// DevMsg( "eyes (%d) %s\n", i, STRING( active[i]->m_hTarget->GetEntityName() ) );
+			// DevMsg( "eyes (%d) %s\n", i, STRING( active[i]->m_hTarget->GetEntityName().ToCStr() ) );
 			bFoundTarget = true;
 			hTarget = this;
 			SetViewtarget( vEyePosition + HeadDirection3D() * 100 );
@@ -1533,7 +1631,7 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 			// E3 Hack
 			if (ValidEyeTarget(active[i]->GetPosition()))
 			{
-				// DevMsg( "eyes (%d) %s\n", i, STRING( pTarget->GetEntityName() ) );
+				// DevMsg( "eyes (%d) %s\n", i, STRING( pTarget->GetEntityName().ToCStr() ) );
 
 				bFoundTarget = true;
 				hTarget = active[i]->m_hTarget;
@@ -1581,6 +1679,26 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 			absVel = absVel + ground->GetAbsVelocity();
 		}
 
+#ifdef HL2_EPISODIC
+		// Translate our position if riding in a vehicle
+		if ( m_hLookTarget->MyCombatCharacterPointer() )
+		{
+			CBaseCombatCharacter *pBCC = m_hLookTarget->MyCombatCharacterPointer();
+			CBaseEntity *pVehicle = pBCC->GetVehicleEntity();
+			if ( pVehicle )
+			{
+				IPhysicsObject *pObj = pVehicle->VPhysicsGetObject();
+				if ( pObj )
+				{
+					Vector vecVelocity;
+					pObj->GetVelocity( &vecVelocity, NULL );
+
+					absVel += vecVelocity;
+				}
+			}
+		}
+#endif //HL2_EPISODIC
+
 		if ( !VectorCompare( absVel, vec3_origin ) )
 		{
 			Vector viewTarget = GetViewtarget();
@@ -1605,7 +1723,8 @@ void CAI_BaseActor::MaintainLookTargets( float flInterval )
 
 	if ( ai_debug_looktargets.GetInt() == 1 && (m_debugOverlays & OVERLAY_NPC_SELECTED_BIT) )
 	{
-		NDebugOverlay::Cross3D( GetViewtarget(), 60, 255, 255, 255, true, .1 );
+		NDebugOverlay::Box( GetViewtarget(), -Vector(2,2,2), Vector(2,2,2), 0, 255, 0, 0, 20 );
+		NDebugOverlay::Line( EyePosition(),GetViewtarget(), 0,255,0, false, .1 );
 	}
 }
 

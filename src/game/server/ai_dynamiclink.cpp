@@ -29,12 +29,17 @@ LINK_ENTITY_TO_CLASS(info_node_link_controller, CAI_DynamicLinkController);
 
 BEGIN_DATADESC( CAI_DynamicLinkController )
 
-DEFINE_KEYFIELD( m_nLinkState, FIELD_INTEGER, "initialstate" ),
-DEFINE_KEYFIELD( m_strAllowUse, FIELD_STRING, "AllowUse" ),
-//				 m_ControlledLinks (rebuilt)
+	DEFINE_KEYFIELD( m_nLinkState, FIELD_INTEGER, "initialstate" ),
+	DEFINE_KEYFIELD( m_strAllowUse, FIELD_STRING, "AllowUse" ),
+	DEFINE_KEYFIELD( m_bInvertAllow, FIELD_BOOLEAN, "InvertAllow" ),
+	DEFINE_KEYFIELD( m_bUseAirLinkRadius, FIELD_BOOLEAN, "useairlinkradius" ),
+	//				 m_ControlledLinks (rebuilt)
 
-DEFINE_INPUTFUNC( FIELD_VOID, "TurnOn", InputTurnOn ),
-DEFINE_INPUTFUNC( FIELD_VOID, "TurnOff", InputTurnOff ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOn", InputTurnOn ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "TurnOff", InputTurnOff ),
+
+	DEFINE_INPUTFUNC( FIELD_STRING, "SetAllowed", InputSetAllowed ),
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetInvert", InputSetInvert ),
 
 END_DATADESC()
 
@@ -45,7 +50,15 @@ void CAI_DynamicLinkController::GenerateLinksFromVolume()
 	int nNodes = g_pBigAINet->NumNodes();
 	CAI_Node **ppNodes = g_pBigAINet->AccessNodes();
 
-	const float MinDistCareSq = Square(MAX_NODE_LINK_DIST + 0.1);
+	float MinDistCareSq = 0;
+	if (m_bUseAirLinkRadius)
+	{
+		 MinDistCareSq = Square(MAX_AIR_NODE_LINK_DIST + 0.1);
+	}
+	else
+	{
+		 MinDistCareSq = Square(MAX_NODE_LINK_DIST + 0.1);
+	}
 
 	const Vector &origin = WorldSpaceCenter();
 	Vector vAbsMins, vAbsMaxs;
@@ -80,6 +93,7 @@ void CAI_DynamicLinkController::GenerateLinksFromVolume()
 							pLink->m_nDestEditID = g_pAINetworkManager->GetEditOps()->GetWCIdFromNodeId( pLink->m_nDestID );
 							pLink->m_nLinkState = m_nLinkState;
 							pLink->m_strAllowUse = m_strAllowUse;
+							pLink->m_bInvertAllow = m_bInvertAllow;
 							pLink->m_bFixedUpIds = true;
 							pLink->m_bNotSaved = true;
 
@@ -125,6 +139,36 @@ void CAI_DynamicLinkController::InputTurnOff( inputdata_t &inputdata )
 	m_nLinkState = LINK_OFF;
 }
 
+void CAI_DynamicLinkController::InputSetAllowed( inputdata_t &inputdata )
+{
+	m_strAllowUse = inputdata.value.StringID();
+	for ( int i = 0; i < m_ControlledLinks.Count(); i++ )
+	{
+		if ( m_ControlledLinks[i] == NULL )
+		{
+			m_ControlledLinks.FastRemove(i);
+			if ( i >= m_ControlledLinks.Count() )
+				break;
+		}
+		m_ControlledLinks[i]->m_strAllowUse = m_strAllowUse;
+	}
+}
+
+void CAI_DynamicLinkController::InputSetInvert( inputdata_t &inputdata )
+{
+	m_bInvertAllow = inputdata.value.Bool();
+	for ( int i = 0; i < m_ControlledLinks.Count(); i++ )
+	{
+		if ( m_ControlledLinks[i] == NULL )
+		{
+			m_ControlledLinks.FastRemove(i);
+			if ( i >= m_ControlledLinks.Count() )
+				break;
+		}
+		m_ControlledLinks[i]->m_bInvertAllow = m_bInvertAllow;
+	}
+}
+
 //-----------------------------------------------------------------------------
 
 LINK_ENTITY_TO_CLASS(info_node_link, CAI_DynamicLink);
@@ -136,6 +180,7 @@ DEFINE_KEYFIELD( m_nLinkState, FIELD_INTEGER, "initialstate" ),
 DEFINE_KEYFIELD( m_nSrcEditID,	FIELD_INTEGER, "startnode" ),
 DEFINE_KEYFIELD( m_nDestEditID,	FIELD_INTEGER, "endnode" ),
 DEFINE_KEYFIELD( m_nLinkType, FIELD_INTEGER, "linktype" ),
+DEFINE_FIELD( m_bInvertAllow, FIELD_BOOLEAN ),
 //				m_nSrcID (rebuilt)
 //				m_nDestID (rebuilt)
 DEFINE_KEYFIELD( m_strAllowUse, FIELD_STRING, "AllowUse" ),
@@ -416,6 +461,12 @@ int CAI_DynamicLink::ObjectCaps()
 //------------------------------------------------------------------------------
 void CAI_DynamicLink::SetLinkState(void)
 {
+	if ( !gm_bInitialized )
+	{
+		// Safe to quietly return. Consistency will be enforced when InitDynamicLinks() is called
+		return;
+	}
+
 	if (m_nSrcID == NO_NODE || m_nDestID == NO_NODE)
 	{
 		Vector pos = GetAbsOrigin();
@@ -489,6 +540,7 @@ CAI_DynamicLink::CAI_DynamicLink(void)
 	m_nDestID			= NO_NODE;
 	m_nLinkState		= LINK_OFF;
 	m_nLinkType			= bits_CAP_MOVE_GROUND;
+	m_bInvertAllow		= false;
 
 	// -------------------------------------
 	//  Add to linked list of dynamic links
@@ -558,7 +610,7 @@ void CAI_RadialLinkController::Activate()
 	SetThink( &CAI_RadialLinkController::PollMotionThink );
 
 	// Spread think times out.
-	SetNextThink( gpGlobals->curtime + 0.5f + random->RandomFloat( 0.0f, 1.0f) );
+	SetNextThink( gpGlobals->curtime + random->RandomFloat( 0.0f, 1.0f) );
 
 	if( GetParent() != NULL )
 	{
@@ -649,7 +701,7 @@ void CAI_RadialLinkController::ModifyNodeLinks( bool bMakeStale )
 				{
 					bool bQualify = true;
 
-					if( (pLink->m_iAcceptedMoveTypes[HULL_HUMAN] & bits_CAP_MOVE_GROUND) == 0 )
+					if( ( (pLink->m_iAcceptedMoveTypes[HULL_HUMAN]||pLink->m_iAcceptedMoveTypes[HULL_WIDE_HUMAN]) & bits_CAP_MOVE_GROUND) == 0 )
 					{
 						// Micro-optimization: Ignore any connection that's not a walking connection for humans.(sjb)
 						bQualify = false;

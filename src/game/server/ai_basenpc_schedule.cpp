@@ -38,6 +38,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+extern ConVar ai_task_pre_script;
 extern ConVar ai_use_efficiency;
 extern ConVar ai_use_think_optimizations;
 #define ShouldUseEfficiency() ( ai_use_think_optimizations.GetBool() && ai_use_efficiency.GetBool() )
@@ -89,14 +90,25 @@ bool CAI_BaseNPC::FHaveSchedule( void )
 // ClearSchedule - blanks out the caller's schedule pointer
 // and index.
 //=========================================================
-void CAI_BaseNPC::ClearSchedule( void )
+void CAI_BaseNPC::ClearSchedule( const char *szReason )
 {
+	if (szReason && m_debugOverlays & OVERLAY_TASK_TEXT_BIT)
+	{
+		DevMsg( this, AIMF_IGNORE_SELECTED, "  Schedule cleared: %s\n", szReason );
+	}
+
+	if ( szReason )
+	{
+		ADD_DEBUG_HISTORY( HISTORY_AI_DECISIONS, UTIL_VarArgs( "%s(%d):  Schedule cleared: %s\n", GetDebugName(), entindex(), szReason ) );
+	}
+
 	m_ScheduleState.timeCurTaskStarted = m_ScheduleState.timeStarted = 0;
+	m_ScheduleState.bScheduleWasInterrupted = true;
 	SetTaskStatus( TASKSTATUS_NEW );
 	m_IdealSchedule = SCHED_NONE;
 	m_pSchedule =  NULL;
 	ResetScheduleCurTaskIndex();
-	m_InverseIgnoreConditions.SetAllBits();
+	m_InverseIgnoreConditions.SetAll();
 }
 
 //=========================================================
@@ -125,7 +137,7 @@ bool CAI_BaseNPC::SetSchedule( int localScheduleID )
 		// ken: I'm don't know of any remaining cases, but if you find one, hunt it down as to why the schedule is getting slammed while they're in the middle of script
 		if (m_hCine != NULL)
 		{
-			if (!(localScheduleID == SCHED_WAIT_FOR_SCRIPT || localScheduleID == SCHED_SCRIPTED_WALK || localScheduleID == SCHED_SCRIPTED_RUN || localScheduleID == SCHED_SCRIPTED_CUSTOM_MOVE || localScheduleID == SCHED_SCRIPTED_WAIT || localScheduleID == SCHED_SCRIPTED_FACE) )
+			if (!(localScheduleID == SCHED_SLEEP || localScheduleID == SCHED_WAIT_FOR_SCRIPT || localScheduleID == SCHED_SCRIPTED_WALK || localScheduleID == SCHED_SCRIPTED_RUN || localScheduleID == SCHED_SCRIPTED_CUSTOM_MOVE || localScheduleID == SCHED_SCRIPTED_WAIT || localScheduleID == SCHED_SCRIPTED_FACE) )
 			{
 				Assert( 0 );
 				// ExitScriptedSequence();
@@ -145,23 +157,25 @@ bool CAI_BaseNPC::SetSchedule( int localScheduleID )
 // with the passed pointer, and sets the ScheduleIndex back
 // to 0
 //=========================================================
+#define SCHEDULE_HISTORY_SIZE	10
 void CAI_BaseNPC::SetSchedule( CAI_Schedule *pNewSchedule )
 {
 	Assert( pNewSchedule != NULL );
 	
 	m_ScheduleState.timeCurTaskStarted = m_ScheduleState.timeStarted = gpGlobals->curtime;
+	m_ScheduleState.bScheduleWasInterrupted = false;
 	
 	m_pSchedule = pNewSchedule ;
 	ResetScheduleCurTaskIndex();
 	SetTaskStatus( TASKSTATUS_NEW );
 	m_failSchedule = SCHED_NONE;
 	bool bCondInPVS = HasCondition( COND_IN_PVS );
-	m_Conditions.ClearAllBits();
+	m_Conditions.ClearAll();
 	if ( bCondInPVS )
 		SetCondition( COND_IN_PVS );
 	m_bConditionsGathered = false;
 	GetNavigator()->ClearGoal();
-	m_InverseIgnoreConditions.SetAllBits();
+	m_InverseIgnoreConditions.SetAll();
 	Forget( bits_MEMORY_TURNING );
 
 /*
@@ -181,6 +195,48 @@ void CAI_BaseNPC::SetSchedule( CAI_Schedule *pNewSchedule )
 	}
 
 	ADD_DEBUG_HISTORY( HISTORY_AI_DECISIONS, UTIL_VarArgs("%s(%d): Schedule: %s (time: %.2f)\n", GetDebugName(), entindex(), pNewSchedule->GetName(), gpGlobals->curtime ) );
+
+#ifdef AI_MONITOR_FOR_OSCILLATION
+	if( m_bSelected )
+	{
+		AIScheduleChoice_t choice;
+		choice.m_flTimeSelected = gpGlobals->curtime;
+		choice.m_pScheduleSelected = pNewSchedule;
+		m_ScheduleHistory.AddToHead(choice);
+
+		if( m_ScheduleHistory.Count() > SCHEDULE_HISTORY_SIZE )
+		{
+			m_ScheduleHistory.Remove( SCHEDULE_HISTORY_SIZE );
+		}
+
+		assert( m_ScheduleHistory.Count() <= SCHEDULE_HISTORY_SIZE );
+
+		// No analysis until the vector is full!
+		if( m_ScheduleHistory.Count() == SCHEDULE_HISTORY_SIZE )
+		{
+			int		iNumSelections  = m_ScheduleHistory.Count();
+			float	flTimeSpan		= m_ScheduleHistory.Head().m_flTimeSelected - m_ScheduleHistory.Tail().m_flTimeSelected;
+			float	flSelectionsPerSecond = ((float)iNumSelections) / flTimeSpan;
+
+			Msg( "%d selections in %f seconds   (avg. %f selections per second)\n", iNumSelections, flTimeSpan, flSelectionsPerSecond );
+
+			if( flSelectionsPerSecond >=  8.0f )
+			{
+				DevMsg("\n\n %s is thrashing schedule selection:\n", GetDebugName() );
+
+				for( int i = 0 ; i < m_ScheduleHistory.Count() ; i++ )
+				{
+					AIScheduleChoice_t choice = m_ScheduleHistory[i];
+					Msg("--%s  %f\n", choice.m_pScheduleSelected->GetName(), choice.m_flTimeSelected );
+				}
+
+				Msg("\n");
+
+				CAI_BaseNPC::m_nDebugBits |= bits_debugDisableAI;
+			}
+		}
+	}
+#endif//AI_MONITOR_FOR_OSCILLATION
 }
 
 //=========================================================
@@ -228,20 +284,20 @@ void CAI_BaseNPC::BuildScheduleTestBits( void )
 // schedule is still the proper schedule to be executing,
 // taking into account all conditions
 //=========================================================
-bool CAI_BaseNPC::IsScheduleValid ( void )
+bool CAI_BaseNPC::IsScheduleValid()
 {
 	if ( GetCurSchedule() == NULL || GetCurSchedule()->NumTasks() == 0 )
 	{
-		// schedule is empty, and therefore not valid.
 		return false;
 	}
 
 	//Start out with the base schedule's set interrupt conditions
 	GetCurSchedule()->GetInterruptMask( &m_CustomInterruptConditions );
 
-	//Let the leaf class modify our interrupt test bits
-	//Don't allow any modifications when scripted
-	if ( m_NPCState != NPC_STATE_SCRIPT )
+	// Let the leaf class modify our interrupt test bits, but:
+	// - Don't allow any modifications when scripted
+	// - Don't modify interrupts for Schedules that set the COND_NO_CUSTOM_INTERRUPTS bit.
+	if ( m_NPCState != NPC_STATE_SCRIPT && !IsInLockedScene() && !m_CustomInterruptConditions.IsBitSet( COND_NO_CUSTOM_INTERRUPTS ) )
 	{
 		BuildScheduleTestBits();
 	}
@@ -265,14 +321,17 @@ bool CAI_BaseNPC::IsScheduleValid ( void )
 			// Find the first non-zero bit
 			for (int i=0;i<MAX_CONDITIONS;i++)
 			{
-				if (testBits.GetBit(i))
+				if (testBits.IsBitSet(i))
 				{
 					m_interruptText = ConditionName( AI_RemapToGlobal( i ) );
 					if (!m_interruptText)
 					{
+						m_interruptText = "(UNKNOWN CONDITION)";
+						/*
 						static const char *pError = "ERROR: Unknown condition!";
-						DevMsg("%s\n", pError);
+						DevMsg("%s (%s)\n", pError, GetDebugName());
 						m_interruptText = pError;
+						*/
 					}
 
 					if (m_debugOverlays & OVERLAY_TASK_TEXT_BIT)
@@ -281,8 +340,19 @@ bool CAI_BaseNPC::IsScheduleValid ( void )
 					}
 
 					ADD_DEBUG_HISTORY( HISTORY_AI_DECISIONS, UTIL_VarArgs("%s(%d):      Break condition -> %s\n", GetDebugName(), entindex(), m_interruptText ) );
+
 					break;
 				}
+			}
+			
+			if ( HasCondition( COND_NEW_ENEMY ) )
+			{
+				if (m_debugOverlays & OVERLAY_TASK_TEXT_BIT)
+				{
+					DevMsg( this, AIMF_IGNORE_SELECTED, "      New enemy: %s\n", GetEnemy() ? GetEnemy()->GetDebugName() : "<NULL>" );
+				}
+				
+				ADD_DEBUG_HISTORY( HISTORY_AI_DECISIONS, UTIL_VarArgs("%s(%d):      New enemy: %s\n", GetDebugName(), entindex(), GetEnemy() ? GetEnemy()->GetDebugName() : "<NULL>" ) );
 			}
 		}
 
@@ -462,9 +532,17 @@ static bool ShouldStopProcessingTasks( CAI_BaseNPC *pNPC, int taskTime, int time
 		return true;
 #endif
 
+	// Always stop processing if we've queued up a navigation query on the last task
+	if ( pNPC->IsNavigationDeferred() )
+		return true;
+
 	if ( AIStrongOpt() )
 	{
-		return ( pNPC->GetState() != NPC_STATE_SCRIPT && !pNPC->IsCurSchedule( SCHED_SCENE_GENERIC, false ) );
+		bool bInScript = ( pNPC->GetState() == NPC_STATE_SCRIPT || pNPC->IsCurSchedule( SCHED_SCENE_GENERIC, false ) );
+		
+		// We ran a costly task, don't do it again!
+		if ( pNPC->HasMemory( bits_MEMORY_TASK_EXPENSIVE ) && bInScript == false )
+			return true;
 	}
 
 	if ( taskTime > timeLimit )
@@ -493,12 +571,25 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 	int			i;
 	bool		runTask = true;
 
+#if defined( VPROF_ENABLED )
+#if defined(DISABLE_DEBUG_HISTORY)
+	bool bDebugTaskNames = ( developer.GetBool() || ( VProfAI() && g_VProfCurrentProfile.IsEnabled() ) );
+#else
+	bool bDebugTaskNames = true;
+#endif
+#else
+	bool bDebugTaskNames = false;
+#endif
+
 	memset( g_AITaskTimings, 0, sizeof(g_AITaskTimings) );
 	
 	g_nAITasksRun = 0;
 	
 	const int timeLimit = ( IsDebug() ) ? 16 : 8;
 	int taskTime = Plat_MSTime();
+
+	// Reset this at the beginning of the frame
+	Forget( bits_MEMORY_TASK_EXPENSIVE );
 
 	// UNDONE: Tune/fix this MAX_TASKS_RUN... This is just here so infinite loops are impossible
 	bool bStopProcessing = false;
@@ -508,6 +599,18 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 		{
 			// Schedule is valid, so advance to the next task if the current is complete.
 			NextScheduledTask();
+
+			// If we finished the current schedule, clear our ignored conditions so they
+			// aren't applied to the next schedule selection.
+			if ( HasCondition( COND_SCHEDULE_DONE ) )
+			{
+				// Put our conditions back the way they were after GatherConditions,
+				// but add in COND_SCHEDULE_DONE.
+				m_Conditions = m_ConditionsPreIgnore;
+				SetCondition( COND_SCHEDULE_DONE );
+
+				m_InverseIgnoreConditions.SetAll();
+			}
 
 			// --------------------------------------------------------
 			//	If debug stepping advance when I complete a task
@@ -526,6 +629,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 		if ( !IsScheduleValid() || m_NPCState != m_IdealNPCState )
 		{
 			// Notify the NPC that his schedule is changing
+			m_ScheduleState.bScheduleWasInterrupted = true;
 			OnScheduleChange();
 
 			if ( !HasCondition(COND_NPC_FREEZE) && ( !m_bConditionsGathered || m_bSkippedChooseEnemy ) )
@@ -554,7 +658,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 
 				pNewSchedule = GetFailSchedule();
 				m_IdealSchedule = pNewSchedule->GetId();
-				DevWarning( 2, "Schedule (%s) Failed at %d!\n", GetCurSchedule() ? GetCurSchedule()->GetName() : "GetCurSchedule() == NULL", GetScheduleCurTaskIndex() );
+				DevWarning( 2, "(%s) Schedule (%s) Failed at %d!\n", STRING( GetEntityName() ), GetCurSchedule() ? GetCurSchedule()->GetName() : "GetCurSchedule() == NULL", GetScheduleCurTaskIndex() );
 				SetSchedule( pNewSchedule );
 			}
 			else
@@ -607,7 +711,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 
 			g_AITaskTimings[curTiming].startTimer.Start();
 			const Task_t *pTask = GetTask();
-			const char *pszTaskName = TaskName( pTask->iTask );
+			const char *pszTaskName = ( bDebugTaskNames ) ? TaskName( pTask->iTask ) : "ai_task";
 			Assert( pTask != NULL );
 			g_AITaskTimings[i].pszTask = pszTaskName;
 
@@ -650,7 +754,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 			if ( TaskIsRunning() && !HasCondition(COND_TASK_FAILED) && runTask )
 			{
 				const Task_t *pTask = GetTask();
-				const char *pszTaskName = TaskName( pTask->iTask );
+				const char *pszTaskName = ( bDebugTaskNames ) ? TaskName( pTask->iTask ) : "ai_task";
 				Assert( pTask != NULL );
 				g_AITaskTimings[i].pszTask = pszTaskName;
 				// DevMsg( "%.2f RunTask( %s )\n", gpGlobals->curtime, m_pTaskSR->GetStringText( pTask->iTask ) );
@@ -704,6 +808,7 @@ void CAI_BaseNPC::MaintainSchedule ( void )
 
 		AI_PROFILE_SCOPE_END();
 
+		// Decide if we should continue on this frame
 		if ( !bStopProcessing && ShouldStopProcessingTasks( this, Plat_MSTime() - taskTime, timeLimit ) )
 			bStopProcessing = true;
 	}
@@ -978,14 +1083,23 @@ float CAI_BaseNPC::CalcReasonableFacing( bool bIgnoreOriginalFacing )
 float CAI_BaseNPC::GetReasonableFacingDist( void )
 {
 	if ( GetTask() && GetTask()->iTask == TASK_FACE_ENEMY )
-		return 3.5*12;
+	{
+		const float dist = 3.5*12;
+		if ( GetEnemy() )
+		{
+			float distEnemy = ( GetEnemy()->GetAbsOrigin().AsVector2D() - GetAbsOrigin().AsVector2D() ).Length() - 1.0; 
+			return min( distEnemy, dist );
+		}
+
+		return dist;
+	}
 	return 5*12;
 }
 
 //-----------------------------------------------------------------------------
 // TASK_SCRIPT_RUN_TO_TARGET / TASK_SCRIPT_WALK_TO_TARGET / TASK_SCRIPT_CUSTOM_MOVE_TO_TARGET
 //-----------------------------------------------------------------------------
-void CAI_BaseNPC::StartMoveToTargetTask( int task )
+void CAI_BaseNPC::StartScriptMoveToTargetTask( int task )
 {
 	Activity newActivity;
 
@@ -1017,9 +1131,8 @@ void CAI_BaseNPC::StartMoveToTargetTask( int task )
 
 		if ( ( newActivity != ACT_SCRIPT_CUSTOM_MOVE ) && TranslateActivity( newActivity ) == ACT_INVALID )
 		{
-			Assert( 0 );
 			// This NPC can't do this!
-			TaskComplete();
+			Assert( 0 );
 		}
 		else 
 		{
@@ -1048,6 +1161,15 @@ void CAI_BaseNPC::StartMoveToTargetTask( int task )
 					
 				if (!GetNavigator()->SetGoal( goal, AIN_DISCARD_IF_FAIL ))
 				{
+					if ( GetNavigator()->GetNavFailCounter() == 0 )
+					{
+						// no path was built, but OnNavFailed() did something so that next time it may work
+						DevWarning("%s %s failed Urgent Movement, retrying\n", GetDebugName(), TaskName( task ) );
+						return;
+					}
+
+					// FIXME: scripted sequences don't actually know how to handle failure, but we're failing.  This is serious
+					DevWarning("%s %s failed Urgent Movement, abandoning schedule\n", GetDebugName(), TaskName( task ) );
 					TaskFail(FAIL_NO_ROUTE);
 				}
 				else
@@ -1252,9 +1374,9 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			}
 
 			// E3 Hack
-			if (LookupPoseParameter( "move_yaw") >= 0)
+			if  ( HasPoseMoveYaw() ) 
 			{
-				SetPoseParameter( "move_yaw", 0 );
+				SetPoseParameter( m_poseMove_Yaw, 0 );
 			}
 		}
 		else
@@ -1599,7 +1721,7 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 	case TASK_SCRIPT_RUN_TO_TARGET:
 	case TASK_SCRIPT_WALK_TO_TARGET:
 	case TASK_SCRIPT_CUSTOM_MOVE_TO_TARGET:
-		StartMoveToTargetTask( pTask->iTask );
+		StartScriptMoveToTargetTask( pTask->iTask );
 		break;
 
 	case TASK_CLEAR_MOVE_WAIT:
@@ -1730,14 +1852,32 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 
 	case TASK_GET_PATH_TO_RANGE_ENEMY_LKP_LOS:
 		{
-			if ( GetActiveWeapon() && GetEnemy() )
+			if ( GetEnemy() )
 			{
-				float range = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
-				if ( pTask->flTaskData != 0 && pTask->flTaskData < range )
-					range = pTask->flTaskData;
-				float dist = EnemyDistance( GetEnemy() );
+				// Find out which range to use (either innately or a held weapon)
+				float flRange = -1.0f;
+				if ( CapabilitiesGet() & (bits_CAP_INNATE_RANGE_ATTACK1|bits_CAP_INNATE_RANGE_ATTACK2) )
+				{
+					flRange = InnateRange1MaxRange();
+				}
+				else if ( GetActiveWeapon() )
+				{
+					flRange = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
+				}
+				else
+				{
+					// You can't call this task without either innate range attacks or a weapon!
+					Assert( 0 );
+					TaskFail( FAIL_NO_ROUTE );
+				}
+
+				// Clamp to the specified range, if supplied
+				if ( pTask->flTaskData != 0 && pTask->flTaskData < flRange )
+					flRange = pTask->flTaskData;
+						
 				// For now, just try running straight at enemy
-				if ( dist <= range || GetNavigator()->SetVectorGoalFromTarget(GetEnemy()->GetAbsOrigin(), dist - range ) )
+				float dist = EnemyDistance( GetEnemy() );
+				if ( dist <= flRange || GetNavigator()->SetVectorGoalFromTarget( GetEnemy()->GetAbsOrigin(), dist - flRange ) )
 				{
 					TaskComplete();
 					break;
@@ -1749,6 +1889,8 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 		}
 	
 	case TASK_GET_PATH_TO_ENEMY_LOS:
+	case TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS:
+	case TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS:
 	case TASK_GET_PATH_TO_ENEMY_LKP_LOS:
 		{
 			if ( GetEnemy() == NULL )
@@ -1766,6 +1908,11 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 				flMaxRange = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
 				flMinRange = min( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
 			}
+			else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
+			{
+				flMaxRange = InnateRange1MaxRange();
+				flMinRange = InnateRange1MinRange();
+			}
 
 			//Check against NPC's max range
 			if ( flMaxRange > m_flDistTooFar )
@@ -1773,22 +1920,45 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 				flMaxRange = m_flDistTooFar;
 			}
 
-			Vector vecEnemy 	= ( task == TASK_GET_PATH_TO_ENEMY_LOS ) ? GetEnemy()->GetAbsOrigin() : GetEnemyLKP();
+			Vector vecEnemy 	= ( task != TASK_GET_PATH_TO_ENEMY_LKP ) ? GetEnemy()->GetAbsOrigin() : GetEnemyLKP();
 			Vector vecEnemyEye	= vecEnemy + GetEnemy()->GetViewOffset();
 
 			Vector posLos;
 			bool found = false;
 
-			if ( GetTacticalServices()->FindLateralLos( vecEnemyEye, &posLos ) )
+			if ( ( task != TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS ) && ( task != TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS ) )
 			{
-				float dist = ( posLos - vecEnemyEye ).Length();
-				if ( dist < flMaxRange && dist > flMinRange )
-					found = true;
+				if ( GetTacticalServices()->FindLateralLos( vecEnemyEye, &posLos ) )
+				{
+					float dist = ( posLos - vecEnemyEye ).Length();
+					if ( dist < flMaxRange && dist > flMinRange )
+						found = true;
+				}
 			}
-
-			if ( !found && GetTacticalServices()->FindLos( vecEnemy, vecEnemyEye, flMinRange, flMaxRange, 1.0, &posLos ) )
+			
+			if ( !found )
 			{
-				found = true;
+				FlankType_t eFlankType = FLANKTYPE_NONE;
+				Vector vecFlankRefPos = vec3_origin;
+				float flFlankParam = 0;
+			
+				if ( task == TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS )
+				{
+					eFlankType = FLANKTYPE_RADIUS;
+					vecFlankRefPos = m_vSavePosition;
+					flFlankParam = pTask->flTaskData;
+				}
+				else if ( task == TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS )
+				{
+					eFlankType = FLANKTYPE_ARC;
+					vecFlankRefPos = m_vSavePosition;
+					flFlankParam = pTask->flTaskData;
+				}
+
+				if ( GetTacticalServices()->FindLos( vecEnemy, vecEnemyEye, flMinRange, flMaxRange, 1.0, eFlankType, vecFlankRefPos, flFlankParam, &posLos ) )
+				{
+					found = true;
+				}
 			}
 
 			if ( !found )
@@ -1905,6 +2075,11 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 					{
 						flMaxRange = max( GetActiveWeapon()->m_fMaxRange1, GetActiveWeapon()->m_fMaxRange2 );
 						flMinRange = min( GetActiveWeapon()->m_fMinRange1, GetActiveWeapon()->m_fMinRange2 );
+					}
+					else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
+					{
+						flMaxRange = InnateRange1MaxRange();
+						flMinRange = InnateRange1MinRange();
 					}
 
 					// Check against NPC's max range
@@ -2052,10 +2227,15 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 	
 		float flMaxRange = 2000;
 		float flMinRange = 0;
-		if (GetActiveWeapon())
+		if ( GetActiveWeapon() )
 		{
 			flMaxRange = max(GetActiveWeapon()->m_fMaxRange1,GetActiveWeapon()->m_fMaxRange2);
 			flMinRange = min(GetActiveWeapon()->m_fMinRange1,GetActiveWeapon()->m_fMinRange2);
+		}
+		else if ( CapabilitiesGet() & bits_CAP_INNATE_RANGE_ATTACK1 )
+		{
+			flMaxRange = InnateRange1MaxRange();
+			flMinRange = InnateRange1MinRange();
 		}
 
 		// Check against NPC's max range
@@ -2267,10 +2447,8 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 
 	case TASK_GET_PATH_TO_BESTSOUND:
 		{
-			CSound *pSound;
 
-			pSound = GetBestSound();
-
+			CSound *pSound = GetBestSound();
 			if (!pSound)
 			{
 				TaskFail(FAIL_NO_SOUND);
@@ -2283,10 +2461,8 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 		}
 	case TASK_GET_PATH_TO_BESTSCENT:
 		{
-			CSound *pScent;
 
-			pScent = GetBestScent();
-
+			CSound *pScent = GetBestScent();
 			if (!pScent) 
 			{
 				TaskFail(FAIL_NO_SCENT);
@@ -2626,11 +2802,12 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			// won't be able to resume them after the sequence.
 			GetNavigator()->IgnoreStoppingPath();
 
-			if (HasMovement( GetSequence() ))
+			if ( HasMovement( GetSequence() ) || m_hCine->m_bIgnoreGravity )
 			{
 				AddFlag( FL_FLY );
 				SetGroundEntity( NULL );
 			}
+
 			if (m_hCine)
 			{
 				m_hCine->SynchronizeSequence( this );
@@ -2649,6 +2826,29 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			m_scriptState = SCRIPT_POST_IDLE;
 			break;
 		}
+
+	// This is the first task of every schedule driven by a scripted_sequence.
+	// Delay starting the sequence until all actors have hit their marks.
+	case TASK_PRE_SCRIPT:
+		{
+			if ( !ai_task_pre_script.GetBool() )
+			{
+				TaskComplete();
+			}
+			else if ( !m_hCine )
+			{
+				TaskComplete();
+				//DevMsg( "Scripted sequence destroyed while in use\n" );
+				//TaskFail( FAIL_SCHEDULE_NOT_FOUND );
+			}
+			else
+			{
+				m_hCine->DelayStart( true );
+				TaskComplete();
+			}
+			break;
+		}
+
 	case TASK_ENABLE_SCRIPT:
 		{
 			//
@@ -2710,6 +2910,9 @@ void CAI_BaseNPC::StartTask( const Task_t *pTask )
 			if ( m_scriptState != SCRIPT_CUSTOM_MOVE_TO_MARK )
 			{
 				SetTurnActivity();
+				
+				// dvs: HACK: MaintainActivity won't do anything while scripted, so go straight there.
+				SetActivity( GetIdealActivity() );
 			}
 
 			GetNavigator()->StopMoving();
@@ -2921,6 +3124,8 @@ void CAI_BaseNPC::StartTaskOverlay()
 //-----------------------------------------------------------------------------
 void CAI_BaseNPC::RunDieTask()
 {
+	AutoMovement();
+
 	if ( IsActivityFinished() && GetCycle() >= 1.0f )
 	{
 		m_lifeState = LIFE_DEAD;
@@ -3158,7 +3363,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 	case TASK_FACE_PLAYER:
 		{
 			// Get edict for one player
-			CBasePlayer *pPlayer = AI_GetSinglePlayer();
+			CBasePlayer *pPlayer = UTIL_GetNearestVisiblePlayer(this);
 			if ( pPlayer )
 			{
 				GetMotor()->SetIdealYawToTargetAndUpdate( pPlayer->GetAbsOrigin(), AI_KEEP_YAW_SPEED );
@@ -3201,7 +3406,9 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 						goal.maxInitialSimplificationDist = pBestSound->Volume() * 0.5;
 
 					if ( GetNavigator()->SetGoal( goal ) )
+					{
 						m_flMoveWaitFinished = gpGlobals->curtime + pTask->flTaskData;
+					}
 				}
 				break;
 			}
@@ -3331,17 +3538,21 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 					bForceRun = true;
 				}
 
-				// Re-evaluate when you think your finished, or the target has moved too far
-				if ( (distance < pTask->flTaskData) || (vecGoalPos - pTarget->GetAbsOrigin()).Length() > pTask->flTaskData * 0.5 )
+				// If we're jumping, wait until we're finished to update our goal position.
+				if ( GetNavigator()->GetNavType() != NAV_JUMP )
 				{
-					distance = ( pTarget->GetAbsOrigin() - GetLocalOrigin() ).Length2D();
-					if ( !GetNavigator()->UpdateGoalPos( pTarget->GetAbsOrigin() ) )
+					// Re-evaluate when you think your finished, or the target has moved too far
+					if ( (distance < pTask->flTaskData) || (vecGoalPos - pTarget->GetAbsOrigin()).Length() > pTask->flTaskData * 0.5 )
 					{
-						TaskFail( FAIL_NO_ROUTE );
-						break;
+						distance = ( pTarget->GetAbsOrigin() - GetLocalOrigin() ).Length2D();
+						if ( !GetNavigator()->UpdateGoalPos( pTarget->GetAbsOrigin() ) )
+						{
+							TaskFail( FAIL_NO_ROUTE );
+							break;
+						}
 					}
 				}
-
+				
 				// Set the appropriate activity based on an overlapping range
 				// overlap the range to prevent oscillation
 				// BUGBUG: this is checking linear distance (ie. through walls) and not path distance or even visibility
@@ -3367,13 +3578,26 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 						followActivity = ( distance < 190 && m_NPCState != NPC_STATE_COMBAT ) ? ACT_WALK : ACT_RUN;
 					}
 
-					GetNavigator()->SetMovementActivity(followActivity);
+					// Don't confuse move and shoot by resetting the activity every think
+					Activity curActivity = GetNavigator()->GetMovementActivity();
+					switch( curActivity )
+					{
+					case ACT_WALK_AIM:	curActivity = ACT_WALK;	break;
+					case ACT_RUN_AIM:	curActivity = ACT_RUN;	break;
+					}
+
+					if ( curActivity != followActivity )
+					{
+						GetNavigator()->SetMovementActivity(followActivity);
+					}
 					GetNavigator()->SetArrivalDirection( pTarget );
 				}
 			}
 			break;
 		}
 	case TASK_GET_PATH_TO_ENEMY_LOS:
+	case TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS:
+	case TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS:
 	case TASK_GET_PATH_TO_ENEMY_LKP_LOS:
 		{
 			if ( GetEnemy() == NULL )
@@ -3437,7 +3661,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 
 						if( pHint )
 						{
-							CBasePlayer *pPlayer = AI_GetSinglePlayer();
+							CBasePlayer *pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
 							Vector vecGoal = pHint->GetAbsOrigin();
 
 							if( vecGoal.DistToSqr(GetAbsOrigin()) < vecGoal.DistToSqr(pPlayer->GetAbsOrigin()) )
@@ -3452,7 +3676,23 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 						}
 					}
 
+#ifdef HL2_EPISODIC
+					// See if we're moving away from a vehicle
+					CSound *pBestSound = GetBestSound( SOUND_MOVE_AWAY );
+					if ( pBestSound && pBestSound->m_hOwner && pBestSound->m_hOwner->GetServerVehicle() )
+					{
+						// Move away from the vehicle's center, regardless of our facing
+						move = ( GetAbsOrigin() - pBestSound->m_hOwner->WorldSpaceCenter() );
+						VectorNormalize( move );
+					}
+					else
+					{
+						// Use the first angles
+						AngleVectors( ang, &move );
+					}
+#else
 					AngleVectors( ang, &move );
+#endif	//HL2_EPISODIC
 					if ( GetNavigator()->SetVectorGoal( move, (float)pTask->flTaskData, min(36,pTask->flTaskData), true ) && IsValidMoveAwayDest( GetNavigator()->GetGoalPos() ))
 					{
 						TaskComplete();
@@ -3607,6 +3847,12 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 		}
 		break;
 
+	case TASK_SCRIPT_RUN_TO_TARGET:
+	case TASK_SCRIPT_WALK_TO_TARGET:
+	case TASK_SCRIPT_CUSTOM_MOVE_TO_TARGET:
+		StartScriptMoveToTargetTask( pTask->iTask );
+		break;
+
 	case TASK_RANGE_ATTACK1:
 	case TASK_RANGE_ATTACK2:
 	case TASK_MELEE_ATTACK1:
@@ -3650,7 +3896,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 				// StartSequence() can call CineCleanup().  If that happened, just exit schedule
 				if ( !m_hCine )
 				{
-					ClearSchedule();
+					ClearSchedule( "Waiting for script, but lost script!" );
 				}
 
 				m_flPlaybackRate = 1.0;
@@ -3683,14 +3929,17 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 				// Check to see if we are done with the action sequence.
 				if ( m_hCine->FinishedActionSequence( this ) )
 				{
+					// dvs: This is done in FixScriptNPCSchedule -- doing it here is too early because we still
+					//      need to play our post-action idle sequence, which might also require FL_FLY.
+					//
 					// drop to ground if this guy is only marked "fly" because of the auto movement
-					if ( !(m_hCine->m_savedFlags & FL_FLY) )
+					/*if ( !(m_hCine->m_savedFlags & FL_FLY) )
 					{
-						if (HasMovement( GetSequence() ))
+						if ( ( GetFlags() & FL_FLY ) && !m_hCine->m_bIgnoreGravity )
 						{
 							RemoveFlag( FL_FLY );
 						}
-					}
+					}*/
 
 					if (m_hCine)
 					{
@@ -3748,7 +3997,7 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 		{
 			if (!IsInLockedScene())
 			{
-				ClearSchedule();
+				ClearSchedule( "Playing a scene, but not in a scene!" );
 			}
 			if (GetNavigator()->GetGoalType() != GOALTYPE_NONE)
 			{
@@ -3843,6 +4092,11 @@ void CAI_BaseNPC::RunTask( const Task_t *pTask )
 		if ( GetFlags() & FL_ONGROUND )
 		{
 			TaskComplete();
+		}
+		else if( GetFlags() & FL_FLY )
+		{
+			// We're never going to fall if we're FL_FLY.
+			RemoveFlag( FL_FLY );
 		}
 		else
 		{
@@ -4316,8 +4570,12 @@ int CAI_BaseNPC::SelectCombatSchedule()
 		if ( GetActiveWeapon() )
 			return SCHED_MOVE_TO_WEAPON_RANGE;
 
+		// If we have an innate attack and we're too far (or occluded) then get line of sight
+		if ( HasCondition( COND_TOO_FAR_TO_ATTACK ) && ( CapabilitiesGet() & (bits_CAP_INNATE_RANGE_ATTACK1|bits_CAP_INNATE_RANGE_ATTACK2)) )
+			return SCHED_MOVE_TO_WEAPON_RANGE;
+
 		// if we can see enemy but can't use either attack type, we must need to get closer to enemy
-		if ( CapabilitiesGet() & (bits_CAP_INNATE_MELEE_ATTACK1|bits_CAP_INNATE_MELEE_ATTACK2|bits_CAP_INNATE_RANGE_ATTACK1|bits_CAP_INNATE_RANGE_ATTACK2))
+		if ( CapabilitiesGet() & (bits_CAP_INNATE_MELEE_ATTACK1|bits_CAP_INNATE_MELEE_ATTACK2) )
 			return SCHED_CHASE_ENEMY;
 		else
 			return SCHED_TAKE_COVER_FROM_ENEMY;

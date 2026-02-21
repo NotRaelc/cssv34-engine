@@ -84,6 +84,7 @@ extern bool ActivityList_RegisterSharedActivity( const char *pszActivityName, in
 extern Activity ActivityList_RegisterPrivateActivity( const char *pszActivityName );
 extern int ActivityList_IndexForName( const char *pszActivityName );
 extern const char *ActivityList_NameForIndex( int iActivityIndex );
+extern int ActivityList_HighestIndex();
 
 // This macro guarantees that the names of each activity and the constant used to
 // reference it in the code are identical.

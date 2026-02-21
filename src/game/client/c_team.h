@@ -23,6 +23,7 @@ class C_Team : public C_BaseEntity
 	DECLARE_CLASS( C_Team, C_BaseEntity );
 public:
 	DECLARE_CLIENTCLASS();
+	DECLARE_PREDICTABLE();
 
 					C_Team();
 	virtual			~C_Team();
@@ -40,7 +41,12 @@ public:
 	virtual bool	ContainsPlayer( int iPlayerIndex );
 	C_BasePlayer*	GetPlayer( int idx );
 
-	int		GetTeamNumber();
+	// for shared code, use the same function name
+	virtual int		GetNumPlayers( void ) { return Get_Number_Players(); }
+
+	int		GetTeamNumber() const;
+
+	int		GetRoundsWon(void) { return m_iRoundsWon; }
 
 	void	RemoveAllPlayers();
 
@@ -57,6 +63,7 @@ public:
 	CUtlVector< int > m_aPlayers;
 	char	m_szTeamname[ MAX_TEAM_NAME_LENGTH ];
 	int		m_iScore;
+	int		m_iRoundsWon;
 
 	// Data for the scoreboard
 	int		m_iDeaths;
@@ -75,5 +82,6 @@ C_Team *GetGlobalTeam( int iTeamNumber );
 C_Team *GetPlayersTeam( int iPlayerIndex );
 C_Team *GetPlayersTeam( C_BasePlayer *pPlayer );
 bool ArePlayersOnSameTeam( int iPlayerIndex1, int iPlayerIndex2 );
+extern int GetNumberOfTeams( void );
 
 #endif // C_TEAM_H

@@ -11,8 +11,6 @@
 #pragma once
 #endif
 
-#include <vgui_controls/Frame.h>
-
 //-----------------------------------------------------------------------------
 // Purpose: Prompt for user to enter a password to be able to connect to the server
 //-----------------------------------------------------------------------------
@@ -32,9 +30,7 @@ public:
 	*/
 
 private:
-	virtual void PerformLayout();
 	virtual void OnCommand(const char *command);
-	virtual void OnClose();
 
 	vgui::Label *m_pInfoLabel;
 	vgui::Label *m_pGameLabel;

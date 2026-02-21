@@ -42,7 +42,7 @@ private:
 	void Disable( void );
 	void Enable( void );
 
-	void UpdatePlayersInPVS();
+	bool UpdatePlayersInPVS();
 
 
 public:
@@ -77,6 +77,10 @@ public:
 
 	CEnvSoundscapeProxy();
 	virtual void Activate();
+
+	// Here just to stop it falling back to CEnvSoundscape's, and
+	// printing bogus errors about missing soundscapes.
+	virtual void Precache() { return; }
 
 private:
 	string_t m_MainSoundscapeName;

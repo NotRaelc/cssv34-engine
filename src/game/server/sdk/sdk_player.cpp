@@ -34,6 +34,7 @@ public:
 
 	CNetworkHandle( CBasePlayer, m_hPlayer );
 	CNetworkVar( int, m_iEvent );
+	CNetworkVar( int, m_nData );
 };
 
 #define THROWGRENADE_COUNTER_BITS 3
@@ -41,16 +42,18 @@ public:
 IMPLEMENT_SERVERCLASS_ST_NOBASE( CTEPlayerAnimEvent, DT_TEPlayerAnimEvent )
 	SendPropEHandle( SENDINFO( m_hPlayer ) ),
 	SendPropInt( SENDINFO( m_iEvent ), Q_log2( PLAYERANIMEVENT_COUNT ) + 1, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO( m_nData ), 32 )
 END_SEND_TABLE()
 
 static CTEPlayerAnimEvent g_TEPlayerAnimEvent( "PlayerAnimEvent" );
 
-void TE_PlayerAnimEvent( CBasePlayer *pPlayer, PlayerAnimEvent_t event )
+void TE_PlayerAnimEvent( CBasePlayer *pPlayer, PlayerAnimEvent_t event, int nData )
 {
 	CPVSFilter filter( (const Vector&)pPlayer->EyePosition() );
 	
 	g_TEPlayerAnimEvent.m_hPlayer = pPlayer;
 	g_TEPlayerAnimEvent.m_iEvent = event;
+	g_TEPlayerAnimEvent.m_nData = nData;
 	g_TEPlayerAnimEvent.Create( filter, 0 );
 }
 
@@ -273,7 +276,7 @@ void CSDKPlayer::CreateRagdollEntity()
 	m_hRagdoll = pRagdoll;
 }
 
-void CSDKPlayer::DoAnimationEvent( PlayerAnimEvent_t event )
+void CSDKPlayer::DoAnimationEvent( PlayerAnimEvent_t event, int nData )
 {
 	if ( event == PLAYERANIMEVENT_THROW_GRENADE )
 	{
@@ -284,8 +287,8 @@ void CSDKPlayer::DoAnimationEvent( PlayerAnimEvent_t event )
 	}
 	else
 	{
-		m_PlayerAnimState->DoAnimationEvent( event );
-		TE_PlayerAnimEvent( this, event );	// Send to any clients who can see this guy.
+		m_PlayerAnimState->DoAnimationEvent( event, nData );
+		TE_PlayerAnimEvent( this, event, nData );	// Send to any clients who can see this guy.
 	}
 }
 

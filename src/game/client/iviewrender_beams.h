@@ -11,7 +11,7 @@
 #pragma once
 #endif
 
-#include "vector.h"
+#include "mathlib/vector.h"
 // common to server, too
 #include "beam_flags.h"
 #include "tempentity.h"
@@ -118,7 +118,7 @@ public:
 	// Updates the state of the temp ent beams
 	virtual void	UpdateTempEntBeams() = 0;
 
-	virtual void	DrawBeam( C_Beam* pbeam ) = 0;
+	virtual void	DrawBeam( C_Beam* pbeam, ITraceFilter *pEntityBeamTraceFilter = NULL ) = 0;
 	virtual void	DrawBeam( Beam_t *pbeam ) = 0;
 
 	virtual void	KillDeadBeams( CBaseEntity *pEnt ) = 0;

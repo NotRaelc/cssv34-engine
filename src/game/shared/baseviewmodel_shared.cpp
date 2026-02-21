@@ -18,6 +18,12 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+#if defined( CLIENT_DLL )
+	ConVar viewmodel_offset_x( "viewmodel_offset_x", "0.0", FCVAR_ARCHIVE, "the viewmodel offset from default in X" );
+	ConVar viewmodel_offset_y( "viewmodel_offset_y", "0.0", FCVAR_ARCHIVE, "the viewmodel offset from default in Y" );
+	ConVar viewmodel_offset_z( "viewmodel_offset_z", "0.0", FCVAR_ARCHIVE, "the viewmodel offset from default in Z" );
+#endif
+
 #define VIEWMODEL_ANIMATION_PARITY_BITS 3
 #define SCREEN_OVERLAY_MATERIAL "vgui/screens/vgui_overlay"
 
@@ -76,6 +82,14 @@ void CBaseViewModel::Spawn( void )
 
 
 #if defined ( CSTRIKE_DLL ) && !defined ( CLIENT_DLL )
+#define VGUI_CONTROL_PANELS
+#endif
+
+#if defined ( TF_DLL )
+#define VGUI_CONTROL_PANELS
+#endif
+
+#ifdef INVASION_DLL
 #define VGUI_CONTROL_PANELS
 #endif
 
@@ -204,6 +218,10 @@ void CBaseViewModel::SpawnControlPanels()
 		pScreen->SetActualSize( flWidth, flHeight );
 		pScreen->SetActive( false );
 		pScreen->MakeVisibleOnlyToTeammates( false );
+	
+#ifdef INVASION_DLL
+		pScreen->SetOverlayMaterial( SCREEN_OVERLAY_MATERIAL );
+#endif
 		pScreen->SetAttachedToViewModel( true );
 		int nScreen = m_hScreens.AddToTail( );
 		m_hScreens[nScreen].Set( pScreen );
@@ -255,6 +273,31 @@ int CBaseViewModel::ViewModelIndex( ) const
 	return m_nViewModelIndex;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Pass our visibility on to our child screens
+//-----------------------------------------------------------------------------
+void CBaseViewModel::AddEffects( int nEffects )
+{
+	if ( nEffects & EF_NODRAW )
+	{
+		SetControlPanelsActive( false );
+	}
+
+	BaseClass::AddEffects( nEffects );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Pass our visibility on to our child screens
+//-----------------------------------------------------------------------------
+void CBaseViewModel::RemoveEffects( int nEffects )
+{
+	if ( nEffects & EF_NODRAW )
+	{
+		SetControlPanelsActive( true );
+	}
+
+	BaseClass::RemoveEffects( nEffects );
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -340,6 +383,14 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 	QAngle vmangoriginal = eyeAngles;
 	QAngle vmangles = eyeAngles;
 	Vector vmorigin = eyePosition;
+	// add more commands to change these
+
+	Vector vecRight;
+	Vector vecUp;
+	Vector vecForward;
+	AngleVectors( vmangoriginal, &vecForward, &vecRight, &vecUp );
+	//Vector vecOffset = Vector( viewmodel_offset_x.GetFloat(), viewmodel_offset_y.GetFloat(), viewmodel_offset_z.GetFloat() ); 
+	vmorigin += (vecForward * viewmodel_offset_y.GetFloat()) + (vecUp * viewmodel_offset_z.GetFloat()) + (vecRight * viewmodel_offset_x.GetFloat());
 
 	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
 	//Allow weapon lagging
@@ -349,10 +400,14 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 		if ( !prediction->InPrediction() )
 #endif
 		{
+			// add weapon-specific bob 
 			pWeapon->AddViewmodelBob( this, vmorigin, vmangles );
-			CalcViewModelLag( vmorigin, vmangles, vmangoriginal );
 		}
 	}
+	// Add model-specific bob even if no weapon associated (for head bob for off hand models)
+	AddViewModelBob( owner, vmorigin, vmangles );
+	// Add lag
+	CalcViewModelLag( vmorigin, vmangles, vmangoriginal );
 
 #if defined( CLIENT_DLL )
 	if ( !prediction->InPrediction() )
@@ -371,10 +426,13 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-#define MAX_VIEWMODEL_LAG 1.5f
+float g_fMaxViewModelLag = 1.5f;
 
 void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& original_angles )
 {
+	Vector vOriginalOrigin = origin;
+	QAngle vOriginalAngles = angles;
+
 	// Calculate our drift
 	Vector	forward;
 	AngleVectors( angles, &forward, NULL, NULL );
@@ -384,18 +442,30 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 		Vector vDifference;
 		VectorSubtract( forward, m_vecLastFacing, vDifference );
 
-		if ( fabs( vDifference.x ) > MAX_VIEWMODEL_LAG ||
-			 fabs( vDifference.y ) > MAX_VIEWMODEL_LAG ||
-			 fabs( vDifference.z ) > MAX_VIEWMODEL_LAG )
+		float flSpeed = 5.0f;
+
+		// If we start to lag too far behind, we'll increase the "catch up" speed.  Solves the problem with fast cl_yawspeed, m_yaw or joysticks
+		//  rotating quickly.  The old code would slam lastfacing with origin causing the viewmodel to pop to a new position
+		float flDiff = vDifference.Length();
+		if ( (flDiff > g_fMaxViewModelLag) && (g_fMaxViewModelLag > 0.0f) )
 		{
-			m_vecLastFacing = forward;
+			float flScale = flDiff / g_fMaxViewModelLag;
+			flSpeed *= flScale;
 		}
 
 		// FIXME:  Needs to be predictable?
-		VectorMA( m_vecLastFacing, 5.0f * gpGlobals->frametime, vDifference, m_vecLastFacing );
+		VectorMA( m_vecLastFacing, flSpeed * gpGlobals->frametime, vDifference, m_vecLastFacing );
 		// Make sure it doesn't grow out of control!!!
 		VectorNormalize( m_vecLastFacing );
-		VectorMA( origin, 5, vDifference * -1, origin );
+
+		static ConVar viewmodel_lag_scale( "viewmodel_lag_scale", "1.0", FCVAR_ARCHIVE, "How much to scale the Viewmodel lag. Default of 5.0" );
+		static ConVar viewmodel_lag_dir( "viewmodel_lag_dir", "-1.0", FCVAR_ARCHIVE, "The Direction the Viewmodel goes when it lags" );
+
+		//VectorMA( origin, 5.0f, vDifference * -1.0f, origin );
+		VectorMA( origin, viewmodel_lag_scale.GetFloat(), vDifference * viewmodel_lag_dir.GetFloat(), origin );
+		//VectorMA( origin, 1.0f, vDifference * -1.0f, origin );
+
+		Assert( m_vecLastFacing.IsValid() );
 	}
 
 	Vector right, up;
@@ -406,6 +476,12 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 		pitch -= 360.0f;
 	else if ( pitch < -180.0f )
 		pitch += 360.0f;
+
+	if ( g_fMaxViewModelLag == 0.0f )
+	{
+		origin = vOriginalOrigin;
+		angles = vOriginalAngles;
+	}
 
 	//FIXME: These are the old settings that caused too many exposed polys on some models
 	VectorMA( origin, -pitch * 0.035f,	forward,	origin );
@@ -466,7 +542,9 @@ BEGIN_NETWORK_TABLE_NOBASE(CBaseViewModel, DT_BaseViewModel)
 	SendPropInt( SENDINFO( m_nResetEventsParity ), EF_PARITY_BITS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_nMuzzleFlashParity ), EF_MUZZLEFLASH_BITS, SPROP_UNSIGNED ),
 
+#if !defined( INVASION_DLL ) && !defined( INVASION_CLIENT_DLL )
 	SendPropArray	(SendPropFloat(SENDINFO_ARRAY(m_flPoseParameter),	8, 0, 0.0f, 1.0f), m_flPoseParameter),
+#endif
 #else
 	RecvPropInt		(RECVINFO(m_nModelIndex)),
 	RecvPropInt		(RECVINFO(m_nSkin)),
@@ -483,7 +561,9 @@ BEGIN_NETWORK_TABLE_NOBASE(CBaseViewModel, DT_BaseViewModel)
 	RecvPropInt( RECVINFO( m_nResetEventsParity )),
 	RecvPropInt( RECVINFO( m_nMuzzleFlashParity )),
 
+#if !defined( INVASION_DLL ) && !defined( INVASION_CLIENT_DLL )
 	RecvPropArray(RecvPropFloat(RECVINFO(m_flPoseParameter[0]) ), m_flPoseParameter ),
+#endif
 #endif
 END_NETWORK_TABLE()
 
@@ -492,7 +572,7 @@ END_NETWORK_TABLE()
 BEGIN_PREDICTION_DATA( CBaseViewModel )
 
 	// Networked
-	DEFINE_PRED_FIELD( m_nModelIndex, FIELD_INTEGER, FTYPEDESC_INSENDTABLE | FTYPEDESC_MODELINDEX ),
+	DEFINE_PRED_FIELD( m_nModelIndex, FIELD_SHORT, FTYPEDESC_INSENDTABLE | FTYPEDESC_MODELINDEX ),
 	DEFINE_PRED_FIELD( m_nSkin, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_nBody, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_nSequence, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
@@ -515,6 +595,8 @@ void RecvProxy_SequenceNum( const CRecvProxyData *pData, void *pStruct, void *pO
 	CBaseViewModel *model = (CBaseViewModel *)pStruct;
 	if (pData->m_Value.m_Int != model->GetSequence())
 	{
+		MDLCACHE_CRITICAL_SECTION();
+
 		model->SetSequence(pData->m_Value.m_Int);
 		model->m_flAnimTime = gpGlobals->curtime;
 		model->SetCycle(0);

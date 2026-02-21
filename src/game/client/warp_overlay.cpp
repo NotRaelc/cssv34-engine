@@ -41,6 +41,8 @@ void CWarpOverlay::Draw( bool bCacheFullSceneState )
 	if( m_flGlowObstructionScale == 0 )
 		return;
 	
+	CMatRenderContextPtr pRenderContext( materials );
+	
 	//FIXME: Allow multiple?
 	for( int iSprite=0; iSprite < m_nSprites; iSprite++ )
 	{
@@ -57,7 +59,7 @@ void CWarpOverlay::Draw( bool bCacheFullSceneState )
 
 		// Draw the sprite.
 		IMaterial *pMaterial = materials->FindMaterial( "sun/overlay", TEXTURE_GROUP_CLIENT_EFFECTS );
-		IMesh *pMesh = materials->GetDynamicMesh( false, 0, 0, pMaterial );
+		IMesh *pMesh = pRenderContext->GetDynamicMesh( false, 0, 0, pMaterial );
 
 		CMeshBuilder builder;
 		builder.Begin( pMesh, MATERIAL_QUADS, 1 );

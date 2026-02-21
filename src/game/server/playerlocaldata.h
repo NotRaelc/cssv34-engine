@@ -14,6 +14,7 @@
 
 #include "playernet_vars.h"
 #include "networkvar.h"
+#include "fogcontroller.h"
 
 //-----------------------------------------------------------------------------
 // Purpose: Player specific data ( sent only to local player, too )
@@ -76,8 +77,9 @@ public:
 
 	// 3d skybox
 	CNetworkVarEmbedded( sky3dparams_t, m_skybox3d );
-	// wold fog
-	CNetworkVarEmbedded( fogparams_t, m_fog );
+	// world fog
+	CNetworkVarEmbedded( fogplayerparams_t, m_PlayerFog );
+	fogparams_t			m_fog;
 	// audio environment
 	CNetworkVarEmbedded( audioparams_t, m_audio );
 

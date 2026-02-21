@@ -22,6 +22,10 @@ GLOBALESTATE GlobalEntity_GetState( int globalIndex );
 const char	*GlobalEntity_GetMap( int globalIndex );
 const char	*GlobalEntity_GetName( int globalIndex );
 
+int GlobalEntity_GetCounter( int globalIndex );
+void GlobalEntity_SetCounter( int globalIndex, int counter );
+int GlobalEntity_AddToCounter( int globalIndex, int delta );
+
 int			GlobalEntity_GetNumGlobals( void );
 void		GlobalEntity_EnableStateUpdates( bool bEnable );
 
@@ -63,6 +67,36 @@ inline GLOBALESTATE GlobalEntity_GetState( string_t globalname )
 inline GLOBALESTATE GlobalEntity_GetState( const char *pGlobalName )
 {
 	return GlobalEntity_GetState( GlobalEntity_GetIndex( pGlobalName ) );
+}
+
+inline int GlobalEntity_GetCounter( string_t globalname )
+{
+	return GlobalEntity_GetCounter( GlobalEntity_GetIndex( globalname ) );
+}
+
+inline int GlobalEntity_GetCounter( const char *pGlobalName )
+{
+	return GlobalEntity_GetCounter( GlobalEntity_GetIndex( pGlobalName ) );
+}
+
+inline void GlobalEntity_SetCounter( string_t globalname, int counter )
+{
+	GlobalEntity_SetCounter( GlobalEntity_GetIndex( globalname ), counter );
+}
+
+inline void GlobalEntity_SetCounter( const char *pGlobalName, int counter )
+{
+	GlobalEntity_SetCounter( GlobalEntity_GetIndex( pGlobalName ), counter );
+}
+
+inline int GlobalEntity_AddToCounter( string_t globalname, int delta )
+{
+	return GlobalEntity_AddToCounter( GlobalEntity_GetIndex( globalname ), delta );
+}
+
+inline int GlobalEntity_AddToCounter( const char *pGlobalName, int delta )
+{
+	return GlobalEntity_AddToCounter( GlobalEntity_GetIndex( pGlobalName ), delta );
 }
 
 inline GLOBALESTATE GlobalEntity_GetStateByIndex( int iIndex )

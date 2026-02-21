@@ -6,11 +6,14 @@
 #include "cbase.h"
 #include "isaverestore.h"
 #include "env_debughistory.h"
+#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 // Number of characters worth of debug to use per history category
+#define DEBUG_HISTORY_VERSION			6
+#define DEBUG_HISTORY_FIRST_VERSIONED	5
 #define MAX_DEBUG_HISTORY_LINE_LENGTH	256
 #define MAX_DEBUG_HISTORY_LENGTH		(1000 * MAX_DEBUG_HISTORY_LINE_LENGTH)
 
@@ -42,6 +45,10 @@ BEGIN_DATADESC( CDebugHistory )
 END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( env_debughistory, CDebugHistory );
+
+// The handle to the debug history singleton. Created on first access via GetDebugHistory.
+static CHandle< CDebugHistory >	s_DebugHistory;
+
 
 //-----------------------------------------------------------------------------
 // Spawn
@@ -76,6 +83,10 @@ void CDebugHistory::AddDebugHistoryLine( int iCategory, const char *szLine )
 		Warning("Attempted to add a debughistory line to category %d. Valid categories are %d to %d.\n", iCategory, 0, (MAX_HISTORY_CATEGORIES-1) );
 		return;
 	}
+	
+	// Don't do debug history before the singleton is properly set up.
+	if ( !m_DebugLineEnd[iCategory] )
+		return;
 
 	const char *pszRemaining = szLine;
 	int iCharsToWrite = strlen( pszRemaining ) + 1;	// Add 1 so that we copy the null terminator
@@ -201,6 +212,8 @@ void CDebugHistory::ClearHistories( void )
 //-----------------------------------------------------------------------------
 int CDebugHistory::Save( ISave &save )
 {
+	int iVersion = DEBUG_HISTORY_VERSION;
+	save.WriteInt( &iVersion );
 	int iMaxCategorys = MAX_HISTORY_CATEGORIES;
 	save.WriteInt( &iMaxCategorys );
 	for ( int iCategory = 0; iCategory < MAX_HISTORY_CATEGORIES; iCategory++ )
@@ -220,16 +233,32 @@ int CDebugHistory::Restore( IRestore &restore )
 {
 	ClearHistories();
 
-	int iMaxCategorys = restore.ReadInt();
-	for ( int iCategory = 0; iCategory < min(iMaxCategorys,MAX_HISTORY_CATEGORIES); iCategory++ )
+	int iVersion = restore.ReadInt();
+
+	if ( iVersion >= DEBUG_HISTORY_FIRST_VERSIONED )
 	{
-		int iEnd = restore.ReadInt();
-		m_DebugLineEnd[iCategory] = m_DebugLines[iCategory] + iEnd;
-		restore.ReadData( m_DebugLines[iCategory], sizeof(m_DebugLines[iCategory]), 0 );
+		int iMaxCategorys = restore.ReadInt();
+		for ( int iCategory = 0; iCategory < min(iMaxCategorys,MAX_HISTORY_CATEGORIES); iCategory++ )
+		{
+			int iEnd = restore.ReadInt();
+			m_DebugLineEnd[iCategory] = m_DebugLines[iCategory] + iEnd;
+			restore.ReadData( m_DebugLines[iCategory], sizeof(m_DebugLines[iCategory]), 0 );
+		}
+	}
+	else
+	{
+		int iMaxCategorys = iVersion;
+		for ( int iCategory = 0; iCategory < min(iMaxCategorys,MAX_HISTORY_CATEGORIES); iCategory++ )
+		{
+			int iEnd = restore.ReadInt();
+			m_DebugLineEnd[iCategory] = m_DebugLines[iCategory] + iEnd;
+			restore.ReadData( m_DebugLines[iCategory], sizeof(m_DebugLines[iCategory]), 0 );
+		}
 	}
 
 	return BaseClass::Restore(restore);
 }
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Singleton debug history.  Created by first usage.
@@ -239,10 +268,10 @@ CDebugHistory *GetDebugHistory()
 #ifdef DISABLE_DEBUG_HISTORY
 	return NULL;
 #endif
+
 	if ( g_pGameRules && g_pGameRules->IsMultiplayer() )
 		return NULL;
 
-	static CHandle< CDebugHistory >	s_DebugHistory;
 	if ( s_DebugHistory == NULL )
 	{
 		CBaseEntity *pEnt = gEntList.FindEntityByClassname( NULL, "env_debughistory" );
@@ -288,19 +317,16 @@ void AddDebugHistoryLine( int iCategory, const char *pszLine )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CC_DebugHistory_AddLine( void )
+void CC_DebugHistory_AddLine( const CCommand &args )
 {
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-	
-	if ( engine->Cmd_Argc() < 3 )
+	if ( args.ArgC() < 3 )
 	{
 		Warning("Incorrect parameters. Format: <category id> <line>\n");
 		return;
 	}
 
-	int iCategory = atoi(engine->Cmd_Argv( 1 ));
-	const char *pszLine = engine->Cmd_Argv( 2 );
+	int iCategory = atoi(args[ 1 ]);
+	const char *pszLine = args[ 2 ];
 	AddDebugHistoryLine( iCategory, pszLine );
 }
 static ConCommand dbghist_addline( "dbghist_addline", CC_DebugHistory_AddLine, "Add a line to the debug history. Format: <category id> <line>", FCVAR_NONE );
@@ -308,12 +334,9 @@ static ConCommand dbghist_addline( "dbghist_addline", CC_DebugHistory_AddLine, "
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CC_DebugHistory_Dump( void )
+void CC_DebugHistory_Dump( const CCommand &args )
 {
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-	
-	if ( engine->Cmd_Argc() < 2 )
+	if ( args.ArgC() < 2 )
 	{
 		Warning("Incorrect parameters. Format: <category id>\n");
 		return;
@@ -321,9 +344,18 @@ void CC_DebugHistory_Dump( void )
 
 	if ( GetDebugHistory() )
 	{
-		int iCategory = atoi(engine->Cmd_Argv( 1 ));
+		int iCategory = atoi(args[ 1 ]);
 		GetDebugHistory()->DumpDebugHistory( iCategory );
 	}
 }
-static ConCommand dbghist_dump("dbghist_dump", CC_DebugHistory_Dump, "Dump the debug history to the console. Format: <category id>", FCVAR_NONE );
+
+static ConCommand dbghist_dump("dbghist_dump", CC_DebugHistory_Dump, 
+							   "Dump the debug history to the console. Format: <category id>\n"
+							   "    Categories:\n"
+							   "     0: Entity I/O\n"
+							   "     1: AI Decisions\n"
+							   "     2: Scene Print\n"
+							   "     3: Alyx Blind\n"
+							   "     4: Log of damage done to player",
+							   FCVAR_NONE );
 

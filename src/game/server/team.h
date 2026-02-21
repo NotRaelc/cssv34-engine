@@ -39,7 +39,7 @@ public:
 	//-----------------------------------------------------------------------------
 	// Data Handling
 	//-----------------------------------------------------------------------------
-	virtual int			GetTeamNumber( void );
+	virtual int			GetTeamNumber( void ) const;
 	virtual const char *GetName( void );
 	virtual void		UpdateClientData( CBasePlayer *pPlayer );
 	virtual bool		ShouldTransmitToPlayer( CBasePlayer* pRecipient, CBaseEntity* pEntity );
@@ -67,6 +67,14 @@ public:
 	virtual void AddScore( int iScore );
 	virtual void SetScore( int iScore );
 	virtual int  GetScore( void );
+	virtual void ResetScores( void );
+
+	// Round scoring
+	virtual int GetRoundsWon( void ) { return m_iRoundsWon; }
+	virtual void SetRoundsWon( int iRounds ) { m_iRoundsWon = iRounds; }
+	virtual void IncrementRoundsWon( void ) { m_iRoundsWon++; }
+
+	void AwardAchievement( int iAchievement );
 
 public:
 	CUtlVector< CTeamSpawnPoint * > m_aSpawnPoints;
@@ -75,6 +83,7 @@ public:
 	// Data
 	CNetworkString( m_szTeamname, MAX_TEAM_NAME_LENGTH );
 	CNetworkVar( int, m_iScore );
+	CNetworkVar( int, m_iRoundsWon );
 	int		m_iDeaths;
 
 	// Spawnpoints

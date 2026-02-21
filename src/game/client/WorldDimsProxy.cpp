@@ -9,9 +9,13 @@
 #include "materialsystem/IMaterial.h"
 #include "materialsystem/IMaterialVar.h"
 #include "c_world.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+// forward declarations
+void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 class CWorldDimsProxy : public IMaterialProxy
 {
@@ -21,6 +25,7 @@ public:
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pC_BaseEntity );
 	virtual void Release( void ) { delete this; }
+	virtual IMaterial *GetMaterial();
 
 
 public:
@@ -56,6 +61,16 @@ void CWorldDimsProxy::OnBind( void *pC_BaseEntity )
 			m_pMaxsVar->SetVecValue( (const float*)&pWorld->m_WorldMaxs, 3 );
 		}
 	}
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
+}
+
+IMaterial *CWorldDimsProxy::GetMaterial()
+{
+	return m_pMinsVar->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CWorldDimsProxy, IMaterialProxy, "WorldDims" IMATERIAL_PROXY_INTERFACE_VERSION );

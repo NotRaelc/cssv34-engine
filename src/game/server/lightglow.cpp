@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -30,6 +30,7 @@ public:
 					
 	virtual void	Spawn( void );
 	virtual void	Activate( void );
+	virtual int		UpdateTransmitState( void );
 
 	void InputColor(inputdata_t &data);
 
@@ -44,6 +45,7 @@ public:
 	CNetworkVar( float, m_flHDRColorScale );
 };
 
+extern void SendProxy_Angles( const SendProp *pProp, const void *pStruct, const void *pData, DVariant *pOut, int iElement, int objectID );
 
 IMPLEMENT_SERVERCLASS_ST_NOBASE( CLightGlow, DT_LightGlow )
 	SendPropInt( SENDINFO(m_clrRender), 32, SPROP_UNSIGNED, SendProxy_Color32ToInt ),
@@ -97,6 +99,15 @@ void CLightGlow::Spawn( void )
 
 	// No model but we still need to force this!
 	AddEFlags( EFL_FORCE_CHECK_TRANSMIT );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Always transmit light glows to clients to avoid spikes as we enter
+//			or leave PVS. Done because we often have many glows in an area.
+//-----------------------------------------------------------------------------
+int CLightGlow::UpdateTransmitState( void )
+{
+	return SetTransmitState( FL_EDICT_ALWAYS );
 }
 
 //-----------------------------------------------------------------------------

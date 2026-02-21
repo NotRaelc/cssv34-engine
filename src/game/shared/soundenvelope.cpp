@@ -308,14 +308,9 @@ int CSoundPatch::g_SoundPatchCount = 0;
 
 CON_COMMAND( report_soundpatch, "reports sound patch count" )
 {
-#if defined(BUGFIXED) && !defined(CLIENT_DLL)
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-#endif
-	
 	Msg("Current sound patches: %d\n", CSoundPatch::g_SoundPatchCount );
 }
-DEFINE_FIXEDSIZE_ALLOCATOR( CSoundPatch, 64, CMemoryPool::GROW_FAST );
+DEFINE_FIXEDSIZE_ALLOCATOR( CSoundPatch, 64, CUtlMemoryPool::GROW_FAST );
 
 BEGIN_SIMPLE_DATADESC( CSoundPatch )
 
@@ -367,6 +362,8 @@ void CSoundPatch::Init( IRecipientFilter *pFilter, CBaseEntity *pEnt, int channe
 
 		pSoundName = params.soundname;
 		m_soundlevel = params.soundlevel;
+
+		m_entityChannel = params.channel;
 	}
 	else
 	{
@@ -665,7 +662,7 @@ struct SoundCommand_t
 };
 #include "tier0/memdbgon.h"
 
-DEFINE_FIXEDSIZE_ALLOCATOR( SoundCommand_t, 32, CMemoryPool::GROW_FAST );
+DEFINE_FIXEDSIZE_ALLOCATOR( SoundCommand_t, 32, CUtlMemoryPool::GROW_FAST );
 
 
 BEGIN_SIMPLE_DATADESC( SoundCommand_t )

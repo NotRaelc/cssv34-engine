@@ -25,7 +25,7 @@ public:
 
 	void	LevelInitPreEntity();
 	void	FrameUpdatePreEntityThink();
-	void	TriggerEvent( const char *pResponse, bool bForce = false );
+	void	TriggerEvent( const char *pResponse, bool bForce, bool bCancelScript );
 
 private:
 	float	m_flNextEventPoll;
@@ -35,6 +35,7 @@ private:
 		float	flEventTime;
 		float	flNextResponseTime;
 		bool	bForce;
+		bool	bCancelScript;
 		bool	bPreventExpiration;
 	};
 

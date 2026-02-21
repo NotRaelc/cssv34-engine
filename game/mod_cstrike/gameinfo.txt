@@ -38,7 +38,7 @@
 		SearchPaths
 		{
 			gamebin				|gameinfo_path|bin
-			game+mod			cstrike
+			game+mod			cstrikecontent
 
             		game				|gameinfo_path|.
 			game+mod			cstrike/custom/*
@@ -56,7 +56,7 @@
 			game				platform/hl2_patch.vpk
 			//game				platform/cstrike_patch //.vpk	
 
-            		game	 			cstrike
+            		game	 			cstrikecontent
 			game				hl2
 			platform			platform
 		}

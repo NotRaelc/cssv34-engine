@@ -101,6 +101,7 @@ public:
 
 		void Materialize();
 		void AttemptToMaterialize();
+		virtual void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
 
 		virtual bool IsRemoveable();
 		
@@ -138,6 +139,7 @@ public:
 	virtual bool IsSilenced( void ) const				{ return false; }
 
 	virtual void SetWeaponModelIndex( const char *pName );
+	virtual void OnPickedUp( CBaseCombatCharacter *pNewOwner );
 
 public:
 	#if defined( CLIENT_DLL )
@@ -194,7 +196,7 @@ public:
 	
 	void SetExtraAmmoCount( int count ) { m_iExtraPrimaryAmmo = count; }
 	int GetExtraAmmoCount( void ) { return m_iExtraPrimaryAmmo; }
-	void OnPickedUp( CBaseCombatCharacter *pNewOwner );
+
 private:
 
 	float	m_flDecreaseShotsFired;

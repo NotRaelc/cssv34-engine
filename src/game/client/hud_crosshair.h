@@ -27,6 +27,7 @@ class CHudCrosshair : public CHudElement, public vgui::Panel
 	DECLARE_CLASS_SIMPLE( CHudCrosshair, vgui::Panel );
 public:
 	CHudCrosshair( const char *pElementName );
+	virtual ~CHudCrosshair() {}
 
 	void			SetCrosshairAngle( const QAngle& angle );
 	void			SetCrosshair( CHudTexture *texture, Color& clr );
@@ -48,6 +49,8 @@ private:
 
 	QAngle			m_curViewAngles;
 	Vector			m_curViewOrigin;
+
+	CPanelAnimationVar( bool, m_bHideCrosshair, "never_draw", "false" );
 };
 
 

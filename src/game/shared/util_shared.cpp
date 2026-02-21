@@ -5,14 +5,15 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 #include "util_shared.h"
 #include "model_types.h"
 #include "convar.h"
 #include "IEffects.h"
 #include "vphysics/object_hash.h"
-#include "IceKey.H"
+#include "mathlib/IceKey.H"
 #include "checksum_crc.h"
+#include "particle_parse.h"
 
 #ifdef CLIENT_DLL
 	#include "c_te_effect_dispatch.h"
@@ -285,6 +286,8 @@ bool CTraceFilterSimple::ShouldHitEntity( IHandleEntity *pHandleEntity, int cont
 
 	// Don't test if the game code tells us we should ignore this collision...
 	CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+	if ( !pEntity )
+		return false;
 	if ( !pEntity->ShouldCollide( m_collisionGroup, contentsMask ) )
 		return false;
 	if ( pEntity && !g_pGameRules->ShouldCollide( m_collisionGroup, pEntity->GetCollisionGroup() ) )
@@ -296,11 +299,14 @@ bool CTraceFilterSimple::ShouldHitEntity( IHandleEntity *pHandleEntity, int cont
 //-----------------------------------------------------------------------------
 // Purpose: Trace filter that only hits NPCs and the player
 //-----------------------------------------------------------------------------
-bool CTraceFilterOnlyNPCsAndPlayer::ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask )
+bool CTraceFilterOnlyNPCsAndPlayer::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
 {
-	if ( CTraceFilterSimple::ShouldHitEntity(pServerEntity, contentsMask) )
+	if ( CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask ) )
 	{
-		CBaseEntity *pEntity = EntityFromEntityHandle( pServerEntity );
+		CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+		if ( !pEntity )
+			return false;
+
 #ifdef CSTRIKE_DLL
 #ifndef CLIENT_DLL
 		if ( pEntity->Classify() == CLASS_PLAYER_ALLY )
@@ -315,11 +321,13 @@ bool CTraceFilterOnlyNPCsAndPlayer::ShouldHitEntity( IHandleEntity *pServerEntit
 //-----------------------------------------------------------------------------
 // Purpose: Trace filter that only hits anything but NPCs and the player
 //-----------------------------------------------------------------------------
-bool CTraceFilterNoNPCsOrPlayer::ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask )
+bool CTraceFilterNoNPCsOrPlayer::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
 {
-	if ( CTraceFilterSimple::ShouldHitEntity(pServerEntity, contentsMask) )
+	if ( CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask ) )
 	{
-		CBaseEntity *pEntity = EntityFromEntityHandle( pServerEntity );
+		CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+		if ( !pEntity )
+			return NULL;
 #ifndef CLIENT_DLL
 		if ( pEntity->Classify() == CLASS_PLAYER_ALLY )
 			return false; // CS hostages are CLASS_PLAYER_ALLY but not IsNPC()
@@ -337,13 +345,13 @@ CTraceFilterSkipTwoEntities::CTraceFilterSkipTwoEntities( const IHandleEntity *p
 {
 }
 
-bool CTraceFilterSkipTwoEntities::ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask )
+bool CTraceFilterSkipTwoEntities::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
 {
-	Assert( pServerEntity );
-	if ( !PassServerEntityFilter( pServerEntity, m_pPassEnt2 ) )
+	Assert( pHandleEntity );
+	if ( !PassServerEntityFilter( pHandleEntity, m_pPassEnt2 ) )
 		return false;
 
-	return BaseClass::ShouldHitEntity( pServerEntity, contentsMask );
+	return BaseClass::ShouldHitEntity( pHandleEntity, contentsMask );
 }
 
 
@@ -388,14 +396,107 @@ CTraceFilterLOS::CTraceFilterLOS( IHandleEntity *pHandleEntity, int collisionGro
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-bool CTraceFilterLOS::ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask )
+bool CTraceFilterLOS::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
 {
-	CBaseEntity *pEntity = (CBaseEntity *)pServerEntity;
+	CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
 
 	if ( !pEntity->BlocksLOS() )
 		return false;
 
-	return CTraceFilterSimple::ShouldHitEntity( pServerEntity, contentsMask );
+	return CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask );
+}
+
+//-----------------------------------------------------------------------------
+// Trace filter that can take a classname to ignore
+//-----------------------------------------------------------------------------
+CTraceFilterSkipClassname::CTraceFilterSkipClassname( const IHandleEntity *passentity, const char *pchClassname, int collisionGroup ) :
+CTraceFilterSimple( passentity, collisionGroup ), m_pchClassname( pchClassname )
+{
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CTraceFilterSkipClassname::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+{
+	CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+	if ( !pEntity || FClassnameIs( pEntity, m_pchClassname ) )
+		return false;
+
+	return CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask );
+}
+
+//-----------------------------------------------------------------------------
+// Trace filter that skips two classnames
+//-----------------------------------------------------------------------------
+CTraceFilterSkipTwoClassnames::CTraceFilterSkipTwoClassnames( const IHandleEntity *passentity, const char *pchClassname, const char *pchClassname2, int collisionGroup ) :
+BaseClass( passentity, pchClassname, collisionGroup ), m_pchClassname2(pchClassname2)
+{
+}
+
+bool CTraceFilterSkipTwoClassnames::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+{
+	CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+	if ( !pEntity || FClassnameIs( pEntity, m_pchClassname2 ) )
+		return false;
+
+	return BaseClass::ShouldHitEntity( pHandleEntity, contentsMask );
+}
+
+//-----------------------------------------------------------------------------
+// Trace filter that can take a list of entities to ignore
+//-----------------------------------------------------------------------------
+CTraceFilterSimpleClassnameList::CTraceFilterSimpleClassnameList( const IHandleEntity *passentity, int collisionGroup ) :
+CTraceFilterSimple( passentity, collisionGroup )
+{
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CTraceFilterSimpleClassnameList::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+{
+	CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+	if ( !pEntity )
+		return false;
+
+	for ( int i = 0; i < m_PassClassnames.Count(); ++i )
+	{
+		if ( FClassnameIs( pEntity, m_PassClassnames[ i ] ) )
+			return false;
+	}
+
+	return CTraceFilterSimple::ShouldHitEntity( pHandleEntity, contentsMask );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Add an entity to my list of entities to ignore in the trace
+//-----------------------------------------------------------------------------
+void CTraceFilterSimpleClassnameList::AddClassnameToIgnore( const char *pchClassname )
+{
+	m_PassClassnames.AddToTail( pchClassname );
+}
+
+CTraceFilterChain::CTraceFilterChain( ITraceFilter *pTraceFilter1, ITraceFilter *pTraceFilter2 )
+{
+	m_pTraceFilter1 = pTraceFilter1;
+	m_pTraceFilter2 = pTraceFilter2;
+}
+
+bool CTraceFilterChain::ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+{
+	bool bResult1 = true;
+	bool bResult2 = true;
+
+	if ( m_pTraceFilter1 )
+		bResult1 = m_pTraceFilter1->ShouldHitEntity( pHandleEntity, contentsMask );
+
+	if ( m_pTraceFilter2 )
+		bResult2 = m_pTraceFilter2->ShouldHitEntity( pHandleEntity, contentsMask );
+
+	return ( bResult1 && bResult2 );
 }
 
 //-----------------------------------------------------------------------------
@@ -449,24 +550,25 @@ public:
 
 	bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
 	{
-		Assert( dynamic_cast<CBaseEntity*>(pHandleEntity) );
-		CBaseEntity *pTestEntity = static_cast<CBaseEntity*>(pHandleEntity);
+		CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+		if ( !pEntity )
+			return false;
 
 		// Check parents against each other
 		// NOTE: Don't let siblings/parents collide.
-		if ( UTIL_EntityHasMatchingRootParent( m_pRootParent, pTestEntity ) )
+		if ( UTIL_EntityHasMatchingRootParent( m_pRootParent, pEntity ) )
 			return false;
 
 		if ( m_checkHash )
 		{
-			if ( g_EntityCollisionHash->IsObjectPairInHash(m_pEntity, pTestEntity) )
+			if ( g_EntityCollisionHash->IsObjectPairInHash( m_pEntity, pEntity ) )
 				return false;
 		}
 
 #ifndef CLIENT_DLL
 		if ( m_pEntity->IsNPC() )
 		{
-			if ( NPC_CheckBrushExclude( m_pEntity, pTestEntity ) == true )
+			if ( NPC_CheckBrushExclude( m_pEntity, pEntity ) )
 				 return false;
 
 		}
@@ -515,32 +617,48 @@ void UTIL_TraceEntity( CBaseEntity *pEntity, const Vector &vecAbsStart, const Ve
 	Assert( pCollision->GetCollisionAngles() == vec3_angle );
 
 	CTraceFilterEntity traceFilter( pEntity, pCollision->GetCollisionGroup() );
+
+#ifdef PORTAL
+	UTIL_Portal_TraceEntity( pEntity, vecAbsStart, vecAbsEnd, mask, &traceFilter, ptr );
+#else
 	enginetrace->SweepCollideable( pCollision, vecAbsStart, vecAbsEnd, pCollision->GetCollisionAngles(), mask, &traceFilter, ptr );
+#endif
 }
 
 void UTIL_TraceEntity( CBaseEntity *pEntity, const Vector &vecAbsStart, const Vector &vecAbsEnd, 
 					  unsigned int mask, const IHandleEntity *pIgnore, int nCollisionGroup, trace_t *ptr )
 {
-	ICollideable *pCollision = pEntity->GetCollideable();
+	ICollideable *pCollision;
+	pCollision = pEntity->GetCollideable();
 
 	// Adding this assertion here so game code catches it, but really the assertion belongs in the engine
 	// because one day, rotated collideables will work!
 	Assert( pCollision->GetCollisionAngles() == vec3_angle );
 
 	CTraceFilterEntityIgnoreOther traceFilter( pEntity, pIgnore, nCollisionGroup );
+
+#ifdef PORTAL
+ 	UTIL_Portal_TraceEntity( pEntity, vecAbsStart, vecAbsEnd, mask, &traceFilter, ptr );
+#else
 	enginetrace->SweepCollideable( pCollision, vecAbsStart, vecAbsEnd, pCollision->GetCollisionAngles(), mask, &traceFilter, ptr );
+#endif
 }
 
 void UTIL_TraceEntity( CBaseEntity *pEntity, const Vector &vecAbsStart, const Vector &vecAbsEnd, 
 					  unsigned int mask, ITraceFilter *pFilter, trace_t *ptr )
 {
-	ICollideable *pCollision = pEntity->GetCollideable();
+	ICollideable *pCollision;
+	pCollision = pEntity->GetCollideable();
 
 	// Adding this assertion here so game code catches it, but really the assertion belongs in the engine
 	// because one day, rotated collideables will work!
 	Assert( pCollision->GetCollisionAngles() == vec3_angle );
 
+#ifdef PORTAL
+	UTIL_Portal_TraceEntity( pEntity, vecAbsStart, vecAbsEnd, mask, pFilter, ptr );
+#else
 	enginetrace->SweepCollideable( pCollision, vecAbsStart, vecAbsEnd, pCollision->GetCollisionAngles(), mask, pFilter, ptr );
+#endif
 }
 
 // ----
@@ -590,12 +708,21 @@ void UTIL_ClipTraceToPlayers( const Vector& vecAbsStart, const Vector& vecAbsEnd
 	}
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Make a tracer using a particle effect
+//-----------------------------------------------------------------------------
+void UTIL_ParticleTracer( const char *pszTracerEffectName, const Vector &vecStart, const Vector &vecEnd, 
+				 int iEntIndex, int iAttachment, bool bWhiz )
+{
+	int iParticleIndex = GetParticleSystemIndex( pszTracerEffectName );
+	UTIL_Tracer( vecStart, vecEnd, iEntIndex, iAttachment, 0, bWhiz, "ParticleTracer", iParticleIndex );
+}
 
 //-----------------------------------------------------------------------------
-// Purpose: Make a tracer effect
+// Purpose: Make a tracer effect using the old, non-particle system, tracer effects.
 //-----------------------------------------------------------------------------
 void UTIL_Tracer( const Vector &vecStart, const Vector &vecEnd, int iEntIndex, 
-				 int iAttachment, float flVelocity, bool bWhiz, const char *pCustomTracerName )
+				 int iAttachment, float flVelocity, bool bWhiz, const char *pCustomTracerName, int iParticleID )
 {
 	CEffectData data;
 	data.m_vStart = vecStart;
@@ -606,17 +733,18 @@ void UTIL_Tracer( const Vector &vecStart, const Vector &vecEnd, int iEntIndex,
 	data.m_nEntIndex = iEntIndex;
 #endif
 	data.m_flScale = flVelocity;
+	data.m_nHitBox = iParticleID;
 
 	// Flags
 	if ( bWhiz )
 	{
 		data.m_fFlags |= TRACER_FLAG_WHIZ;
 	}
+
 	if ( iAttachment != TRACER_DONT_USE_ATTACHMENT )
 	{
 		data.m_fFlags |= TRACER_FLAG_USEATTACHMENT;
-		// Stomp the start, since it's not going to be used anyway
-		data.m_nAttachmentIndex = 1;
+		data.m_nAttachmentIndex = iAttachment;
 	}
 
 	// Fire it off
@@ -676,10 +804,13 @@ static ConVar	violence_agibs( "violence_agibs","1", 0, "Show alien gib entities"
 
 bool UTIL_IsLowViolence( void )
 {
+	// These convars are no longer necessary -- the engine is the final arbiter of
+	// violence settings -- but they're here for legacy support and for testing low
+	// violence when the engine is in normal violence mode.
 	if ( !violence_hblood.GetBool() || !violence_ablood.GetBool() || !violence_hgibs.GetBool() || !violence_agibs.GetBool() )
 		return true;
 
-	return false;
+	return engine->IsLowViolence();
 }
 
 bool UTIL_ShouldShowBlood( int color )
@@ -882,3 +1013,23 @@ float CountdownTimer::Now( void ) const
 		return ToBasePlayer( ClientEntityList().GetEnt( entindex ) );
 	}
 #endif
+
+
+unsigned short UTIL_GetAchievementEventMask( void )
+{
+	CRC32_t mapCRC;
+	CRC32_Init( &mapCRC );
+
+	char lowercase[ 256 ];
+#ifdef CLIENT_DLL
+	Q_FileBase( engine->GetLevelName(), lowercase, sizeof( lowercase ) );
+#else
+	Q_strncpy( lowercase, STRING( gpGlobals->mapname ), sizeof( lowercase ) );
+#endif
+	Q_strlower( lowercase );
+
+	CRC32_ProcessBuffer( &mapCRC, lowercase, Q_strlen( lowercase ) );
+	CRC32_Final( &mapCRC );
+
+	return ( mapCRC & 0xFFFF );
+}

@@ -23,6 +23,7 @@ DECLARE_POINTER_HANDLE(AISquadsIter_t);
 DECLARE_POINTER_HANDLE(AISquadIter_t);
 
 #define	MAX_SQUAD_MEMBERS	16
+#define MAX_SQUAD_DATA_SLOTS 4
 
 //-----------------------------------------------------------------------------
 // CAI_SquadManager
@@ -68,7 +69,7 @@ extern CAI_SquadManager g_AI_SquadManager;
 struct AISquadEnemyInfo_t
 {
 	EHANDLE 						hEnemy;
-	CFixedBitString<MAX_SQUADSLOTS>	slots;									// What squad slots are filled?
+	CBitVec<MAX_SQUADSLOTS>	slots;									// What squad slots are filled?
 
 	DECLARE_SIMPLE_DATADESC();
 };
@@ -125,6 +126,27 @@ public:
 
 	static bool				IsSilentMember( const CAI_BaseNPC *pNPC );
 
+	template <typename T>
+	void					SetSquadData( unsigned slot, const T &data )
+	{
+		Assert( slot < MAX_SQUAD_DATA_SLOTS );
+		if ( slot < MAX_SQUAD_DATA_SLOTS )
+		{
+			m_SquadData[slot] = *((int *)&data);
+		}
+	}
+
+	template <typename T>
+	void					GetSquadData( unsigned slot, T *pData )
+	{
+		Assert( slot < MAX_SQUAD_DATA_SLOTS );
+		if ( slot < MAX_SQUAD_DATA_SLOTS )
+		{
+			*pData = *((T *)&m_SquadData[slot]);
+		}
+	}
+
+
 private:
 	void OccupySlot( CBaseEntity *pEnemy, int i );
 	void VacateSlot( CBaseEntity *pEnemy, int i );
@@ -152,6 +174,8 @@ private:
 
 	EHANDLE											m_hSquadInflictor;
 
+	int												m_SquadData[MAX_SQUAD_DATA_SLOTS];
+
 #ifdef PER_ENEMY_SQUADSLOTS
 
 	AISquadEnemyInfo_t *FindEnemyInfo( CBaseEntity *pEnemy );
@@ -164,7 +188,7 @@ private:
 
 #else
 	
-	CBitString	m_squadSlotsUsed;							// What squad slots are filled?
+	CVarBitVec	m_squadSlotsUsed;							// What squad slots are filled?
 
 #endif
 

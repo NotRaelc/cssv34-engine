@@ -15,6 +15,7 @@
 #include "hltvcamera.h"
 #include "tier1/KeyValues.h"
 #include "toolframework/itoolframework.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -75,11 +76,15 @@ void C_BaseCombatWeapon::NotifyShouldTransmit( ShouldTransmitState_t state )
 
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: To wrap PORTAL mod specific functionality into one place
 //-----------------------------------------------------------------------------
 static inline bool ShouldDrawLocalPlayer( void )
 {
+#if defined( PORTAL )
+	return true;
+#else
 	return C_BasePlayer::ShouldDrawLocalPlayer();
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -140,11 +145,8 @@ void C_BaseCombatWeapon::OnDataChanged( DataUpdateType_t updateType )
 	}
 	else // weapon carried by other player or not at all
 	{
-		// BRJ 10/14/02
-		// FIXME: Remove when Yahn's client-side prediction is done
-		// It's a hacky workaround for the model indices fighting
-		// (GetRenderBounds uses the model index, which is for the view model)
-		SetModelIndex( GetWorldModelIndex() );
+		// See comment below
+		EnsureCorrectRenderingModel();
 	}
 
 	UpdateVisibility();
@@ -178,6 +180,9 @@ bool C_BaseCombatWeapon::IsCarrierAlive() const
 //-----------------------------------------------------------------------------
 ShadowType_t C_BaseCombatWeapon::ShadowCastType()
 {
+	if ( IsEffectActive( /*EF_NODRAW |*/ EF_NOSHADOW ) )
+		return SHADOWS_NONE;
+
 	if (!IsBeingCarried())
 		return SHADOWS_RENDER_TO_TEXTURE;
 
@@ -242,15 +247,6 @@ void C_BaseCombatWeapon::DrawCrosshair()
 	CHudCrosshair *crosshair = GET_HUDELEMENT( CHudCrosshair );
 	if ( !crosshair )
 		return;
-
-	// Check to see if the player is in VGUI mode...
-	if (player->IsInVGuiInputMode())
-	{
-		CHudTexture *pArrow	= gHUD.GetIcon( "arrow" );
-
-		crosshair->SetCrosshair( pArrow, gHUD.m_clrNormal );
-		return;
-	}
 
 	// Find out if this weapon's auto-aimed onto a target
 	bool bOnTarget = ( m_iState == WEAPON_IS_ONTARGET );
@@ -425,6 +421,9 @@ bool C_BaseCombatWeapon::ShouldDraw( void )
 //-----------------------------------------------------------------------------
 bool C_BaseCombatWeapon::ShouldDrawPickup( void )
 {
+	if ( GetWeaponFlags() & ITEM_FLAG_NOITEMPICKUP )
+		return false;
+
 	if ( m_bJustRestored )
 		return false;
 
@@ -458,7 +457,38 @@ int C_BaseCombatWeapon::DrawModel( int flags )
 			return false;
 	}
 
+	// See comment below
+	EnsureCorrectRenderingModel();
+
 	return BaseClass::DrawModel( flags );
+}
+
+// If the local player is visible (thirdperson mode, tf2 taunts, etc., then make sure that we are using the 
+//  w_ (world) model not the v_ (view) model or else the model can flicker, etc.
+// Otherwise, if we're not the local player, always use the world model
+void C_BaseCombatWeapon::EnsureCorrectRenderingModel()
+{
+	C_BasePlayer *localplayer = C_BasePlayer::GetLocalPlayer();
+	if ( localplayer && 
+		localplayer == GetOwner() &&
+		!ShouldDrawLocalPlayer() )
+	{
+		return;
+	}
+
+	// BRJ 10/14/02
+	// FIXME: Remove when Yahn's client-side prediction is done
+	// It's a hacky workaround for the model indices fighting
+	// (GetRenderBounds uses the model index, which is for the view model)
+	SetModelIndex( GetWorldModelIndex() );
+
+	// Validate our current sequence just in case ( in theory the view and weapon models should have the same sequences for sequences that overlap at least )
+	CStudioHdr *pStudioHdr = GetModelPtr();
+	if ( pStudioHdr && 
+		GetSequence() >= pStudioHdr->GetNumSeq() )
+	{
+		SetSequence( 0 );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -478,15 +508,19 @@ void C_BaseCombatWeapon::GetToolRecordingState( KeyValues *msg )
 
 	BaseClass::GetToolRecordingState( msg );
 
-	if ( m_iState == WEAPON_IS_ACTIVE )
+	if ( m_iState == WEAPON_NOT_CARRIED )
 	{
 		BaseEntityRecordingState_t *pBaseEntity = (BaseEntityRecordingState_t*)msg->GetPtr( "baseentity" );
-		pBaseEntity->m_bVisible = true;
+		pBaseEntity->m_nOwner = -1;
 	}
-	else if ( m_iState == WEAPON_NOT_CARRIED )
+	else
 	{
-		BaseEntityRecordingState_t *pBaseEntity = (BaseEntityRecordingState_t*)msg->GetPtr( "baseentity" );
-		pBaseEntity->m_nOwner = 0;
+		msg->SetInt( "worldmodel", 1 );
+		if ( m_iState == WEAPON_IS_ACTIVE )
+		{
+			BaseEntityRecordingState_t *pBaseEntity = (BaseEntityRecordingState_t*)msg->GetPtr( "baseentity" );
+			pBaseEntity->m_bVisible = true;
+		}
 	}
 
 	if ( nModelIndex != nWorldModelIndex )

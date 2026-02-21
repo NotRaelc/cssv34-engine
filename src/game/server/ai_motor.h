@@ -60,7 +60,7 @@ public:
 	AIMoveResult_t 		MoveNormalExecute( const AILocalMoveGoal_t &move );
 
 	virtual void 		MoveClimbStart( const Vector &climbDest, const Vector &climbDir, float climbDist, float yaw );
-	virtual AIMoveResult_t MoveClimbExecute( const Vector &climbDest, const Vector &climbDir, float climbDist, float yaw );
+	virtual AIMoveResult_t MoveClimbExecute( const Vector &climbDest, const Vector &climbDir, float climbDist, float yaw, int climbNodesLeft );
 	virtual void 		MoveClimbStop();
 
 	//---------------------------------
@@ -164,10 +164,13 @@ protected:
 	float				CalcIdealYaw( const Vector &vecTarget );
 	float				SetBoneController ( int iController, float flValue );
 	float 				GetSequenceMoveYaw( int iSequence );
+	void				SetPlaybackRate( float flRate );
 	float				GetPlaybackRate(); //get
 	float				SetPoseParameter( const char *szName, float flValue );
+	float				SetPoseParameter( int iParameter, float flValue );
 	float				GetPoseParameter( const char *szName );
 	bool				HasPoseParameter( int iSequence, const char *szName );
+	bool				HasPoseParameter( int iSequence, int iParameter );
 	void				SetMoveType( MoveType_t val, MoveCollide_t moveCollide = MOVECOLLIDE_DEFAULT );
 	float				StepHeight() const;
 	bool				CanStandOn( CBaseEntity *pSurface ) const;

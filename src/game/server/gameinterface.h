@@ -12,6 +12,8 @@
 #pragma once
 #endif
 
+#include "mapentities.h"
+
 extern INetworkStringTable *g_pStringTableInfoPanel;
 
 // Player / Client related functions
@@ -23,7 +25,7 @@ public:
 	virtual void			ClientActive( edict_t *pEntity, bool bLoadGame );
 	virtual void			ClientDisconnect( edict_t *pEntity );
 	virtual void			ClientPutInServer( edict_t *pEntity, const char *playername );
-	virtual void			ClientCommand( edict_t *pEntity );
+	virtual void			ClientCommand( edict_t *pEntity, const CCommand &args );
 	virtual void			ClientSettingsChanged( edict_t *pEntity );
 	virtual void			ClientSetupVisibility( edict_t *pViewEntity, edict_t *pClient, unsigned char *pvs, int pvssize );
 	virtual float			ProcessUsercmds( edict_t *player, bf_read *buf, int numcmds, int totalcmds,
@@ -76,8 +78,7 @@ public:
 
 	virtual void			PreSave( CSaveRestoreData * );
 	virtual void			Save( CSaveRestoreData * );
-	virtual void			GetSaveComment( char *comment, int maxlength ) { return GetSaveCommentEx( comment, maxlength, 0, 0 ); }
-	virtual void			GetSaveCommentEx( char *comment, int maxlength, float flMinutes, float flSeconds );
+	virtual void			GetSaveComment( char *comment, int maxlength, float flMinutes, float flSeconds, bool bNoTime = false );
 #ifdef _XBOX
 	virtual void			GetTitleName( const char *pMapName, char* pTitleBuff, int titleBuffSize );
 #endif
@@ -94,10 +95,19 @@ public:
 
 	virtual void			PostInit();
 	virtual void			Think( bool finalTick );
-	
+
 	virtual void			OnQueryCvarValueFinished( QueryCvarCookie_t iCookie, edict_t *pPlayerEntity, EQueryCvarValueStatus eStatus, const char *pCvarName, const char *pCvarValue );
 
+	virtual void			PreSaveGameLoaded( char const *pSaveName, bool bInGame );
+
+	// Returns true if the game DLL wants the server not to be made public.
+	// Used by commentary system to hide multiplayer commentary servers from the master.
+	virtual bool			ShouldHideServer( void );
+
+	virtual void			InvalidateMdlCache();
+
 	float	m_fAutoSaveDangerousTime;
+	float	m_fAutoSaveDangerousMinHealthToCommit;
 
 private:
 
@@ -114,6 +124,52 @@ typedef CBasePlayer* (*ClientPutInServerOverrideFn)( edict_t *pEdict, const char
 
 void ClientPutInServerOverride( ClientPutInServerOverrideFn fn );
 
+// -------------------------------------------------------------------------------------------- //
+// Entity list management stuff.
+// -------------------------------------------------------------------------------------------- //
+// These are created for map entities in order as the map entities are spawned.
+class CMapEntityRef
+{
+public:
+	int		m_iEdict;			// Which edict slot this entity got. -1 if CreateEntityByName failed.
+	int		m_iSerialNumber;	// The edict serial number. TODO used anywhere ?
+};
+
+extern CUtlLinkedList<CMapEntityRef, unsigned short> g_MapEntityRefs;
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+class CMapLoadEntityFilter : public IMapEntityFilter
+{
+public:
+	virtual bool ShouldCreateEntity( const char *pClassname )
+	{
+		// During map load, create all the entities.
+		return true;
+	}
+
+	virtual CBaseEntity* CreateNextEntity( const char *pClassname )
+	{
+		CBaseEntity *pRet = CreateEntityByName( pClassname );
+
+		CMapEntityRef ref;
+		ref.m_iEdict = -1;
+		ref.m_iSerialNumber = -1;
+
+		if ( pRet )
+		{
+			ref.m_iEdict = pRet->entindex();
+			if ( pRet->edict() )
+				ref.m_iSerialNumber = pRet->edict()->m_NetworkSerialNumber;
+		}
+
+		g_MapEntityRefs.AddToTail( ref );
+		return pRet;
+	}
+};
+
+bool IsEngineThreaded();
 
 #endif // GAMEINTERFACE_H
 

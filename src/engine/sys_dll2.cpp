@@ -55,7 +55,6 @@
 #include "vgui_controls/controls.h"
 #include "igameuifuncs.h"
 #include "cl_steamauth.h"
-
 #endif // SWDS
 
 #if defined(_WIN32)
@@ -106,10 +105,6 @@ void EditorToggle_f();
 #ifdef _WIN32
 HWND *pmainwindow = NULL;
 #endif
-
-enum {
-	k_uAppIdInvalid = 0
-};
 
 //-----------------------------------------------------------------------------
 // Purpose: Attempt to initialize appid/steam.inf/minidump information. May only return partial information if called

@@ -11,9 +11,13 @@
 #include "materialsystem/ITexture.h"
 #include <KeyValues.h>
 #include "FunctionProxy.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+// forward declarations
+void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 EXPOSE_INTERFACE( CBaseToggleTextureProxy, IMaterialProxy, "ToggleTexture" IMATERIAL_PROXY_INTERFACE_VERSION );
 
@@ -109,4 +113,14 @@ void CBaseToggleTextureProxy::OnBind( void *pC_BaseEntity )
 	}
 		
 	m_TextureFrameNumVar->SetIntValue( intFrame );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
+}
+
+IMaterial *CBaseToggleTextureProxy::GetMaterial()
+{
+	return m_TextureFrameNumVar->GetOwningMaterial();
 }

@@ -12,7 +12,6 @@
 
 
 class IMaterialVar;
-enum MaterialVarType_t;
 
 //-----------------------------------------------------------------------------
 // Base class all material proxies should inherit from
@@ -24,7 +23,7 @@ public:
 	void OnBind( void *pC_BaseEntity );
 
 protected:
-	// base classes should implement this
+	// base classes should implement these
 	virtual void OnBind( C_BaseEntity *pBaseEntity ) = 0;
 };
 

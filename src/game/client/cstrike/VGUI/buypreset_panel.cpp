@@ -236,8 +236,8 @@ void BuyPresetEditPanel::SetWeaponSet( const WeaponSet *pWeaponSet, bool current
 		{
 			const int BufLen = 256;
 			wchar_t wbuf[BufLen];
-			vgui::localize()->ConstructString( wbuf, sizeof( wbuf ),
-				vgui::localize()->Find( "#Cstrike_BuyPresetPlainCost" ),
+			g_pVGuiLocalize->ConstructString( wbuf, sizeof( wbuf ),
+				g_pVGuiLocalize->Find( "#Cstrike_BuyPresetPlainCost" ),
 				1, NumAsWString( pWeaponSet->FullCost() ) );
 			m_pCostLabel->SetText( wbuf );
 		}

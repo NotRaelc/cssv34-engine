@@ -584,7 +584,7 @@ void C_ParticleSmokeGrenade::Update(float fTimeDelta)
 	if(m_CurrentStage == 1)
 	{
 		// Update the expanding sphere.
-		m_ExpandTimeCounter += fTimeDelta;
+		m_ExpandTimeCounter = flLifetime;
 		if(m_ExpandTimeCounter > SMOKESPHERE_EXPAND_TIME)
 			m_ExpandTimeCounter = SMOKESPHERE_EXPAND_TIME;
 
@@ -930,7 +930,7 @@ void C_ParticleSmokeGrenade::CleanupToolRecordingState( KeyValues *msg )
 
 		int nId = AllocateToolParticleEffectId();
 
-		KeyValues *msg = new KeyValues( "ParticleSystem_Create" );
+		KeyValues *msg = new KeyValues( "OldParticleSystem_Create" );
 		msg->SetString( "name", "C_ParticleSmokeGrenade" );
 		msg->SetInt( "id", nId );
 		msg->SetFloat( "time", gpGlobals->curtime );

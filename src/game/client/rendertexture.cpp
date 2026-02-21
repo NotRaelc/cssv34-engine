@@ -6,11 +6,10 @@
 //
 //=============================================================================//
 
-
 #include "materialsystem/imesh.h"
 #include "materialsystem/ITexture.h"
 #include "materialsystem/MaterialSystemUtil.h"
-#include "vstdlib/strtools.h"
+#include "tier1/strtools.h"
 #include "rendertexture.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -34,6 +33,11 @@ void AddReleaseFunc( void )
 static CTextureReference s_pPowerOfTwoFrameBufferTexture;
 ITexture *GetPowerOfTwoFrameBufferTexture( void )
 {
+	if ( IsX360() )
+	{
+		return GetFullFrameFrameBufferTexture( 1 );
+	}
+
 	if ( !s_pPowerOfTwoFrameBufferTexture )
 	{
 		s_pPowerOfTwoFrameBufferTexture.Init( materials->FindTexture( "_rt_PowerOfTwoFB", TEXTURE_GROUP_RENDER_TARGET ) );
@@ -42,6 +46,22 @@ ITexture *GetPowerOfTwoFrameBufferTexture( void )
 	}
 	
 	return s_pPowerOfTwoFrameBufferTexture;
+}
+
+//=============================================================================
+// Fullscreen Texture
+//=============================================================================
+static CTextureReference s_pFullscreenTexture;
+ITexture *GetFullscreenTexture( void )
+{
+	if ( !s_pFullscreenTexture )
+	{
+		s_pFullscreenTexture.Init( materials->FindTexture( "_rt_Fullscreen", TEXTURE_GROUP_RENDER_TARGET ) );
+		Assert( !IsErrorTexture( s_pFullscreenTexture ) );
+		AddReleaseFunc();
+	}
+
+	return s_pFullscreenTexture;
 }
 
 //=============================================================================
@@ -60,6 +80,21 @@ ITexture *GetCameraTexture( void )
 	return s_pCameraTexture;
 }
 
+//=============================================================================
+// Full Frame Depth Texture
+//=============================================================================
+static CTextureReference s_pFullFrameDepthTexture;
+ITexture *GetFullFrameDepthTexture( void )
+{
+	if ( !s_pFullFrameDepthTexture )
+	{
+		s_pFullFrameDepthTexture.Init( materials->FindTexture( "_rt_FullFrameDepth", TEXTURE_GROUP_RENDER_TARGET ) );
+		Assert( !IsErrorTexture( s_pFullFrameDepthTexture ) );
+		AddReleaseFunc();
+	}
+
+	return s_pFullFrameDepthTexture;
+}
 
 //=============================================================================
 // Full Frame Buffer Textures
@@ -119,15 +154,13 @@ ITexture *GetWaterRefractionTexture( void )
 	return s_pWaterRefractionTexture;
 }
 
-
 //=============================================================================
 // Small Buffer HDR0
 //=============================================================================
-#ifndef _XBOX
 static CTextureReference s_pSmallBufferHDR0;
 ITexture *GetSmallBufferHDR0( void )
 {
-	if( !s_pSmallBufferHDR0 )
+	if ( !s_pSmallBufferHDR0 )
 	{
 		s_pSmallBufferHDR0.Init( materials->FindTexture( "_rt_SmallHDR0", TEXTURE_GROUP_RENDER_TARGET ) );
 		Assert( !IsErrorTexture( s_pSmallBufferHDR0 ) );
@@ -136,16 +169,14 @@ ITexture *GetSmallBufferHDR0( void )
 	
 	return s_pSmallBufferHDR0;
 }
-#endif
 
 //=============================================================================
 // Small Buffer HDR1
 //=============================================================================
-#ifndef _XBOX
 static CTextureReference s_pSmallBufferHDR1;
 ITexture *GetSmallBufferHDR1( void )
 {
-	if( !s_pSmallBufferHDR1 )
+	if ( !s_pSmallBufferHDR1 )
 	{
 		s_pSmallBufferHDR1.Init( materials->FindTexture( "_rt_SmallHDR1", TEXTURE_GROUP_RENDER_TARGET ) );
 		Assert( !IsErrorTexture( s_pSmallBufferHDR1 ) );
@@ -154,59 +185,63 @@ ITexture *GetSmallBufferHDR1( void )
 	
 	return s_pSmallBufferHDR1;
 }
-#endif
 
-#ifndef _XBOX
+//=============================================================================
+// Quarter Sized FB0
+//=============================================================================
 static CTextureReference s_pQuarterSizedFB0;
-
 ITexture *GetSmallBuffer0( void )
 {
-	if( !s_pQuarterSizedFB0 )
+	if ( !s_pQuarterSizedFB0 )
 	{
-		s_pQuarterSizedFB0.Init( materials->FindTexture( "_rt_SmallFB0",
-														 TEXTURE_GROUP_RENDER_TARGET ) );
+		s_pQuarterSizedFB0.Init( materials->FindTexture( "_rt_SmallFB0", TEXTURE_GROUP_RENDER_TARGET ) );
 		Assert( !IsErrorTexture( s_pQuarterSizedFB0 ) );
 		AddReleaseFunc();
 	}
 	
 	return s_pQuarterSizedFB0;
 }
-#endif
 
-#ifndef _XBOX
+//=============================================================================
+// Quarter Sized FB1
+//=============================================================================
 static CTextureReference s_pQuarterSizedFB1;
-
 ITexture *GetSmallBuffer1( void )
 {
-	if( !s_pQuarterSizedFB1 )
+	if ( !s_pQuarterSizedFB1 )
 	{
-		s_pQuarterSizedFB1.Init( materials->FindTexture( "_rt_SmallFB1",
-														 TEXTURE_GROUP_RENDER_TARGET ) );
+		s_pQuarterSizedFB1.Init( materials->FindTexture( "_rt_SmallFB1", TEXTURE_GROUP_RENDER_TARGET ) );
 		Assert( !IsErrorTexture( s_pQuarterSizedFB1 ) );
 		AddReleaseFunc();
 	}
 	
 	return s_pQuarterSizedFB1;
 }
-#endif
 
-#ifndef _XBOX
-ITexture *GetTeenyTexture(int which)
+//=============================================================================
+// Teeny Textures
+//=============================================================================
+static CTextureReference s_TeenyTextures[MAX_TEENY_TEXTURES];
+ITexture *GetTeenyTexture( int which )
 {
-	static CTextureReference s_TeenyTextures[MAX_TEENY_TEXTURES];
-	Assert(which<MAX_TEENY_TEXTURES);
-	if (! s_TeenyTextures[which])
+	if ( IsX360() )
+	{
+		Assert( 0 );
+		return NULL;
+	}
+
+	Assert( which < MAX_TEENY_TEXTURES );
+
+	if ( !s_TeenyTextures[which] )
 	{
 		char nbuf[20];
-		sprintf(nbuf,"_rt_TeenyFB%d",which);
-		s_TeenyTextures[which].Init( materials->FindTexture( nbuf, TEXTURE_GROUP_RENDER_TARGET ));
-		Assert( !IsErrorTexture( s_TeenyTextures[which]));
+		sprintf( nbuf, "_rt_TeenyFB%d", which );
+		s_TeenyTextures[which].Init( materials->FindTexture( nbuf, TEXTURE_GROUP_RENDER_TARGET ) );
+		Assert( !IsErrorTexture( s_TeenyTextures[which] ) );
 		AddReleaseFunc();
 	}
 	return s_TeenyTextures[which];
-
 }
-#endif
 
 void ReleaseRenderTargets( void )
 {
@@ -214,10 +249,10 @@ void ReleaseRenderTargets( void )
 	s_pCameraTexture.Shutdown();
 	s_pWaterReflectionTexture.Shutdown();
 	s_pWaterRefractionTexture.Shutdown();
-#ifndef _XBOX
 	s_pQuarterSizedFB0.Shutdown();
 	s_pQuarterSizedFB1.Shutdown();
-#endif
+	s_pFullFrameDepthTexture.Shutdown();
+
 	for (int i=0; i<MAX_FB_TEXTURES; ++i)
 		s_pFullFrameFrameBufferTexture[i].Shutdown();
 }

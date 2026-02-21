@@ -28,7 +28,7 @@
 class CEventAction
 {
 public:
-	CEventAction( const char *ActionData );
+	CEventAction( const char *ActionData = NULL );
 
 	string_t m_iTarget; // name of the entity(s) to cause the action in
 	string_t m_iTargetInput; // the name of the action to fire
@@ -62,6 +62,7 @@ public:
 	~CBaseEntityOutput();
 
 	void ParseEventAction( const char *EventData );
+	void AddEventAction( CEventAction *pEventAction );
 
 	int Save( ISave &save );
 	int Restore( IRestore &restore, int elementCount );
@@ -73,6 +74,9 @@ public:
 	fieldtype_t ValueFieldType() { return m_Value.FieldType(); }
 
 	void FireOutput( variant_t Value, CBaseEntity *pActivator, CBaseEntity *pCaller, float fDelay = 0 );
+
+	/// Delete every single action in the action list. 
+	void DeleteAllElements( void ) ;
 
 protected:
 	variant_t m_Value;

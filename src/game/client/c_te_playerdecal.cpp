@@ -15,10 +15,14 @@
 #include "filesystem.h"
 #include "materialsystem/imaterial.h"
 #include "materialsystem/itexture.h"
+#include "materialsystem/imaterialvar.h"
 #include "ClientEffectPrecacheSystem.h"
+#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+static ConVar cl_playerspraydisable( "cl_playerspraydisable", "0", FCVAR_CLIENTDLL | FCVAR_ARCHIVE, "Disable player sprays." );
 
 #ifndef _XBOX
 CLIENTEFFECT_REGISTER_BEGIN( PrecachePlayerDecal )
@@ -158,7 +162,9 @@ void C_TEPlayerDecal::Precache( void )
 void TE_PlayerDecal( IRecipientFilter& filter, float delay,
 	const Vector* pos, int player, int entity  )
 {
-#ifndef _XBOX
+	if ( cl_playerspraydisable.GetBool() )
+		return;
+
 	// No valid target?
 	C_BaseEntity *ent = cl_entitylist->GetEnt( entity );
 	if ( !ent )
@@ -206,6 +212,18 @@ void TE_PlayerDecal( IRecipientFilter& filter, float delay,
 		return; // not found 
 	}
 
+	// Update the texture used by the material if need be.
+	bool bFound = false;
+	IMaterialVar *pMatVar = logo->FindVar( "$basetexture", &bFound );
+	if ( bFound && pMatVar )
+	{
+		if ( pMatVar->GetTextureValue() != texture )
+		{
+			pMatVar->SetTextureValue( texture );
+			logo->RefreshPreservingMaterialVars();
+		}
+	}
+
 	color32 rgbaColor = { 255, 255, 255, 255 };
 	effects->PlayerDecalShoot( 
 		logo, 
@@ -218,7 +236,6 @@ void TE_PlayerDecal( IRecipientFilter& filter, float delay,
 		0, 
 		0,
 		rgbaColor );
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -228,6 +245,8 @@ void TE_PlayerDecal( IRecipientFilter& filter, float delay,
 void C_TEPlayerDecal::PostDataUpdate( DataUpdateType_t updateType )
 {
 #ifndef _XBOX
+	VPROF( "C_TEPlayerDecal::PostDataUpdate" );
+
 	// Decals disabled?
 	if ( !r_decals.GetBool() )
 		return;

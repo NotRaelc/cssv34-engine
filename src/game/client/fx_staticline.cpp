@@ -67,8 +67,10 @@ void CFXStaticLine::Draw( double frametime )
 
 	VectorNormalize( cross );
 
+	CMatRenderContextPtr pRenderContext( materials );
+
 	//Bind the material
-	IMesh* pMesh = materials->GetDynamicMesh( true, NULL, NULL, m_pMaterial );
+	IMesh* pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_pMaterial );
 	CMeshBuilder meshBuilder;
 
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );

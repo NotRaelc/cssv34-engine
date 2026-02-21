@@ -2,10 +2,7 @@
 //
 // Purpose: 
 //
-// $Workfile:     $
-// $Date:         $
-// $NoKeywords: $
-//=============================================================================//
+//=====================================================================================//
 
 #include "cbase.h"
 #include "ifpspanel.h"
@@ -18,18 +15,18 @@
 #include <vgui/IScheme.h>
 #include <vgui/IPanel.h>
 #include "materialsystem/imaterialsystemhardwareconfig.h"
-#ifdef _XBOX
-#include "xbox/xbox_platform.h"
-#include "xbox/xbox_win32stubs.h"
-#include "xbox/xbox_core.h"
-#endif
 #include "filesystem.h"
+#include "../common/xbox/xboxstubs.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 static ConVar cl_showfps( "cl_showfps", "0", 0, "Draw fps meter at top of screen (1 = fps, 2 = smooth fps)" );
 static ConVar cl_showpos( "cl_showpos", "0", 0, "Draw current position at top of screen" );
+
+extern bool g_bDisplayParticlePerformance;
+int GetParticlePerformance();
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Framerate indicator panel
@@ -53,8 +50,20 @@ protected:
 
 private:
 	void ComputeSize( void );
+	void InitAverages()
+	{
+		m_AverageFPS = -1;
+		m_lastRealTime = -1;
+		m_high = -1;
+		m_low = -1;
+	}
 
 	vgui::HFont		m_hFont;
+	float			m_AverageFPS;
+	float			m_lastRealTime;
+	int				m_high;
+	int				m_low;
+	bool			m_bLastDraw;
 };
 
 #define FPS_PANEL_WIDTH 300
@@ -74,13 +83,10 @@ CFPSPanel::CFPSPanel( vgui::VPANEL parent ) : BaseClass( NULL, "CFPSPanel" )
 
 	m_hFont = 0;
 
-#if defined( _XBOX )
-	if ( IsRetail() && XBX_NoXBDM() )
-		return;
-#endif
 	ComputeSize();
 
 	vgui::ivgui()->AddTickSignal( GetVPanel(), 250 );
+	m_bLastDraw = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -106,12 +112,16 @@ void CFPSPanel::ComputeSize( void )
 {
 	int wide, tall;
 	vgui::ipanel()->GetSize(GetVParent(), wide, tall );
-#ifndef _XBOX
-	SetPos( wide - FPS_PANEL_WIDTH, 0 );
-#else
-	SetPos( wide - FPS_PANEL_WIDTH - XBX_MAXBORDERSAFE, XBX_MAXBORDERSAFE );
-#endif
-	SetSize( FPS_PANEL_WIDTH, vgui::surface()->GetFontTall( m_hFont ) + 10 );
+
+	int x = wide - FPS_PANEL_WIDTH;
+	int y = 0;
+	if ( IsX360() )
+	{
+		x -= XBOX_MINBORDERSAFE * wide;
+		y += XBOX_MINBORDERSAFE * tall;
+	}
+	SetPos( x, y );
+	SetSize( FPS_PANEL_WIDTH, 4 * vgui::surface()->GetFontTall( m_hFont ) + 8 );
 }
 
 void CFPSPanel::ApplySchemeSettings(vgui::IScheme *pScheme)
@@ -139,12 +149,20 @@ void CFPSPanel::OnTick( void )
 //-----------------------------------------------------------------------------
 bool CFPSPanel::ShouldDraw( void )
 {
+	if ( g_bDisplayParticlePerformance )
+		return true;
 	if ( ( !cl_showfps.GetInt() || ( gpGlobals->absoluteframetime <= 0 ) ) &&
 		 ( !cl_showpos.GetInt() ) )
 	{
+		m_bLastDraw = false;
 		return false;
 	}
 
+	if ( !m_bLastDraw )
+	{
+		m_bLastDraw = true;
+		InitAverages();
+	}
 	return true;
 }
 
@@ -153,50 +171,31 @@ bool CFPSPanel::ShouldDraw( void )
 //-----------------------------------------------------------------------------
 void GetFPSColor( int nFps, unsigned char ucColor[3] )
 {
-#ifndef _XBOX
 	ucColor[0] = 255; ucColor[1] = 0; ucColor[2] = 0;
 
-	if ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 90 )
+	int nFPSThreshold1 = 20;
+	int nFPSThreshold2 = 15;
+	
+	if ( IsPC() && g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 95 )
 	{
-		if ( nFps >= 60 )
-		{
-			ucColor[0] = 0; 
-			ucColor[1] = 255;
-		}
-		else if ( nFps >= 50 )
-		{
-			ucColor[1] = 255;
-		}
+		nFPSThreshold1 = 60;
+		nFPSThreshold1 = 50;
 	}
-	else if ( g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 80 )
+	else if ( IsX360() || g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 90 )
 	{
-		if ( nFps >= 30 )
-		{
-			ucColor[0] = 0; 
-			ucColor[1] = 255;
-		}
-		else if ( nFps >= 25 )
-		{
-			ucColor[1] = 255;
-		}
+		nFPSThreshold1 = 30;
+		nFPSThreshold1 = 25;
 	}
-	else
+
+	if ( nFps >= nFPSThreshold1 )
 	{
-		if ( nFps >= 20 )
-		{
-			ucColor[0] = 0; 
-			ucColor[1] = 255;
-		}
-		else if ( nFps >= 15 )
-		{
-			ucColor[1] = 255;
-		}
+		ucColor[0] = 0; 
+		ucColor[1] = 255;
 	}
-#else
-	ucColor[0] = 255;
-	ucColor[1] = 255;
-	ucColor[2] = 255;
-#endif
+	else if ( nFps >= nFPSThreshold2 )
+	{
+		ucColor[1] = 255;
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -207,22 +206,27 @@ void CFPSPanel::Paint()
 {
 	int i = 0;
 	int x = 2;
-	static float lastRealTime = -1.0f;
 
-	float realFrameTime = gpGlobals->realtime - lastRealTime;
+	if ( g_bDisplayParticlePerformance )
+	{
+		int nPerf = GetParticlePerformance();
+		if ( nPerf )
+		{
+			unsigned char ucColor[3]={ 0,255,0 };
+			g_pMatSystemSurface->DrawColoredText(
+				m_hFont, x, 42,
+				ucColor[0], ucColor[1], ucColor[2],
+				255, "Particle Performance Metric : %d", (nPerf+50)/100 );
+		}
+	}
+	float realFrameTime = gpGlobals->realtime - m_lastRealTime;
 
 	if ( cl_showfps.GetInt() && realFrameTime > 0.0 )
 	{
-		if ( lastRealTime != -1.0f )
+		if ( m_lastRealTime != -1.0f )
 		{
-#ifdef _XBOX
-			g_pMatSystemSurface->DrawSetColor( 0, 0, 0, 255 );
-			g_pMatSystemSurface->DrawFilledRect( 0, 0, FPS_PANEL_WIDTH, 4+vgui::surface()->GetFontTall( m_hFont ) );
-#endif
 			i++;
-			static float AverageFPS = -1;
-			static int high = -1;
-			static int low = -1;
+
 			int nFps = -1;
 			unsigned char ucColor[3];
 			if ( cl_showfps.GetInt() == 2 )
@@ -230,49 +234,63 @@ void CFPSPanel::Paint()
 				const float NewWeight  = 0.1f;
 				float NewFrame = 1.0f / realFrameTime;
 
-				if ( AverageFPS < 0.0f )
+				if ( m_AverageFPS < 0.0f )
 				{
-					AverageFPS = NewFrame;
-					high = (int)AverageFPS;
-					low = (int)AverageFPS;
+					m_AverageFPS = NewFrame;
+					m_high = (int)m_AverageFPS;
+					m_low = (int)m_AverageFPS;
 				} 
 				else
 				{				
-					AverageFPS *= ( 1.0f - NewWeight ) ;
-					AverageFPS += ( ( NewFrame ) * NewWeight );
+					m_AverageFPS *= ( 1.0f - NewWeight ) ;
+					m_AverageFPS += ( ( NewFrame ) * NewWeight );
 				}
 			
 				int NewFrameInt = (int)NewFrame;
-				if( NewFrameInt < low ) low = NewFrameInt;
-				if( NewFrameInt > high ) high = NewFrameInt;	
+				if( NewFrameInt < m_low ) m_low = NewFrameInt;
+				if( NewFrameInt > m_high ) m_high = NewFrameInt;	
 
-				nFps = static_cast<int>( AverageFPS );
+				nFps = static_cast<int>( m_AverageFPS );
+				float frameMS = realFrameTime * 1000.0f;
 				GetFPSColor( nFps, ucColor );
-				g_pMatSystemSurface->DrawColoredText( m_hFont, x, 2, ucColor[0], ucColor[1], ucColor[2], 255, "%3i fps (%3i, %3i) on %s", nFps, low, high, engine->GetLevelName() );
+				g_pMatSystemSurface->DrawColoredText( m_hFont, x, 2, ucColor[0], ucColor[1], ucColor[2], 255, "%3i fps (%3i, %3i) %.1f ms on %s", nFps, m_low, m_high, frameMS, engine->GetLevelName() );
 			} 
 			else
 			{
-				AverageFPS = -1;
+				m_AverageFPS = -1;
 				nFps = static_cast<int>( 1.0f / realFrameTime );
 				GetFPSColor( nFps, ucColor );
 				g_pMatSystemSurface->DrawColoredText( m_hFont, x, 2, ucColor[0], ucColor[1], ucColor[2], 255, "%3i fps on %s", nFps, engine->GetLevelName() );
 			}
 		}
 	}
-	lastRealTime = gpGlobals->realtime;
+	m_lastRealTime = gpGlobals->realtime;
 
-	if ( cl_showpos.GetInt() )
+	int nShowPosMode = cl_showpos.GetInt();
+	if ( nShowPosMode > 0 )
 	{
+		Vector vecOrigin = MainViewOrigin();
+		QAngle angles = MainViewAngles();
+		if ( nShowPosMode == 2 )
+		{
+			C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+			if ( pPlayer )
+			{
+				vecOrigin = pPlayer->GetAbsOrigin();
+				angles = pPlayer->GetAbsAngles();
+			}
+		}
+
 		g_pMatSystemSurface->DrawColoredText( m_hFont, x, 2+ i * ( vgui::surface()->GetFontTall( m_hFont ) + 2 ), 
-			255, 255, 255, 255, 
-			"pos:  %.2f %.2f %.2f", 
-			MainViewOrigin().x, MainViewOrigin().y, MainViewOrigin().z );
+											  255, 255, 255, 255, 
+											  "pos:  %.02f %.02f %.02f", 
+											  vecOrigin.x, vecOrigin.y, vecOrigin.z );
 		i++;
 
 		g_pMatSystemSurface->DrawColoredText( m_hFont, x, 2 + i * ( vgui::surface()->GetFontTall( m_hFont ) + 2 ), 
-			255, 255, 255, 255, 
-			"ang:  %.2f %.2f %.2f", 
-			MainViewAngles().x, MainViewAngles().y, MainViewAngles().z );
+											  255, 255, 255, 255, 
+											  "ang:  %.02f %.02f %.02f", 
+											  angles.x, angles.y, angles.z );
 		i++;
 
 		Vector vel( 0, 0, 0 );
@@ -283,9 +301,9 @@ void CFPSPanel::Paint()
 		}
 
 		g_pMatSystemSurface->DrawColoredText( m_hFont, x, 2 + i * ( vgui::surface()->GetFontTall( m_hFont ) + 2 ), 
-			255, 255, 255, 255, 
-			"vel:  %.2f", 
-			vel.Length() );
+											  255, 255, 255, 255, 
+											  "vel:  %.2f", 
+											  vel.Length() );
 	}
 }
 
@@ -390,11 +408,16 @@ CBlockingFileIOPanel::CBlockingFileIOPanel( vgui::VPANEL parent ) : BaseClass( N
 	SetParent( parent );
 	int wide, tall;
 	vgui::ipanel()->GetSize( parent, wide, tall );
-#ifndef _XBOX
-	SetPos( 2, 100 );
-#else
-	SetPos( XBX_MAXBORDERSAFE, XBX_MAXBORDERSAFE + 100 );
-#endif
+
+	int x = 2;
+	int y = 100;
+	if ( IsX360() )
+	{
+		x += XBOX_MAXBORDERSAFE * wide;
+		y += XBOX_MAXBORDERSAFE * tall;
+	}
+	SetPos( x, y );
+
 	SetSize( IO_PANEL_WIDTH, 140 );
 
 	SetVisible( false );
@@ -478,74 +501,74 @@ void CBlockingFileIOPanel::Paint()
 
 			// Grab mutex (prevents async thread from filling in even more data...)
 			list->LockMutex();
+		{
+			for ( int j = list->First() ; j != list->InvalidIndex(); j = list->Next( j ) )
 			{
-				for ( int j = list->First() ; j != list->InvalidIndex(); j = list->Next( j ) )
+				const FileBlockingItem& item = list->Get( j );
+
+				m_History[ item.m_ItemType ].m_flCurrent += item.m_flElapsed;
+
+				RecentPeaks_t recent;
+				recent.time = gpGlobals->realtime;
+				recent.elapsed = item.m_flElapsed;
+				recent.fileName = item.GetFileName();
+				recent.reason = item.m_ItemType;
+				recent.ioType = item.m_nAccessType;
+				while ( m_Recent.Count() > maxRecent )
 				{
-					const FileBlockingItem& item = list->Get( j );
-
-					m_History[ item.m_ItemType ].m_flCurrent += item.m_flElapsed;
-
-					RecentPeaks_t recent;
-					recent.time = gpGlobals->realtime;
-					recent.elapsed = item.m_flElapsed;
-					recent.fileName = item.GetFileName();
-					recent.reason = item.m_ItemType;
-					recent.ioType = item.m_nAccessType;
-					while ( m_Recent.Count() > maxRecent )
-					{
-						m_Recent.Remove( m_Recent.Head() );
-					}
-
-					m_Recent.AddToTail( recent );
-
-					m_History[ item.m_ItemType ].m_LastFile = item.GetFileName();
-
-					// Only care about time consuming synch or async blocking calls
-					if ( item.m_ItemType == FILESYSTEM_BLOCKING_SYNCHRONOUS ||
-						 item.m_ItemType == FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK )
-					{
-						if ( item.m_flElapsed > cl_blocking_threshold.GetFloat() )
-						{
-							SpewItem( recent );
-						}
-					}
+					m_Recent.Remove( m_Recent.Head() );
 				}
-				list->Reset();
-			}
-			// Finished
-			list->UnlockMutex();
 
-			// Now draw some bars...
-			int itemHeight = ( vgui::surface()->GetFontTall( m_hFont ) + 2 );
+				m_Recent.AddToTail( recent );
 
-			int y = 2;
-			int w = GetWide();
+				m_History[ item.m_ItemType ].m_LastFile = item.GetFileName();
 
-			DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_SYNCHRONOUS, "Synchronous", Color( 255, 0, 0, 255 ) );
-			y += 2*( itemHeight + 2 );
-			DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK, "Async Block", Color( 255, 100, 0, 255 ) );
-			y += 2*( itemHeight + 2 );
-			DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_CALLBACKTIMING, "Callback", Color( 255, 255, 0, 255 ) );
-			y += 2*( itemHeight + 2 );
-			DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_ASYNCHRONOUS, "Asynchronous", Color( 0, 255, 0, 255 ) );
-
-			for ( i = 0; i < c; ++i )
-			{
-				if ( m_History[ i ].m_flCurrent > m_History[ i ].m_flHistory )
+				// Only care about time consuming synch or async blocking calls
+				if ( item.m_ItemType == FILESYSTEM_BLOCKING_SYNCHRONOUS ||
+					 item.m_ItemType == FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK )
 				{
-					m_History[ i ].m_flHistory = m_History[ i ].m_flCurrent;
-					m_History[ i ].m_flHistorySpike = m_History[ i ].m_flCurrent;
-					m_History[ i ].m_flLatchTime = gpGlobals->realtime;
-				}
-				else
-				{
-					// After this long, start to decay the previous history value
-					if ( gpGlobals->realtime > m_History[ i ].m_flLatchTime + 1.0f )
+					if ( item.m_flElapsed > cl_blocking_threshold.GetFloat() )
 					{
-						m_History[ i ].m_flHistory = m_History[ i ].m_flHistory * IO_DECAY_FRAC + ( 1.0f - IO_DECAY_FRAC ) * m_History[ i ].m_flCurrent;
+						SpewItem( recent );
 					}
 				}
 			}
+			list->Reset();
+		}
+		// Finished
+		list->UnlockMutex();
+
+		// Now draw some bars...
+		int itemHeight = ( vgui::surface()->GetFontTall( m_hFont ) + 2 );
+
+		int y = 2;
+		int w = GetWide();
+
+		DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_SYNCHRONOUS, "Synchronous", Color( 255, 0, 0, 255 ) );
+		y += 2*( itemHeight + 2 );
+		DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK, "Async Block", Color( 255, 100, 0, 255 ) );
+		y += 2*( itemHeight + 2 );
+		DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_CALLBACKTIMING, "Callback", Color( 255, 255, 0, 255 ) );
+		y += 2*( itemHeight + 2 );
+		DrawIOTime( x, y, w, itemHeight, FILESYSTEM_BLOCKING_ASYNCHRONOUS, "Asynchronous", Color( 0, 255, 0, 255 ) );
+
+		for ( i = 0; i < c; ++i )
+		{
+			if ( m_History[ i ].m_flCurrent > m_History[ i ].m_flHistory )
+			{
+				m_History[ i ].m_flHistory = m_History[ i ].m_flCurrent;
+				m_History[ i ].m_flHistorySpike = m_History[ i ].m_flCurrent;
+				m_History[ i ].m_flLatchTime = gpGlobals->realtime;
+			}
+			else
+			{
+				// After this long, start to decay the previous history value
+				if ( gpGlobals->realtime > m_History[ i ].m_flLatchTime + 1.0f )
+				{
+					m_History[ i ].m_flHistory = m_History[ i ].m_flHistory * IO_DECAY_FRAC + ( 1.0f - IO_DECAY_FRAC ) * m_History[ i ].m_flCurrent;
+				}
+			}
+		}
 		}
 	}
 }
@@ -556,14 +579,14 @@ static const char *GetBlockReason( int reason )
 {
 	switch ( reason )
 	{
-	case FILESYSTEM_BLOCKING_SYNCHRONOUS:
-		return "Synchronous";
-	case FILESYSTEM_BLOCKING_ASYNCHRONOUS:
-		return "Asynchronous";
-	case FILESYSTEM_BLOCKING_CALLBACKTIMING:
-		return "Async Callback";
-	case FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK:
-		return "Async Blocked";
+		case FILESYSTEM_BLOCKING_SYNCHRONOUS:
+			return "Synchronous";
+		case FILESYSTEM_BLOCKING_ASYNCHRONOUS:
+			return "Asynchronous";
+		case FILESYSTEM_BLOCKING_CALLBACKTIMING:
+			return "Async Callback";
+		case FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK:
+			return "Async Blocked";
 	}
 	return "???";
 }
@@ -601,29 +624,29 @@ void CBlockingFileIOPanel::SpewItem( const RecentPeaks_t& item )
 {
 	switch ( item.reason )
 	{
-	default:
-		Assert( 0 );
-		// break; -- intentionally fall through
-	case FILESYSTEM_BLOCKING_ASYNCHRONOUS:
-	case FILESYSTEM_BLOCKING_CALLBACKTIMING:
-		Msg( "%8.3f %16.16s i/o [%6.6s] took %8.3f msec:  %33.33s\n", 
-			item.time, 
-			GetBlockReason( item.reason ), 
-			GetIOType( item.ioType ),
-			item.elapsed * 1000.0f, 
-			item.fileName.String()
-			);
-		break;
-	case FILESYSTEM_BLOCKING_SYNCHRONOUS:
-	case FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK:
-		Warning( "%8.3f %16.16s i/o [%6.6s] took %8.3f msec:  %33.33s\n", 
-			item.time, 
-			GetBlockReason( item.reason ), 
-			GetIOType( item.ioType ),
-			item.elapsed * 1000.0f, 
-			item.fileName.String()
-			);
-		break;
+		default:
+			Assert( 0 );
+			// break; -- intentionally fall through
+		case FILESYSTEM_BLOCKING_ASYNCHRONOUS:
+		case FILESYSTEM_BLOCKING_CALLBACKTIMING:
+			Msg( "%8.3f %16.16s i/o [%6.6s] took %8.3f msec:  %33.33s\n", 
+				 item.time, 
+				 GetBlockReason( item.reason ), 
+				 GetIOType( item.ioType ),
+				 item.elapsed * 1000.0f, 
+				 item.fileName.String()
+				);
+			break;
+		case FILESYSTEM_BLOCKING_SYNCHRONOUS:
+		case FILESYSTEM_BLOCKING_ASYNCHRONOUS_BLOCK:
+			Warning( "%8.3f %16.16s i/o [%6.6s] took %8.3f msec:  %33.33s\n", 
+					 item.time, 
+					 GetBlockReason( item.reason ), 
+					 GetIOType( item.ioType ),
+					 item.elapsed * 1000.0f, 
+					 item.fileName.String()
+				);
+			break;
 	}
 }
 
@@ -652,9 +675,9 @@ void  CBlockingFileIOPanel::DrawIOTime( int x, int y, int w, int h, int slot, ch
 	float spikefrac = clamp( historyspike / maxTime, 0.0f, 1.0f );
 
 	g_pMatSystemSurface->DrawColoredText( m_hFont, x + 2, y + 1, 
-			clr[0], clr[1], clr[2], clr[3], 
-			"%s", 
-			label );
+										  clr[0], clr[1], clr[2], clr[3], 
+										  "%s", 
+										  label );
 
 	int textWidth = 95;
 
@@ -667,13 +690,13 @@ void  CBlockingFileIOPanel::DrawIOTime( int x, int y, int w, int h, int slot, ch
 	bool bDrawHistorySpike = false;
 
 	if ( m_History[ slot ].m_LastFile.IsValid() && 
-		( gpGlobals->realtime < latchedtime + 10.0f ) )
+		 ( gpGlobals->realtime < latchedtime + 10.0f ) )
 	{
 		bDrawHistorySpike = true;
 		g_pMatSystemSurface->DrawColoredText( m_hFont, x + w + 5, y + 1, 
-				255, 255, 255, 200, "[%8.3f ms]", m_History[ slot ].m_flHistorySpike * 1000.0f );
+											  255, 255, 255, 200, "[%8.3f ms]", m_History[ slot ].m_flHistorySpike * 1000.0f );
 		g_pMatSystemSurface->DrawColoredText( m_hFont, x, y + h + 1, 
-				255, 255, 255, 200, "%s", m_History[ slot ].m_LastFile.String() );
+											  255, 255, 255, 200, "%s", m_History[ slot ].m_LastFile.String() );
 	}
 
 	y += 2;

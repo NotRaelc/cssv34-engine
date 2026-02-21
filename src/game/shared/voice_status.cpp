@@ -42,7 +42,7 @@ extern int cam_thirdperson;
 #define VOICE_MODEL_INTERVAL		0.3
 #define SQUELCHOSCILLATE_PER_SECOND	2.0f
 
-ConVar voice_modenable( "voice_modenable", "1", FCVAR_ARCHIVE, "Enable/disable voice in this mod." );
+ConVar voice_modenable( "voice_modenable", "1", FCVAR_ARCHIVE | FCVAR_CLIENTCMD_CAN_EXECUTE, "Enable/disable voice in this mod." );
 ConVar voice_clientdebug( "voice_clientdebug", "0" );
 
 // ---------------------------------------------------------------------- //
@@ -108,6 +108,8 @@ CVoiceStatus::CVoiceStatus()
 	m_bServerModEnable = -1;
 
 	m_pHeadLabelMaterial = NULL;
+
+	m_bHeadLabelsDisabled = false;
 }
 
 
@@ -198,8 +200,13 @@ float CVoiceStatus::GetHeadLabelOffset( void ) const
 
 void CVoiceStatus::DrawHeadLabels()
 {
+	if ( m_bHeadLabelsDisabled )
+		return;
+
 	if( !m_pHeadLabelMaterial )
 		return;
+
+	CMatRenderContextPtr pRenderContext( materials );
 
 	for(int i=0; i < VOICE_MAX_PLAYERS; i++)
 	{
@@ -237,8 +244,8 @@ void CVoiceStatus::DrawHeadLabels()
 
 		float flSize = g_flHeadIconSize;
 
-		materials->Bind( m_pHeadLabelMaterial );
-		IMesh *pMesh = materials->GetDynamicMesh();
+		pRenderContext->Bind( pPlayer->GetHeadLabelMaterial() );
+		IMesh *pMesh = pRenderContext->GetDynamicMesh();
 		CMeshBuilder meshBuilder;
 		meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 
@@ -532,14 +539,26 @@ void CVoiceStatus::SetPlayerBlockedState(int iPlayer, bool blocked)
 	}
 
 	// Squelch or (try to) unsquelch this player.
-	if (m_AudiblePlayers[iPlayer-1])
+	if (voice_clientdebug.GetInt())
 	{
-		if (voice_clientdebug.GetInt())
-		{
-			Msg("CVoiceStatus::SetPlayerBlockedState: setting player %d ban to %d\n", iPlayer, !m_BanMgr.GetPlayerBan(pi.guid));
-		}
-
-		m_BanMgr.SetPlayerBan(pi.guid, !m_BanMgr.GetPlayerBan(pi.guid));
-		UpdateServerState(false);
+		Msg("CVoiceStatus::SetPlayerBlockedState: setting player %d ban to %d\n", iPlayer, !m_BanMgr.GetPlayerBan(pi.guid));
 	}
+
+	m_BanMgr.SetPlayerBan(pi.guid, !m_BanMgr.GetPlayerBan(pi.guid));
+	UpdateServerState(false);
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CVoiceStatus::SetHeadLabelMaterial( const char *pszMaterial )
+{
+	if ( m_pHeadLabelMaterial )
+	{
+		m_pHeadLabelMaterial->DecrementReferenceCount();
+		m_pHeadLabelMaterial = NULL;
+	}
+
+	m_pHeadLabelMaterial = materials->FindMaterial( pszMaterial, TEXTURE_GROUP_VGUI );
+	m_pHeadLabelMaterial->IncrementReferenceCount();
 }

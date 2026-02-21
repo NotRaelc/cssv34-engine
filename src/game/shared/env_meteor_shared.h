@@ -10,7 +10,7 @@
 #pragma once
 
 #include "vstdlib/random.h"
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "utlvector.h"
 
 //=============================================================================

@@ -21,7 +21,8 @@
 #include "vphysics/collision_set.h"
 #include "soundenvelope.h"
 #include "fx_water.h"
-
+#include "positionwatcher.h"
+#include "vphysics/constraints.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -37,7 +38,7 @@ void PrecachePhysicsSounds( void );
 
 extern IVEngineClient *engine;
 
-class CCollisionEvent : public IPhysicsCollisionEvent, public IPhysicsCollisionSolver
+class CCollisionEvent : public IPhysicsCollisionEvent, public IPhysicsCollisionSolver, public IPhysicsObjectEvent
 {
 public:
 	CCollisionEvent( void );
@@ -67,28 +68,78 @@ public:
 
 	// IPhysicsCollisionSolver
 	int		ShouldCollide( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1 );
+#if _DEBUG
+	int		ShouldCollide_2( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1 );
+#endif
+	// debugging collision problem in TF2
 	int		ShouldSolvePenetration( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1, float dt );
 	bool	ShouldFreezeObject( IPhysicsObject *pObject ) { return true; }
 	int		AdditionalCollisionChecksThisTick( int currentChecksDone ) { return 0; }
+	bool ShouldFreezeContacts( IPhysicsObject **pObjectList, int objectCount )  { return true; }
+
+	// IPhysicsObjectEvent
+	virtual void ObjectWake( IPhysicsObject *pObject )
+	{
+		C_BaseEntity *pEntity = static_cast<C_BaseEntity *>(pObject->GetGameData());
+		if (pEntity && pEntity->HasDataObjectType(VPHYSICSWATCHER))
+		{
+			ReportVPhysicsStateChanged( pObject, pEntity, true );
+		}
+	}
+
+	virtual void ObjectSleep( IPhysicsObject *pObject )
+	{
+		C_BaseEntity *pEntity = static_cast<C_BaseEntity *>(pObject->GetGameData());
+		if ( pEntity && pEntity->HasDataObjectType( VPHYSICSWATCHER ) )
+		{
+			ReportVPhysicsStateChanged( pObject, pEntity, false );
+		}
+	}
 
 
 	friction_t *FindFriction( CBaseEntity *pObject );
 	void ShutdownFriction( friction_t &friction );
 	void UpdateFrictionSounds();
+	bool IsInCallback() { return m_inCallback > 0 ? true : false; }
 
 private:
+	class CallbackContext
+	{
+	public:
+		CallbackContext(CCollisionEvent *pOuter)
+		{
+			m_pOuter = pOuter;
+			m_pOuter->m_inCallback++;
+		}
+		~CallbackContext()
+		{
+			m_pOuter->m_inCallback--;
+		}
+	private:
+		CCollisionEvent *m_pOuter;
+	};
+	friend class CallbackContext;
 	
-	void	AddTouchEvent( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1, int touchType );
-	void	DispatchStartTouch( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1 );
+	void	AddTouchEvent( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1, int touchType, const Vector &point, const Vector &normal );
+	void	DispatchStartTouch( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1, const Vector &point, const Vector &normal );
 	void	DispatchEndTouch( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1 );
 
 	friction_t					m_current[8];
 	CUtlVector<fluidevent_t>	m_fluidEvents;
 	CUtlVector<touchevent_t>	m_touchEvents;
+	int							m_inCallback;
 	bool						m_bBufferTouchEvents;
 };
 
 CCollisionEvent g_Collisions;
+
+bool PhysIsInCallback()
+{
+	if ( (physenv && physenv->IsInSimulation()) || g_Collisions.IsInCallback() )
+		return true;
+
+	return false;
+}
 
 bool PhysicsDLLInit( CreateInterfaceFn physicsFactory )
 {
@@ -99,6 +150,11 @@ bool PhysicsDLLInit( CreateInterfaceFn physicsFactory )
 		return false;
 	}
 
+	if ( IsX360() )
+	{
+		// Reduce timescale to save perf on 360
+		cl_phys_timescale.SetValue(0.9f);
+	}
 	PhysParseSurfaceData( physprops, filesystem );
 	return true;
 }
@@ -108,6 +164,9 @@ void PhysicsLevelInit( void )
 {
 	physenv = physics->CreateEnvironment();
 	assert( physenv );
+#ifdef PORTAL
+	physenv_main = physenv;
+#endif
 	{
 	MEM_ALLOC_CREDIT();
 	g_EntityCollisionHash = physics->CreateObjectPairHash();
@@ -139,7 +198,18 @@ void PhysicsReset()
 ConVar cl_ragdoll_collide( "cl_ragdoll_collide", "0" );
 
 int CCollisionEvent::ShouldCollide( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1 )
+#if _DEBUG
 {
+	int x0 = ShouldCollide_2(pObj0, pObj1, pGameData0, pGameData1);
+	int x1 = ShouldCollide_2(pObj1, pObj0, pGameData1, pGameData0);
+	Assert(x0==x1);
+	return x0;
+}
+int CCollisionEvent::ShouldCollide_2( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1 )
+#endif
+{
+	CallbackContext callback(this);
+
 	C_BaseEntity *pEntity0 = static_cast<C_BaseEntity *>(pGameData0);
 	C_BaseEntity *pEntity1 = static_cast<C_BaseEntity *>(pGameData1);
 
@@ -233,8 +303,29 @@ int CCollisionEvent::ShouldCollide( IPhysicsObject *pObj0, IPhysicsObject *pObj1
 
 int CCollisionEvent::ShouldSolvePenetration( IPhysicsObject *pObj0, IPhysicsObject *pObj1, void *pGameData0, void *pGameData1, float dt )
 {
+	CallbackContext callback(this);
 	// solve it yourself here and return 0, or have the default implementation do it
-	return 1;
+	if ( pGameData0 == pGameData1 )
+	{
+		if ( pObj0->GetGameFlags() & FVPHYSICS_PART_OF_RAGDOLL )
+		{
+			// this is a ragdoll, self penetrating
+			C_BaseEntity *pEnt = reinterpret_cast<C_BaseEntity *>(pGameData0);
+			C_BaseAnimating *pAnim = pEnt->GetBaseAnimating();
+
+			if ( pAnim && pAnim->m_pRagdoll )
+			{
+				IPhysicsConstraintGroup *pGroup = pAnim->m_pRagdoll->GetConstraintGroup();
+				if ( pGroup )
+				{
+					pGroup->SolvePenetration( pObj0, pObj1 );
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 
@@ -348,6 +439,9 @@ void CPhysicsSystem::PhysicsSimulate()
 	if ( physenv )
 	{
 		g_Collisions.BufferTouchEvents( true );
+#ifdef _DEBUG
+		physenv->DebugCheckContacts();
+#endif
 		physenv->Simulate( frametime * cl_phys_timescale.GetFloat() );
 
 		int activeCount = physenv->GetActiveObjectCount();
@@ -416,6 +510,7 @@ void CCollisionEvent::ObjectSound( int index, vcollisionevent_t *pEvent )
 
 void CCollisionEvent::PostCollision( vcollisionevent_t *pEvent )
 {
+	CallbackContext callback(this);
 	if ( pEvent->deltaCollisionTime > 0.1f && pEvent->collisionSpeed > 70 )
 	{
 		ObjectSound( 0, pEvent );
@@ -446,7 +541,7 @@ void CCollisionEvent::UpdateTouchEvents( void )
 		const touchevent_t &event = m_touchEvents[i];
 		if ( event.touchType == TOUCH_START )
 		{
-			DispatchStartTouch( event.pEntity0, event.pEntity1 );
+			DispatchStartTouch( event.pEntity0, event.pEntity1, event.endPoint, event.normal );
 		}
 		else
 		{
@@ -465,7 +560,7 @@ void CCollisionEvent::UpdateTouchEvents( void )
 //			*pEntity1 - 
 //			touchType - 
 //-----------------------------------------------------------------------------
-void CCollisionEvent::AddTouchEvent( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1, int touchType )
+void CCollisionEvent::AddTouchEvent( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1, int touchType, const Vector &point, const Vector &normal )
 {
 	if ( !pEntity0 || !pEntity1 )
 		return;
@@ -475,6 +570,8 @@ void CCollisionEvent::AddTouchEvent( C_BaseEntity *pEntity0, C_BaseEntity *pEnti
 	event.pEntity0 = pEntity0;
 	event.pEntity1 = pEntity1;
 	event.touchType = touchType;
+	event.endPoint = point;
+	event.normal = normal;
 }
 
 //-----------------------------------------------------------------------------
@@ -485,16 +582,23 @@ void CCollisionEvent::AddTouchEvent( C_BaseEntity *pEntity0, C_BaseEntity *pEnti
 //-----------------------------------------------------------------------------
 void CCollisionEvent::StartTouch( IPhysicsObject *pObject1, IPhysicsObject *pObject2, IPhysicsCollisionData *pTouchData )
 {
+	CallbackContext callback(this);
 	C_BaseEntity *pEntity1 = static_cast<C_BaseEntity *>(pObject1->GetGameData());
 	C_BaseEntity *pEntity2 = static_cast<C_BaseEntity *>(pObject2->GetGameData());
 
+	if ( !pEntity1 || !pEntity2 )
+		return;
+
+	Vector endPoint, normal;
+	pTouchData->GetContactPoint( endPoint );
+	pTouchData->GetSurfaceNormal( normal );
 	if ( !m_bBufferTouchEvents )
 	{
-		DispatchStartTouch( pEntity1, pEntity2 );
+		DispatchStartTouch( pEntity1, pEntity2, endPoint, normal );
 	}
 	else
 	{
-		AddTouchEvent( pEntity1, pEntity2, TOUCH_START );
+		AddTouchEvent( pEntity1, pEntity2, TOUCH_START, endPoint, normal );
 	}
 }
 
@@ -503,21 +607,16 @@ void CCollisionEvent::StartTouch( IPhysicsObject *pObject1, IPhysicsObject *pObj
 // Input  : *pEntity0 - 
 //			*pEntity1 - 
 //-----------------------------------------------------------------------------
-void CCollisionEvent::DispatchStartTouch( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1 )
+void CCollisionEvent::DispatchStartTouch( C_BaseEntity *pEntity0, C_BaseEntity *pEntity1, const Vector &point, const Vector &normal )
 {
-	touchlink_t *link;
-	link = pEntity0->PhysicsMarkEntityAsTouched( pEntity1 );
-	if ( link )
-	{
-		// mark these links as event driven so they aren't untouched the next frame
-		// when the physics doesn't refresh them
-		link->touchStamp = TOUCHSTAMP_EVENT_DRIVEN;
-	}
-	link = pEntity1->PhysicsMarkEntityAsTouched( pEntity0 );
-	if ( link )
-	{
-		link->touchStamp = TOUCHSTAMP_EVENT_DRIVEN;
-	}
+	trace_t trace;
+	memset( &trace, 0, sizeof(trace) );
+	trace.endpos = point;
+	trace.plane.dist = DotProduct( point, normal );
+	trace.plane.normal = normal;
+
+	// NOTE: This sets up the touch list for both entities, no call to pEntity1 is needed
+	pEntity0->PhysicsMarkEntitiesAsTouchingEventDriven( pEntity1, trace );
 }
 
 //-----------------------------------------------------------------------------
@@ -528,16 +627,20 @@ void CCollisionEvent::DispatchStartTouch( C_BaseEntity *pEntity0, C_BaseEntity *
 //-----------------------------------------------------------------------------
 void CCollisionEvent::EndTouch( IPhysicsObject *pObject1, IPhysicsObject *pObject2, IPhysicsCollisionData *pTouchData )
 {
+	CallbackContext callback(this);
 	C_BaseEntity *pEntity1 = static_cast<C_BaseEntity *>(pObject1->GetGameData());
 	C_BaseEntity *pEntity2 = static_cast<C_BaseEntity *>(pObject2->GetGameData());
-	
+
+	if ( !pEntity1 || !pEntity2 )
+		return;
+
 	if ( !m_bBufferTouchEvents )
 	{
 		DispatchEndTouch( pEntity1, pEntity2 );
 	}
 	else
 	{
-		AddTouchEvent( pEntity1, pEntity2, TOUCH_END );
+		AddTouchEvent( pEntity1, pEntity2, TOUCH_END, vec3_origin, vec3_origin );
 	}
 }
 
@@ -555,13 +658,14 @@ void CCollisionEvent::DispatchEndTouch( C_BaseEntity *pEntity0, C_BaseEntity *pE
 
 void CCollisionEvent::Friction( IPhysicsObject *pObject, float energy, int surfaceProps, int surfacePropsHit, IPhysicsCollisionData *pData )
 {
+	CallbackContext callback(this);
 	if ( energy < 0.05f || surfaceProps < 0 )
 		return;
 
 	//Get our friction information
 	Vector vecPos, vecVel;
 	pData->GetContactPoint( vecPos );
-	pObject->GetVelocityAtPoint( vecPos, vecVel );
+	pObject->GetVelocityAtPoint( vecPos, &vecVel );
 
 	CBaseEntity *pEntity = reinterpret_cast<CBaseEntity *>(pObject->GetGameData());
 		
@@ -815,14 +919,14 @@ float CCollisionEvent::DeltaTimeSinceLastFluid( CBaseEntity *pEntity )
 {
 	for ( int i = m_fluidEvents.Count()-1; i >= 0; --i )
 	{
-		if ( m_fluidEvents[i].pEntity == pEntity )
+		if ( m_fluidEvents[i].hEntity.Get() == pEntity )
 		{
 			return gpGlobals->curtime - m_fluidEvents[i].impactTime;
 		}
 	}
 
 	int index = m_fluidEvents.AddToTail();
-	m_fluidEvents[index].pEntity = pEntity;
+	m_fluidEvents[index].hEntity = pEntity;
 	m_fluidEvents[index].impactTime = gpGlobals->curtime;
 	return FLUID_TIME_MAX;
 }
@@ -834,6 +938,7 @@ float CCollisionEvent::DeltaTimeSinceLastFluid( CBaseEntity *pEntity )
 //-----------------------------------------------------------------------------
 void CCollisionEvent::FluidStartTouch( IPhysicsObject *pObject, IPhysicsFluidController *pFluid )
 {
+	CallbackContext callback(this);
 	if ( ( pObject == NULL ) || ( pFluid == NULL ) )
 		return;
 
@@ -857,6 +962,7 @@ void CCollisionEvent::FluidStartTouch( IPhysicsObject *pObject, IPhysicsFluidCon
 //-----------------------------------------------------------------------------
 void CCollisionEvent::FluidEndTouch( IPhysicsObject *pObject, IPhysicsFluidController *pFluid )
 {
+	CallbackContext callback(this);
 	//FIXME: Do nothing for now
 }
 
@@ -920,4 +1026,24 @@ void PhysCleanupFrictionSounds( CBaseEntity *pEntity )
 	{
 		g_Collisions.ShutdownFriction( *pFriction );
 	}
+}
+
+float PhysGetNextSimTime()
+{
+	return physenv->GetSimulationTime() + gpGlobals->frametime * cl_phys_timescale.GetFloat();
+}
+
+float PhysGetSyncCreateTime()
+{
+	float nextTime = physenv->GetNextFrameTime();
+	float simTime = PhysGetNextSimTime();
+	if ( nextTime < simTime )
+	{
+		// The next simulation frame begins before the end of this frame
+		// so create physics objects at that time so that they will reach the current
+		// position at curtime.  Otherwise the physics object will simulate forward from curtime
+		// and pop into the future a bit at this point of transition
+		return gpGlobals->curtime + nextTime - simTime;
+	}
+	return gpGlobals->curtime;
 }

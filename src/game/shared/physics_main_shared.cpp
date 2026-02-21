@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #include "cbase.h"
 #include "engine/IEngineSound.h"
@@ -14,16 +14,48 @@
 #include "entitydatainstantiator.h"
 #include "positionwatcher.h"
 #include "movetype_push.h"
+#include "vphysicsupdateai.h"
 #include "igamesystem.h"
 #include "utlmultilist.h"
+#include "tier1/callqueue.h"
+
+#ifdef PORTAL
+	#include "portal_util_shared.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 // memory pool for storing links between entities
-static CMemoryPool g_EdictTouchLinks( sizeof(touchlink_t), 1024, CMemoryPool::GROW_NONE, "g_EdictTouchLinks");
-static CMemoryPool g_EntityGroundLinks( sizeof( groundlink_t ), MAX_EDICTS, CMemoryPool::GROW_NONE, "g_EntityGroundLinks");
-static CUtlMultiList<positionwatcher_t, unsigned short>	g_PositionWatcherList;
+static CUtlMemoryPool g_EdictTouchLinks( sizeof(touchlink_t), MAX_EDICTS, CUtlMemoryPool::GROW_NONE, "g_EdictTouchLinks");
+static CUtlMemoryPool g_EntityGroundLinks( sizeof( groundlink_t ), MAX_EDICTS, CUtlMemoryPool::GROW_NONE, "g_EntityGroundLinks");
+
+struct watcher_t
+{
+	EHANDLE				hWatcher;
+	IWatcherCallback	*pWatcherCallback;
+};
+
+static CUtlMultiList<watcher_t, unsigned short>	g_WatcherList;
+class CWatcherList
+{
+public:
+	//CWatcherList(); NOTE: Dataobj doesn't support constructors - it zeros the memory
+	~CWatcherList();	// frees the positionwatcher_t's to the pool
+	void Init();
+
+	void NotifyPositionChanged( CBaseEntity *pEntity );
+	void NotifyVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake );
+
+	void AddToList( CBaseEntity *pWatcher );
+	void RemoveWatcher( CBaseEntity *pWatcher );
+
+private:
+	int GetCallbackObjects( IWatcherCallback **pList, int listMax );
+
+	unsigned short Find( CBaseEntity *pEntity );
+	unsigned short m_list;
+};
 
 int linksallocated = 0;
 int groundlinksallocated = 0;
@@ -36,6 +68,51 @@ int groundlinksallocated = 0;
 #endif
 
 ConVar think_limit( "think_limit", DEF_THINK_LIMIT, FCVAR_REPLICATED, "Maximum think time in milliseconds, warning is printed if this is exceeded." );
+#ifndef CLIENT_DLL
+ConVar debug_touchlinks( "debug_touchlinks", "0", 0, "Spew touch link activity" );
+#define DebugTouchlinks() debug_touchlinks.GetBool()
+#else
+#define DebugTouchlinks() false
+#endif
+
+
+
+//-----------------------------------------------------------------------------
+// Portal-specific hack designed to eliminate re-entrancy in touch functions
+//-----------------------------------------------------------------------------
+class CPortalTouchScope
+{
+public:
+	CPortalTouchScope();
+	~CPortalTouchScope();
+
+public:
+	static int m_nDepth;
+	static CCallQueue m_CallQueue;	
+};
+
+int CPortalTouchScope::m_nDepth = 0;
+CCallQueue CPortalTouchScope::m_CallQueue;	
+
+CCallQueue *GetPortalCallQueue()
+{
+	return ( CPortalTouchScope::m_nDepth > 0 ) ? &CPortalTouchScope::m_CallQueue : NULL;
+}
+
+CPortalTouchScope::CPortalTouchScope()
+{
+	++m_nDepth;
+}
+
+CPortalTouchScope::~CPortalTouchScope()
+{
+	Assert( m_nDepth >= 1 );
+	if ( --m_nDepth == 0 )
+	{
+		m_CallQueue.CallQueued();
+	}
+}
+
 
 //-----------------------------------------------------------------------------
 // Purpose: System for hanging objects off of CBaseEntity, etc.
@@ -63,8 +140,10 @@ public:
 		AddDataAccessor( GROUNDLINK, new CEntityDataInstantiator< groundlink_t > );
 		AddDataAccessor( STEPSIMULATION, new CEntityDataInstantiator< StepSimulationData > );
 		AddDataAccessor( MODELWIDTHSCALE, new CEntityDataInstantiator< ModelWidthScale > );
-		AddDataAccessor( POSITIONWATCHER, new CEntityDataInstantiator< CPositionWatcherList > );
+		AddDataAccessor( POSITIONWATCHER, new CEntityDataInstantiator< CWatcherList > );
 		AddDataAccessor( PHYSICSPUSHLIST, new CEntityDataInstantiator< physicspushlist_t > );
+		AddDataAccessor( VPHYSICSUPDATEAI, new CEntityDataInstantiator< vphysicsupdateai_t > );
+		AddDataAccessor( VPHYSICSWATCHER, new CEntityDataInstantiator< CWatcherList > );
 		
 		return true;
 	}
@@ -188,105 +267,168 @@ void CBaseEntity::DestroyDataObject( int type )
 	RemoveDataObjectType( type );
 }
 
-void CPositionWatcherList::Init()
+void CWatcherList::Init()
 {
-	m_list = g_PositionWatcherList.CreateList();
+	m_list = g_WatcherList.CreateList();
 }
 
-CPositionWatcherList::~CPositionWatcherList()
+CWatcherList::~CWatcherList()
 {
-	g_PositionWatcherList.DestroyList( m_list );
+	g_WatcherList.DestroyList( m_list );
 }
 
-void CPositionWatcherList::NotifyWatchers( CBaseEntity *pEntity )
+int CWatcherList::GetCallbackObjects( IWatcherCallback **pList, int listMax )
 {
-	unsigned short next = g_PositionWatcherList.InvalidIndex();
-	for ( unsigned short node = g_PositionWatcherList.Head( m_list ); node != g_PositionWatcherList.InvalidIndex(); node = next )
+	int index = 0;
+	unsigned short next = g_WatcherList.InvalidIndex();
+	for ( unsigned short node = g_WatcherList.Head( m_list ); node != g_WatcherList.InvalidIndex(); node = next )
 	{
-		next = g_PositionWatcherList.Next( node );
-		positionwatcher_t *pNode = &g_PositionWatcherList.Element(node);
-		IPositionWatcher *pWatcherCallback = pNode->hWatcher.Get() ? pNode->pWatcherCallback : NULL;
-		if ( pWatcherCallback )
+		next = g_WatcherList.Next( node );
+		watcher_t *pNode = &g_WatcherList.Element(node);
+		if ( pNode->hWatcher.Get() )
 		{
-			pWatcherCallback->NotifyPositionChanged( pEntity );
+			pList[index] = pNode->pWatcherCallback;
+			index++;
+			if ( index >= listMax )
+			{
+				Assert(0);
+				return index;
+			}
 		}
 		else
 		{
-			g_PositionWatcherList.Remove( m_list, node );
+			g_WatcherList.Remove( m_list, node );
+		}
+	}
+	return index;
+}
+
+void CWatcherList::NotifyPositionChanged( CBaseEntity *pEntity )
+{
+	IWatcherCallback *pCallbacks[1024]; // HACKHACK: Assumes this list is big enough
+	int count = GetCallbackObjects( pCallbacks, ARRAYSIZE(pCallbacks) );
+	for ( int i = 0; i < count; i++ )
+	{
+		IPositionWatcher *pWatcher = assert_cast<IPositionWatcher *>(pCallbacks[i]);
+		if ( pWatcher )
+		{
+			pWatcher->NotifyPositionChanged(pEntity);
 		}
 	}
 }
 
-unsigned short CPositionWatcherList::Find( CBaseEntity *pEntity )
+void CWatcherList::NotifyVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake )
 {
-	unsigned short next = g_PositionWatcherList.InvalidIndex();
-	for ( unsigned short node = g_PositionWatcherList.Head( m_list ); node != g_PositionWatcherList.InvalidIndex(); node = next )
+	IWatcherCallback *pCallbacks[1024];	// HACKHACK: Assumes this list is big enough!
+	int count = GetCallbackObjects( pCallbacks, ARRAYSIZE(pCallbacks) );
+	for ( int i = 0; i < count; i++ )
 	{
-		next = g_PositionWatcherList.Next( node );
-		positionwatcher_t *pNode = &g_PositionWatcherList.Element(node);
+		IVPhysicsWatcher *pWatcher = assert_cast<IVPhysicsWatcher *>(pCallbacks[i]);
+		if ( pWatcher )
+		{
+			pWatcher->NotifyVPhysicsStateChanged(pPhysics, pEntity, bAwake);
+		}
+	}
+}
+
+unsigned short CWatcherList::Find( CBaseEntity *pEntity )
+{
+	unsigned short next = g_WatcherList.InvalidIndex();
+	for ( unsigned short node = g_WatcherList.Head( m_list ); node != g_WatcherList.InvalidIndex(); node = next )
+	{
+		next = g_WatcherList.Next( node );
+		watcher_t *pNode = &g_WatcherList.Element(node);
 		if ( pNode->hWatcher.Get() == pEntity )
 		{
 			return node;
 		}
 	}
-	return g_PositionWatcherList.InvalidIndex();
+	return g_WatcherList.InvalidIndex();
 }
 
-void CPositionWatcherList::RemoveWatcher( CBaseEntity *pEntity )
+void CWatcherList::RemoveWatcher( CBaseEntity *pEntity )
 {
 	unsigned short node = Find( pEntity );
-	if ( node != g_PositionWatcherList.InvalidIndex() )
+	if ( node != g_WatcherList.InvalidIndex() )
 	{
-		g_PositionWatcherList.Remove( m_list, node );
+		g_WatcherList.Remove( m_list, node );
 	}
 }
 
 
-void CPositionWatcherList::AddToList( CBaseEntity *pWatcher )
+void CWatcherList::AddToList( CBaseEntity *pWatcher )
 {
 	unsigned short node = Find( pWatcher );
-	if ( node == g_PositionWatcherList.InvalidIndex() )
+	if ( node == g_WatcherList.InvalidIndex() )
 	{
-		positionwatcher_t watcher;
+		watcher_t watcher;
 		watcher.hWatcher = pWatcher;
 			// save this separately so we can use the EHANDLE to test for deletion
-		watcher.pWatcherCallback = dynamic_cast<IPositionWatcher *> (pWatcher);
+		watcher.pWatcherCallback = dynamic_cast<IWatcherCallback *> (pWatcher);
 
 		if ( watcher.pWatcherCallback )
 		{
-			g_PositionWatcherList.AddToTail( m_list, watcher );
+			g_WatcherList.AddToTail( m_list, watcher );
 		}
 	}
 }
 
-
-void ReportPositionChanged( CBaseEntity *pMovedEntity )
+static void AddWatcherToEntity( CBaseEntity *pWatcher, CBaseEntity *pEntity, int watcherType )
 {
-	CPositionWatcherList *pList = (CPositionWatcherList *)pMovedEntity->GetDataObject(POSITIONWATCHER);
-	if ( pList )
-	{
-		pList->NotifyWatchers( pMovedEntity );
-	}
-}
-
-void WatchPositionChanges( CBaseEntity *pWatcher, CBaseEntity *pMovingEntity )
-{
-	CPositionWatcherList *pList = (CPositionWatcherList *)pMovingEntity->GetDataObject(POSITIONWATCHER);
+	CWatcherList *pList = (CWatcherList *)pEntity->GetDataObject(watcherType);
 	if ( !pList )
 	{
-		pList = ( CPositionWatcherList * )pMovingEntity->CreateDataObject( POSITIONWATCHER );
+		pList = ( CWatcherList * )pEntity->CreateDataObject( watcherType );
 		pList->Init();
 	}
 
 	pList->AddToList( pWatcher );
 }
 
-void RemovePositionWatcher( CBaseEntity *pWatcher, CBaseEntity *pMovingEntity )
+static void RemoveWatcherFromEntity( CBaseEntity *pWatcher, CBaseEntity *pEntity, int watcherType )
 {
-	CPositionWatcherList *pList = (CPositionWatcherList *)pMovingEntity->GetDataObject(POSITIONWATCHER);
+	CWatcherList *pList = (CWatcherList *)pEntity->GetDataObject(watcherType);
 	if ( pList )
 	{
 		pList->RemoveWatcher( pWatcher );
+	}
+}
+
+void WatchPositionChanges( CBaseEntity *pWatcher, CBaseEntity *pMovingEntity )
+{
+	AddWatcherToEntity( pWatcher, pMovingEntity, POSITIONWATCHER );
+}
+
+void RemovePositionWatcher( CBaseEntity *pWatcher, CBaseEntity *pMovingEntity )
+{
+	RemoveWatcherFromEntity( pWatcher, pMovingEntity, POSITIONWATCHER );
+}
+
+void ReportPositionChanged( CBaseEntity *pMovedEntity )
+{
+	CWatcherList *pList = (CWatcherList *)pMovedEntity->GetDataObject(POSITIONWATCHER);
+	if ( pList )
+	{
+		pList->NotifyPositionChanged( pMovedEntity );
+	}
+}
+
+void WatchVPhysicsStateChanges( CBaseEntity *pWatcher, CBaseEntity *pPhysicsEntity )
+{
+	AddWatcherToEntity( pWatcher, pPhysicsEntity, VPHYSICSWATCHER );
+}
+
+void RemoveVPhysicsStateWatcher( CBaseEntity *pWatcher, CBaseEntity *pPhysicsEntity )
+{
+	AddWatcherToEntity( pWatcher, pPhysicsEntity, VPHYSICSWATCHER );
+}
+
+void ReportVPhysicsStateChanged( IPhysicsObject *pPhysics, CBaseEntity *pEntity, bool bAwake )
+{
+	CWatcherList *pList = (CWatcherList *)pEntity->GetDataObject(VPHYSICSWATCHER);
+	if ( pList )
+	{
+		pList->NotifyVPhysicsStateChanged( pPhysics, pEntity, bAwake );
 	}
 }
 
@@ -365,7 +507,7 @@ inline touchlink_t *AllocTouchLink( void )
 	}
 	else
 	{
-		DevMsg( "AllocTouchLink: failed to allocate touchlink_t.\n" );
+		DevWarning( "AllocTouchLink: failed to allocate touchlink_t.\n" );
 	}
 
 	return link;
@@ -387,7 +529,10 @@ inline void FreeTouchLink( touchlink_t *link )
 			g_pNextLink = link->nextLink;
 		}
 		--linksallocated;
+		link->prevLink = link->nextLink = NULL;
 	}
+
+	// Necessary to catch crashes
 	g_EdictTouchLinks.Free( link );
 }
 
@@ -455,6 +600,9 @@ void CBaseEntity::PhysicsCheckForEntityUntouch( void )
 	touchlink_t *root = ( touchlink_t * )GetDataObject( TOUCHLINK );
 	if ( root )
 	{
+#ifdef PORTAL
+		CPortalTouchScope scope;
+#endif
 		bool saveCleanup = g_bCleanupDatObject;
 		g_bCleanupDatObject = false;
 
@@ -471,7 +619,7 @@ void CBaseEntity::PhysicsCheckForEntityUntouch( void )
 				PhysicsTouch( link->entityTouched );
 			}
 			else
-			{
+			{    
 				// check to see if the touch stamp is up to date
 				if ( link->touchStamp != touchStamp )
 				{
@@ -555,6 +703,8 @@ void CBaseEntity::PhysicsRemoveToucher( CBaseEntity *otherEntity, touchlink_t *l
 	link->nextLink->prevLink = link->prevLink;
 	link->prevLink->nextLink = link->nextLink;
 
+	if ( DebugTouchlinks() )
+		Msg( "remove 0x%x: %s-%s (%d-%d) [%d in play, %d max]\n", link, link->entityTouched->GetDebugName(), otherEntity->GetDebugName(), link->entityTouched->entindex(), otherEntity->entindex(), linksallocated, g_EdictTouchLinks.PeakCount() );
 	FreeTouchLink( link );
 }
 
@@ -563,13 +713,16 @@ void CBaseEntity::PhysicsRemoveToucher( CBaseEntity *otherEntity, touchlink_t *l
 //-----------------------------------------------------------------------------
 void CBaseEntity::PhysicsRemoveTouchedList( CBaseEntity *ent )
 {
+#ifdef PORTAL
+	CPortalTouchScope scope;
+#endif
+
 	touchlink_t *link, *nextLink;
 
 	touchlink_t *root = ( touchlink_t * )ent->GetDataObject( TOUCHLINK );
 	if ( root )
 	{
 		link = root->nextLink;
-
 		bool saveCleanup = g_bCleanupDatObject;
 		g_bCleanupDatObject = false;
 		while ( link && link != root )
@@ -580,13 +733,13 @@ void CBaseEntity::PhysicsRemoveTouchedList( CBaseEntity *ent )
 			PhysicsNotifyOtherOfUntouch( ent, link->entityTouched );
 
 			// kill it
+			if ( DebugTouchlinks() )
+				Msg( "remove 0x%x: %s-%s (%d-%d) [%d in play, %d max]\n", link, ent->GetDebugName(), link->entityTouched->GetDebugName(), ent->entindex(), link->entityTouched->entindex(), linksallocated, g_EdictTouchLinks.PeakCount() );
 			FreeTouchLink( link );
-
 			link = nextLink;
 		}
 
 		g_bCleanupDatObject = saveCleanup;
-
 		ent->DestroyDataObject( TOUCHLINK );
 	}
 
@@ -775,6 +928,8 @@ void CBaseEntity::PhysicsStartTouch( CBaseEntity *pentOther )
 	}
 }
 
+
+
 //-----------------------------------------------------------------------------
 // Purpose: Marks in an entity that it is touching another entity, and calls
 //			it's Touch() function if it is a new touch.
@@ -815,6 +970,10 @@ touchlink_t *CBaseEntity::PhysicsMarkEntityAsTouched( CBaseEntity *other )
 		return NULL;
 	}
 
+#ifdef PORTAL
+	CPortalTouchScope scope;
+#endif
+
 	// check if the edict is already in the list
 	touchlink_t *root = ( touchlink_t * )GetDataObject( TOUCHLINK );
 	if ( root )
@@ -848,6 +1007,8 @@ touchlink_t *CBaseEntity::PhysicsMarkEntityAsTouched( CBaseEntity *other )
 
 	// build new link
 	link = AllocTouchLink();
+	if ( DebugTouchlinks() )
+		Msg( "add 0x%x: %s-%s (%d-%d) [%d in play, %d max]\n", link, GetDebugName(), other->GetDebugName(), entindex(), other->entindex(), linksallocated, g_EdictTouchLinks.PeakCount() );
 	if ( !link )
 		return NULL;
 
@@ -895,6 +1056,7 @@ void CBaseEntity::PhysicsMarkEntitiesAsTouching( CBaseEntity *other, trace_t &tr
 void CBaseEntity::PhysicsMarkEntitiesAsTouchingEventDriven( CBaseEntity *other, trace_t &trace )
 {
 	g_TouchTrace = trace;
+	g_TouchTrace.m_pEnt = other;
 
 	touchlink_t *link;
 	link = this->PhysicsMarkEntityAsTouched( other );
@@ -904,6 +1066,7 @@ void CBaseEntity::PhysicsMarkEntitiesAsTouchingEventDriven( CBaseEntity *other, 
 		// when the physics doesn't refresh them
 		link->touchStamp = TOUCHSTAMP_EVENT_DRIVEN;
 	}
+	g_TouchTrace.m_pEnt = this;
 	link = other->PhysicsMarkEntityAsTouched( this );
 	if ( link )
 	{
@@ -1410,9 +1573,12 @@ void CBaseEntity::PhysicsCheckWaterTransition( void )
 			// just crossed into water
 			EmitSound( "BaseEntity.EnterWater" );
 
-			Vector vecAbsVelocity = GetAbsVelocity();
-			vecAbsVelocity[2] *= 0.5;
-			SetAbsVelocity( vecAbsVelocity );
+			if ( !IsEFlagSet( EFL_NO_WATER_VELOCITY_CHANGE ) )
+			{
+				Vector vecAbsVelocity = GetAbsVelocity();
+				vecAbsVelocity[2] *= 0.5;
+				SetAbsVelocity( vecAbsVelocity );
+			}
 		}
 	}
 	else

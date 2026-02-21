@@ -30,18 +30,21 @@ public:
 		// Schedules
 		SCHED_PASSENGER_ZOMBIE_ENTER_VEHICLE = BaseClass::NEXT_SCHEDULE,
 		SCHED_PASSENGER_ZOMBIE_EXIT_VEHICLE,
-		SCHED_PASSENGER_MELEE_ATTACK1,
+		SCHED_PASSENGER_ZOMBIE_MELEE_ATTACK1,
 		SCHED_PASSENGER_ZOMBIE_RANGE_ATTACK1,
+		SCHED_PASSENGER_ZOMBIE_ATTACH,
+		SCHED_PASSENGER_ZOMBIE_RUN_TO_VEHICLE,
 		NEXT_SCHEDULE,
 
 		// Tasks
 		TASK_PASSENGER_ZOMBIE_RANGE_ATTACK1 = BaseClass::NEXT_TASK,
 		TASK_PASSENGER_ZOMBIE_DISMOUNT,
+		TASK_PASSENGER_ZOMBIE_ATTACH,
 		NEXT_TASK,
 
 		// Conditions
-		//COND_ = BaseClass::NEXT_CONDITION,
-		//NEXT_CONDITION
+		COND_PASSENGER_ZOMBIE_CAN_ATTACH_TO_VEHICLE = BaseClass::NEXT_CONDITION,
+		NEXT_CONDITION
 	};
 
 	virtual const char *GetName( void ) { return "ZombiePassenger"; }
@@ -54,8 +57,11 @@ public:
 	virtual void		RunTask( const Task_t *pTask );
 	virtual void		StartTask( const Task_t *pTask );
 	virtual bool		CanEnterVehicle( void );
-	virtual void		EnterVehicle( void );
 	virtual void		ExitVehicle( void );
+	virtual void		HandleAnimEvent( animevent_t *pEvent );
+	virtual Activity	NPC_TranslateActivity( Activity activity );
+
+	virtual	bool		AttachToVehicle( void );
 
 	void				SuppressAttack( float flDuration );
 
@@ -70,10 +76,14 @@ protected:
 	void				FinishDismount( void );
 	virtual void		CalculateBodyLean( void );
 	virtual void		GatherVehicleStateConditions( void );
-	inline bool			CanBeOnEnemyVehicle( void );
+	virtual int			FindEntrySequence( bool bNearest = false );
 
 private:
 
+	void				VehicleLeapAttackTouch( CBaseEntity *pOther );
+	void				VehicleLeapAttack( void );
+	bool				CanBeOnEnemyVehicle( void );
+	float				GetEntryPointCost( const Vector &vecEntryPos );
 	bool				EnemyInVehicle( void );
 	void				GetAttachmentPoint( Vector *vecPoint );
 	bool				CanJumpToAttachToVehicle( void );

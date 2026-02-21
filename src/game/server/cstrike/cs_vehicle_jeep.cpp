@@ -47,9 +47,6 @@
 #define JEEP_DELTA_LENGTH_MAX	12.0f			// 1 foot
 #define JEEP_FRAMETIME_MIN		1e-6
 
-#define JEEP_STEERING_SLOW_ANGLE	50.0f
-#define JEEP_STEERING_FAST_ANGLE	15.0f
-
 ConVar	hud_jeephint_numentries( "hud_jeephint_numentries", "10", FCVAR_NONE );
 ConVar	g_jeepexitspeed( "g_jeepexitspeed", "100", FCVAR_CHEAT );
 
@@ -1377,25 +1374,8 @@ void CPropJeep::ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMoveData )
 {
 	BaseClass::ProcessMovement( pPlayer, pMoveData );
 
-	// Update the steering angles based on speed.
-	UpdateSteeringAngle();
-	
 	// Create dangers sounds in front of the vehicle.
 	CreateDangerSounds();
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-void CPropJeep::UpdateSteeringAngle( void )
-{
-	float flMaxSpeed = m_VehiclePhysics.GetMaxSpeed();
-	float flSpeed = m_VehiclePhysics.GetSpeed();
-
-	float flRatio = 1.0f - ( flSpeed / flMaxSpeed );
-	float flSteeringDegrees = JEEP_STEERING_FAST_ANGLE + ( ( JEEP_STEERING_SLOW_ANGLE - JEEP_STEERING_FAST_ANGLE ) * flRatio );
-	flSteeringDegrees = clamp( flSteeringDegrees, JEEP_STEERING_FAST_ANGLE, JEEP_STEERING_SLOW_ANGLE );
-	m_VehiclePhysics.SetSteeringDegrees( flSteeringDegrees );
 }
 
 //-----------------------------------------------------------------------------
@@ -1562,11 +1542,13 @@ int CJeepFourWheelServerVehicle::GetExitAnimToUse( Vector &vecEyeExitEndpoint, b
 	{
 		// HACK: We know the tau-cannon removed exit anim uses the first upright anim's exit details
 		trace_t tr;
-		Vector vehicleExitOrigin;
-		QAngle vehicleExitAngles;
+
+		// Convert our offset points to worldspace ones
+		Vector vehicleExitOrigin = m_ExitAnimations[0].vecExitPointLocal;
+		QAngle vehicleExitAngles = m_ExitAnimations[0].vecExitAnglesLocal;
+		UTIL_ParentToWorldSpace( pAnimating, vehicleExitOrigin, vehicleExitAngles );
 
 		// Ensure the endpoint is clear by dropping a point down from above
-		pAnimating->GetAttachment( m_ExitAnimations[0].iAttachment, vehicleExitOrigin, vehicleExitAngles );
 		vehicleExitOrigin -= VEC_VIEW;
 		Vector vecMove = Vector(0,0,64);
 		Vector vecStart = vehicleExitOrigin + vecMove;

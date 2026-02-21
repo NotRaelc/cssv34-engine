@@ -14,12 +14,16 @@
 #include "isteamuser.h"
 #include "isteamfriends.h"
 #include "isteamutils.h"
-#include "isteambilling.h"
+#include "isteammatchmaking.h"
+#include "isteamuserstats.h"
+#include "isteamapps.h"
 
 // Steam API export macro
-#ifdef _WIN32
+#if defined( _WIN32 ) && !defined( _X360 )
 	#if defined( STEAM_API_EXPORTS )
 	#define S_API extern "C" __declspec( dllexport ) 
+	#elif defined( STEAM_API_NODLL )
+	#define S_API extern "C"
 	#else
 	#define S_API extern "C" __declspec( dllimport ) 
 	#endif // STEAM_API_EXPORTS
@@ -43,13 +47,16 @@
 S_API bool SteamAPI_Init();
 S_API void SteamAPI_Shutdown();
 
-
 // interface pointers, configured by SteamAPI_Init()
 S_API ISteamUser *SteamUser();
 S_API ISteamFriends *SteamFriends();
 S_API ISteamClient *SteamClient();
 S_API ISteamUtils *SteamUtils();
-S_API ISteamBilling *SteamBilling();
+S_API ISteamMatchmaking *SteamMatchmaking();
+S_API ISteamUserStats *SteamUserStats();
+S_API ISteamApps *SteamApps();
+
+S_API ISteamMatchmakingServers *SteamMatchmakingServers();
 
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------//
@@ -78,6 +85,7 @@ class CCallbackBase
 {
 public:
 	CCallbackBase() { m_nCallbackFlags = 0; }
+	// don't add a virtual destructor because we export this binary interface across dll's
 	virtual void Run( void *pvParam ) = 0;
 
 protected:
@@ -150,9 +158,6 @@ private:
 //
 //	The following functions are part of abstracting API access to the steamclient.dll, but should only be used in very specific cases
 //----------------------------------------------------------------------------------------------------------------------------------------------------------//
-
-// initializes the global instance of steam - should only be used by SteamUI app itself
-S_API bool SteamAPI_InitGlobalInstance();
 
 // pumps out all the steam messages, calling the register callback
 S_API void Steam_RunCallbacks( HSteamPipe hSteamPipe, bool bGameServerCallbacks );

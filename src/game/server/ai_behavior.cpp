@@ -252,11 +252,38 @@ bool CAI_BehaviorBase::ShouldIgnoreSound( CSound *pSound )
 
 //-------------------------------------
 
+void CAI_BehaviorBase::OnSeeEntity( CBaseEntity *pEntity )
+{
+	Assert( m_pBackBridge != NULL );
+
+	m_pBackBridge->BackBridge_OnSeeEntity( pEntity );
+}
+
+//-------------------------------------
+
+void CAI_BehaviorBase::OnFriendDamaged( CBaseCombatCharacter *pSquadmate, CBaseEntity *pAttacker )
+{
+	Assert( m_pBackBridge != NULL );
+
+	m_pBackBridge->BackBridge_OnFriendDamaged( pSquadmate, pAttacker );
+}
+
+//-------------------------------------
+
 bool CAI_BehaviorBase::IsInterruptable( void )
 {
 	Assert( m_pBackBridge != NULL );
 	
 	return m_pBackBridge->BackBridge_IsInterruptable();
+}
+
+//-------------------------------------
+
+bool CAI_BehaviorBase::IsNavigationUrgent( void )
+{
+	Assert( m_pBackBridge != NULL );
+
+	return m_pBackBridge->BackBridge_IsNavigationUrgent();
 }
 
 //-------------------------------------
@@ -359,6 +386,33 @@ bool CAI_BehaviorBase::OnCalcBaseMove( AILocalMoveGoal_t *pMoveGoal, float distC
 
 //-------------------------------------
 
+void CAI_BehaviorBase::ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet )
+{
+	Assert( m_pBackBridge != NULL );
+
+	return m_pBackBridge->BackBridge_ModifyOrAppendCriteria( criteriaSet );
+}
+
+//-------------------------------------
+
+void CAI_BehaviorBase::Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity )
+{
+	Assert( m_pBackBridge != NULL );
+
+	return m_pBackBridge->BackBridge_Teleport( newPosition, newAngles, newVelocity );
+}
+
+//-------------------------------------
+
+void CAI_BehaviorBase::HandleAnimEvent( animevent_t *pEvent )
+{
+	Assert( m_pBackBridge != NULL );
+
+	m_pBackBridge->BackBridge_HandleAnimEvent( pEvent );
+}
+
+//-------------------------------------
+
 bool CAI_BehaviorBase::NotifyChangeBehaviorStatus( bool fCanFinishSchedule )
 {
 	bool fInterrupt = GetOuter()->OnBehaviorChangeStatus( this, fCanFinishSchedule );
@@ -384,7 +438,7 @@ bool CAI_BehaviorBase::NotifyChangeBehaviorStatus( bool fCanFinishSchedule )
 
 		//!!!HACKHACK
 		// this is dirty, but it forces NPC to pick a new schedule next time through.
-		GetOuter()->ClearSchedule();
+		GetOuter()->ClearSchedule( "Changed behavior status" );
 	}
 
 	return fInterrupt;

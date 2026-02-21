@@ -324,6 +324,11 @@ CGravityVortexController *CGravityVortexController::Create( const Vector &origin
 }
 
 BEGIN_DATADESC( CGravityVortexController )
+	DEFINE_FIELD( m_flMass, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flEndTime, FIELD_TIME ),
+	DEFINE_FIELD( m_flRadius, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flStrength, FIELD_FLOAT ),
+
 	DEFINE_THINKFUNC( PullThink ),
 END_DATADESC()
 
@@ -333,6 +338,8 @@ LINK_ENTITY_TO_CLASS( vortex_controller, CGravityVortexController );
 #define GRENADE_MODEL_OPEN		"models/roller_spikes.mdl"
 
 BEGIN_DATADESC( CGrenadeHopwire )
+	DEFINE_FIELD( m_hVortexController, FIELD_EHANDLE ),
+
 	DEFINE_THINKFUNC( EndThink ),
 	DEFINE_THINKFUNC( CombatThink ),
 END_DATADESC()

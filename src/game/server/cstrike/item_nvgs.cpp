@@ -39,8 +39,11 @@ public:
 
 		pPlayer->m_bHasNightVision = true;
 
-		CPASAttenuationFilter filter( pBasePlayer );
-		EmitSound( filter, entindex(), "BaseCombatCharacter.ItemPickup2" );
+		if ( pPlayer->IsDead() == false )
+		{
+			CPASAttenuationFilter filter( pBasePlayer );
+			EmitSound( filter, entindex(), "BaseCombatCharacter.ItemPickup2" );
+		}
 
 		return true;
 	}

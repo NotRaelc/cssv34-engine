@@ -39,7 +39,8 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE( CRopeKeyframe, DT_RopeKeyframe )
 	SendPropInt( SENDINFO(m_fLockedPoints), 4, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO(m_RopeFlags), ROPE_NUMFLAGS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO(m_nSegments), 4, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO(m_iRopeMaterialModel), 16, SPROP_UNSIGNED ),
+	SendPropBool( SENDINFO(m_bConstrainBetweenEndpoints) ),
+	SendPropInt( SENDINFO(m_iRopeMaterialModelIndex), 16, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO(m_Subdiv), 4, SPROP_UNSIGNED ),
 
 	SendPropFloat( SENDINFO(m_TextureScale), 10, 0, 0.1f, 10.0f ),
@@ -62,9 +63,10 @@ BEGIN_DATADESC( CRopeKeyframe )
 	DEFINE_KEYFIELD( m_Width,			FIELD_FLOAT,	"Width" ),
 	DEFINE_KEYFIELD( m_TextureScale,		FIELD_FLOAT,	"TextureScale" ),
 	DEFINE_FIELD( m_nSegments,		FIELD_INTEGER ),
+	DEFINE_FIELD( m_bConstrainBetweenEndpoints,		FIELD_BOOLEAN ),
 
 	DEFINE_FIELD( m_strRopeMaterialModel, FIELD_STRING ),
-	DEFINE_FIELD( m_iRopeMaterialModel,FIELD_INTEGER ),
+	DEFINE_FIELD( m_iRopeMaterialModelIndex, FIELD_MODELINDEX ),
 	DEFINE_KEYFIELD( m_Subdiv,			FIELD_INTEGER,	"Subdiv" ),
 	DEFINE_FIELD( m_RopeLength,		FIELD_INTEGER ),
 	DEFINE_FIELD( m_fLockedPoints,	FIELD_INTEGER ),
@@ -108,7 +110,7 @@ CRopeKeyframe::CRopeKeyframe()
 	m_fLockedPoints = (int) (ROPE_LOCK_START_POINT | ROPE_LOCK_END_POINT); // by default, both points are locked
 	m_flScrollSpeed = 0;
 	m_RopeFlags = ROPE_SIMULATE | ROPE_INITIAL_HANG;
-	m_iRopeMaterialModel = -1;
+	m_iRopeMaterialModelIndex = -1;
 	m_Subdiv = 2;
 
 	m_bCreatedFromMapFile = true;
@@ -338,8 +340,8 @@ void CRopeKeyframe::Activate()
 		return;
 
 	// Legacy support..
-	if ( m_iRopeMaterialModel == -1 )
-		m_iRopeMaterialModel = PrecacheModel( "cable/cable.vmt" );
+	if ( m_iRopeMaterialModelIndex == -1 )
+		m_iRopeMaterialModelIndex = PrecacheModel( "cable/cable.vmt" );
 
 	// Find the next entity in our chain.
 	CBaseEntity *pEnt = gEntList.FindEntityByName( NULL, m_iNextLinkName );
@@ -624,7 +626,7 @@ int CRopeKeyframe::OnTakeDamage( const CTakeDamageInfo &info )
 
 void CRopeKeyframe::Precache()
 {
-	m_iRopeMaterialModel = PrecacheModel( STRING( m_strRopeMaterialModel ) );
+	m_iRopeMaterialModelIndex = PrecacheModel( STRING( m_strRopeMaterialModel ) );
 	BaseClass::Precache();
 }
 
@@ -698,15 +700,15 @@ bool CRopeKeyframe::KeyValue( const char *szKeyName, const char *szValue )
 		int iShader = atoi( szValue );
 		if ( iShader == 0 )
 		{
-			m_iRopeMaterialModel = PrecacheModel( "cable/cable.vmt" );
+			m_iRopeMaterialModelIndex = PrecacheModel( "cable/cable.vmt" );
 		}
 		else if ( iShader == 1 )
 		{
-			m_iRopeMaterialModel = PrecacheModel( "cable/rope.vmt" );
+			m_iRopeMaterialModelIndex = PrecacheModel( "cable/rope.vmt" );
 		}
 		else
 		{
-			m_iRopeMaterialModel = PrecacheModel( "cable/chain.vmt" );
+			m_iRopeMaterialModelIndex = PrecacheModel( "cable/chain.vmt" );
 		}
 	}
 	else if ( stricmp( szKeyName, "RopeMaterial" ) == 0 )
@@ -740,7 +742,7 @@ void CRopeKeyframe::InputSetScrollSpeed( inputdata_t &inputdata )
 void CRopeKeyframe::SetMaterial( const char *pName )
 {
 	m_strRopeMaterialModel = AllocPooledString( pName );
-	m_iRopeMaterialModel = PrecacheModel( STRING( m_strRopeMaterialModel ) );
+	m_iRopeMaterialModelIndex = PrecacheModel( STRING( m_strRopeMaterialModel ) );
 }
 
 int CRopeKeyframe::UpdateTransmitState()

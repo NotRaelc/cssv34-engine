@@ -106,7 +106,7 @@ void CHudAnimationInfo::PaintString( int& x, int &y, const char *sz, Color *pLeg
 
 	wchar_t szconverted[ 512 ];
 
-	localize()->ConvertANSIToUnicode( "O->", szconverted, sizeof(szconverted)  );
+	g_pVGuiLocalize->ConvertANSIToUnicode( "O->", szconverted, sizeof(szconverted)  );
 		
 	if ( pLegendColor )
 	{
@@ -119,7 +119,7 @@ void CHudAnimationInfo::PaintString( int& x, int &y, const char *sz, Color *pLeg
 
 	surface()->DrawPrintText( szconverted, wcslen( szconverted ) );
 
-	localize()->ConvertANSIToUnicode( sz, szconverted, sizeof(szconverted)  );
+	g_pVGuiLocalize->ConvertANSIToUnicode( sz, szconverted, sizeof(szconverted)  );
 
 	surface()->DrawSetTextColor( m_ItemColor );
 	surface()->DrawPrintText( szconverted, wcslen( szconverted ) );
@@ -285,14 +285,14 @@ static int HudElementCompletion( const char *partial, char commands[ COMMAND_COM
 	return current;
 }
 
-static void HudAnimationInfo_f( void )
+CON_COMMAND_F_COMPLETION( cl_animationinfo, "Hud element to examine.", 0, HudElementCompletion )
 {
 	CHudAnimationInfo *info = GET_HUDELEMENT( CHudAnimationInfo );
 	Assert( info );
 	if ( !info )
 		return;
 
-	if ( engine->Cmd_Argc() != 2 )
+	if ( args.ArgC() != 2 )
 	{
 		info->SetWatch( NULL );
 		return;
@@ -303,9 +303,9 @@ static void HudAnimationInfo_f( void )
 	
 	for ( int i = 0; i < gHUD.m_HudList.Size(); i++ )
 	{
-		if ( stricmp( gHUD.m_HudList[i]->GetName(), engine->Cmd_Argv(1)  ) == 0 )
+		if ( stricmp( gHUD.m_HudList[i]->GetName(), args[1]  ) == 0 )
 		{
-			element =  gHUD.m_HudList[i];
+			element = gHUD.m_HudList[i];
 			break;
 		}
 	}
@@ -321,7 +321,7 @@ static void HudAnimationInfo_f( void )
 		Panel *panel = NULL;
 		if ( rootPanel )
 		{
-			panel = rootPanel->FindChildByName(  engine->Cmd_Argv(1), true );
+			panel = rootPanel->FindChildByName( args[1], true );
 		}
 
 		if ( panel )
@@ -330,9 +330,8 @@ static void HudAnimationInfo_f( void )
 		}
 		else
 		{
-			Msg( "No such element %s\n", engine->Cmd_Argv(1) );
+			Msg( "No such element %s\n", args[1] );
 		}
 	}
 }
 
-static ConCommand cl_animationinfo( "cl_animationinfo", HudAnimationInfo_f, "Hud element to examine.", 0, HudElementCompletion );

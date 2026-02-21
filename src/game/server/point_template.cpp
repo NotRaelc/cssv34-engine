@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Point entity used to create templates out of other entities or groups of entities
 //
@@ -11,7 +11,7 @@
 #include "point_template.h"
 #include "saverestore_utlvector.h"
 #include "mapentities.h"
-#include "vstdlib/ICommandLine.h"
+#include "tier0/icommandline.h"
 #include "mapentities_shared.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -377,6 +377,7 @@ bool CPointTemplate::CreateInstance( const Vector &vecOrigin, const QAngle &vecA
 
 		pSpawnList[i].m_pEntity = pEntity;
 		pSpawnList[i].m_nDepth = 0;
+		pSpawnList[i].m_pDeferredParent = NULL;
 	}
 
 	SpawnHierarchicalList( iTemplates, pSpawnList, true );

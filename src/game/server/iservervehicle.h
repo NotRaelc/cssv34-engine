@@ -37,12 +37,17 @@ public:
 
 	// Can a given passenger take damage?
 	virtual bool			IsPassengerDamagable( int nRole  = VEHICLE_ROLE_DRIVER ) = 0;
+	virtual bool			PassengerShouldReceiveDamage( CTakeDamageInfo &info ) = 0;
 
 	// Is the vehicle upright?
 	virtual bool			IsVehicleUpright( void ) = 0;
 
+	// Whether or not we're in a transitional phase
+	virtual bool			IsPassengerEntering( void ) = 0;
+	virtual bool			IsPassengerExiting( void ) = 0;
+
 	// Get a position in *world space* inside the vehicle for the player to start at
-	virtual void			GetPassengerStartPoint( int nRole, Vector *pPoint, QAngle *pAngles ) = 0;
+	virtual void			GetPassengerSeatPoint( int nRole, Vector *pPoint, QAngle *pAngles ) = 0;
 
 	virtual void			HandlePassengerEntry( CBaseCombatCharacter *pPassenger, bool bAllowEntryOutsideZone = false ) = 0;
 	virtual bool			HandlePassengerExit( CBaseCombatCharacter *pPassenger ) = 0;
@@ -54,10 +59,12 @@ public:
 	virtual void			HandleEntryExitFinish( bool bExitAnimOn, bool bResetAnim ) = 0;
 
 	virtual Class_T			ClassifyPassenger( CBaseCombatCharacter *pPassenger, Class_T defaultClassification ) = 0;
-	virtual float			DamageModifier ( CTakeDamageInfo &info ) = 0;
+	virtual float			PassengerDamageModifier( const CTakeDamageInfo &info ) = 0;
 
 	// Get me the parameters for this vehicle
 	virtual const vehicleparams_t	*GetVehicleParams( void ) = 0;
+	// If I'm a physics vehicle, get the controller
+	virtual IPhysicsVehicleController *GetVehicleController() = 0;
 
 	virtual int				NPC_GetAvailableSeat( CBaseCombatCharacter *pPassenger, string_t strRoleName, VehicleSeatQuery_e nQueryType ) = 0;
 	virtual bool			NPC_AddPassenger( CBaseCombatCharacter *pPassenger, string_t strRoleName, int nSeat ) = 0;
@@ -95,6 +102,9 @@ public:
 	virtual void			Weapon_SecondaryRanges( float *flMinRange, float *flMaxRange ) = 0;	
 	virtual float			Weapon_PrimaryCanFireAt( void ) = 0;	// Return the time at which this vehicle's primary weapon can fire again
 	virtual float			Weapon_SecondaryCanFireAt( void ) = 0;	// Return the time at which this vehicle's secondary weapon can fire again
+
+	// debugging, script file flushed
+	virtual void			ReloadScript() = 0;
 };
 
 // This is an interface to derive from if your class contains an IServerVehicle 
@@ -121,6 +131,9 @@ public:
 	virtual void			ExitVehicle( int nRole ) = 0;
 	virtual bool			AllowBlockedExit( CBaseCombatCharacter *pPassenger, int nRole ) = 0;
 	virtual bool			AllowMidairExit( CBaseCombatCharacter *pPassenger, int nRole ) = 0;
+	virtual string_t		GetVehicleScriptName() = 0;
+
+	virtual bool			PassengerShouldReceiveDamage( CTakeDamageInfo &info ) = 0;
 };
 
 #endif // IVEHICLE_H

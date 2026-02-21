@@ -25,8 +25,9 @@ public:
 	virtual bool		Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void		OnBind( C_BaseEntity *pC_BaseEntity );
 
+	virtual IMaterial *	GetMaterial();
+
 private:
-	
 	IMaterialVar		*m_pFadeValue;
 };
 
@@ -69,19 +70,13 @@ bool CLampHaloProxy::Init( IMaterial *pMaterial, KeyValues *pKeyValues )
 
 void CLampHaloProxy::OnBind( C_BaseEntity *pEnt )
 {
-	if( !m_pFadeValue )
-	{
+	if ( !m_pFadeValue )
 		return;
-	}
 	
-	float	fade;
-
-	Vector vecLocal;
-
-	vecLocal = pEnt->GetAbsOrigin() - CurrentViewOrigin();
+	Vector vecLocal = pEnt->GetAbsOrigin() - CurrentViewOrigin();
 	VectorNormalize( vecLocal );
 
-	fade = fabs( vecLocal.z );
+	float fade = fabs( vecLocal.z );
 
 	// I hate these magic numbers here, will have to revise
 	// (sjb)
@@ -95,6 +90,14 @@ void CLampHaloProxy::OnBind( C_BaseEntity *pEnt )
 	}
 
 	m_pFadeValue->SetFloatValue( fade );
+}
+
+IMaterial *CLampHaloProxy::GetMaterial()
+{
+	if ( !m_pFadeValue )
+		return NULL;
+
+	return m_pFadeValue->GetOwningMaterial();
 }
 
 EXPOSE_INTERFACE( CLampHaloProxy, IMaterialProxy, "lamphalo" IMATERIAL_PROXY_INTERFACE_VERSION );

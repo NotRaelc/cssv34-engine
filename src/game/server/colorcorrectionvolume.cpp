@@ -70,19 +70,18 @@ BEGIN_DATADESC( CColorCorrectionVolume )
 
 	DEFINE_THINKFUNC( ThinkFunc ),
 
-	DEFINE_KEYFIELD( m_Weight,            FIELD_FLOAT,   "weight" ),
+	DEFINE_KEYFIELD( m_FadeDuration, FIELD_FLOAT, "fadeDuration" ),
 	DEFINE_KEYFIELD( m_MaxWeight,         FIELD_FLOAT,   "maxweight" ),
-	DEFINE_KEYFIELD( m_lookupFilename,    FIELD_STRING,  "filename" ),
+	DEFINE_AUTO_ARRAY_KEYFIELD( m_lookupFilename,    FIELD_CHARACTER,  "filename" ),
 
 	DEFINE_KEYFIELD( m_bEnabled,		  FIELD_BOOLEAN, "enabled" ),
 	DEFINE_KEYFIELD( m_bStartDisabled,    FIELD_BOOLEAN, "StartDisabled" ),
 
-	DEFINE_KEYFIELD( m_LastEnterWeight, FIELD_FLOAT, "lastEnterWeight" ),
-	DEFINE_KEYFIELD( m_LastEnterTime,   FIELD_FLOAT, "lastEnterTime" ),
-	DEFINE_KEYFIELD( m_LastExitWeight,  FIELD_FLOAT, "lastExitWeight" ),
-	DEFINE_KEYFIELD( m_LastExitTime,    FIELD_FLOAT, "lastExitTime" ),
-
-	DEFINE_KEYFIELD( m_FadeDuration, FIELD_FLOAT, "fadeDuration" ),
+	DEFINE_FIELD( m_Weight,          FIELD_FLOAT ),
+	DEFINE_FIELD( m_LastEnterWeight, FIELD_FLOAT ),
+	DEFINE_FIELD( m_LastEnterTime,   FIELD_FLOAT ),
+	DEFINE_FIELD( m_LastExitWeight,  FIELD_FLOAT ),
+	DEFINE_FIELD( m_LastExitTime,    FIELD_FLOAT ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
@@ -163,10 +162,7 @@ void CColorCorrectionVolume::Spawn( void )
 
 bool CColorCorrectionVolume::PassesTriggerFilters( CBaseEntity *pEntity )
 {
-	if( pEntity == UTIL_GetLocalPlayer() )
-		return true;
-
-	return false;
+	return (pEntity->IsPlayer());
 }
 
 void CColorCorrectionVolume::StartTouch( CBaseEntity *pEntity )

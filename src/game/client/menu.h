@@ -15,6 +15,8 @@
 #include "hudelement.h"
 #include <vgui_controls/Panel.h>
 
+#define MENU_SELECTION_TIMEOUT	5.0f
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -30,6 +32,7 @@ public:
 	void MsgFunc_ShowMenu( bf_read &msg );
 	void HideMenu( void );
 	void ShowMenu( const char * menuName, int keySlot );
+	void ShowMenu_KeyValueItems( KeyValues *pKV );
 
 	bool IsMenuOpen( void );
 	void SelectMenuItem( int menu_item );
@@ -63,6 +66,8 @@ private:
 	int				m_fWaitingForMore;
 	int				m_nSelectedItem;
 	bool			m_bMenuTakesInput;
+
+	float			m_flSelectionTime;
 
 	CPanelAnimationVar( float, m_flOpenCloseTime, "OpenCloseTime", "1" );
 

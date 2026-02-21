@@ -54,6 +54,7 @@ public:
 	virtual void			CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& original_angles );
 	virtual void			CalcViewModelView( CBasePlayer *owner, const Vector& eyePosition, 
 								const QAngle& eyeAngles );
+	virtual void			AddViewModelBob( CBasePlayer *owner, Vector& eyePosition, QAngle& eyeAngles ) {};
 
 	// Initializes the viewmodel for use							
 	void					SetOwner( CBaseEntity *pEntity );
@@ -67,6 +68,9 @@ public:
 
 	virtual CBaseEntity *GetOwner( void ) { return m_hOwner; };
 
+	virtual void			AddEffects( int nEffects );
+	virtual void			RemoveEffects( int nEffects );
+
 	void					SpawnControlPanels();
 	void					DestroyControlPanels();
 	void					SetControlPanelsActive( bool bState );
@@ -79,6 +83,17 @@ public:
 		return true;
 	}
 
+	Vector					m_vecLastFacing;
+
+	// Only support prediction in TF2 for now
+#if defined( INVASION_DLL ) || defined( INVASION_CLIENT_DLL )
+	// All predicted weapons need to implement and return true
+	virtual bool			IsPredicted( void ) const
+	{ 
+		return true;
+	}
+#endif
+
 #if !defined( CLIENT_DLL )
 	virtual int				UpdateTransmitState( void );
 	virtual int				ShouldTransmit( const CCheckTransmitInfo *pInfo );
@@ -86,6 +101,19 @@ public:
 #else
 
 	virtual RenderGroup_t	GetRenderGroup();
+
+// Only supported in TF2 right now
+#if defined( INVASION_CLIENT_DLL )
+
+	virtual bool ShouldPredict( void )
+	{
+		if ( GetOwner() && GetOwner() == C_BasePlayer::GetLocalPlayer() )
+			return true;
+
+		return BaseClass::ShouldPredict();
+	}
+
+#endif
 
 
 	virtual void			FireEvent( const Vector& origin, const QAngle& angles, int event, const char *options );
@@ -109,12 +137,6 @@ public:
 	// Should this object cast shadows?
 	virtual ShadowType_t	ShadowCastType() { return SHADOWS_NONE; }
 
-	// Should this object receive shadows?
-	virtual bool			ShouldReceiveProjectedTextures( int flags )
-	{
-		return false;
-	}
-
 	// Add entity to visible view models list?
 	virtual void			AddEntity( void );
 
@@ -124,10 +146,14 @@ public:
 	virtual void			UncorrectViewModelAttachment( Vector &vOrigin );
 
 	// (inherited from C_BaseAnimating)
-	virtual void			FormatViewModelAttachment( int nAttachment, Vector &vecOrigin, QAngle &angle );
+	virtual void			FormatViewModelAttachment( int nAttachment, matrix3x4_t &attachmentToWorld );
 	virtual bool			IsViewModel() const;
 	
 	CBaseCombatWeapon		*GetWeapon() const { return m_hWeapon.Get(); }
+
+#ifdef CLIENT_DLL
+	virtual bool			ShouldResetSequenceOnNewModel( void ) { return false; }
+#endif
 
 private:
 	CBaseViewModel( const CBaseViewModel & ); // not defined, not accessible
@@ -154,7 +180,6 @@ private:
 	int						m_nOldAnimationParity;
 #endif
 
-	Vector					m_vecLastFacing;
 
 	typedef CHandle< CBaseCombatWeapon > CBaseCombatWeaponHandle;
 	CNetworkVar( CBaseCombatWeaponHandle, m_hWeapon );

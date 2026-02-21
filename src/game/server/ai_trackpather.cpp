@@ -174,10 +174,21 @@ void CAI_TrackPather::OnSave( IEntitySaveUtils *pUtils )
 //-----------------------------------------------------------------------------
 void CAI_TrackPather::EnableLeading( bool bEnable )
 {
+	bool bWasLeading = m_bLeading;
 	m_bLeading = bEnable;
 	if ( m_bLeading )
 	{
 		m_bPatrolling = false;
+	}
+	else if ( bWasLeading )
+	{
+	
+		// Going from leading to not leading. Refresh the desired position
+		// to prevent us from hovering around our old, no longer valid lead position.
+  		if ( m_pCurrentPathTarget )
+		{
+			SetDesiredPosition( m_pCurrentPathTarget->GetAbsOrigin() );
+		}
 	}
 }
 
@@ -817,7 +828,7 @@ CPathTrack *CAI_TrackPather::FindClosestPointOnPath( CPathTrack *pPath,
 			// No alt paths allowed in leading mode.
 			if ( pTravPath->m_paltpath )
 			{
-				Warning( "%s: Alternative paths in path_track not allowed when using the leading behavior!\n", GetEntityName() );
+				Warning( "%s: Alternative paths in path_track not allowed when using the leading behavior!\n", GetEntityName().ToCStr() );
 			}
 
 			// Need line segments
@@ -1595,7 +1606,7 @@ void CAI_TrackPather::SetTrack( CBaseEntity *pGoalEnt )
 	CPathTrack *pTrack = dynamic_cast<CPathTrack *>(pGoalEnt);
 	if ( !pTrack )
 	{
-		DevWarning( "%s: Specified entity '%s' must be a path_track!\n", pGoalEnt->GetClassname(), pGoalEnt->GetEntityName() );
+		DevWarning( "%s: Specified entity '%s' must be a path_track!\n", pGoalEnt->GetClassname(), pGoalEnt->GetEntityName().ToCStr() );
 		return;
 	}
 
@@ -1661,6 +1672,7 @@ void CAI_TrackPather::InputFlyToPathTrack( inputdata_t &inputdata )
 { 
 	// Find our specified target
 	string_t strTrackName = MAKE_STRING( inputdata.value.String() );
+	m_nPauseState = PAUSE_NO_PAUSE;
 	FlyToPathTrack( strTrackName );
 }
 

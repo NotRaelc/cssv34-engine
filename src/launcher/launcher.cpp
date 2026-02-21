@@ -44,6 +44,7 @@
 #include "filesystem/IQueuedLoader.h"
 #include "reslistgenerator.h"
 #include "tier1/fmtstr.h"
+#include "steam/steam_api.h"
 
 #if defined( _X360 )
 #include "xbox/xbox_win32stubs.h"

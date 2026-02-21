@@ -24,18 +24,15 @@
 
 #include "IGameUIFuncs.h" // for key bindings
 #include <igameresources.h>
-
-#ifndef _XBOX
-extern IGameUIFuncs *gameuifuncs; // for key binding details
-#endif
-
 #include <game/client/iviewport.h>
-
 #include <stdlib.h> // MAX_PATH define
 #include <stdio.h>
+#include "byteswap.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+extern IGameUIFuncs *gameuifuncs; // for key binding details
 
 using namespace vgui;
 
@@ -73,8 +70,8 @@ const char *GetStringTeamColor( int i )
 CTeamMenu::CTeamMenu(IViewPort *pViewPort) : Frame(NULL, PANEL_TEAM )
 {
 	m_pViewPort = pViewPort;
-	m_iJumpKey = -1; // this is looked up in Activate()
-	m_iScoreBoardKey = -1; // this is looked up in Activate()
+	m_iJumpKey = BUTTON_CODE_INVALID; // this is looked up in Activate()
+	m_iScoreBoardKey = BUTTON_CODE_INVALID; // this is looked up in Activate()
 
 	// initialize dialog
 	SetTitle("", true);
@@ -90,7 +87,10 @@ CTeamMenu::CTeamMenu(IViewPort *pViewPort) : Frame(NULL, PANEL_TEAM )
 
 	// info window about this map
 	m_pMapInfo = new RichText( this, "MapInfo" );
+
+#if defined( ENABLE_HTML_WINDOW )
 	m_pMapInfoHTML = new HTML( this, "MapInfoHTML");
+#endif
 
 	LoadControlSettings("Resource/UI/TeamMenu.res");
 	InvalidateLayout();
@@ -125,6 +125,7 @@ void CTeamMenu::ApplySchemeSettings(IScheme *pScheme)
 void CTeamMenu::AutoAssign()
 {
 	engine->ClientCmd("jointeam 0");
+	OnClose();
 }
 
 
@@ -144,14 +145,14 @@ void CTeamMenu::ShowPanel(bool bShow)
 
 		// get key bindings if shown
 
-		if( m_iJumpKey < 0 ) // you need to lookup the jump key AFTER the engine has loaded
+		if( m_iJumpKey == BUTTON_CODE_INVALID ) // you need to lookup the jump key AFTER the engine has loaded
 		{
-			m_iJumpKey = gameuifuncs->GetEngineKeyCodeForBind( "jump" );
+			m_iJumpKey = gameuifuncs->GetButtonCodeForBind( "jump" );
 		}
 
-		if ( m_iScoreBoardKey < 0 ) 
+		if ( m_iScoreBoardKey == BUTTON_CODE_INVALID ) 
 		{
-			m_iScoreBoardKey = gameuifuncs->GetEngineKeyCodeForBind( "showscores" );
+			m_iScoreBoardKey = gameuifuncs->GetButtonCodeForBind( "showscores" );
 		}
 	}
 	else
@@ -195,7 +196,7 @@ void CTeamMenu::LoadMapPage( const char *mapName )
 
 	bool bFoundHTML = false;
 
-	if ( !vgui::filesystem()->FileExists( mapRES ) )
+	if ( !g_pFullFileSystem->FileExists( mapRES ) )
 	{
 		// try english
 		Q_snprintf( mapRES, sizeof( mapRES ), "resource/maphtml/%s_english.html", mapName );
@@ -205,24 +206,25 @@ void CTeamMenu::LoadMapPage( const char *mapName )
 		bFoundHTML = true;
 	}
 
-	if( bFoundHTML || vgui::filesystem()->FileExists( mapRES ) )
+	if( bFoundHTML || g_pFullFileSystem->FileExists( mapRES ) )
 	{
 		// it's a local HTML file
 		char localURL[ _MAX_PATH + 7 ];
 		Q_strncpy( localURL, "file://", sizeof( localURL ) );
 
 		char pPathData[ _MAX_PATH ];
-		vgui::filesystem()->GetLocalPath( mapRES, pPathData, sizeof(pPathData) );
+		g_pFullFileSystem->GetLocalPath( mapRES, pPathData, sizeof(pPathData) );
 		Q_strncat( localURL, pPathData, sizeof( localURL ), COPY_ALL_CHARACTERS );
 
 		// force steam to dump a local copy
-		vgui::filesystem()->GetLocalCopy( pPathData );
+		g_pFullFileSystem->GetLocalCopy( pPathData );
 
 		m_pMapInfo->SetVisible( false );
 
+#if defined( ENABLE_HTML_WINDOW )
 		m_pMapInfoHTML->SetVisible( true );
 		m_pMapInfoHTML->OpenURL( localURL );
-
+#endif
 		InvalidateLayout();
 		Repaint();		
 
@@ -231,15 +233,18 @@ void CTeamMenu::LoadMapPage( const char *mapName )
 	else
 	{
 		m_pMapInfo->SetVisible( true );
+
+#if defined( ENABLE_HTML_WINDOW )
 		m_pMapInfoHTML->SetVisible( false );
+#endif
 	}
 
 	Q_snprintf( mapRES, sizeof( mapRES ), "maps/%s.txt", mapName);
 
 	// if no map specific description exists, load default text
-	if( !vgui::filesystem()->FileExists( mapRES ) )
+	if( !g_pFullFileSystem->FileExists( mapRES ) )
 	{
-		if ( vgui::filesystem()->FileExists( "maps/default.txt" ) )
+		if ( g_pFullFileSystem->FileExists( "maps/default.txt" ) )
 		{
 			Q_snprintf ( mapRES, sizeof( mapRES ), "maps/default.txt");
 		}
@@ -250,16 +255,16 @@ void CTeamMenu::LoadMapPage( const char *mapName )
 		}
 	}
 
-	FileHandle_t f = vgui::filesystem()->Open( mapRES, "r" );
+	FileHandle_t f = g_pFullFileSystem->Open( mapRES, "r" );
 
 	// read into a memory block
-	int fileSize = vgui::filesystem()->Size(f);
+	int fileSize = g_pFullFileSystem->Size(f);
 	int dataSize = fileSize + sizeof( wchar_t );
 	if ( dataSize % 2 )
 		++dataSize;
 	wchar_t *memBlock = (wchar_t *)malloc(dataSize);
 	memset( memBlock, 0x0, dataSize);
-	int bytesRead = vgui::filesystem()->Read(memBlock, fileSize, f);
+	int bytesRead = g_pFullFileSystem->Read(memBlock, fileSize, f);
 	if ( bytesRead < fileSize )
 	{
 		// NULL-terminate based on the length read in, since Read() can transform \r\n to \n and
@@ -272,8 +277,13 @@ void CTeamMenu::LoadMapPage( const char *mapName )
 	// null-terminate the stream (redundant, since we memset & then trimmed the transformed buffer already)
 	memBlock[dataSize / sizeof(wchar_t) - 1] = 0x0000;
 
+	// ensure little-endian unicode reads correctly on all platforms
+	CByteswap byteSwap;
+	byteSwap.SetTargetBigEndian( false );
+	byteSwap.SwapBufferToTargetEndian( memBlock, memBlock, dataSize/sizeof(wchar_t) );
+
 	// check the first character, make sure this a little-endian unicode file
-	if (memBlock[0] != 0xFEFF)
+	if ( memBlock[0] != 0xFEFF )
 	{
 		// its a ascii char file
 		m_pMapInfo->SetText( reinterpret_cast<char *>( memBlock ) );
@@ -285,12 +295,11 @@ void CTeamMenu::LoadMapPage( const char *mapName )
 	// go back to the top of the text buffer
 	m_pMapInfo->GotoTextStart();
 
-	vgui::filesystem()->Close( f );
+	g_pFullFileSystem->Close( f );
 	free(memBlock);
 
 	InvalidateLayout();
 	Repaint();
-
 }
 
 /*
@@ -374,15 +383,14 @@ void CTeamMenu::SetLabelText(const char *textEntryName, const char *text)
 
 void CTeamMenu::OnKeyCodePressed(KeyCode code)
 {
-	int lastPressedEngineKey = engine->GetLastPressedEngineKey();
-
-	if( m_iJumpKey >= 0 && m_iJumpKey == lastPressedEngineKey )
+	if( m_iJumpKey != BUTTON_CODE_INVALID && m_iJumpKey == code )
 	{
 		AutoAssign();
 	}
-	else if ( m_iScoreBoardKey >= 0 && m_iScoreBoardKey == lastPressedEngineKey )
+	else if ( m_iScoreBoardKey != BUTTON_CODE_INVALID && m_iScoreBoardKey == code )
 	{
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, true );
+		gViewPortInterface->PostMessageToPanel( PANEL_SCOREBOARD, new KeyValues( "PollHideCode", "code", code ) );
 	}
 	else
 	{

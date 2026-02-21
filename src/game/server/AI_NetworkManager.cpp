@@ -8,6 +8,7 @@
 #include "cbase.h"
 #include "fmtstr.h"
 #include "filesystem.h"
+#include "filesystem/IQueuedLoader.h"
 #include "utlbuffer.h"
 #include "utlrbtree.h"
 #include "editor_sendcommand.h"
@@ -21,12 +22,6 @@
 #include "ai_initutils.h"
 #include "ai_moveprobe.h"
 #include "ai_hull.h"
-
-#ifdef _XBOX
-#include "xbox/xbox_platform.h"
-#include "xbox/xbox_core.h"
-#endif
-
 #include "ndebugoverlay.h"
 #include "ai_hint.h"
 
@@ -34,7 +29,7 @@
 #include "tier0/memdbgon.h"
 
 // Increment this to force rebuilding of all networks
-#define	 AINET_VERSION_NUMBER	35
+#define	 AINET_VERSION_NUMBER	37
 
 //-----------------------------------------------------------------------------
 
@@ -50,10 +45,10 @@ inline void DebugConnectMsg( int node1, int node2, const char *pszFormat, ... )
 	}
 }
 
-CON_COMMAND(ai_debug_node_connect, "Debug the attempted connection between two nodes")
+CON_COMMAND( ai_debug_node_connect, "Debug the attempted connection between two nodes" )
 {
-	g_DebugConnectNode1 = atoi( engine->Cmd_Argv(1) );
-	g_DebugConnectNode2 = atoi( engine->Cmd_Argv(2) );
+	g_DebugConnectNode1 = atoi( args[1] );
+	g_DebugConnectNode2 = atoi( args[2] );
 	
 	DevMsg( "ai_debug_node_connect: debugging enbabled for %d <--> %d\n", g_DebugConnectNode1, g_DebugConnectNode2 );
 }
@@ -67,14 +62,6 @@ CON_COMMAND(ai_debug_node_connect, "Debug the attempted connection between two n
 // line to properly override the node graph building.
 
 ConVar g_ai_norebuildgraph( "ai_norebuildgraph", "0" );
-
-
-//-----------------------------------------------------------------------------
-#ifndef _XBOX
-#define ShouldCheckTimestamp() true
-#else
-#define ShouldCheckTimestamp() ( !XBX_IsRetailMode() && ( developer.GetInt() > 0 || !IsRetail() ) )
-#endif
 
 
 //-----------------------------------------------------------------------------
@@ -95,6 +82,7 @@ BEGIN_DATADESC( CAI_NetworkManager )
 	DEFINE_FIELD( m_bNeedGraphRebuild, FIELD_BOOLEAN ),
 	//									m_pEditOps
 	//									m_pNetwork
+	// DEFINE_FIELD( m_bDontSaveGraph, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_fInitalized, FIELD_BOOLEAN ),
 
 	// Function pointers
@@ -257,7 +245,7 @@ void CAI_NetworkManager::SaveNetworkGraph( void )
 	// Now add the real map filename.
 	Q_strncat( szNrpFilename, "/", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS  );
 	Q_strncat( szNrpFilename, STRING( gpGlobals->mapname ), sizeof( szNrpFilename ), COPY_ALL_CHARACTERS );
-	Q_strncat( szNrpFilename, ".ain", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS  );
+	Q_strncat( szNrpFilename, IsX360() ? ".360.ain" : ".ain", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS  );
 
 	CUtlBuffer buf;
 
@@ -265,6 +253,7 @@ void CAI_NetworkManager::SaveNetworkGraph( void )
 	// Save the version number
 	// ---------------------------
 	buf.PutInt(AINET_VERSION_NUMBER);
+	buf.PutInt(gpGlobals->mapversion);
 
 	// -------------------------------
 	// Dump all the nodes to the file
@@ -284,6 +273,10 @@ void CAI_NetworkManager::SaveNetworkGraph( void )
 		buf.PutFloat( pNode->GetYaw() );
 		buf.Put( pNode->m_flVOffset, sizeof( pNode->m_flVOffset ) );
 		buf.PutChar( pNode->GetType() );
+		if ( IsX360() )
+		{
+			buf.SeekPut( CUtlBuffer::SEEK_CURRENT, 3 );
+		}
 		buf.PutUnsignedShort( pNode->m_eNodeInfo );
 		buf.PutShort( pNode->GetZone() );
 
@@ -322,8 +315,25 @@ void CAI_NetworkManager::SaveNetworkGraph( void )
 	// -------------------------------
 	// Dump WC lookup table
 	// -------------------------------
+	CUtlMap<int, int> wcIDs;
+	SetDefLessFunc(wcIDs);
+	bool bCheckForProblems = false;
 	for (node = 0; node < m_pNetwork->m_iNumNodes; node++)
 	{
+		int iPreviousNodeBinding = wcIDs.Find( GetEditOps()->m_pNodeIndexTable[node] );
+		if ( iPreviousNodeBinding != wcIDs.InvalidIndex() )
+		{
+			if ( !bCheckForProblems )
+			{
+				DevWarning( "******* MAP CONTAINS DUPLICATE HAMMER NODE IDS! CHECK FOR PROBLEMS IN HAMMER TO CORRECT *******\n" );
+				bCheckForProblems = true;
+			}
+			DevWarning( "   AI node %d is associated with Hammer node %d, but %d is already bound to node %d\n", node, GetEditOps()->m_pNodeIndexTable[node], GetEditOps()->m_pNodeIndexTable[node], wcIDs[iPreviousNodeBinding] );
+		}
+		else
+		{
+			wcIDs.Insert( GetEditOps()->m_pNodeIndexTable[node], node );
+		}
 		buf.PutInt( GetEditOps()->m_pNodeIndexTable[node] );
 	}
 
@@ -473,7 +483,7 @@ void CAI_NetworkManager::LoadNetworkGraph( void )
 	// -----------------------------
 	// Make sure directories have been made
 	// -----------------------------
-	char	szNrpFilename [MAX_PATH];// text node report filename
+	char szNrpFilename[MAX_PATH];// text node report filename
 	Q_strncpy( szNrpFilename, "maps" ,sizeof(szNrpFilename));
 	filesystem->CreateDirHierarchy( szNrpFilename, "DEFAULT_WRITE_PATH" );
 	Q_strncat( szNrpFilename, "/graphs", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS );
@@ -481,11 +491,30 @@ void CAI_NetworkManager::LoadNetworkGraph( void )
 
 	Q_strncat( szNrpFilename, "/", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS );
 	Q_strncat( szNrpFilename, STRING( gpGlobals->mapname ), sizeof( szNrpFilename ), COPY_ALL_CHARACTERS );
-	Q_strncat( szNrpFilename, ".ain", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS );
+	Q_strncat( szNrpFilename, IsX360() ? ".360.ain" : ".ain", sizeof( szNrpFilename ), COPY_ALL_CHARACTERS );
+
+	MEM_ALLOC_CREDIT();
 
 	// Read the file in one gulp
 	CUtlBuffer buf;
-	if ( !filesystem->ReadFile( szNrpFilename, "game", buf ) )
+	bool bHaveAIN = false;
+	if ( IsX360() && g_pQueuedLoader->IsMapLoading() )
+	{
+		// .ain was loaded anonymously by bsp, should be ready
+		void *pData;
+		int nDataSize;
+		if ( g_pQueuedLoader->ClaimAnonymousJob( szNrpFilename, &pData, &nDataSize ) )
+		{
+			if ( nDataSize != 0 )
+			{
+				buf.Put( pData, nDataSize );
+				bHaveAIN = true;
+			}
+			filesystem->FreeOptimalReadBuffer( pData );
+		}
+	}
+	
+	if ( !bHaveAIN && !filesystem->ReadFile( szNrpFilename, "game", buf ) )
 	{
 		DevWarning( 2, "Couldn't read %s!\n", szNrpFilename );
 		return;
@@ -506,6 +535,13 @@ void CAI_NetworkManager::LoadNetworkGraph( void )
 	if ( version != AINET_VERSION_NUMBER)
 	{
 		DevMsg( "AI node graph %s is out of date\n", szNrpFilename );
+		return;
+	}
+
+	int mapversion = buf.GetInt();
+	if ( mapversion != gpGlobals->mapversion && !g_ai_norebuildgraph.GetBool() )
+	{
+		DevMsg( "AI node graph %s is out of date (map version changed)\n", szNrpFilename );
 		return;
 	}
 
@@ -551,6 +587,11 @@ void CAI_NetworkManager::LoadNetworkGraph( void )
 
 		buf.Get( new_node->m_flVOffset, sizeof(new_node->m_flVOffset) );
 		new_node->m_eNodeType = (NodeType_e)buf.GetChar();
+		if ( IsX360() )
+		{
+			buf.SeekGet( CUtlBuffer::SEEK_CURRENT, 3 );
+		}
+
 		new_node->m_eNodeInfo = buf.GetUnsignedShort();
 		new_node->m_zone = buf.GetShort();
 	}
@@ -604,7 +645,7 @@ void CAI_NetworkManager::LoadNetworkGraph( void )
 			{
 				if ( !printedHeader )
 				{
-					DevMsg( "** Duplicate Hammer Node IDs: " );
+					Warning( "** Duplicate Hammer Node IDs: " );
 					printedHeader = true;
 				}
 
@@ -728,15 +769,15 @@ void CAI_NetworkManager::LoadNetworkGraph( void )
 		fscanf(file, "%d\n",&new_node->m_eNodeInfo);
 
 		fscanf(file,"%255s",&temps);
-		new_node->m_pNeighborBS = new CBitString(numNodes);
+		new_node->m_pNeighborBS = new CVarBitVec(numNodes);
 		new_node->m_pNeighborBS->LoadBitString(file);
 
 		fscanf(file,"%255s",&temps);
-		new_node->m_pVisibleBS = new CBitString(numNodes);
+		new_node->m_pVisibleBS = new CVarBitVec(numNodes);
 		new_node->m_pVisibleBS->LoadBitString(file);
 
 		fscanf(file,"%255s",&temps);
-		new_node->m_pConnectedBS = new CBitString(numNodes);
+		new_node->m_pConnectedBS = new CVarBitVec(numNodes);
 		new_node->m_pConnectedBS->LoadBitString(file);
 
 		fscanf(file,"%255s",&temps);
@@ -849,7 +890,7 @@ void CAI_NetworkManager::InitializeAINetworks()
 	{
 		g_ai_norebuildgraph.SetValue( 0 );
 	}
-	if (!ShouldCheckTimestamp() || CAI_NetworkManager::IsAIFileCurrent(STRING( gpGlobals->mapname )))
+	if ( CAI_NetworkManager::IsAIFileCurrent( STRING( gpGlobals->mapname ) ) )
 	{
 		pNetwork->LoadNetworkGraph(); 
 		if ( !g_bAIDisabledByUser )
@@ -884,20 +925,26 @@ bool CAI_NetworkManager::IsAIFileCurrent ( const char *szMapName )
 		return false;
 	}
 
-	Q_snprintf( szBspFilename, sizeof( szBspFilename ), "maps/%s.bsp" ,szMapName );
-	Q_snprintf( szGraphFilename, sizeof( szGraphFilename ), "maps/graphs/%s.ain", szMapName );
+	if ( IsX360() && ( filesystem->GetDVDMode() == DVDMODE_STRICT ) )
+	{
+		// dvd build process validates and guarantees correctness, timestamps are allowed to be wrong
+		return true;
+	}
+
+	Q_snprintf( szBspFilename, sizeof( szBspFilename ), "maps/%s%s.bsp" ,szMapName, GetPlatformExt() );
+	Q_snprintf( szGraphFilename, sizeof( szGraphFilename ), "maps/graphs/%s%s.ain", szMapName, GetPlatformExt() );
 	
 	int iCompare;
-	if (engine->CompareFileTime(szBspFilename, szGraphFilename, &iCompare))
+	if ( engine->CompareFileTime( szBspFilename, szGraphFilename, &iCompare ) )
 	{
 		if ( iCompare > 0 )
 		{
 			// BSP file is newer.
-			if( g_ai_norebuildgraph.GetInt() )
+			if ( g_ai_norebuildgraph.GetInt() )
 			{
 				// The user has specified that they wish to override the 
 				// rebuilding of outdated nodegraphs (see top of this file)
-				if( filesystem->FileExists( szGraphFilename ) )
+				if ( filesystem->FileExists( szGraphFilename ) )
 				{
 					// Display these messages only if the graph exists, and the 
 					// user is asking to override the rebuilding. If the graph does
@@ -1067,8 +1114,8 @@ void CAI_NetworkEditTools::OnInit()
 	// --------------------------------------------
 	if ( !engine->IsInEditMode() )
 	{
-		delete[] m_pNodeIndexTable;	// For now only one AI Network called "BigNet"
-		m_pNodeIndexTable = NULL;
+//		delete[] m_pNodeIndexTable;	// For now only one AI Network called "BigNet"
+//		m_pNodeIndexTable = NULL;
 	}
 }
 
@@ -1146,7 +1193,7 @@ CAI_Node *CAI_NetworkEditTools::FindAINodeNearestFacing( const Vector &origin, c
 					// Make sure I have a line of sight to it
 					trace_t tr;
 					AI_TraceLine ( origin, aiNet->GetNode(node)->GetPosition(m_iHullDrawNum), 
-						MASK_OPAQUE, NULL, COLLISION_GROUP_NONE, &tr );
+						MASK_BLOCKLOS, NULL, COLLISION_GROUP_NONE, &tr );
 					if ( tr.fraction == 1.0 )
 					{
 						bestDot	= dot;
@@ -1239,7 +1286,7 @@ CAI_Link *CAI_NetworkEditTools::FindAILinkNearestFacing( const Vector &vOrigin, 
 					{
 						// Make sure I have a line of sight to it
 						trace_t tr;
-						AI_TraceLine ( vOrigin, vIntersection, MASK_OPAQUE, NULL, COLLISION_GROUP_NONE, &tr );
+						AI_TraceLine ( vOrigin, vIntersection, MASK_BLOCKLOS, NULL, COLLISION_GROUP_NONE, &tr );
 						if ( tr.fraction == 1.0 )
 						{
  							bestDot	= lookDot;
@@ -1296,11 +1343,25 @@ void CAI_NetworkEditTools::ClearRebuildFlags( void )
 //-----------------------------------------------------------------------------
 // Purpose: Sets the next hull to draw, or none if at end of hulls
 //-----------------------------------------------------------------------------
-
 void CAI_NetworkEditTools::DrawNextHull(const char *ainet_name) 
 {
 	m_iHullDrawNum++;
 	if (m_iHullDrawNum == NUM_HULLS) 
+	{
+		m_iHullDrawNum = 0;
+	}
+
+	// Recalculate usable nodes for current hull
+	g_pAINetworkManager->GetEditOps()->RecalcUsableNodesForHull();
+}
+
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void CAI_NetworkEditTools::DrawHull(Hull_t eHull) 
+{
+	m_iHullDrawNum = eHull;
+	if (m_iHullDrawNum >= NUM_HULLS) 
 	{
 		m_iHullDrawNum = 0;
 	}
@@ -1805,6 +1866,14 @@ void CAI_NetworkEditTools::DrawAINetworkOverlay(void)
 						loc.y+=6;
 						loc.z+=6;
 						NDebugOverlay::Text( loc, msg, true, flDrawDuration);
+						
+						// Print the hintgroup if we have one
+						if ( pAINode[node]->GetHint() )
+						{
+							msg.sprintf("%s", STRING( pAINode[node]->GetHint()->GetGroup() ));
+							loc.z-=3;
+							NDebugOverlay::Text( loc, msg, true, flDrawDuration);
+						}
 					}
 				}
 			}
@@ -2034,7 +2103,7 @@ void CAI_NetworkBuilder::Rebuild( CAI_Network *pNetwork )
 	// Initialize node neighbors
 	// ---------------------------
 	m_DidSetNeighborsTable.Resize( nNodes );
-	m_DidSetNeighborsTable.ClearAllBits();
+	m_DidSetNeighborsTable.ClearAll();
 	m_NeighborsTable.SetSize( nNodes );
 	for (i = 0; i < nNodes; i++)
 	{
@@ -2141,12 +2210,12 @@ void CAI_NetworkBuilder::Build( CAI_Network *pNetwork )
 	DevMsg( "Initializing node neighbors...\n" );
 	timer.Start();
 	m_DidSetNeighborsTable.Resize( nNodes );
-	m_DidSetNeighborsTable.ClearAllBits();
+	m_DidSetNeighborsTable.ClearAll();
 	m_NeighborsTable.SetSize( nNodes );
 	for (i = 0; i < nNodes; i++)
 	{
 		m_NeighborsTable[i].Resize( nNodes );
-		m_NeighborsTable[i].ClearAllBits();
+		m_NeighborsTable[i].ClearAll();
 	}
 	for (i = 0; i < nNodes; i++)
 	{	
@@ -2246,8 +2315,8 @@ void CAI_NetworkBuilder::ForceDynamicLinkNeighbors(void)
 				Assert( pSrcNode );
 				Assert( pDestNode );
 
-				m_NeighborsTable[pSrcNode->GetId()].SetBit(pDestNode->GetId());
-				m_NeighborsTable[pDestNode->GetId()].SetBit(pSrcNode->GetId());
+				m_NeighborsTable[pSrcNode->GetId()].Set(pDestNode->GetId());
+				m_NeighborsTable[pDestNode->GetId()].Set(pSrcNode->GetId());
 			}
 		}
 
@@ -2345,7 +2414,7 @@ void CAI_NetworkBuilder::InitClimbNodePosition(CAI_Network *pNetwork, CAI_Node *
 		{
 			float floorZ = GetFloorZ(origin); // FIXME: don't use this
 
-			if (abs(pNode->GetOrigin().z - floorZ) < 36)
+			if (fabsf(pNode->GetOrigin().z - floorZ) < 36)
 			{
 				CAI_Node *new_node		= pNetwork->AddNode( pNode->GetOrigin(), pNode->m_flYaw );
 				new_node->m_pHint			= NULL;
@@ -2511,7 +2580,7 @@ void CAI_NetworkBuilder::InitVisibility(CAI_Network *pNetwork, CAI_Node *pNode)
 		// We know we can view ourself
 		if (pNode->m_iID == testnode)
 		{
-			m_NeighborsTable[pNode->m_iID].SetBit(testNode->m_iID);
+			m_NeighborsTable[pNode->m_iID].Set(testNode->m_iID);
 			continue;
 		}
 		
@@ -2529,10 +2598,10 @@ void CAI_NetworkBuilder::InitVisibility(CAI_Network *pNetwork, CAI_Node *pNode)
 			continue;
 		}
 
-		if ( m_DidSetNeighborsTable.GetBit( testNode->m_iID ) )
+		if ( m_DidSetNeighborsTable.IsBitSet( testNode->m_iID ) )
 		{
-			if ( m_NeighborsTable[testNode->m_iID].GetBit(pNode->m_iID))
-				m_NeighborsTable[pNode->m_iID].SetBit(testNode->m_iID);
+			if ( m_NeighborsTable[testNode->m_iID].IsBitSet(pNode->m_iID))
+				m_NeighborsTable[pNode->m_iID].Set(testNode->m_iID);
 
 			continue;
 		}
@@ -2660,7 +2729,7 @@ void CAI_NetworkBuilder::InitVisibility(CAI_Network *pNetwork, CAI_Node *pNode)
 			}
 		}
 */
-		m_NeighborsTable[pNode->m_iID].SetBit(testNode->m_iID);
+		m_NeighborsTable[pNode->m_iID].Set(testNode->m_iID);
 	}
 }
 
@@ -2673,7 +2742,7 @@ void CAI_NetworkBuilder::InitVisibility(CAI_Network *pNetwork, CAI_Node *pNode)
 
 void CAI_NetworkBuilder::InitNeighbors(CAI_Network *pNetwork, CAI_Node *pNode)
 {
-	m_NeighborsTable[pNode->m_iID].ClearAllBits();
+	m_NeighborsTable[pNode->m_iID].ClearAll();
 	
 	// Begin by establishing viewability to limit the number of nodes tested
 	InitVisibility( pNetwork, pNode );
@@ -2692,12 +2761,12 @@ void CAI_NetworkBuilder::InitNeighbors(CAI_Network *pNetwork, CAI_Node *pNode)
 		// I'm not a neighbor of myself
 		if ( pNode->m_iID == checknode )
 		{
-			m_NeighborsTable[pNode->m_iID].ClearBit(checknode);
+			m_NeighborsTable[pNode->m_iID].Clear(checknode);
 			continue;
 		}
 
 		// Only check if already on the neightbor list
-		if (!m_NeighborsTable[pNode->m_iID].GetBit(checknode)) 
+		if (!m_NeighborsTable[pNode->m_iID].IsBitSet(checknode)) 
 		{
 			continue;
 		}
@@ -2713,7 +2782,7 @@ void CAI_NetworkBuilder::InitNeighbors(CAI_Network *pNetwork, CAI_Node *pNode)
 			}
 
 			// Only check if already on the neightbor list
-			if (!m_NeighborsTable[pNode->m_iID].GetBit(testnode)) 
+			if (!m_NeighborsTable[pNode->m_iID].IsBitSet(testnode)) 
 			{
 				continue;
 			}
@@ -2771,12 +2840,12 @@ void CAI_NetworkBuilder::InitNeighbors(CAI_Network *pNetwork, CAI_Node *pNode)
 				if ( flDistToTestNode < flDistToCheckNode )
 				{
 					DebugConnectMsg( pNode->m_iID, checknode, "      Revoking neighbor status to to closer redundant link %d\n", testnode );
-					m_NeighborsTable[pNode->m_iID].ClearBit(checknode);
+					m_NeighborsTable[pNode->m_iID].Clear(checknode);
 				}
 				else
 				{
 					DebugConnectMsg( pNode->m_iID, testnode, "      Revoking neighbor status to to closer redundant link %d\n", checknode );
-					m_NeighborsTable[pNode->m_iID].ClearBit(testnode);
+					m_NeighborsTable[pNode->m_iID].Clear(testnode);
 				}
 			}
 		}
@@ -2784,7 +2853,7 @@ void CAI_NetworkBuilder::InitNeighbors(CAI_Network *pNetwork, CAI_Node *pNode)
 	
 	AI_PROFILE_SCOPE_END();
 
-	m_DidSetNeighborsTable.SetBit(pNode->m_iID);
+	m_DidSetNeighborsTable.Set(pNode->m_iID);
 }
 
 //-----------------------------------------------------------------------------
@@ -3068,7 +3137,7 @@ void CAI_NetworkBuilder::InitLinks(CAI_Network *pNetwork, CAI_Node *pNode)
 		}
 
 		// Only check if the node is a neighbor
-		if ( m_NeighborsTable[pNode->m_iID].GetBit(pDestNode->m_iID) ) 
+		if ( m_NeighborsTable[pNode->m_iID].IsBitSet(pDestNode->m_iID) ) 
 		{
 			int acceptedMotions[NUM_HULLS];
 
@@ -3108,7 +3177,7 @@ void CAI_NetworkBuilder::InitLinks(CAI_Network *pNetwork, CAI_Node *pNode)
 			}
 			else 
 			{
-				m_NeighborsTable[pNode->m_iID].ClearBit(pDestNode->m_iID);
+				m_NeighborsTable[pNode->m_iID].Clear(pDestNode->m_iID);
 				DebugConnectMsg(pNode->m_iID, i, "   NO LINK\n" );
 			}
 		}

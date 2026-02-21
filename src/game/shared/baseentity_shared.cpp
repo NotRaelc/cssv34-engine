@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -27,10 +27,13 @@
 	#include "iservervehicle.h"
 	#include "player_pickup.h"
 	#include "waterbullet.h"
+	#include "func_break.h"
 
 #ifdef HL2MP
 	#include "te_hl2mp_shotgun_shot.h"
 #endif
+
+	#include "GameStats.h"
 
 #endif
 
@@ -40,6 +43,10 @@ ConVar hl2_episodic( "hl2_episodic", "1", FCVAR_REPLICATED );
 ConVar hl2_episodic( "hl2_episodic", "0", FCVAR_REPLICATED );
 #endif//HL2_EPISODIC
 
+#ifdef PORTAL
+	#include "prop_portal_shared.h"
+#endif
+
 #include "rumble_shared.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -48,15 +55,11 @@ ConVar hl2_episodic( "hl2_episodic", "0", FCVAR_REPLICATED );
 #ifdef GAME_DLL
 	ConVar ent_debugkeys( "ent_debugkeys", "" );
 	extern bool ParseKeyvalue( void *pObject, typedescription_t *pFields, int iNumFields, const char *szKeyName, const char *szValue );
+	extern bool ExtractKeyvalue( void *pObject, typedescription_t *pFields, int iNumFields, const char *szKeyName, char *szValue, int iMaxLen );
 #endif
 
 bool CBaseEntity::m_bAllowPrecache = false;
 
-#ifdef BUGFIXED
-// Set default max values for entities based on the existing constants from elsewhere
-float k_flMaxEntityPosCoord = MAX_COORD_FLOAT;
-float k_flMaxEntityEulerAngle = 360.0 * 1000.0f; // really should be restricted to +/-180, but some code doesn't adhere to this.  let's just trap NANs, etc
-#endif
 
 ConVar	ai_shot_bias_min( "ai_shot_bias_min", "-1.0", FCVAR_REPLICATED );
 ConVar	ai_shot_bias_max( "ai_shot_bias_max", "1.0", FCVAR_REPLICATED );
@@ -179,6 +182,11 @@ void CBaseEntity::SetEffects( int nEffects )
 			gEntList.AddPostClientMessageEntity( this );
 		}
 #endif
+
+		if ( ( nEffects & EF_NOINTERP ) && IsPlayer() )
+		{
+			((CBasePlayer *)this)->IncrementEFNoInterpParity();
+		}
 
 #ifndef CLIENT_DLL
 		DispatchUpdateTransmitState();
@@ -473,13 +481,111 @@ bool CBaseEntity::KeyValue( const char *szKeyName, float flValue )
 	return KeyValue( szKeyName, string );
 }
 
-bool CBaseEntity::KeyValue( const char *szKeyName, Vector vec ) 
+bool CBaseEntity::KeyValue( const char *szKeyName, const Vector &vecValue ) 
 {
 	char	string[256];
 
-	Q_snprintf(string,sizeof(string), "%f %f %f", vec.x, vec.y, vec.z );
+	Q_snprintf(string,sizeof(string), "%f %f %f", vecValue.x, vecValue.y, vecValue.z );
 
 	return KeyValue( szKeyName, string );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  :
+// Output :
+//-----------------------------------------------------------------------------
+
+bool CBaseEntity::GetKeyValue( const char *szKeyName, char *szValue, int iMaxLen )
+{
+	if ( FStrEq( szKeyName, "rendercolor" ) || FStrEq( szKeyName, "rendercolor32" ))
+	{
+		color32 tmp = GetRenderColor();
+		Q_snprintf( szValue, iMaxLen, "%d %d %d %d", tmp.r, tmp.g, tmp.b, tmp.a );
+		return true;
+	}
+	
+	if ( FStrEq( szKeyName, "renderamt" ) )
+	{
+		color32 tmp = GetRenderColor();
+		Q_snprintf( szValue, iMaxLen, "%d", tmp.a );
+		return true;
+	}
+
+	if ( FStrEq( szKeyName, "disableshadows" ))
+	{
+		Q_snprintf( szValue, iMaxLen, "%d", IsEffectActive( EF_NOSHADOW ) );
+		return true;
+	}
+
+	if ( FStrEq( szKeyName, "mins" ))
+	{
+		Assert( 0 );
+		return false;
+	}
+
+	if ( FStrEq( szKeyName, "maxs" ))
+	{
+		Assert( 0 );
+		return false;
+	}
+
+	if ( FStrEq( szKeyName, "disablereceiveshadows" ))
+	{
+		Q_snprintf( szValue, iMaxLen, "%d", IsEffectActive( EF_NORECEIVESHADOW ) );
+		return true;
+	}
+
+	if ( FStrEq( szKeyName, "nodamageforces" ))
+	{
+		Q_snprintf( szValue, iMaxLen, "%d", IsEffectActive( EFL_NO_DAMAGE_FORCES ) );
+		return true;
+	}
+
+	// Fix up single angles
+	if( FStrEq( szKeyName, "angle" ) )
+	{
+		return false;
+	}
+
+	// NOTE: Have to do these separate because they set two values instead of one
+	if( FStrEq( szKeyName, "angles" ) )
+	{
+		QAngle angles = GetAbsAngles();
+
+		Q_snprintf( szValue, iMaxLen, "%f %f %f", angles.x, angles.y, angles.z );
+		return true;
+	}
+
+	if( FStrEq( szKeyName, "origin" ) )
+	{
+		Vector vecOrigin = GetAbsOrigin();
+		Q_snprintf( szValue, iMaxLen, "%f %f %f", vecOrigin.x, vecOrigin.y, vecOrigin.z );
+		return true;
+	}
+
+#ifdef GAME_DLL	
+	
+	if ( FStrEq( szKeyName, "targetname" ) )
+	{
+		Q_snprintf( szValue, iMaxLen, "%s", STRING( GetEntityName() ) );
+		return true;
+	}
+
+	if ( FStrEq( szKeyName, "classname" ) )
+	{
+		Q_snprintf( szValue, iMaxLen, "%s", GetClassname() );
+		return true;
+	}
+
+	for ( datamap_t *dmap = GetDataDescMap(); dmap != NULL; dmap = dmap->baseMap )
+	{
+		if ( ::ExtractKeyvalue( this, dmap->dataDesc, dmap->dataNumFields, szKeyName, szValue, iMaxLen ) )
+			return true;
+	}
+#endif
+
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -535,6 +641,7 @@ void CBaseEntity::DecalTrace( trace_t *pTrace, char const *decalName )
 //-----------------------------------------------------------------------------
 void CBaseEntity::ImpactTrace( trace_t *pTrace, int iDamageType, char *pCustomImpactName )
 {
+	VPROF( "CBaseEntity::ImpactTrace" );
 	Assert( pTrace->m_pEnt );
 
 	CBaseEntity *pEntity = pTrace->m_pEnt;
@@ -634,7 +741,7 @@ BASEPTR	CBaseEntity::ThinkSet( BASEPTR func, float thinkTime, const char *szCont
 		m_pfnThink = func;
 #if !defined( CLIENT_DLL )
 #ifdef _DEBUG
-		FunctionCheck( (void *)*((int *)((char *)this + ( offsetof(CBaseEntity,m_pfnThink)))), "BaseThinkFunc" ); 
+		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnThink)), "BaseThinkFunc" ); 
 #endif
 #endif
 		return m_pfnThink;
@@ -650,7 +757,7 @@ BASEPTR	CBaseEntity::ThinkSet( BASEPTR func, float thinkTime, const char *szCont
 	m_aThinkFunctions[ iIndex ].m_pfnThink = func;
 #if !defined( CLIENT_DLL )
 #ifdef _DEBUG
-	//FunctionCheck( (void *)*((int *)((char *)this + ( offsetof(CBaseEntity,m_aThinkFunctions[ iIndex ].m_pfnThink)))), szContext ); 
+	FunctionCheck( *(reinterpret_cast<void **>(&m_aThinkFunctions[ iIndex ].m_pfnThink)), szContext ); 
 #endif
 #endif
 
@@ -840,23 +947,44 @@ bool CBaseEntity::WillThink()
 	return false;
 }
 
+// returns the first tick the entity will run any think function
+// returns TICK_NEVER_THINK if no think functions are scheduled
+int CBaseEntity::GetFirstThinkTick()
+{
+	int minTick = TICK_NEVER_THINK;
+	if ( m_nNextThinkTick > 0 )
+	{
+		minTick = m_nNextThinkTick;
+	}
+
+	for ( int i = 0; i < m_aThinkFunctions.Count(); i++ )
+	{
+		int next = m_aThinkFunctions[i].m_nNextThinkTick;
+		if ( next > 0 )
+		{
+			if ( next < minTick || minTick == TICK_NEVER_THINK )
+			{
+				minTick = next;
+			}
+		}
+	}
+	return minTick;
+}
+
 // NOTE: pass in the isThinking hint so we have to search the think functions less
 void CBaseEntity::CheckHasThinkFunction( bool isThinking )
 {
 	if ( IsEFlagSet( EFL_NO_THINK_FUNCTION ) && isThinking )
 	{
 		RemoveEFlags( EFL_NO_THINK_FUNCTION );
-#if !defined( CLIENT_DLL )
-		SimThink_EntityChanged( this );
-#endif
 	}
 	else if ( !isThinking && !IsEFlagSet( EFL_NO_THINK_FUNCTION ) && !WillThink() )
 	{
 		AddEFlags( EFL_NO_THINK_FUNCTION );
-#if !defined( CLIENT_DLL )
-		SimThink_EntityChanged( this );
-#endif
 	}
+#if !defined( CLIENT_DLL )
+	SimThink_EntityChanged( this );
+#endif
 }
 
 bool CBaseEntity::WillSimulateGamePhysics()
@@ -983,6 +1111,10 @@ void CBaseEntity::VPhysicsUpdate( IPhysicsObject *pPhysics )
 				Msg( "Infinite origin from vphysics! (entity %s)\n", GetDebugName() );
 			}
 
+			for ( int i = 0; i < 3; ++i )
+			{
+				angles[ i ] = AngleNormalize( angles[ i ] );
+			}
 			SetAbsAngles( angles );
 
 			// Interactive debris converts back to debris when it comes to rest
@@ -993,7 +1125,7 @@ void CBaseEntity::VPhysicsUpdate( IPhysicsObject *pPhysics )
 
 #ifndef CLIENT_DLL 
 			PhysicsTouchTriggers( &prevOrigin );
-			PhysicsRelinkChildren();
+			PhysicsRelinkChildren(gpGlobals->frametime);
 #endif
 		}
 	break;
@@ -1057,14 +1189,13 @@ void CBaseEntity::VPhysicsSetObject( IPhysicsObject *pPhysics )
 {
 	if ( m_pPhysicsObject && pPhysics )
 	{
-		// ARRGH!
-#ifdef CLIENT_DLL
-		Warning( "Overwriting physics object for %s\n", GetClassName() );
-#else
 		Warning( "Overwriting physics object for %s\n", GetClassname() );
-#endif
 	}
 	m_pPhysicsObject = pPhysics;
+	if ( pPhysics && !m_pPhysicsObject )
+	{
+		CollisionRulesChanged();
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1241,7 +1372,11 @@ void CBaseEntity::InvalidatePhysicsRecursive( int nChangeFlags )
 
 	if ( nChangeFlags & POSITION_CHANGED )
 	{
-		nDirtyFlags |= EFL_DIRTY_ABSTRANSFORM | EFL_DIRTY_PVS_INFORMATION;
+		nDirtyFlags |= EFL_DIRTY_ABSTRANSFORM;
+
+#ifndef CLIENT_DLL
+		NetworkProp()->MarkPVSInformationDirty();
+#endif
 
 		// NOTE: This will also mark shadow projection + client leaf dirty
 		CollisionProp()->MarkPartitionHandleDirty();
@@ -1366,8 +1501,6 @@ void CBaseEntity::SetAllowPrecache( bool allow )
 	m_bAllowPrecache = allow;
 }
 
-
-
 /*
 ================
 FireBullets
@@ -1375,6 +1508,34 @@ FireBullets
 Go to the trouble of combining multiple pellets into a single damage call.
 ================
 */
+
+#if defined( GAME_DLL )
+class CBulletsTraceFilter : public CTraceFilterSimpleList
+{
+public:
+	CBulletsTraceFilter( int collisionGroup ) : CTraceFilterSimpleList( collisionGroup ) {}
+
+	bool ShouldHitEntity( IHandleEntity *pHandleEntity, int contentsMask )
+	{
+		if ( m_PassEntities.Count() )
+		{
+			CBaseEntity *pEntity = EntityFromEntityHandle( pHandleEntity );
+			CBaseEntity *pPassEntity = EntityFromEntityHandle( m_PassEntities[0] );
+			if ( pEntity && pPassEntity && pEntity->GetOwnerEntity() == pPassEntity && 
+				pPassEntity->IsSolidFlagSet(FSOLID_NOT_SOLID) && pPassEntity->IsSolidFlagSet( FSOLID_CUSTOMBOXTEST ) && 
+				pPassEntity->IsSolidFlagSet( FSOLID_CUSTOMRAYTEST ) )
+			{
+				// It's a bone follower of the entity to ignore (toml 8/3/2007)
+				return false;
+			}
+		}
+		return CTraceFilterSimpleList::ShouldHitEntity( pHandleEntity, contentsMask );
+	}
+
+};
+#else
+typedef CTraceFilterSimpleList CBulletsTraceFilter;
+#endif
 
 void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 {
@@ -1390,7 +1551,7 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 	bDoServerEffects = false;
 #endif
 
-#if defined ( _XBOX ) && defined( GAME_DLL )
+#if defined( GAME_DLL )
 	if( IsPlayer() )
 	{
 		CBasePlayer *pPlayer = dynamic_cast<CBasePlayer*>(this);
@@ -1411,7 +1572,7 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 			pPlayer->RumbleEffect( rumbleEffect, 0, RUMBLE_FLAG_RESTART );
 		}
 	}
-#endif//_XBOX
+#endif// GAME_DLL
 
 	int iPlayerDamage = info.m_iPlayerDamage;
 	if ( iPlayerDamage == 0 )
@@ -1436,9 +1597,20 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 
 	Vector vecDir;
 	Vector vecEnd;
-	Vector vecFinalDir;	// bullet's final direction can be changed by passing through a portal
 	
-	CTraceFilterSkipTwoEntities traceFilter( this, info.m_pAdditionalIgnoreEnt, COLLISION_GROUP_NONE );
+	// Skip multiple entities when tracing
+	CBulletsTraceFilter traceFilter( COLLISION_GROUP_NONE );
+	traceFilter.SetPassEntity( this ); // Standard pass entity for THIS so that it can be easily removed from the list after passing through a portal
+	traceFilter.AddEntityToIgnore( info.m_pAdditionalIgnoreEnt );
+
+#if defined( HL2_EPISODIC ) && defined( GAME_DLL )
+	// FIXME: We need to emulate this same behavior on the client as well -- jdw
+	// Also ignore a vehicle we're a passenger in
+	if ( MyCombatCharacterPointer() != NULL && MyCombatCharacterPointer()->IsInAVehicle() )
+	{
+		traceFilter.AddEntityToIgnore( MyCombatCharacterPointer()->GetVehicleEntity() );
+	}
+#endif // SERVER_DLL
 
 	bool bUnderwaterBullets = ShouldDrawUnderwaterBulletBubbles();
 	bool bStartedInWater = false;
@@ -1465,6 +1637,8 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 	bool bDoImpacts = false;
 	bool bDoTracers = false;
 	
+	float flCumulativeDamage = 0.0f;
+
 	for (int iShot = 0; iShot < info.m_iShots; iShot++)
 	{
 		bool bHitWater = false;
@@ -1490,18 +1664,61 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 
 		vecEnd = info.m_vecSrc + vecDir * info.m_flDistance;
 
+#ifdef PORTAL
+		CProp_Portal *pShootThroughPortal = NULL;
+		float fPortalFraction = 2.0f;
+#endif
+
+
 		if( IsPlayer() && info.m_iShots > 1 && iShot % 2 )
 		{
 			// Half of the shotgun pellets are hulls that make it easier to hit targets with the shotgun.
+#ifdef PORTAL
+			Ray_t rayBullet;
+			rayBullet.Init( info.m_vecSrc, vecEnd );
+			pShootThroughPortal = UTIL_Portal_FirstAlongRay( rayBullet, fPortalFraction );
+			if ( !UTIL_Portal_TraceRay_Bullets( pShootThroughPortal, rayBullet, MASK_SHOT, &traceFilter, &tr ) )
+			{
+				pShootThroughPortal = NULL;
+			}
+#else
 			AI_TraceHull( info.m_vecSrc, vecEnd, Vector( -3, -3, -3 ), Vector( 3, 3, 3 ), MASK_SHOT, &traceFilter, &tr );
+#endif //#ifdef PORTAL
 		}
 		else
 		{
+#ifdef PORTAL
+			Ray_t rayBullet;
+			rayBullet.Init( info.m_vecSrc, vecEnd );
+			pShootThroughPortal = UTIL_Portal_FirstAlongRay( rayBullet, fPortalFraction );
+			if ( !UTIL_Portal_TraceRay_Bullets( pShootThroughPortal, rayBullet, MASK_SHOT, &traceFilter, &tr ) )
+			{
+				pShootThroughPortal = NULL;
+			}
+#else
 			AI_TraceLine(info.m_vecSrc, vecEnd, MASK_SHOT, &traceFilter, &tr);
+#endif //#ifdef PORTAL
 		}
 
-		vecFinalDir = tr.endpos - tr.startpos;
-		VectorNormalize( vecFinalDir );
+		// Tracker 70354/63250:  ywb 8/2/07
+		// Fixes bug where trace from turret with attachment point outside of Vcollide
+		//  starts solid so doesn't hit anything else in the world and the final coord 
+		//  is outside of the MAX_COORD_FLOAT range.  This cause trying to send the end pos
+		//  of the tracer down to the client with an origin which is out-of-range for networking
+		if ( tr.startsolid )
+		{
+			tr.endpos = tr.startpos;
+			tr.fraction = 0.0f;
+		}
+
+	// bullet's final direction can be changed by passing through a portal
+#ifdef PORTAL
+		if ( !tr.startsolid )
+		{
+			vecDir = tr.endpos - tr.startpos;
+			VectorNormalize( vecDir );
+		}
+#endif
 
 #ifdef GAME_DLL
 		if ( ai_debug_shoot_positions.GetBool() )
@@ -1511,19 +1728,40 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 		if ( bStartedInWater )
 		{
 #ifdef GAME_DLL
-			CreateBubbleTrailTracer( info.m_vecSrc, tr.endpos, vecFinalDir );
-#endif
+			Vector vBubbleStart = info.m_vecSrc;
+			Vector vBubbleEnd = tr.endpos;
+
+#ifdef PORTAL
+			if ( pShootThroughPortal )
+			{
+				vBubbleEnd = info.m_vecSrc + ( vecEnd - info.m_vecSrc ) * fPortalFraction;
+			}
+#endif //#ifdef PORTAL
+
+			CreateBubbleTrailTracer( vBubbleStart, vBubbleEnd, vecDir );
+			
+#ifdef PORTAL
+			if ( pShootThroughPortal )
+			{
+				Vector vTransformedIntersection;
+				UTIL_Portal_PointTransform( pShootThroughPortal->MatrixThisToLinked(), vBubbleEnd, vTransformedIntersection );
+
+				CreateBubbleTrailTracer( vTransformedIntersection, tr.endpos, vecDir );
+			}
+#endif //#ifdef PORTAL
+
+#endif //#ifdef GAME_DLL
 			bHitWater = true;
 		}
 
 		// Now hit all triggers along the ray that respond to shots...
 		// Clip the ray to the first collided solid returned from traceline
 		CTakeDamageInfo triggerInfo( pAttacker, pAttacker, info.m_iDamage, nDamageType );
-		CalculateBulletDamageForce( &triggerInfo, info.m_iAmmoType, vecFinalDir, tr.endpos );
+		CalculateBulletDamageForce( &triggerInfo, info.m_iAmmoType, vecDir, tr.endpos );
 		triggerInfo.ScaleDamageForce( info.m_flDamageForceScale );
 		triggerInfo.SetAmmoType( info.m_iAmmoType );
 #ifdef GAME_DLL
-		TraceAttackToTriggers( triggerInfo, tr.startpos, tr.endpos, vecFinalDir );
+		TraceAttackToTriggers( triggerInfo, tr.startpos, tr.endpos, vecDir );
 #endif
 
 		// Make sure given a valid bullet type
@@ -1588,11 +1826,16 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 			{
 				// Damage specified by function parameter
 				CTakeDamageInfo dmgInfo( this, pAttacker, flActualDamage, nActualDamageType );
-				CalculateBulletDamageForce( &dmgInfo, info.m_iAmmoType, vecFinalDir, tr.endpos );
+				CalculateBulletDamageForce( &dmgInfo, info.m_iAmmoType, vecDir, tr.endpos );
 				dmgInfo.ScaleDamageForce( info.m_flDamageForceScale );
 				dmgInfo.SetAmmoType( info.m_iAmmoType );
-				tr.m_pEnt->DispatchTraceAttack( dmgInfo, vecFinalDir, &tr );
+				tr.m_pEnt->DispatchTraceAttack( dmgInfo, vecDir, &tr );
 			
+				if ( ToBaseCombatCharacter( tr.m_pEnt ) )
+				{
+					flCumulativeDamage += dmgInfo.GetDamage();
+				}
+
 				if ( bStartedInWater || !bHitWater || (info.m_nFlags & FIRE_BULLETS_ALLOW_WATER_SURFACE_IMPACTS) )
 				{
 					if ( bDoServerEffects == true )
@@ -1632,7 +1875,11 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 			surfacedata_t *psurf = physprops->GetSurfaceData( tr.surface.surfaceProps );
 			if ( ( psurf != NULL ) && ( psurf->game.material == CHAR_TEX_GLASS ) && ( tr.m_pEnt->ClassMatches( "func_breakable" ) ) )
 			{
-				bHitGlass = true;
+				// Query the func_breakable for whether it wants to allow for bullet penetration
+				if ( tr.m_pEnt->HasSpawnFlags( SF_BREAK_NO_BULLET_PENETRATION ) == false )
+				{
+					bHitGlass = true;
+				}
 			}
 #endif
 		}
@@ -1648,7 +1895,37 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 				Tracer = tr;
 				Tracer.endpos = vecTracerDest;
 
+#ifdef PORTAL
+				if ( pShootThroughPortal )
+				{
+					Tracer.endpos = info.m_vecSrc + ( vecEnd - info.m_vecSrc ) * fPortalFraction;
+				}
+#endif //#ifdef PORTAL
+
 				MakeTracer( vecTracerSrc, Tracer, pAmmoDef->TracerType(info.m_iAmmoType) );
+
+#ifdef PORTAL
+				if ( pShootThroughPortal )
+				{
+					Vector vTransformedIntersection;
+					UTIL_Portal_PointTransform( pShootThroughPortal->MatrixThisToLinked(), Tracer.endpos, vTransformedIntersection );
+					ComputeTracerStartPosition( vTransformedIntersection, &vecTracerSrc );
+
+					Tracer.endpos = vecTracerDest;
+
+					MakeTracer( vecTracerSrc, Tracer, pAmmoDef->TracerType(info.m_iAmmoType) );
+
+					// Shooting through a portal, the damage direction is translated through the passed-through portal
+					// so the damage indicator hud animation is correct
+					Vector vDmgOriginThroughPortal;
+					UTIL_Portal_PointTransform( pShootThroughPortal->MatrixThisToLinked(), info.m_vecSrc, vDmgOriginThroughPortal );
+					g_MultiDamage.SetDamagePosition ( vDmgOriginThroughPortal );
+				}
+				else
+				{
+					g_MultiDamage.SetDamagePosition ( info.m_vecSrc );
+				}
+#endif //#ifdef PORTAL
 			}
 			else
 			{
@@ -1662,7 +1939,7 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 #ifdef GAME_DLL
 		if ( bHitGlass )
 		{
-			HandleShotImpactingGlass( info, tr, vecFinalDir, &traceFilter );
+			HandleShotImpactingGlass( info, tr, vecDir, &traceFilter );
 		}
 #endif
 
@@ -1678,6 +1955,13 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 
 #ifdef GAME_DLL
 	ApplyMultiDamage();
+
+	if ( IsPlayer() && flCumulativeDamage > 0.0f )
+	{
+		CBasePlayer *pPlayer = static_cast< CBasePlayer * >( this );
+		CTakeDamageInfo dmgInfo( this, pAttacker, flCumulativeDamage, nDamageType );
+		gamestats->Event_WeaponHit( pPlayer, info.m_bPrimaryAttack, pPlayer->GetActiveWeapon()->GetClassname(), dmgInfo );
+	}
 #endif
 }
 
@@ -1687,12 +1971,16 @@ void CBaseEntity::FireBullets( const FireBulletsInfo_t &info )
 //-----------------------------------------------------------------------------
 bool CBaseEntity::ShouldDrawUnderwaterBulletBubbles()
 {
-#if defined( HL2_DLL ) && defined( GAME_DLL )
-	CBaseEntity *pPlayer = ( gpGlobals->maxClients == 1 ) ? UTIL_GetLocalPlayer() : NULL;
-	return pPlayer && (pPlayer->GetWaterLevel() == 3);
-#else
-	return false;
+// why is this on the server dll only?
+#if defined( GAME_DLL )
+	for (int i = 1; i <= gpGlobals->maxClients; i++)
+	{
+		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
+		if (pPlayer && pPlayer->FInViewCone(this) && pPlayer->GetWaterLevel() == 3)
+			return true;
+	}
 #endif
+	return false;
 }
 
 
@@ -1749,6 +2037,12 @@ bool CBaseEntity::HandleShotImpactingWater( const FireBulletsInfo_t &info,
 }
 
 
+ITraceFilter* CBaseEntity::GetBeamTraceFilter( void )
+{
+	return NULL;
+}
+
+
 void CBaseEntity::DispatchTraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr )
 {
 #ifdef GAME_DLL
@@ -1761,7 +2055,6 @@ void CBaseEntity::DispatchTraceAttack( const CTakeDamageInfo &info, const Vector
 
 	TraceAttack( info, vecDir, ptr );
 }
-
 
 void CBaseEntity::TraceAttack( const CTakeDamageInfo &info, const Vector &vecDir, trace_t *ptr )
 {
@@ -1856,23 +2149,33 @@ void CBaseEntity::MakeTracer( const Vector &vecTracerSrc, const trace_t &tr, int
 
 	Vector vNewSrc = vecTracerSrc;
 
-	int iFlags = TRACER_DONT_USE_ATTACHMENT;
-	if ( g_pGameRules->IsMultiplayer() )
-	{
-		iFlags = 0;
-		vNewSrc.x = 1;	// attachment index..
-	}
+	int iAttachment = GetTracerAttachment();
 
 	switch ( iTracerType )
 	{
 	case TRACER_LINE:
-		UTIL_Tracer( vNewSrc, tr.endpos, entindex(), iFlags, 0.0f, false, pszTracerName );
+		UTIL_Tracer( vNewSrc, tr.endpos, entindex(), iAttachment, 0.0f, false, pszTracerName );
 		break;
 
 	case TRACER_LINE_AND_WHIZ:
-		UTIL_Tracer( vNewSrc, tr.endpos, entindex(), iFlags, 0.0f, true, pszTracerName );
+		UTIL_Tracer( vNewSrc, tr.endpos, entindex(), iAttachment, 0.0f, true, pszTracerName );
 		break;
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Default tracer attachment
+//-----------------------------------------------------------------------------
+int CBaseEntity::GetTracerAttachment( void )
+{
+	int iAttachment = TRACER_DONT_USE_ATTACHMENT;
+
+	if ( g_pGameRules->IsMultiplayer() )
+	{
+		iAttachment = 1;
+	}
+
+	return iAttachment;
 }
 
 
@@ -2064,14 +2367,12 @@ void CBaseEntity::CollisionRulesChanged()
 	// that can change the state that a collision filter will return (like m_Solid) needs to call RecheckCollisionFilter.
 	if ( VPhysicsGetObject() )
 	{
-#ifndef CLIENT_DLL
 		extern bool PhysIsInCallback();
 		if ( PhysIsInCallback() )
 		{
 			Warning("Changing collision rules within a callback is likely to cause crashes!\n");
 			Assert(0);
 		}
-#endif
 		IPhysicsObject *pList[VPHYSICS_MAX_OBJECT_LIST_COUNT];
 		int count = VPhysicsGetObjectList( pList, ARRAYSIZE(pList) );
 		for ( int i = 0; i < count; i++ )
@@ -2101,9 +2402,7 @@ void CBaseEntity::SetWaterType( int nType )
 		m_nWaterType |= 2;
 }
 
-
-static ConVar sv_alternateticks( "sv_alternateticks", "0", FCVAR_SPONLY, 
-			"If set, server only simulates entities on alternate ticks.\n" );
+ConVar	sv_alternateticks( "sv_alternateticks", ( IsX360() ) ? "1" : "0", FCVAR_SPONLY, "If set, server only simulates entities on even numbered ticks.\n" );
 
 //-----------------------------------------------------------------------------
 // Purpose: 

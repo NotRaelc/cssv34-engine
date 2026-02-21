@@ -29,7 +29,7 @@ inline int	AI_MakeGlobal( int id )			{ return AI_IdIsLocal( id ) ? AI_RemapToGlo
 //-----------------------------------------------------------------------------
 // CAI_GlobalNamespace
 //
-// Purpose: Symbol table for all symbols accross a given namespace, a
+// Purpose: Symbol table for all symbols across a given namespace, a
 //			bi-directional mapping of "text" to global ID
 //
 
@@ -57,7 +57,7 @@ private:
 //
 // Purpose: Maps per class IDs to global IDs, so that various classes can use
 //			the same integer in local space to represent different globally
-//			unique integers. Used for schedules, tasks, conditons and squads
+//			unique integers. Used for schedules, tasks, conditions and squads
 //
 
 class CAI_LocalIdSpace

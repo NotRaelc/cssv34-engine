@@ -8,19 +8,20 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 #include "player.h"
 #include "ndebugoverlay.h"
 #include "wcedit.h"
-
-// memdbgon must be the last include file in a .cpp file!!!
-#include "tier0/memdbgon.h"
 
 #ifdef _LINUX
 #include "ai_basenpc.h"
 #include "ai_network.h"
 #include "ai_networkmanager.h"
 #endif
+
+// memdbgon must be the last include file in a .cpp file!!!
+#include "tier0/memdbgon.h"
+
 
 #define		NUM_DEBUG_OVERLAY_LINES		20
 
@@ -77,7 +78,7 @@ void UTIL_AddDebugLine(const Vector &startPos, const Vector &endPos, bool noDept
 	if (testLOS)
 	{
 		trace_t tr;
-		UTIL_TraceLine ( debugLine->origin, debugLine->dest, MASK_OPAQUE, NULL, COLLISION_GROUP_NONE, &tr );
+		UTIL_TraceLine ( debugLine->origin, debugLine->dest, MASK_BLOCKLOS, NULL, COLLISION_GROUP_NONE, &tr );
 		if (tr.startsolid || tr.fraction < 1.0)
 		{
 			debugLine->r = 255;
@@ -247,11 +248,6 @@ void DebugDrawLine( const Vector& vecAbsStart, const Vector& vecAbsEnd, int r, i
 //-----------------------------------------------------------------------------
 CON_COMMAND( clear_debug_overlays, "clears debug overlays" )
 {
-#ifdef BUGFIXED
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-#endif
-	
 	CBaseEntity *pEntity = gEntList.FirstEnt();
 	
 	// Clear all entities of their debug overlays

@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -12,6 +12,8 @@
 
 #ifdef CLIENT_DLL
 
+	#include "usermessages.h"
+
 #else
 
 	#include "player.h"
@@ -22,6 +24,7 @@
 	#include "voice_gamemgr.h"
 	#include "globalstate.h"
 	#include "player_resource.h"
+#include "GameStats.h"
 
 #endif
 
@@ -30,23 +33,24 @@
 
 
 ConVar g_Language( "g_Language", "0", FCVAR_REPLICATED );
+ConVar sk_autoaim_mode( "sk_autoaim_mode", "1", FCVAR_ARCHIVE | FCVAR_REPLICATED );
 
 static CViewVectors g_DefaultViewVectors(
-	Vector( 0, 0, 64 ),
-	
-	Vector(-16, -16, 0 ),
-	Vector( 16,  16,  72 ),
-	
-	Vector(-16, -16, 0 ),
-	Vector( 16,  16,  36 ),
-	Vector( 0, 0, 28 ),
-	
-	Vector(-10, -10, -10 ),
-	Vector( 10,  10,  10 ),
-	
-	Vector( 0, 0, 14 )
-);
-
+	Vector( 0, 0, 64 ),			//VEC_VIEW (m_vView)
+								
+	Vector(-16, -16, 0 ),		//VEC_HULL_MIN (m_vHullMin)
+	Vector( 16,  16,  72 ),		//VEC_HULL_MAX (m_vHullMax)
+													
+	Vector(-16, -16, 0 ),		//VEC_DUCK_HULL_MIN (m_vDuckHullMin)
+	Vector( 16,  16,  36 ),		//VEC_DUCK_HULL_MAX	(m_vDuckHullMax)
+	Vector( 0, 0, 28 ),			//VEC_DUCK_VIEW		(m_vDuckView)
+													
+	Vector(-10, -10, -10 ),		//VEC_OBS_HULL_MIN	(m_vObsHullMin)
+	Vector( 10,  10,  10 ),		//VEC_OBS_HULL_MAX	(m_vObsHullMax)
+													
+	Vector( 0, 0, 14 )			//VEC_DEAD_VIEWHEIGHT (m_vDeadViewHeight)
+);													
+													
 
 // ------------------------------------------------------------------------------------ //
 // CGameRulesProxy implementation.
@@ -95,6 +99,11 @@ void CGameRulesProxy::NotifyNetworkStateChanged()
 ConVar	old_radius_damage( "old_radiusdamage", "0.0", FCVAR_REPLICATED );
 
 #ifdef CLIENT_DLL //{
+
+bool CGameRules::IsBonusChallengeTimeBased( void )
+{
+	return true;
+}
 
 CGameRules::CGameRules() : CAutoGameSystemPerFrame( "CGameRules" )
 {
@@ -230,9 +239,9 @@ void CGameRules::RefreshSkillData ( bool forceUpdate )
 	GlobalEntity_Add( "skill.cfg", STRING(gpGlobals->mapname), GLOBAL_ON );
 	char	szExec[256];
 
-	ConVar const *skill = cvar->FindVar( "skill" );
+	ConVarRef skill( "skill" );
 
-	SetSkillLevel( skill ? skill->GetInt() : 1 );
+	SetSkillLevel( skill.IsValid() ? skill.GetInt() : 1 );
 
 #ifdef HL2_DLL
 	// HL2 current only uses one skill config file that represents MEDIUM skill level and
@@ -390,6 +399,7 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 				}
 
 				// UNDONE: Probably shouldn't let children block parents either?  Or maybe those guys should set their owner if they want this behavior?
+				// HL2 - Dissolve damage is not reduced by interposing non-world objects
 				if( tr.m_pEnt && tr.m_pEnt != pEntity && tr.m_pEnt->GetOwnerEntity() != pEntity )
 				{
 					// Some entity was hit by the trace, meaning the explosion does not have clear
@@ -420,7 +430,7 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 
 						ASSERT( scale > 0.0f );
 						flBlockedDamagePercent = scale;
-						//Msg("Object (%s) weighing %fkg blocked %f percent of explosion damage\n", pBlockingEntity->GetClassname(), flMass, scale * 100.0f);
+						//Msg("  Object (%s) weighing %fkg blocked %f percent of explosion damage\n", pBlockingEntity->GetClassname(), flMass, scale * 100.0f);
 					}
 					else
 					{
@@ -435,7 +445,9 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 		flAdjustedDamage = info.GetDamage() - flAdjustedDamage;
 
 		if ( flAdjustedDamage <= 0 )
+		{
 			continue;
+		}
 
 		// the explosion can 'see' this entity, so hurt them!
 		if (tr.startsolid)
@@ -462,7 +474,10 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 		// If we don't have a damage force, manufacture one
 		if ( adjustedInfo.GetDamagePosition() == vec3_origin || adjustedInfo.GetDamageForce() == vec3_origin )
 		{
-			CalculateExplosiveDamageForce( &adjustedInfo, dir, vecSrc );
+			if ( !( adjustedInfo.GetDamageType() & DMG_PREVENT_PHYSICS_FORCE ) )
+			{
+				CalculateExplosiveDamageForce( &adjustedInfo, dir, vecSrc );
+			}
 		}
 		else
 		{
@@ -485,15 +500,32 @@ void CGameRules::RadiusDamage( const CTakeDamageInfo &info, const Vector &vecSrc
 
 		// Now hit all triggers along the way that respond to damage... 
 		pEntity->TraceAttackToTriggers( adjustedInfo, vecSrc, tr.endpos, dir );
+
+#if defined( GAME_DLL )
+		if ( info.GetAttacker() && info.GetAttacker()->IsPlayer() && ToBaseCombatCharacter( tr.m_pEnt ) )
+		{
+
+			// This is a total hack!!!
+			bool bIsPrimary = true;
+			CBasePlayer *player = ToBasePlayer( info.GetAttacker() );
+			CBaseCombatWeapon *pWeapon = player->GetActiveWeapon();
+			if ( pWeapon && FClassnameIs( pWeapon, "weapon_smg1" ) )
+			{
+				bIsPrimary = false;
+			}
+
+			gamestats->Event_WeaponHit( player, bIsPrimary, (pWeapon != NULL) ? player->GetActiveWeapon()->GetClassname() : "NULL", info );
+		}
+#endif
 	}
 }
 
 
-bool CGameRules::ClientCommand( const char *pcmd, CBaseEntity *pEdict )
+bool CGameRules::ClientCommand( CBaseEntity *pEdict, const CCommand &args )
 {
 	if( pEdict->IsPlayer() )
 	{
-		if( GetVoiceGameMgr()->ClientCommand( static_cast<CBasePlayer*>(pEdict), pcmd ) )
+		if( GetVoiceGameMgr()->ClientCommand( static_cast<CBasePlayer*>(pEdict), args ) )
 			return true;
 	}
 
@@ -508,7 +540,7 @@ void CGameRules::FrameUpdatePostEntityThink()
 }
 
 // Hook into the convar from the engine
-ConVar skill( "skill", "0" );
+ConVar skill( "skill", "1" );
 
 void CGameRules::Think()
 {
@@ -552,6 +584,16 @@ void CGameRules::CreateStandardEntities()
 	g_pPlayerResource->AddEFlags( EFL_KEEP_ON_RECREATE_ENTITIES );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Inform client(s) they can mark the indicated achievement as completed (SERVER VERSION)
+// Input  : filter - which client(s) to send this to
+//			iAchievementID - The enumeration value of the achievement to mark (see TODO:Kerry, what file will have the mod's achievement enum?) 
+//-----------------------------------------------------------------------------
+void CGameRules::MarkAchievement( IRecipientFilter& filter, char const *pchAchievementName )
+{
+
+}
+
 #endif //} !CLIENT_DLL
 
 
@@ -580,7 +622,7 @@ bool CGameRules::ShouldCollide( int collisionGroup0, int collisionGroup1 )
 	if ( collisionGroup0 > collisionGroup1 )
 	{
 		// swap so that lowest is always first
-		swap(collisionGroup0,collisionGroup1);
+		V_swap(collisionGroup0,collisionGroup1);
 	}
 
 #ifndef HL2MP
@@ -703,7 +745,7 @@ float CGameRules::GetAmmoDamage( CBaseEntity *pAttacker, CBaseEntity *pVictim, i
 	float flDamage = 0;
 	CAmmoDef *pAmmoDef = GetAmmoDef();
 
-	if ( pAttacker->IsPlayer() )
+	if ( pAttacker && pAttacker->IsPlayer() )
 	{
 		flDamage = pAmmoDef->PlrDamage( nAmmoType );
 	}
@@ -719,20 +761,15 @@ float CGameRules::GetAmmoDamage( CBaseEntity *pAttacker, CBaseEntity *pVictim, i
 #ifndef CLIENT_DLL
 const char *CGameRules::GetChatPrefix( bool bTeamOnly, CBasePlayer *pPlayer )
 {
-	if ( bTeamOnly )
-		 return "(TEAM)";
-	else
-		return "";
-}
-
-void CGameRules::CheckHaptics( CBasePlayer* pPlayer )
-{
-	const char *pszHH = engine->GetClientConVarValue( pPlayer->entindex(), "hap_HasDevice" );
-	if( pszHH )
+	if ( pPlayer && pPlayer->IsAlive() == false )
 	{
-		int iHH = atoi( pszHH );
-		pPlayer->SetHaptics( iHH != 0 );
+		if ( bTeamOnly )
+			return "*DEAD*(TEAM)";
+		else
+			return "*DEAD*";
 	}
+	
+	return "";
 }
 
 void CGameRules::ClientSettingsChanged( CBasePlayer *pPlayer )
@@ -761,13 +798,15 @@ void CGameRules::ClientSettingsChanged( CBasePlayer *pPlayer )
 		
 		pPlayer->SetPlayerName( pszName );
 	}
-	
-	const char *pszHH = engine->GetClientConVarValue( pPlayer->entindex(), "hap_HasDevice" );
-	if( pszHH )
+	//fov_desired
+	const char *pszFov = engine->GetClientConVarValue( pPlayer->entindex(), "fov_desired" );
+	if ( pszFov )
 	{
-		int iHH = atoi( pszHH );
-		pPlayer->SetHaptics( iHH != 0 );
+		int iFov = atoi(pszFov);
+		iFov = clamp( iFov, 75, 90 );
+		pPlayer->SetDefaultFOV( iFov );
 	}
+	//
 }
 
 #endif

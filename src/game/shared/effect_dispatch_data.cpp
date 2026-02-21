@@ -17,11 +17,10 @@
 #include "tier0/memdbgon.h"
 
 
-#ifdef HL2_DLL
-	#define SUBINCH_PRECISION	3
-#else
-	#define SUBINCH_PRECISION	0	// Multiplayer mods should use 0 because subinch precision is hardly noticeable.
-#endif
+#define SUBINCH_PRECISION	3
+
+// Note, must match common/qlimits.h!!!
+#define MAX_MODEL_INDEX_BITS	10 
 
 
 #ifdef CLIENT_DLL
@@ -76,16 +75,28 @@
 		// the functionality of CNetworkVars.
 
 		// Get half-inch precision here.
+#ifdef HL2_DLL
 		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[0] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[1] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[2] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[0] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
-
+#else
+		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[0] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[1] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[2] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vStart[0] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), -1, SPROP_COORD ),
+		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), -1, SPROP_COORD ),
+#endif
 		SendPropQAngles( SENDINFO_NOCHECK( m_vAngles ), 7 ),
 
+#if defined( TF_DLL )
+		SendPropVector( SENDINFO_NOCHECK( m_vNormal ), 6, 0, -1.0f, 1.0f ),
+#else
 		SendPropVector( SENDINFO_NOCHECK( m_vNormal ), 0, SPROP_NORMAL ),
+#endif
 
 		SendPropInt( SENDINFO_NOCHECK( m_fFlags ), MAX_EFFECT_FLAG_BITS, SPROP_UNSIGNED ),
 		SendPropFloat( SENDINFO_NOCHECK( m_flMagnitude ), 12, SPROP_ROUNDDOWN, 0.0f, 1023.0f ),
@@ -94,7 +105,7 @@
 		SendPropIntWithMinusOneFlag( SENDINFO_NOCHECK( m_nSurfaceProp ), 8, SendProxy_ShortAddOne ),
 		SendPropInt( SENDINFO_NOCHECK( m_iEffectName ), MAX_EFFECT_DISPATCH_STRING_BITS, SPROP_UNSIGNED ),
 
-		SendPropInt( SENDINFO_NOCHECK( m_nMaterial ), 16, SPROP_UNSIGNED ),
+		SendPropInt( SENDINFO_NOCHECK( m_nMaterial ), MAX_MODEL_INDEX_BITS, SPROP_UNSIGNED ),
 		SendPropInt( SENDINFO_NOCHECK( m_nDamageType ), 32, SPROP_UNSIGNED ),
 		SendPropInt( SENDINFO_NOCHECK( m_nHitBox ), 11, SPROP_UNSIGNED ),
 
@@ -124,6 +135,22 @@ int CEffectData::entindex() const
 {
 	C_BaseEntity *pEnt = ClientEntityList().GetBaseEntityFromHandle( m_hEntity );
 	return pEnt ? pEnt->entindex() : -1;
+}
+
+#endif
+
+#ifdef CLIENT_DLL
+
+bool g_bSuppressParticleEffects = false;
+
+bool SuppressingParticleEffects()
+{
+	return g_bSuppressParticleEffects;
+}
+
+void SuppressParticleEffects( bool bSuppress )
+{
+	g_bSuppressParticleEffects = bSuppress;
 }
 
 #endif

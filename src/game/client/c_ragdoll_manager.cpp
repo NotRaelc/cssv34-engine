@@ -2,7 +2,6 @@
 //
 // Purpose: 
 //
-// $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
 #include "ragdoll_shared.h"
@@ -25,11 +24,11 @@ public:
 
 public:
 
-	int		m_iMaxRagdollCount;
+	int		m_iCurrentMaxRagdollCount;
 };
 
 IMPLEMENT_CLIENTCLASS_DT_NOBASE( C_RagdollManager, DT_RagdollManager, CRagdollManager )
-	RecvPropInt( RECVINFO( m_iMaxRagdollCount ) ),
+	RecvPropInt( RECVINFO( m_iCurrentMaxRagdollCount ) ),
 END_RECV_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -37,7 +36,7 @@ END_RECV_TABLE()
 //-----------------------------------------------------------------------------
 C_RagdollManager::C_RagdollManager()
 {
-	m_iMaxRagdollCount = -1;
+	m_iCurrentMaxRagdollCount = -1;
 }
 
 //-----------------------------------------------------------------------------
@@ -48,5 +47,5 @@ void C_RagdollManager::OnDataChanged( DataUpdateType_t updateType )
 {
 	BaseClass::OnDataChanged( updateType );
 
-	s_RagdollLRU.SetMaxRagdollCount( m_iMaxRagdollCount );
+	s_RagdollLRU.SetMaxRagdollCount( m_iCurrentMaxRagdollCount );
 }

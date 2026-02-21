@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #ifndef SERVERNETWORKPROPERTY_H
 #define SERVERNETWORKPROPERTY_H
@@ -23,6 +23,7 @@ class CServerNetworkProperty : public IServerNetworkable, public IEventRegisterC
 {
 public:
 	DECLARE_CLASS_NOBASE( CServerNetworkProperty );
+	DECLARE_DATADESC();
 
 public:
 	CServerNetworkProperty();
@@ -31,8 +32,6 @@ public:
 public:
 // IServerNetworkable implementation.
 	virtual IHandleEntity  *GetEntityHandle( );
-	virtual int				GetEFlags() const;
-	virtual void			AddEFlags( int iEFlags );
 	virtual edict_t			*GetEdict() const;
 	virtual CBaseNetworkable* GetBaseNetworkable();
 	virtual CBaseEntity*	GetBaseEntity();
@@ -61,6 +60,17 @@ public:
 	void NetworkStateForceUpdate();
 	void NetworkStateChanged();
 	void NetworkStateChanged( unsigned short offset );
+
+	// Marks the PVS information dirty
+	void MarkPVSInformationDirty();
+
+	// Marks for deletion
+	void MarkForDeletion();
+	bool IsMarkedForDeletion() const;
+
+	// Sets the network parent
+	void SetNetworkParent( EHANDLE hParent );
+	CServerNetworkProperty* GetNetworkParent();
 
 	// This is useful for entities that don't change frequently or that the client
 	// doesn't need updates on very often. If you use this mode, the server will only try to
@@ -104,10 +114,15 @@ private:
 	// CBaseTransmitProxy *m_pTransmitProxy;
 	edict_t	*m_pPev;
 	PVSInfo_t m_PVSInfo;
+	ServerClass *m_pServerClass;
+
+	// NOTE: This state is 'owned' by the entity. It's only copied here
+	// also to help improve cache performance in networking code.
+	EHANDLE m_hParent;
 
 	// Counters for SetUpdateInterval.
 	CEventRegister	m_TimerEvent;
-	bool m_bPendingStateChange;
+	bool m_bPendingStateChange : 1;
 
 //	friend class CBaseTransmitProxy;
 };
@@ -135,6 +150,28 @@ inline PVSInfo_t *CServerNetworkProperty::GetPVSInfo()
 {
 	return &m_PVSInfo;
 }
+
+
+//-----------------------------------------------------------------------------
+// Marks the PVS information dirty
+//-----------------------------------------------------------------------------
+inline void CServerNetworkProperty::MarkPVSInformationDirty()
+{
+	if ( m_pPev )
+	{
+		m_pPev->m_fStateFlags |= FL_EDICT_DIRTY_PVS_INFORMATION;
+	}
+}
+
+
+//-----------------------------------------------------------------------------
+// Sets/gets the network parent
+//-----------------------------------------------------------------------------
+inline void CServerNetworkProperty::SetNetworkParent( EHANDLE hParent )
+{
+	m_hParent = hParent;
+}
+
 
 //-----------------------------------------------------------------------------
 // Methods related to the net state mgr

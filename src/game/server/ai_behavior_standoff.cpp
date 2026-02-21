@@ -25,7 +25,7 @@
 ConVar DrawBattleLines( "ai_drawbattlelines", "0", FCVAR_CHEAT );
 
 
-static AI_StandoffParams_t AI_DEFAULT_STANDOFF_PARAMS = { AIHCR_MOVE_ON_COVER, true, 1.5, 2.5, 1, 3, 25, 0 };
+static AI_StandoffParams_t AI_DEFAULT_STANDOFF_PARAMS = { AIHCR_MOVE_ON_COVER, true, true, 1.5f, 2.5f, 1, 3, 25, false, 0.0f };
 
 #define MAKE_ACTMAP_KEY( posture, activity ) ( (((unsigned)(posture)) << 16) | ((unsigned)(activity)) )
 
@@ -686,7 +686,7 @@ void CAI_StandoffBehavior::SetStandoffGoalPosition( const Vector &vecPos )
 	m_vecStandoffGoalPosition = vecPos;
 	UpdateBattleLines();
 	OnChangeTacticalConstraints();
-	GetOuter()->ClearSchedule();
+	GetOuter()->ClearSchedule( "Standoff goal position changed" );
 }
 
 //-----------------------------------------------------------------------------
@@ -700,7 +700,7 @@ void CAI_StandoffBehavior::ClearStandoffGoalPosition()
 		m_vecStandoffGoalPosition = GOAL_POSITION_INVALID;
 		UpdateBattleLines();
 		OnChangeTacticalConstraints();
-		GetOuter()->ClearSchedule();
+		GetOuter()->ClearSchedule( "Standoff goal position cleared" );
 	}
 }
 
@@ -716,7 +716,7 @@ Vector CAI_StandoffBehavior::GetStandoffGoalPosition()
 	}
 	else if( PlayerIsLeading() )
 	{
-		return UTIL_GetLocalPlayer()->GetAbsOrigin();
+		return UTIL_GetNearestPlayer(GetAbsOrigin())->GetAbsOrigin();
 	}
 	else
 	{
@@ -768,7 +768,7 @@ void CAI_StandoffBehavior::UpdateBattleLines()
 			if ( m_params.fPlayerIsBattleline )
 			{
 				const float DIST_PLAYER_PLANE = 180;
-				CBaseEntity *pPlayer = UTIL_GetLocalPlayer();
+				CBaseEntity *pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
 				
 				BattleLine_t playerLine;
 
@@ -999,7 +999,7 @@ void CAI_StandoffBehavior::OnChangeTacticalConstraints()
 
 bool CAI_StandoffBehavior::PlayerIsLeading()
 {
-	CBaseEntity *pPlayer = AI_GetSinglePlayer();
+	CBaseEntity *pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
 	return ( pPlayer && GetOuter()->IRelationType( pPlayer ) == D_LI );
 }
 
@@ -1007,7 +1007,7 @@ bool CAI_StandoffBehavior::PlayerIsLeading()
 
 CBaseEntity *CAI_StandoffBehavior::GetPlayerLeader()
 {
-	CBaseEntity *pPlayer = AI_GetSinglePlayer();
+	CBaseEntity *pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
 	if ( pPlayer && GetOuter()->IRelationType( pPlayer ) == D_LI )
 		return pPlayer;
 	return NULL;
@@ -1268,7 +1268,7 @@ public:
 		pBehavior->SetParameters( params, this );
 		pBehavior->OnChangeTacticalConstraints();
 		if ( pBehavior->IsRunning() )
-			pBehavior->GetOuter()->ClearSchedule();
+			pBehavior->GetOuter()->ClearSchedule( "Standoff behavior parms changed" );
 	}
 	
 	void ValidateAggression()

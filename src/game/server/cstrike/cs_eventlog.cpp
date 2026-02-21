@@ -39,17 +39,17 @@ public:
 		BaseClass::Init();
 
 		// listen to CS events
-		gameeventmanager->AddListener( this, "round_end", true );
-		gameeventmanager->AddListener( this, "round_start", true );
-		gameeventmanager->AddListener( this, "bomb_pickup", true );
-		gameeventmanager->AddListener( this, "bomb_begindefuse", true );
-		gameeventmanager->AddListener( this, "bomb_dropped", true );
-		gameeventmanager->AddListener( this, "bomb_defused", true );
-		gameeventmanager->AddListener( this, "bomb_planted", true );
-		gameeventmanager->AddListener( this, "hostage_rescued", true );
-		gameeventmanager->AddListener( this, "hostage_killed", true );
-		gameeventmanager->AddListener( this, "hostage_follows", true );
-		gameeventmanager->AddListener( this, "player_hurt", true );
+		ListenForGameEvent( "round_end" );
+		ListenForGameEvent( "round_start" );
+		ListenForGameEvent( "bomb_pickup" );
+		ListenForGameEvent( "bomb_begindefuse" );
+		ListenForGameEvent( "bomb_dropped" );
+		ListenForGameEvent( "bomb_defused" );
+		ListenForGameEvent( "bomb_planted" );
+		ListenForGameEvent( "hostage_rescued" );
+		ListenForGameEvent( "hostage_killed" );
+		ListenForGameEvent( "hostage_follows" );
+		ListenForGameEvent( "player_hurt" );
 
 		return true;
 	}

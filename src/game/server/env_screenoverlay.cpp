@@ -24,6 +24,8 @@ public:
 
 	// Always transmit to clients
 	virtual int UpdateTransmitState();
+	virtual void Spawn( void );
+	virtual void Precache( void );
 
 	void	InputStartOverlay( inputdata_t &inputdata );
 	void	InputStopOverlay( inputdata_t &inputdata );
@@ -105,6 +107,28 @@ CEnvScreenOverlay::CEnvScreenOverlay( void )
 
 //-----------------------------------------------------------------------------
 // Purpose: 
+//-----------------------------------------------------------------------------
+void CEnvScreenOverlay::Spawn( void )
+{
+	Precache();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CEnvScreenOverlay::Precache( void )
+{
+	for ( int i = 0; i < 10; i++ )
+	{
+		if ( m_iszOverlayNames[i] == NULL_STRING )
+			continue;
+
+		PrecacheMaterial( STRING( m_iszOverlayNames[i] ) );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
 // Input  : &inputdata - 
 //-----------------------------------------------------------------------------
 void CEnvScreenOverlay::InputStartOverlay( inputdata_t &inputdata )
@@ -179,6 +203,8 @@ public:
 	// We always want to be sent to the client
 	CEnvScreenEffect( void ) { 	AddEFlags( EFL_FORCE_CHECK_TRANSMIT ); }
 	virtual int UpdateTransmitState( void )	{ return SetTransmitState( FL_EDICT_ALWAYS ); }
+	virtual void Spawn( void );
+	virtual void Precache( void );
 
 private:
 
@@ -193,7 +219,9 @@ LINK_ENTITY_TO_CLASS( env_screeneffect, CEnvScreenEffect );
 
 // CEnvScreenEffect
 BEGIN_DATADESC( CEnvScreenEffect )
+	DEFINE_FIELD( m_flDuration, FIELD_FLOAT ),
 	DEFINE_KEYFIELD( m_nType, FIELD_INTEGER, "type" ),
+	DEFINE_FIELD( m_flDuration, FIELD_FLOAT ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "StartEffect", InputStartEffect ),
 	DEFINE_INPUTFUNC( FIELD_FLOAT, "StopEffect", InputStopEffect ),
 END_DATADESC()
@@ -202,6 +230,17 @@ IMPLEMENT_SERVERCLASS_ST( CEnvScreenEffect, DT_EnvScreenEffect )
 	SendPropFloat( SENDINFO( m_flDuration ), 0, SPROP_NOSCALE ),
 	SendPropInt( SENDINFO( m_nType ), 32, SPROP_UNSIGNED ),
 END_SEND_TABLE()
+
+void CEnvScreenEffect::Spawn( void )
+{
+	Precache();
+}
+
+void CEnvScreenEffect::Precache( void )
+{
+	PrecacheMaterial( "effects/stun" );
+	PrecacheMaterial( "effects/introblur" );
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: 

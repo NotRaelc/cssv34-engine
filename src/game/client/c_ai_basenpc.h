@@ -29,7 +29,7 @@ public:
 	bool					ShouldAvoidObstacle( void ){ return m_bPerformAvoidance; }
 	virtual bool			AddRagdollToFadeQueue( void ) { return m_bFadeCorpse; }
 
-	virtual void			GetRagdollCurSequence( matrix3x4_t *curBones, float flTime );
+	virtual void			GetRagdollInitBoneArrays( matrix3x4_t *pDeltaBones0, matrix3x4_t *pDeltaBones1, matrix3x4_t *pCurrentBones, float boneDt );
 
 	int						GetDeathPose( void ) { return m_iDeathPose; }
 
@@ -43,16 +43,17 @@ public:
 
 private:
 	C_AI_BaseNPC( const C_AI_BaseNPC & ); // not defined, not accessible
-	bool m_bPerformAvoidance;
-	bool m_bIsMoving;
-	bool m_bFadeCorpse;
+	float m_flTimePingEffect;
 	int  m_iDeathPose;
 	int	 m_iDeathFrame;
 
 	int m_iSpeedModRadius;
 	int m_iSpeedModSpeed;
-	bool m_bSpeedModActive;
 
+	bool m_bPerformAvoidance;
+	bool m_bIsMoving;
+	bool m_bFadeCorpse;
+	bool m_bSpeedModActive;
 	bool m_bImportanRagdoll;
 };
 

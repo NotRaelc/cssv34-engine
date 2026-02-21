@@ -244,7 +244,7 @@ void CAI_MoveAndShootOverlay::RunShootWhileMove()
 					activity = pOuter->TranslateActivity( ACT_GESTURE_RANGE_ATTACK1 );
 					Assert( activity != ACT_INVALID );
 
-					pOuter->AddGesture( activity );
+					pOuter->RestartGesture( activity );
 
 					// FIXME: this seems a bit wacked
 					pOuter->Weapon_SetActivity( pOuter->Weapon_TranslateActivity( ACT_RANGE_ATTACK1 ), 0 );

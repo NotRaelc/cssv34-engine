@@ -22,6 +22,7 @@ public:
 	virtual int	ObjectCaps( void ) { return (BaseClass::ObjectCaps() | FCAP_IMPULSE_USE); }
 	int OnTakeDamage( const CTakeDamageInfo &info );
 	void Spawn( void );
+	void Precache( void );
 	void Think( void );
 	//void Pain( float flDamage );
 	void Use ( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );

@@ -31,6 +31,7 @@ class C_BaseEntity;
 #define INPVS_YES			0x0001		// The entity thinks it's in the PVS.
 #define INPVS_THISFRAME		0x0002		// Accumulated as different views are rendered during the frame and used to notify the entity if
 										// it is not in the PVS anymore (at the end of the frame).
+#define INPVS_NEEDSNOTIFY	0x0004		// The entity thinks it's in the PVS.
 							   
 class IClientEntityListener;
 

@@ -163,6 +163,12 @@ enum sharedtasks_e
 		// Path to node with line of sight to enemy
 		TASK_GET_PATH_TO_ENEMY_LOS,
 
+		// Path to node with line of sight to enemy, at least flTaskData units away from m_vSavePosition
+		TASK_GET_FLANK_RADIUS_PATH_TO_ENEMY_LOS,
+
+		// Path to node with line of sight to enemy, at least flTaskData degrees away from m_vSavePosition from the enemy's POV
+		TASK_GET_FLANK_ARC_PATH_TO_ENEMY_LOS,
+
 		// Path to the within shot range of last place this character saw the enemy
 		TASK_GET_PATH_TO_RANGE_ENEMY_LKP_LOS,
 
@@ -484,6 +490,9 @@ enum sharedtasks_e
 
 		// Get a path to my forced interaction partner
 		TASK_GET_PATH_TO_INTERACTION_PARTNER,
+		
+		// First task of all schedules for playing back scripted sequences
+		TASK_PRE_SCRIPT,
 
 		// ======================================
 		// IMPORTANT: This must be the last enum

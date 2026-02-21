@@ -12,6 +12,7 @@
 #include "iviewrender.h"
 #include "texture_group_names.h"
 #include "BaseAnimatedTextureProxy.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -27,6 +28,9 @@ enum MaterialModifyMode_t
 	MATERIAL_MODIFY_MODE_ANIM_SEQUENCE = 2,
 	MATERIAL_MODIFY_MODE_FLOAT_LERP = 3,
 };
+
+// forward declarations
+void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 ConVar debug_materialmodifycontrol_client( "debug_materialmodifycontrol_client", "0" );
 
@@ -212,6 +216,7 @@ public:
 	virtual ~CMaterialModifyProxy();
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pEntity );
+	virtual IMaterial *GetMaterial();
 
 private:
 	void OnBindSetVar( C_MaterialModifyControl *pControl );
@@ -323,6 +328,16 @@ void CMaterialModifyProxy::OnBind( void *pEntity )
 			}
 		}
 	}
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
+}
+
+IMaterial *CMaterialModifyProxy::GetMaterial()
+{
+	return m_pMaterial;
 }
 
 //-----------------------------------------------------------------------------
@@ -738,6 +753,11 @@ void CMaterialModifyAnimatedProxy::OnBind( void *pEntity )
 	}
 
 	m_AnimatedTextureFrameNumVar->SetIntValue( intFrame );
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
 }
 
 //-----------------------------------------------------------------------------

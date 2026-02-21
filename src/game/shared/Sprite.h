@@ -22,6 +22,7 @@ class CBasePlayer;
 
 #if defined( CLIENT_DLL )
 #define CSprite C_Sprite
+#define CSpriteOriented C_SpriteOriented
 #include "c_pixel_visibility.h"
 class CEngineSprite;
 
@@ -227,6 +228,14 @@ public:
 	virtual float	GlowBlend( CEngineSprite *psprite, const Vector& entorigin, int rendermode, int renderfx, int alpha, float *scale );
 	virtual void	GetToolRecordingState( KeyValues *msg );
 
+// Only supported in TF2 right now
+#if defined( INVASION_CLIENT_DLL )
+	virtual bool	ShouldPredict( void )
+	{
+		return true;
+	}
+#endif
+
 	virtual void	ClientThink( void );
 	virtual void	OnDataChanged( DataUpdateType_t updateType );
 
@@ -236,6 +245,10 @@ public:
 	CNetworkVar( int, m_nAttachment );
 	CNetworkVar( float, m_flSpriteFramerate );
 	CNetworkVar( float, m_flFrame );
+#ifdef PORTAL
+	CNetworkVar( bool, m_bDrawInMainRender );
+	CNetworkVar( bool, m_bDrawInPortalRender );
+#endif
 
 	float		m_flDieTime;
 
@@ -260,6 +273,22 @@ private:
 	int			m_nDestBrightness;		//Destination brightness
 	float		m_flBrightnessTimeStart;//Real time for brightness
 };
+
+
+class CSpriteOriented : public CSprite
+{
+public:
+	DECLARE_CLASS( CSpriteOriented, CSprite );
+#if !defined( CLIENT_DLL )
+	DECLARE_SERVERCLASS();
+	void Spawn( void );
+#else
+	DECLARE_CLIENTCLASS();
+	virtual bool IsTransparent( void );
+#endif
+};
+
+
 
 // Macro to wrap creation
 #define SPRITE_CREATE_PREDICTABLE( name, origin, animate ) \

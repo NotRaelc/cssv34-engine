@@ -24,7 +24,9 @@
 #include "c_te_effect_dispatch.h"
 #include <vgui_controls/Controls.h>
 #include <vgui/ISurface.h>
+#include <vgui/ILocalize.h>
 #include "view.h"
+#include "ixboxsystem.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -768,6 +770,119 @@ const char * UTIL_SafeName( const char *oldName )
 
 
 //-----------------------------------------------------------------------------
+// Purpose: Looks up key bindings for commands and replaces them in string.
+//			%<commandname>% will get replaced with its bound control, e.g. %attack2%
+//			Input buffer sizes are in bytes rather than unicode character count
+//			for consistency with other APIs.  If inbufsizebytes is 0 a NULL-terminated
+//			input buffer is assumed, or you can pass the size of the input buffer if
+//			not NULL-terminated.
+//-----------------------------------------------------------------------------
+void UTIL_ReplaceKeyBindings( const wchar_t *inbuf, int inbufsizebytes, wchar_t *outbuf, int outbufsizebytes )
+{
+	if ( !inbuf || !inbuf[0] )
+		return;
+
+	// copy to a new buf if there are vars
+	outbuf[0]=0;
+	int pos = 0;
+	const wchar_t *inbufend = NULL;
+	if ( inbufsizebytes > 0 )
+	{
+		inbufend = inbuf + ( inbufsizebytes / 2 );
+	}
+
+	while( inbuf != inbufend && *inbuf != 0 )
+	{
+		// check for variables
+		if ( *inbuf == '%' )
+		{
+			++inbuf;
+
+			const wchar_t *end = wcschr( inbuf, '%' );
+			if ( end && ( end != inbuf ) ) // make sure we handle %% in the string, which should be treated in the output as %
+			{
+				wchar_t token[64];
+				wcsncpy( token, inbuf, end - inbuf );
+				token[end - inbuf] = 0;
+
+				inbuf += end - inbuf;
+
+				// lookup key names
+				char binding[64];
+				g_pVGuiLocalize->ConvertUnicodeToANSI( token, binding, sizeof(binding) );
+
+				const char *key = engine->Key_LookupBinding( *binding == '+' ? binding + 1 : binding );
+				if ( !key )
+				{
+					key = IsX360() ? "" : "< not bound >";
+				}
+
+				//!! change some key names into better names
+				char friendlyName[64];
+				bool bAddBrackets = false;
+				if ( IsX360() )
+				{
+					if ( !key || !key[0] )
+					{
+						Q_snprintf( friendlyName, sizeof(friendlyName), "#GameUI_None" );
+						bAddBrackets = true;
+					}
+					else
+					{
+						Q_snprintf( friendlyName, sizeof(friendlyName), "#GameUI_KeyNames_%s", key );
+					}
+				}
+				else
+				{
+					Q_snprintf( friendlyName, sizeof(friendlyName), "%s", key );
+				}
+				Q_strupr( friendlyName );
+
+				wchar_t *locName = g_pVGuiLocalize->Find( friendlyName );
+				if ( !locName || wcslen(locName) <= 0)
+				{
+					g_pVGuiLocalize->ConvertANSIToUnicode( friendlyName, token, sizeof(token) );
+
+					outbuf[pos] = '\0';
+					wcscat( outbuf, token );
+					pos += wcslen(token);
+				}
+				else
+				{
+					outbuf[pos] = '\0';
+					if ( bAddBrackets )
+					{
+						wcscat( outbuf, L"[" );
+						pos += 1;
+					}
+					wcscat( outbuf, locName );
+					pos += wcslen(locName);
+					if ( bAddBrackets )
+					{
+						wcscat( outbuf, L"]" );
+						pos += 1;
+					}
+				}
+			}
+			else
+			{
+				outbuf[pos] = *inbuf;
+				++pos;
+			}
+		}
+		else
+		{
+			outbuf[pos] = *inbuf;
+			++pos;
+		}
+
+		++inbuf;
+	}
+
+	outbuf[pos] = '\0';
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : *filename - 
 //			*pLength - 
@@ -828,7 +943,7 @@ static unsigned char ComputeDistanceFade( C_BaseEntity *pEntity, float flMinDist
 
 	if( flMinDist > flMaxDist )
 	{
-		swap( flMinDist, flMaxDist );
+		V_swap( flMinDist, flMaxDist );
 	}
 
 	// If a negative value is provided for the min fade distance, then base it off the max.
@@ -927,4 +1042,134 @@ unsigned char UTIL_ComputeEntityFade( C_BaseEntity *pEntity, float flMinDist, fl
 	}
 
 	return nAlpha;
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Given a vector, clamps the scalar axes to MAX_COORD_FLOAT ranges from worldsize.h
+// Input  : *pVecPos - 
+//-----------------------------------------------------------------------------
+void UTIL_BoundToWorldSize( Vector *pVecPos )
+{
+	Assert( pVecPos );
+	for ( int i = 0; i < 3; ++i )
+	{
+		(*pVecPos)[ i ] = clamp( (*pVecPos)[ i ], MIN_COORD_FLOAT, MAX_COORD_FLOAT );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Returns the filename to count map loads in
+//-----------------------------------------------------------------------------
+bool UTIL_GetMapLoadCountFileName( const char *pszFilePrependName, char *pszBuffer, int iBuflen )
+{
+	if ( IsX360() )
+	{
+#ifdef _X360
+		if ( XBX_GetStorageDeviceId() == XBX_INVALID_STORAGE_ID || XBX_GetStorageDeviceId() == XBX_STORAGE_DECLINED )
+			return false;
+#endif
+	}
+
+	if ( IsX360() )
+	{
+		Q_snprintf( pszBuffer, iBuflen, "cfg:/%s", pszFilePrependName );
+	}
+	else
+	{
+		Q_snprintf( pszBuffer, iBuflen, "media/%s", pszFilePrependName );
+	}
+
+	return true;
+}
+
+#ifdef TF_CLIENT_DLL
+#define MAP_KEY_FILE "viewed.res"
+#else
+#define MAP_KEY_FILE "mapkeys.res"
+#endif	
+
+void UTIL_IncrementMapKey( const char *pszCustomKey )
+{
+	if ( !pszCustomKey )
+		return;
+
+	char szFilename[ _MAX_PATH ];
+	if ( !UTIL_GetMapLoadCountFileName( MAP_KEY_FILE, szFilename, _MAX_PATH ) )
+		return;
+
+	int iCount = 1;
+
+	KeyValues *kvMapLoadFile = new KeyValues( MAP_KEY_FILE );
+	if ( kvMapLoadFile )
+	{
+		kvMapLoadFile->LoadFromFile( g_pFullFileSystem, szFilename, "MOD" );
+
+		char mapname[MAX_MAP_NAME];
+		Q_FileBase( engine->GetLevelName(), mapname, sizeof( mapname) );
+		Q_strlower( mapname );
+
+		// Increment existing, or add a new one
+		KeyValues *pMapKey = kvMapLoadFile->FindKey( mapname );
+		if ( pMapKey )
+		{
+			iCount = pMapKey->GetInt( pszCustomKey, 0 ) + 1;
+			pMapKey->SetInt( pszCustomKey, iCount );
+		}
+		else 
+		{
+			KeyValues *pNewKey = new KeyValues( mapname );
+			if ( pNewKey )
+			{
+				pNewKey->SetString( pszCustomKey, "1" );
+				kvMapLoadFile->AddSubKey( pNewKey );
+			}
+		}
+
+		// Write it out
+		CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
+		kvMapLoadFile->RecursiveSaveToFile( buf, 0 );
+		g_pFullFileSystem->WriteFile( szFilename, "MOD", buf );
+
+		kvMapLoadFile->deleteThis();
+	}
+
+	if ( IsX360() )
+	{
+#ifdef _X360
+		xboxsystem->FinishContainerWrites();
+#endif
+	}
+}
+
+int UTIL_GetMapKeyCount( const char *pszCustomKey )
+{
+	if ( !pszCustomKey )
+		return 0;
+
+	char szFilename[ _MAX_PATH ];
+	if ( !UTIL_GetMapLoadCountFileName( MAP_KEY_FILE, szFilename, _MAX_PATH ) )
+		return 0;
+
+	int iCount = 0;
+
+	KeyValues *kvMapLoadFile = new KeyValues( MAP_KEY_FILE );
+	if ( kvMapLoadFile )
+	{
+		kvMapLoadFile->LoadFromFile( g_pFullFileSystem, szFilename, "MOD" );
+
+		char mapname[MAX_MAP_NAME];
+		Q_FileBase( engine->GetLevelName(), mapname, sizeof( mapname) );
+		Q_strlower( mapname );
+
+		KeyValues *pMapKey = kvMapLoadFile->FindKey( mapname );
+		if ( pMapKey )
+		{
+			iCount = pMapKey->GetInt( pszCustomKey );
+		}
+
+		kvMapLoadFile->deleteThis();
+	}
+
+	return iCount;
 }

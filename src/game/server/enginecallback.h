@@ -30,6 +30,7 @@ class IVDebugOverlay;
 class IDataCache;
 class IMDLCache;
 class IServerEngineTools;
+class IXboxSystem;
 
 extern IVEngineServer			*engine;
 extern IVoiceServer				*g_pVoiceServer;
@@ -45,6 +46,7 @@ extern IVDebugOverlay			*debugoverlay;
 extern IDataCache				*datacache;
 extern IMDLCache				*mdlcache;
 extern IServerEngineTools		*serverenginetools;
+extern IXboxSystem				*xboxsystem; // 360 only
 
 
 //-----------------------------------------------------------------------------
@@ -61,6 +63,14 @@ int GetMaterialIndex( const char *pMaterialName );
 // Converts a previously precached material index into a string
 //-----------------------------------------------------------------------------
 const char *GetMaterialNameFromIndex( int nMaterialIndex );
+
+
+//-----------------------------------------------------------------------------
+// Precache-related methods for particle systems
+//-----------------------------------------------------------------------------
+void PrecacheParticleSystem( const char *pParticleSystemName );
+int GetParticleSystemIndex( const char *pParticleSystemName );
+const char *GetParticleSystemNameFromIndex( int nIndex );
 
 
 class IRecipientFilter;

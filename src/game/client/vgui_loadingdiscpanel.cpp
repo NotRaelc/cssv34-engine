@@ -34,6 +34,16 @@ public:
 		w = ScreenWidth();
 		h = ScreenHeight();
 
+		if ( w != m_ScreenSize[ 0 ] || 
+			 h != m_ScreenSize[ 1 ] )
+		{
+			m_ScreenSize[ 0 ] = w;
+			m_ScreenSize[ 1 ] = h;
+
+			// Re-perform the layout if the screen size changed
+			LoadControlSettings( "resource/LoadingDiscPanel.res" );
+		}
+
 		// center the dialog
 		int wide, tall;
 		GetSize( wide, tall );
@@ -54,6 +64,7 @@ public:
 
 private:
 	vgui::Label *m_pLoadingLabel;
+	int			m_ScreenSize[ 2 ];
 };
 
 //-----------------------------------------------------------------------------
@@ -80,6 +91,9 @@ CLoadingDiscPanel::CLoadingDiscPanel( vgui::VPANEL parent ) : BaseClass( NULL, "
 	int wide, tall;
 	GetSize( wide, tall );
 	SetPos( ( w - wide ) / 2, ( h - tall ) / 2 );
+
+	m_ScreenSize[ 0 ] = w;
+	m_ScreenSize[ 1 ] = h;
 }
 
 //-----------------------------------------------------------------------------

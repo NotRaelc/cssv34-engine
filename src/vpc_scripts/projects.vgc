@@ -736,11 +736,6 @@ $Project "SDKLauncher"
 	"sdklauncher\SDKLauncher.vpc" [$WIN32]
 }
 
-$Project "steam_api"
-{
-	"steam_api\steam_api.vpc"
-}
-
 $Project "ServerBrowser"
 {
 	"ServerBrowser\ServerBrowser.vpc" [$WIN32||$X360]

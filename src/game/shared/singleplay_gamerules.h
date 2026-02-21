@@ -35,6 +35,18 @@ public:
 // Functions to verify the single/multiplayer status of a game
 	virtual bool IsMultiplayer( void );
 
+	// Damage query implementations.
+	virtual bool	Damage_IsTimeBased( int iDmgType );			// Damage types that are time-based.
+	virtual bool	Damage_ShouldGibCorpse( int iDmgType );		// Damage types that gib the corpse.
+	virtual bool	Damage_ShowOnHUD( int iDmgType );				// Damage types that have client HUD art.
+	virtual bool	Damage_NoPhysicsForce( int iDmgType );		// Damage types that don't have to supply a physics force & position.
+	virtual bool	Damage_ShouldNotBleed( int iDmgType );			// Damage types that don't make the player bleed.
+	// TEMP: These will go away once DamageTypes become enums.
+	virtual int		Damage_GetTimeBased( void );		
+	virtual int		Damage_GetShouldGibCorpse( void );
+	virtual int		Damage_GetShowOnHud( void );
+	virtual int		Damage_GetNoPhysicsForce( void );
+	virtual int		Damage_GetShouldNotBleed( void );
 
 #ifdef CLIENT_DLL
 
@@ -71,6 +83,7 @@ public:
 	virtual float FlPlayerSpawnTime( CBasePlayer *pPlayer );
 
 	virtual bool AllowAutoTargetCrosshair( void );
+	virtual	int	GetAutoAimMode();
 
 // Client kills/scoring
 	virtual int IPointsForKill( CBasePlayer *pAttacker, CBasePlayer *pKilled );

@@ -25,6 +25,9 @@
 #define bits_HINT_NODE_IN_VIEWCONE				0x00000100
 #define bits_HINT_NODE_IN_AIMCONE				0x00000200
 #define bits_HINT_NPC_IN_NODE_FOV				0x00000400		// Is the searcher inside the hint node's FOV?
+#define bits_HINT_NOT_CLOSE_TO_ENEMY			0x00000800		// Hint must not be within 30 feet of my enemy
+#define bits_HINT_HAS_LOS_TO_PLAYER				0x00001000		// Like VISIBLE_TO_PLAYER but doesn't care about player's facing
+#define bits_HAS_EYEPOSITION_LOS_TO_PLAYER		0x00002000		// Like HAS LOS TO PLAYER, but checks NPC's eye position at the node, not node origin.
 
 //-----------------------------------------------------------------------------
 //
@@ -88,6 +91,7 @@ enum Hint_e
 
 	HINT_CROW_FLYTO_POINT = 700,
 
+	 // TF2 Hints
 	HINT_BUG_PATROL_POINT = 800,
 
 	// HL2 Hints
@@ -98,6 +102,7 @@ enum Hint_e
 	HINT_STRIDER_NODE = 904,
 
 	HINT_PLAYER_ALLY_MOVE_AWAY_DEST = 950,
+	HINT_PLAYER_ALLY_FEAR_DEST,
 
 	// HL1 port hints
 	HINT_HL1_WORLD_MACHINERY = 1000,
@@ -192,6 +197,11 @@ public:
 	{
 		CopyArray( src.Base(), src.Count() );
 	}
+
+	CAIHintVector &operator=( const CAIHintVector &src )
+	{
+		CopyArray( src.Base(), src.Count() );
+	}
 };
 
 class CAI_HintManager
@@ -224,6 +234,8 @@ public:
 	static CAI_Hint		*GetNextHint( AIHintIter_t *pIter );
 
 	static void DumpHints();
+
+	static void ValidateHints();
 
 private:
 	enum
@@ -295,6 +307,7 @@ public:
 private:
 	void				Spawn( void );
 	virtual void		Activate();
+	virtual void		UpdateOnRemove( void );
 	int					DrawDebugTextOverlays(void);
 	virtual int			ObjectCaps( void ) { return (BaseClass::ObjectCaps() & ~FCAP_ACROSS_TRANSITION); }
 	virtual void		OnRestore();
@@ -320,6 +333,8 @@ private:
 
 	DECLARE_DATADESC();
 };
+
+#define SF_ALLOW_JUMP_UP 65536
 
 
 #endif	//AI_HINT_H

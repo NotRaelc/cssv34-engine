@@ -14,7 +14,7 @@
 // Purpose: This is an autogame system which is used to call back into the engine at appropriate points
 // so that IToolSystems can get these hooks at the correct time
 //-----------------------------------------------------------------------------
-class CToolFrameworkServer : public CAutoGameSystemPerFrame
+class CToolFrameworkServer : public CAutoGameSystemPerFrame, public IToolFrameworkServer
 {
 public:
 	virtual bool Init();
@@ -30,13 +30,24 @@ public:
 	// called after entities think
 	virtual void FrameUpdatePostEntityThink();
 	virtual void PreClientUpdate();
-private:
+	virtual void PreSetupVisibility();
+
 
 	IServerEngineTools	*m_pTools;
 };
 
 // Singleton
 static CToolFrameworkServer g_ToolFrameworkServer;
+IToolFrameworkServer *g_pToolFrameworkServer = &g_ToolFrameworkServer;
+
+#ifndef NO_TOOLFRAMEWORK
+
+bool ToolsEnabled()
+{
+	return g_ToolFrameworkServer.m_pTools && g_ToolFrameworkServer.m_pTools->InToolMode() && !engine->IsDedicatedServer();
+}
+
+#endif
 
 bool CToolFrameworkServer::Init()
 {
@@ -115,4 +126,13 @@ void CToolFrameworkServer::PreClientUpdate()
 		return;
 	}
 	m_pTools->PreClientUpdateAllTools();
+}
+
+void CToolFrameworkServer::PreSetupVisibility()
+{
+	if ( !m_pTools )
+	{
+		return;
+	}
+	m_pTools->PreSetupVisibilityAllTools();
 }

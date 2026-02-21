@@ -6,33 +6,26 @@
 
 $Macro SRCDIR		".."
 $Macro OUTBINDIR	"$SRCDIR\..\game\bin"
-$Macro TRACKERCOMN	"$SRCDIR\Tracker\common"
-
-// Replace ServerBrowser with a stub?
-$Macro STUB		"1"
 
 $Include "$SRCDIR\vpc_scripts\source_dll_base.vpc"
-
 
 $Configuration
 {
 	$Compiler
 	{
-		$AdditionalIncludeDirectories			"$BASE;$TRACKERCOMN"
 		$PreprocessorDefinitions			"$BASE;SERVERBROWSER_EXPORTS;GAME_SRC;_USE_32BIT_TIME_T"
-		$PreprocessorDefinitions			"$BASE;STUB_SERVERBROWSER" [$STUB]
 	}
 
 	$Linker
 	{
-		$AdditionalDependencies				"$BASE ws2_32.lib wsock32.lib" [$WIN32]
-		//$AdditionalDependencies				"$BASE Xonline.lib" [$X360]
+		$AdditionalDependencies				"$BASE Advapi32.lib wsock32.lib Ws2_32.lib User32.lib" [$WIN32]
+		$AdditionalDependencies				"$BASE Xonline.lib" [$X360]
 	}
 }
 
-$Project "ServerBrowser" 
+$Project "ServerBrowser"
 {
-	$Folder	"Source Files" [!$STUB]
+	$Folder	"Source Files"
 	{
 		$File	"BaseGamesPage.cpp"
 		$File	"DialogAddServer.cpp"
@@ -43,35 +36,18 @@ $Project "ServerBrowser"
 		$File	"HistoryGames.cpp"
 		$File	"InternetGames.cpp"
 		$File	"LanGames.cpp"
-		$File	"LanBroadcastMsgHandler.cpp"
 		$File	"ModList.cpp"
-		$File	"MasterMsgHandler.cpp"
 		$File	"ServerBrowser.cpp"
 		$File	"ServerBrowserDialog.cpp"
 		$File	"ServerContextMenu.cpp"
-		$File	"ServerMsgHandlerDetails.cpp"
 		$File	"ServerListCompare.cpp"
-		$File	"ServerList.cpp"
 		$File	"SpectateGames.cpp"
-		//$File	"VACBannedConnRefusedDialog.cpp"
-		//$File	"VACBannedConnRefusedDialog.h"
-		$File	"vinternetdlg.cpp"
+		$File	"VACBannedConnRefusedDialog.cpp"
+		$File	"VACBannedConnRefusedDialog.h"
 		$File	"$SRCDIR\public\vgui_controls\vgui_controls.cpp"
-
-		// Tracker files
-		$File	"$TRACKERCOMN\netapi.cpp"
-		$File	"$TRACKERCOMN\msgbuffer.cpp"
-		$File	"$TRACKERCOMN\socket.cpp"
-		$File	"$TRACKERCOMN\util.cpp"
-
-	}
-	
-	$Folder "Source Files"	[$STUB]
-	{
-		$File	"StubServerBrowser.cpp"
 	}
 
-	$Folder	"Header Files" [!$STUB]
+	$Folder	"Header Files"
 	{
 		$File	"BaseGamesPage.h"
 		$File	"DialogAddServer.h"
@@ -87,20 +63,10 @@ $Project "ServerBrowser"
 		$File	"ServerBrowserDialog.h"
 		$File	"ServerContextMenu.h"
 		$File	"ServerListCompare.h"
-		$File	"ServerList.h"
 		$File	"SpectateGames.h"
-
-		// Tracker files
-		$File	"$TRACKERCOMN\igamelist.h"
-		$File	"$TRACKERCOMN\inetapi.h"
-		$File	"$TRACKERCOMN\iserverrefreshresponse.h"
-		$File	"$TRACKERCOMN\MasterMsgHandler.h"
-		$File	"$TRACKERCOMN\msgbuffer.h"
-		$File	"$TRACKERCOMN\server.h"
-		$File	"$TRACKERCOMN\util.h"
 	}
 
-	$Folder	"Resource Files" [!$STUB]
+	$Folder	"Resource Files"
 	{
 	}
 	$Folder	"Exposed interfaces"
@@ -110,15 +76,10 @@ $Project "ServerBrowser"
 
 	$Folder "Link Libraries"	[$WIN32]
 	{
-		$File	"$SRCDIR\lib\public\tier2.lib"
-		$File	"$SRCDIR\lib\public\tier3.lib"
-		$File	"$SRCDIR\lib\public\vgui_controls.lib"
+		$Lib tier2
+		$Lib tier3
+		$Lib steam_api
+		$Lib vgui_controls
 	}
 
-	$Folder "Link Libraries"	[$X360]
-	{
-		$File	"$SRCDIR\lib\public\tier2_360.lib"
-		$File	"$SRCDIR\lib\public\tier3_360.lib"
-		$File	"$SRCDIR\lib\public\vgui_controls_360.lib"
-	}
 }

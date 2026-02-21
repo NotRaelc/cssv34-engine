@@ -121,6 +121,9 @@ public:
 
 	// For playback from external tools
 	virtual void TriggerTempEntity( KeyValues *pKeyValues ) = 0;
+
+	virtual void ClientProjectile( IRecipientFilter& filter, float delay,
+		const Vector* vecOrigin, const Vector* vecVelocity, int modelindex, int lifetime, CBaseEntity *pOwner ) = 0;
 };
 
 extern ITempEntsSystem *te;

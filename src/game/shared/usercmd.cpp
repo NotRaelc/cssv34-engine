@@ -13,6 +13,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+// TF2 specific, need enough space for OBJ_LAST items from tf_shareddefs.h
 #define WEAPON_SUBTYPE_BITS	6
 
 //-----------------------------------------------------------------------------
@@ -44,10 +45,11 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 		buf->WriteOneBit( 0 );
 	}
 
+
 	if ( to->viewangles[ 0 ] != from->viewangles[ 0 ] )
 	{
 		buf->WriteOneBit( 1 );
-		buf->WriteBitAngle( to->viewangles[ 0 ], 16 );
+		buf->WriteFloat( to->viewangles[ 0 ] );
 	}
 	else
 	{
@@ -57,7 +59,7 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 	if ( to->viewangles[ 1 ] != from->viewangles[ 1 ] )
 	{
 		buf->WriteOneBit( 1 );
-		buf->WriteBitAngle( to->viewangles[ 1 ], 16 );
+		buf->WriteFloat( to->viewangles[ 1 ] );
 	}
 	else
 	{
@@ -67,7 +69,7 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 	if ( to->viewangles[ 2 ] != from->viewangles[ 2 ] )
 	{
 		buf->WriteOneBit( 1 );
-		buf->WriteBitAngle( to->viewangles[ 2 ], 8 );
+		buf->WriteFloat( to->viewangles[ 2 ] );
 	}
 	else
 	{
@@ -77,7 +79,7 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 	if ( to->forwardmove != from->forwardmove )
 	{
 		buf->WriteOneBit( 1 );
-		buf->WriteSBitLong( to->forwardmove, 16 );
+		buf->WriteFloat( to->forwardmove );
 	}
 	else
 	{
@@ -87,7 +89,7 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 	if ( to->sidemove != from->sidemove )
 	{
 		buf->WriteOneBit( 1 );
-		buf->WriteSBitLong( to->sidemove, 16 );
+		buf->WriteFloat( to->sidemove );
 	}
 	else
 	{
@@ -97,7 +99,7 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 	if ( to->upmove != from->upmove )
 	{
 		buf->WriteOneBit( 1 );
-		buf->WriteSBitLong( to->upmove, 16 );
+		buf->WriteFloat( to->upmove );
 	}
 	else
 	{
@@ -179,7 +181,6 @@ void WriteUsercmd( bf_write *buf, CUserCmd *to, CUserCmd *from )
 			buf->WriteBitCoord( to->entitygroundcontact[i].minheight );
 			buf->WriteBitCoord( to->entitygroundcontact[i].maxheight );
 		}
-		to->entitygroundcontact.RemoveAll();
 	}
 	else
 	{
@@ -223,33 +224,33 @@ void ReadUsercmd( bf_read *buf, CUserCmd *move, CUserCmd *from )
 	// Read direction
 	if ( buf->ReadOneBit() )
 	{
-		move->viewangles[0] = buf->ReadBitAngle( 16 );
+		move->viewangles[0] = buf->ReadFloat();
 	}
 
 	if ( buf->ReadOneBit() )
 	{
-		move->viewangles[1] = buf->ReadBitAngle( 16 );
+		move->viewangles[1] = buf->ReadFloat();
 	}
 
 	if ( buf->ReadOneBit() )
 	{
-		move->viewangles[2] = buf->ReadBitAngle( 8 );
+		move->viewangles[2] = buf->ReadFloat();
 	}
 
 	// Read movement
 	if ( buf->ReadOneBit() )
 	{
-		move->forwardmove = buf->ReadSBitLong( 16 );
-	}
-	
-	if ( buf->ReadOneBit() )
-	{
-		move->sidemove = buf->ReadSBitLong( 16 );
+		move->forwardmove = buf->ReadFloat();
 	}
 
 	if ( buf->ReadOneBit() )
 	{
-		move->upmove = buf->ReadSBitLong( 16 );
+		move->sidemove = buf->ReadFloat();
+	}
+
+	if ( buf->ReadOneBit() )
+	{
+		move->upmove = buf->ReadFloat();
 	}
 
 	// read buttons

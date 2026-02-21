@@ -9,7 +9,7 @@
 #pragma once
 
 #include "IClientVehicle.h"
-
+#include "vehicle_viewblend_shared.h"
 class C_PropVehicleDriveable : public C_BaseAnimating, public IClientVehicle
 {
 
@@ -30,7 +30,7 @@ public:
 	virtual C_BaseCombatCharacter* GetPassenger( int nRole );
 	virtual int	GetPassengerRole( C_BaseCombatCharacter *pEnt );
 	virtual bool IsPassengerUsingStandardWeapons( int nRole = VEHICLE_ROLE_DRIVER ) { return false; }
-	virtual void GetVehicleViewPosition( int nRole, Vector *pOrigin, QAngle *pAngles );
+	virtual void GetVehicleViewPosition( int nRole, Vector *pOrigin, QAngle *pAngles, float *pFOV = NULL );
 
 	virtual void SetupMove( C_BasePlayer *player, CUserCmd *ucmd, IMoveHelper *pHelper, CMoveData *move ) {}
 	virtual void ProcessMovement( C_BasePlayer *pPlayer, CMoveData *pMoveData ) {}
@@ -55,6 +55,7 @@ public:
 #endif
 
 	virtual bool IsPredicted() const { return false; }
+	virtual int GetJoystickResponseCurve() const;
 
 // C_BaseEntity overrides.
 public:
@@ -123,17 +124,6 @@ protected:
 
 	ViewSmoothingData_t			m_ViewSmoothingData;
 };
-
-
-enum RemapAngleRange_CurvePart_t
-{
-	RemapAngleRange_CurvePart_Zero = 0,
-	RemapAngleRange_CurvePart_Spline,
-	RemapAngleRange_CurvePart_Linear,
-};
-
-
-float RemapAngleRange( float startInterval, float endInterval, float value, RemapAngleRange_CurvePart_t *peCurvePart );
 
 
 #endif // C_PROP_VEHICLE_H

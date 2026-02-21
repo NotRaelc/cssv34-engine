@@ -1,10 +1,10 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
 //
-//=============================================================================//
+//===========================================================================//
 
 #if !defined( INPUT_H )
 #define INPUT_H
@@ -13,7 +13,7 @@
 #endif
 
 #include "iinput.h"
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "kbutton.h"
 #include "ehandle.h"
 #include "inputsystem/AnalogCode.h"
@@ -31,7 +31,6 @@ public:
 	// Next key in key list.
 	CKeyboardKey		*next;
 };
-
 
 class ConVar;
 
@@ -56,14 +55,15 @@ public:
 	virtual		void		MakeWeaponSelection( C_BaseCombatWeapon *weapon );
 
 	virtual		float		KeyState( kbutton_t *key );
-	virtual		int			KeyEvent( int eventcode, int keynum, const char *pszCurrentBinding );
+	virtual		int			KeyEvent( int down, ButtonCode_t keynum, const char *pszCurrentBinding );
 	virtual		kbutton_t	*FindKey( const char *name );
 
 	virtual		void		ControllerCommands( void );
 	virtual		void		Joystick_Advanced( void );
+	virtual		void		Joystick_SetSampleTime(float frametime);
+	virtual		void		IN_SetSampleTime( float frametime );
 
 	virtual		void		AccumulateMouse( void );
-	virtual		void		MouseEvent( int mstate, bool down );
 	virtual		void		ActivateMouse( void );
 	virtual		void		DeactivateMouse( void );
 
@@ -99,6 +99,9 @@ public:
 	virtual		void		AddIKGroundContactInfo( int entindex, float minheight, float maxheight );
 #endif
 	virtual		void		LevelInit( void );
+
+	virtual		void		CAM_SetCameraThirdData( CameraThirdData_t *pCameraData, const QAngle &vecCameraOffset );
+	virtual		void		CAM_CameraThirdThink( void );	
 
 // Private Implementation
 private:
@@ -181,15 +184,13 @@ private:
 	bool		m_fMouseActive;
 	// Has the joystick advanced initialization been run?
 	bool		m_fJoystickAdvancedInit;
-	// Number of mouse buttons
-	int			m_nMouseButtons;
-	// Old button states
-	int			m_nMouseOldButtons;
 	// Accumulated mouse deltas
 	float		m_flAccumulatedMouseXMovement;
 	float		m_flAccumulatedMouseYMovement;
 	float		m_flPreviousMouseXPosition;
 	float		m_flPreviousMouseYPosition;
+	float		m_flRemainingJoystickSampleTime;
+	float		m_flKeyboardSampleTime;
 
 	// Flag to restore systemparameters when exiting
 	bool		m_fRestoreSPI;
@@ -230,6 +231,8 @@ private:
 
 	CUserCmd	*m_pCommands;
 
+	CameraThirdData_t	*m_pCameraThirdData;
+
 	// Set until polled by CreateMove and cleared
 	CHandle< C_BaseCombatWeapon > m_hSelectedWeapon;
 
@@ -251,8 +254,9 @@ extern kbutton_t in_joyspeed;
 extern class ConVar in_joystick;
 extern class ConVar joy_autosprint;
 
-extern void KeyDown( kbutton_t *b, bool bIgnoreKey = false );
-extern void KeyUp( kbutton_t *b, bool bIgnoreKey = false );
+extern void KeyDown( kbutton_t *b, const char *c );
+extern void KeyUp( kbutton_t *b, const char *c );
 
 
 #endif // INPUT_H
+	

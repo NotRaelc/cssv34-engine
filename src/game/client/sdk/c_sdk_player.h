@@ -43,7 +43,7 @@ public:
 	virtual CWeaponSDKBase* SDKAnim_GetActiveWeapon();
 	virtual bool SDKAnim_CanMove();
 
-	void DoAnimationEvent( PlayerAnimEvent_t event );
+	void DoAnimationEvent( PlayerAnimEvent_t event, int nData = 0 );
 	bool ShouldDraw();
 
 	ISDKPlayerAnimState *m_PlayerAnimState;
@@ -58,7 +58,7 @@ public:
 
 	CWeaponSDKBase *GetActiveSDKWeapon() const;
 
-	C_BaseAnimating *BecomeRagdollOnClient( bool bCopyEntity);
+	C_BaseAnimating *BecomeRagdollOnClient();
 	IRagdoll* C_SDKPlayer::GetRepresentativeRagdoll() const;
 
 	void FireBullet( 

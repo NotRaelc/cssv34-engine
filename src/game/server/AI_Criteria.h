@@ -13,7 +13,7 @@
 #include "tier1/utlrbtree.h"
 #include "tier1/utlsymbol.h"
 #include "interval.h"
-#include "compressed_vector.h"
+#include "mathlib/compressed_vector.h"
 
 extern const char *SplitContext( const char *raw, char *key, int keylen, char *value, int valuelen, float *duration );
 
@@ -121,6 +121,7 @@ struct AI_ResponseParams
 		RG_DONT_USE_SCENE =		(1<<5),
 		RG_STOP_ON_NONIDLE =	(1<<6),
 		RG_WEAPONDELAY =		(1<<7),
+		RG_DELAYBEFORESPEAK =	(1<<8),
 	};
 
 	AI_ResponseParams()
@@ -134,6 +135,8 @@ struct AI_ResponseParams
 		weapondelay.start = 0;
 		weapondelay.range = 0;
 		soundlevel = 0;
+		predelay.start = 0;
+		predelay.range = 0;
 	}
 
 	responseparams_interval_t				delay;			//4
@@ -142,8 +145,10 @@ struct AI_ResponseParams
 
 	short					odds;							//14
 
-	byte					flags;							//15
-	byte 					soundlevel;						//16
+	short					flags;							//16
+	byte 					soundlevel;						//17
+
+	responseparams_interval_t				predelay;		//21
 };
 #pragma pack()
 
@@ -187,10 +192,12 @@ public:
 	bool			ShouldBreakOnNonIdle( void ) const;
 	int				GetOdds() const;
 	float			GetDelay() const;
+	float			GetPreDelay() const;
 
 	void			SetContext( const char *context );
 	const char *	GetContext( void ) const { return m_szContext; }
 
+	bool			IsApplyContextToWorld( void ) { return m_bApplyContextToWorld; }
 
 	void Describe();
 
@@ -201,7 +208,8 @@ public:
 				const AI_CriteriaSet& criteria, 
 				const AI_ResponseParams& responseparams,
 				const char *matchingRule,
-				const char *applyContext );
+				const char *applyContext,
+				bool bApplyContextToWorld );
 
 	static const char *DescribeResponse( ResponseType_t type );
 
@@ -223,6 +231,7 @@ private:
 	AI_ResponseParams m_Params;
 
 	char *			m_szContext;
+	bool			m_bApplyContextToWorld;
 };
 
 #endif // AI_CRITERIA_H

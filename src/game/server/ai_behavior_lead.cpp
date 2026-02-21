@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:
 //
@@ -128,15 +128,28 @@ int CAI_LeadBehavior::DrawDebugTextOverlays( int text_offset )
 	return offset;
 }
 
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool CAI_LeadBehavior::IsNavigationUrgent( void )
+{
+#if defined( HL2_DLL )
+	if( HasGoal() && !hl2_episodic.GetBool() )
+	{
+		return (GetOuter()->Classify() == CLASS_PLAYER_ALLY_VITAL);
+	}
+#endif
+	return BaseClass::IsNavigationUrgent();
+}
+
 //-------------------------------------
 
 void CAI_LeadBehavior::LeadPlayer( const AI_LeadArgs_t &leadArgs, CAI_LeadBehaviorHandler *pSink )
 {
 #ifndef CSTRIKE_DLL
 	CAI_PlayerAlly *pOuter = dynamic_cast<CAI_PlayerAlly*>(GetOuter());
-	if ( pOuter && AI_IsSinglePlayer() )
+	if ( pOuter )
 	{
-		pOuter->SetSpeechTarget( UTIL_GetLocalPlayer() );
+		pOuter->SetSpeechTarget( UTIL_GetNearestVisiblePlayer(pOuter) );
 	}
 #endif
 
@@ -165,7 +178,7 @@ void CAI_LeadBehavior::StopLeading( void )
 
 bool CAI_LeadBehavior::CanSelectSchedule()
 {
- 	if ( !AI_GetSinglePlayer() || AI_GetSinglePlayer()->IsDead() )
+ 	if ( AI_IsSinglePlayer() && (!AI_GetSinglePlayer() || AI_GetSinglePlayer()->IsDead()) )
 		return false;
 
 	bool fAttacked = ( HasCondition( COND_LIGHT_DAMAGE ) || HasCondition( COND_HEAVY_DAMAGE ) );
@@ -178,7 +191,14 @@ bool CAI_LeadBehavior::CanSelectSchedule()
 
 void CAI_LeadBehavior::BeginScheduleSelection()
 {
-	SetTarget( AI_GetSinglePlayer() );
+	CBasePlayer* pPlayer = UTIL_GetNearestVisiblePlayer(GetOuter());
+
+	if (!pPlayer)
+	{
+		pPlayer = UTIL_GetNearestPlayer(GetAbsOrigin());
+		SetTarget(pPlayer);
+	}
+
 	CAI_Expresser *pExpresser = GetOuter()->GetExpresser();
 	if ( pExpresser )
 		pExpresser->ClearSpokeConcept( TLK_LEAD_ARRIVAL );
@@ -312,7 +332,7 @@ bool CAI_LeadBehavior::PlayerIsAheadOfMe( bool bForce )
 	m_bInitialAheadTest = false;
 
 	Vector vecClosestPoint;
-	if ( GetClosestPointOnRoute( AI_GetSinglePlayer()->GetAbsOrigin(), &vecClosestPoint ) )
+	if ( GetClosestPointOnRoute( UTIL_GetNearestPlayer(GetAbsOrigin())->GetAbsOrigin(), &vecClosestPoint ) )
 	{
 		// If the closest point is not right next to me, then 
 		// the player is somewhere ahead of me on the route.
@@ -335,11 +355,11 @@ void CAI_LeadBehavior::GatherConditions( void )
 		// Fix for bad transition case (to investigate)
 		if ( ( WorldSpaceCenter() - m_goal ).LengthSqr() > (64*64) && IsCurSchedule( SCHED_LEAD_AWAIT_SUCCESS, false)  )
 		{
-			GetOuter()->ClearSchedule();
+			GetOuter()->ClearSchedule( "Lead behavior - bad transition?" );
 		}
 
 		// We have to collect data about the person we're leading around.
-		CBaseEntity *pFollower = AI_GetSinglePlayer();
+		CBaseEntity *pFollower = UTIL_GetNearestPlayer(GetAbsOrigin());
 
 		if( pFollower )
 		{
@@ -522,7 +542,7 @@ int CAI_LeadBehavior::SelectSchedule()
 		// Player's here, but does he have the weapon we want him to have?
 		if ( m_weaponname != NULL_STRING )
 		{
-			CBasePlayer *pFollower = AI_GetSinglePlayer();
+			CBasePlayer *pFollower = UTIL_GetNearestPlayer(GetAbsOrigin());
 			if ( pFollower && !pFollower->Weapon_OwnsThisType( STRING(m_weaponname) ) )
 			{
 				// If the safety timeout has run out, just give the player the weapon
@@ -551,7 +571,7 @@ int CAI_LeadBehavior::SelectSchedule()
 			else
 			{
 				// We have to collect data about the person we're leading around.
-				CBaseEntity *pFollower = AI_GetSinglePlayer();
+				CBaseEntity *pFollower = UTIL_GetNearestPlayer(GetAbsOrigin());
 				if( pFollower )
 				{
 					float flFollowerDist = ( WorldSpaceCenter() - pFollower->WorldSpaceCenter() ).Length();
@@ -815,7 +835,7 @@ void CAI_LeadBehavior::StartTask( const Task_t *pTask )
 
 		case TASK_LEAD_RETRIEVE_WAIT:
 		{
-			m_MoveMonitor.SetMark( AI_GetSinglePlayer(), 24 );
+			m_MoveMonitor.SetMark( UTIL_GetNearestPlayer(GetAbsOrigin()), 24 );
 			ChainStartTask( TASK_WAIT_INDEFINITE );
 			break;
 		}
@@ -910,12 +930,23 @@ void CAI_LeadBehavior::RunTask( const Task_t *pTask )
 					if ( distance > m_retrievedistance )
 					{
 						Activity followActivity = ACT_WALK;
-						if ( (!bWithinZ || distance < (m_retrievedistance*4)) && GetOuter()->GetState() != NPC_STATE_COMBAT ) 
+						if ( GetOuter()->GetState() == NPC_STATE_COMBAT || (!bWithinZ || distance < (m_retrievedistance*4)) && GetOuter()->GetState() != NPC_STATE_COMBAT ) 
 						{
 							followActivity = ACT_RUN;
 						}
 
-						GetNavigator()->SetMovementActivity(followActivity);
+						// Don't confuse move and shoot by resetting the activity every think
+						Activity curActivity = GetNavigator()->GetMovementActivity();
+						switch( curActivity )
+						{
+						case ACT_WALK_AIM:	curActivity = ACT_WALK;	break;
+						case ACT_RUN_AIM:	curActivity = ACT_RUN;	break;
+						}
+						
+						if ( curActivity != followActivity )
+						{
+							GetNavigator()->SetMovementActivity(followActivity);
+						}
 						GetNavigator()->SetArrivalDirection( GetOuter()->GetTarget() );
 					}
 				}
@@ -1500,15 +1531,18 @@ void CAI_LeadGoal::InputActivate( inputdata_t &inputdata )
 		DevMsg( "Lead goal entity activated for an NPC that doesn't have the lead behavior\n" );
 		return;
 	}
-	
+#ifdef HL2_EPISODIC
  	if ( (m_flLeadDistance*4) < m_flRetrieveDistance )
 	{
 		Warning("ai_goal_lead '%s': lead distance (%.2f) * 4 is < retrieve distance (%.2f). This will make the NPC act stupid. Either reduce the retrieve distance, or increase the lead distance.\n", GetDebugName(), m_flLeadDistance, m_flRetrieveDistance );
 	}
+#endif
 
 	if ( m_flRetrieveDistance < (m_flLeadDistance + LEAD_MIN_RETRIEVEDIST_OFFSET) )
 	{
+#ifdef HL2_EPISODIC
 		Warning("ai_goal_lead '%s': retrieve distance (%.2f) < lead distance (%.2f) + %d. Retrieve distance should be at least %d greater than the lead distance, or NPC will ping-pong while retrieving.\n", GetDebugName(), m_flRetrieveDistance, m_flLeadDistance, LEAD_MIN_RETRIEVEDIST_OFFSET, LEAD_MIN_RETRIEVEDIST_OFFSET );
+#endif
 		m_flRetrieveDistance = m_flLeadDistance + LEAD_MIN_RETRIEVEDIST_OFFSET;
 	}
 

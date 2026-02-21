@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -29,6 +29,7 @@
 //-----------------------------------------------------------------------------
 const char *GetMassEquivalent(float flMass);
 
+#define RAGDOLL_VISUALIZE 0
 
 //-----------------------------------------------------------------------------
 // ThinkContext
@@ -44,6 +45,9 @@ const float ATTACHED_DAMPING_SCALE = 50.0f;
 #define	SF_RAGDOLLPROP_DEBRIS		0x0004
 #define SF_RAGDOLLPROP_USE_LRU_RETIREMENT	0x1000
 #define	SF_RAGDOLLPROP_ALLOW_DISSOLVE		0x2000	// Allow this prop to be dissolved
+#define	SF_RAGDOLLPROP_MOTIONDISABLED		0x4000
+#define	SF_RAGDOLLPROP_ALLOW_STRETCH		0x8000
+#define	SF_RAGDOLLPROP_STARTASLEEP			0x10000
 
 //-----------------------------------------------------------------------------
 // Networking
@@ -77,7 +81,14 @@ BEGIN_DATADESC(CRagdollProp)
 	DEFINE_FIELD( m_hDamageEntity, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_hKiller, FIELD_EHANDLE ),
 
+	DEFINE_KEYFIELD( m_bStartDisabled, FIELD_BOOLEAN, "StartDisabled" ),
+
 	DEFINE_INPUTFUNC( FIELD_VOID, "StartRagdollBoogie", InputStartRadgollBoogie ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "EnableMotion", InputEnableMotion ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "DisableMotion", InputDisableMotion ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Enable",		InputTurnOn ),
+	DEFINE_INPUTFUNC( FIELD_VOID, "Disable",	InputTurnOff ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "FadeAndRemove", InputFadeAndRemove ),
 
 	DEFINE_FIELD( m_hUnragdoll, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_bFirstCollisionAfterLaunch, FIELD_BOOLEAN ),
@@ -101,7 +112,9 @@ BEGIN_DATADESC(CRagdollProp)
 	DEFINE_THINKFUNC( FadeOutThink ),
 
 	DEFINE_FIELD( m_ragdoll.listCount, FIELD_INTEGER ),
+	DEFINE_FIELD( m_ragdoll.allowStretch, FIELD_BOOLEAN ),
 	DEFINE_PHYSPTR( m_ragdoll.pGroup ),
+	DEFINE_FIELD( m_flDefaultFadeScale, FIELD_FLOAT ),
 
 	//DEFINE_RAGDOLL_ELEMENT( 0 ),
 	DEFINE_RAGDOLL_ELEMENT( 1 ),
@@ -165,7 +178,8 @@ void CRagdollProp::Spawn( void )
 	// this is useless info after the initial conditions are set
 	SetAbsAngles( vec3_angle );
 	int collisionGroup = (m_spawnflags & SF_RAGDOLLPROP_DEBRIS) ? COLLISION_GROUP_DEBRIS : COLLISION_GROUP_NONE;
-	InitRagdoll( vec3_origin, 0, vec3_origin, pBoneToWorld, pBoneToWorld, 0, collisionGroup, true );
+	bool bWake = (m_spawnflags & SF_RAGDOLLPROP_STARTASLEEP) ? false : true;
+	InitRagdoll( vec3_origin, 0, vec3_origin, pBoneToWorld, pBoneToWorld, 0, collisionGroup, true, bWake );
 	m_lastUpdateTickCount = 0;
 	m_flBlendWeight = 0.0f;
 	m_nOverlaySequence = -1;
@@ -174,6 +188,16 @@ void CRagdollProp::Spawn( void )
 	if ( HasSpawnFlags( SF_RAGDOLLPROP_ALLOW_DISSOLVE ) == false )
 	{
 		AddEFlags( EFL_NO_DISSOLVE );
+	}
+
+	if ( HasSpawnFlags(SF_RAGDOLLPROP_MOTIONDISABLED) )
+	{
+		DisableMotion();
+	}
+
+	if( m_bStartDisabled )
+	{
+		AddEffects( EF_NODRAW );
 	}
 }
 
@@ -650,7 +674,7 @@ void CRagdollProp::SetOverlaySequence( Activity activity )
 	}
 }
 
-void CRagdollProp::InitRagdoll( const Vector &forceVector, int forceBone, const Vector &forcePos, matrix3x4_t *pPrevBones, matrix3x4_t *pBoneToWorld, float dt, int collisionGroup, bool activateRagdoll )
+void CRagdollProp::InitRagdoll( const Vector &forceVector, int forceBone, const Vector &forcePos, matrix3x4_t *pPrevBones, matrix3x4_t *pBoneToWorld, float dt, int collisionGroup, bool activateRagdoll, bool bWakeRagdoll )
 {
 	SetCollisionGroup( collisionGroup );
 
@@ -673,11 +697,11 @@ void CRagdollProp::InitRagdoll( const Vector &forceVector, int forceBone, const 
 	params.forceVector = forceVector;
 	params.forceBoneIndex = forceBone;
 	params.forcePosition = forcePos;
-	params.pPrevBones = pPrevBones;
 	params.pCurrentBones = pBoneToWorld;
-	params.boneDt = dt;
 	params.jointFrictionScale = 1.0;
+	params.allowStretch = HasSpawnFlags(SF_RAGDOLLPROP_ALLOW_STRETCH);
 	RagdollCreate( m_ragdoll, params, physenv );
+	RagdollApplyAnimationAsVelocity( m_ragdoll, pPrevBones, pBoneToWorld, dt );
 	if ( m_anglesOverrideString != NULL_STRING && Q_strlen(m_anglesOverrideString.ToCStr()) > 0 )
 	{
 		char szToken[2048];
@@ -722,14 +746,14 @@ void CRagdollProp::InitRagdoll( const Vector &forceVector, int forceBone, const 
 	if ( activateRagdoll )
 	{
 		MEM_ALLOC_CREDIT();
-		RagdollActivate( m_ragdoll, params.pCollide, GetModelIndex() );
+		RagdollActivate( m_ragdoll, params.pCollide, GetModelIndex(), bWakeRagdoll );
 	}
 
 	for ( int i = 0; i < m_ragdoll.listCount; i++ )
 	{
 		UpdateNetworkDataFromVPhysics( m_ragdoll.list[i].pObject, i );
 		g_pPhysSaveRestoreManager->AssociateModel( m_ragdoll.list[i].pObject, GetModelIndex() );
-		physcollision->CollideGetAABB( m_ragdollMins[i], m_ragdollMaxs[i], m_ragdoll.list[i].pObject->GetCollide(), vec3_origin, vec3_angle );
+		physcollision->CollideGetAABB( &m_ragdollMins[i], &m_ragdollMaxs[i], m_ragdoll.list[i].pObject->GetCollide(), vec3_origin, vec3_angle );
 	}
 	VPhysicsSetObject( m_ragdoll.list[0].pObject );
 
@@ -835,7 +859,7 @@ void CRagdollProp::SetupBones( matrix3x4_t *pBoneToWorld, int boneMask )
 		if ( sim[i] )
 			continue;
 		
-		if ( !(pbones[i].flags & boneMask) )
+		if ( !(pStudioHdr->boneFlags(i) & boneMask) )
 			continue;
 
 		matrix3x4_t matBoneLocal;
@@ -895,20 +919,37 @@ bool CRagdollProp::TestCollision( const Ray_t &ray, unsigned int mask, trace_t& 
 
 void CRagdollProp::Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity )
 {
+	// newAngles is a relative transform for the entity
+	// But a ragdoll entity has identity orientation by design
+	// so we compute a relative transform here based on the previous transform
 	matrix3x4_t startMatrixInv;
-	matrix3x4_t startMatrix;
-
-	m_ragdoll.list[0].pObject->GetPositionMatrix( &startMatrix );
-	MatrixInvert( startMatrix, startMatrixInv );
-	
-	// object 0 MUST be the one to get teleported!
-	VPhysicsSwapObject( m_ragdoll.list[0].pObject );
-	BaseClass::Teleport( newPosition, newAngles, newVelocity );
-
-	// Calculate the relative transform of the teleport
+	MatrixInvert( EntityToWorldTransform(), startMatrixInv );
+	matrix3x4_t endMatrix;
+	MatrixCopy( EntityToWorldTransform(), endMatrix );
+	if ( newAngles )
+	{
+		AngleMatrix( *newAngles, endMatrix );
+	}
+	if ( newPosition )
+	{
+		PositionMatrix( *newPosition, endMatrix );
+	}
+	// now endMatrix is the refernce matrix for the entity at the target position
 	matrix3x4_t xform;
-	ConcatTransforms( EntityToWorldTransform(), startMatrixInv, xform );
-	UpdateNetworkDataFromVPhysics( m_ragdoll.list[0].pObject, 0 );
+	ConcatTransforms( endMatrix, startMatrixInv, xform );
+	// now xform is the relative transform the entity must undergo
+
+	// we need to call the base class and it will teleport our vphysics object, 
+	// so set object 0 up and compute the origin/angles for its new position (base implementation has side effects)
+	VPhysicsSwapObject( m_ragdoll.list[0].pObject );
+	matrix3x4_t obj0source, obj0Target;
+	m_ragdoll.list[0].pObject->GetPositionMatrix( &obj0source );
+	ConcatTransforms( xform, obj0source, obj0Target );
+	Vector obj0Pos;
+	QAngle obj0Angles;
+	MatrixAngles( obj0Target, obj0Angles, obj0Pos );
+	BaseClass::Teleport( &obj0Pos, &obj0Angles, newVelocity );
+	
 	for ( int i = 1; i < m_ragdoll.listCount; i++ )
 	{
 		matrix3x4_t matrix, newMatrix;
@@ -917,6 +958,8 @@ void CRagdollProp::Teleport( const Vector *newPosition, const QAngle *newAngles,
 		m_ragdoll.list[i].pObject->SetPositionMatrix( newMatrix, true );
 		UpdateNetworkDataFromVPhysics( m_ragdoll.list[i].pObject, i );
 	}
+	// fixup/relink object 0
+	UpdateNetworkDataFromVPhysics( m_ragdoll.list[0].pObject, 0 );
 }
 
 void CRagdollProp::VPhysicsUpdate( IPhysicsObject *pPhysics )
@@ -930,21 +973,23 @@ void CRagdollProp::VPhysicsUpdate( IPhysicsObject *pPhysics )
 	matrix3x4_t boneToWorld[MAXSTUDIOBONES];
 	QAngle angles;
 	Vector surroundingMins, surroundingMaxs;
-	if ( m_ragdoll.pGroup->IsInErrorState() )
-	{
-		RagdollSolveSeparation( m_ragdoll, this );
-	}
 
 	int i;
 	for ( i = 0; i < m_ragdoll.listCount; i++ )
 	{
 		CBoneAccessor boneaccessor( boneToWorld );
-		RagdollGetBoneMatrix( m_ragdoll, boneaccessor, i );
-		
-		Vector vNewPos;
-		MatrixAngles( boneToWorld[m_ragdoll.boneIndex[i]], angles, vNewPos );
-		m_ragPos.Set( i, vNewPos );
-		m_ragAngles.Set( i, angles );
+		if ( RagdollGetBoneMatrix( m_ragdoll, boneaccessor, i ) )
+		{
+			Vector vNewPos;
+			MatrixAngles( boneToWorld[m_ragdoll.boneIndex[i]], angles, vNewPos );
+			m_ragPos.Set( i, vNewPos );
+			m_ragAngles.Set( i, angles );
+		}
+		else
+		{
+			m_ragPos.GetForModify(i).Init();
+			m_ragAngles.GetForModify(i).Init();
+		}
 	}
 
 	// BUGBUG: Use the ragdollmins/maxs to do this instead of the collides
@@ -954,6 +999,13 @@ void CRagdollProp::VPhysicsUpdate( IPhysicsObject *pPhysics )
 	if ( m_allAsleep )
 	{
 		m_strSourceClassName = NULL_STRING;
+	}
+	else
+	{
+		if ( m_ragdoll.pGroup->IsInErrorState() )
+		{
+			RagdollSolveSeparation( m_ragdoll, this );
+		}
 	}
 	
 	// Interactive debris converts back to debris when it comes to rest
@@ -971,6 +1023,12 @@ void CRagdollProp::VPhysicsUpdate( IPhysicsObject *pPhysics )
 	{
 		Vector mins, maxs;
 		matrix3x4_t update;
+		if ( !m_ragdoll.list[i].pObject )
+		{
+			m_ragdollMins[i].Init();
+			m_ragdollMaxs[i].Init();
+			continue;
+		}
 		m_ragdoll.list[i].pObject->GetPositionMatrix( &update );
 		TransformAABB( update, m_ragdollMins[i], m_ragdollMaxs[i], mins, maxs );
 		for ( int j = 0; j < 3; j++ )
@@ -1111,6 +1169,29 @@ int CRagdollProp::DrawDebugTextOverlays(void)
 	return text_offset;
 }
 
+void CRagdollProp::DrawDebugGeometryOverlays() 
+{
+	if (m_debugOverlays & OVERLAY_BBOX_BIT) 
+	{
+		DrawServerHitboxes();
+	}
+	if (m_debugOverlays & OVERLAY_PIVOT_BIT)
+	{
+		for ( int i = 0; i < m_ragdoll.listCount; i++ )
+		{
+			if ( m_ragdoll.list[i].pObject )
+			{
+				float mass = m_ragdoll.list[i].pObject->GetMass();
+				Vector pos;
+				m_ragdoll.list[i].pObject->GetPosition( &pos, NULL );
+				CFmtStr str("mass %.1f", mass );
+				NDebugOverlay::EntityTextAtPosition( pos, 0, str.Access(), 0, 0, 255, 0, 255 );
+			}
+		}
+	} 
+	BaseClass::DrawDebugGeometryOverlays();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : *pOther - 
@@ -1211,8 +1292,11 @@ CBaseAnimating *CreateServerRagdollSubmodel( CBaseAnimating *pOwner, const char 
 
 CBaseEntity *CreateServerRagdoll( CBaseAnimating *pAnimating, int forceBone, const CTakeDamageInfo &info, int collisionGroup, bool bUseLRURetirement )
 {
-	SyncAnimatingWithPhysics( pAnimating );
-
+	if ( info.GetDamageType() & (DMG_VEHICLE|DMG_CRUSH) )
+	{
+		// if the entity was killed by physics or a vehicle, move to the vphysics shadow position before creating the ragdoll.
+		SyncAnimatingWithPhysics( pAnimating );
+	}
 	CRagdollProp *pRagdoll = (CRagdollProp *)CBaseEntity::CreateNoSpawn( "prop_ragdoll", pAnimating->GetAbsOrigin(), vec3_angle, NULL );
 	pRagdoll->CopyAnimationDataFrom( pAnimating );
 	pRagdoll->SetOwnerEntity( pAnimating );
@@ -1220,7 +1304,7 @@ CBaseEntity *CreateServerRagdoll( CBaseAnimating *pAnimating, int forceBone, con
 	pRagdoll->InitRagdollAnimation();
 	matrix3x4_t pBoneToWorld[MAXSTUDIOBONES], pBoneToWorldNext[MAXSTUDIOBONES];
 	
-	const float dt = 0.1f;
+	float dt = 0.1f;
 
 	// Copy over dissolve state...
 	if ( pAnimating->IsEFlagSet( EFL_NO_DISSOLVE ) )
@@ -1239,26 +1323,71 @@ CBaseEntity *CreateServerRagdoll( CBaseAnimating *pAnimating, int forceBone, con
 
 	// UNDONE: Extract velocity from bones via animation (like we do on the client)
 	// UNDONE: For now, just move each bone by the total entity velocity if set.
-	pAnimating->SetupBones( pBoneToWorld, BONE_USED_BY_ANYTHING );
+	// Get Bones positions before
+	// Store current cycle
+	float fSequenceDuration = pAnimating->SequenceDuration( pAnimating->GetSequence() );
+	float fSequenceTime = pAnimating->GetCycle() * fSequenceDuration;		
+
+	if( fSequenceTime <= dt && fSequenceTime > 0.0f )
+	{
+		// Avoid having negative cycle
+		dt = fSequenceTime;
+	}
+
+	float fPreviousCycle = clamp(pAnimating->GetCycle()-( dt * ( 1 / fSequenceDuration ) ),0.f,1.f);
+	float fCurCycle = pAnimating->GetCycle();
+	// Get current bones positions
+	pAnimating->SetupBones( pBoneToWorldNext, BONE_USED_BY_ANYTHING );
+	// Get previous bones positions
+	pAnimating->SetCycle( fPreviousCycle );
+	pAnimating->SetupBones( pBoneToWorld, BONE_USED_BY_ANYTHING );		
+	// Restore current cycle
+	pAnimating->SetCycle( fCurCycle );
 
 	// Reset previous bone flags
 	pAnimating->ClearBoneCacheFlags( BCF_NO_ANIMATION_SKIP );
 	pAnimating->SetBoneCacheFlags( fPrevFlags );
 
-	memcpy( pBoneToWorldNext, pBoneToWorld, sizeof(pBoneToWorld) );
 	Vector vel = pAnimating->GetAbsVelocity();
-	if ( vel.LengthSqr() > 0 )
+	if( ( vel.Length() == 0 ) && ( dt > 0 ) )
 	{
-		int numbones = pAnimating->GetModelPtr()->numbones();
-		for ( int i = 0; i < numbones; i++ )
+		// Compute animation velocity
+		CStudioHdr *pstudiohdr = pAnimating->GetModelPtr();
+		if ( pstudiohdr )
 		{
-			Vector pos;
-			MatrixGetColumn( pBoneToWorldNext[i], 3, pos );
-			pos += vel * dt;
-			MatrixSetColumn( pos, 3, pBoneToWorldNext[i] );
+			Vector deltaPos;
+			QAngle deltaAngles;
+			if (Studio_SeqMovement( pstudiohdr, 
+				pAnimating->GetSequence(), 
+				fPreviousCycle, 
+				pAnimating->GetCycle(), 
+				pAnimating->GetPoseParameterArray(), 
+				deltaPos, 
+				deltaAngles ))
+			{
+				VectorRotate( deltaPos, pAnimating->EntityToWorldTransform(), vel );
+				vel /= dt;
+			}
 		}
 	}
 
+	if ( vel.LengthSqr() > 0 )
+	{
+		int numbones = pAnimating->GetModelPtr()->numbones();
+		vel *= dt;
+		for ( int i = 0; i < numbones; i++ )
+		{
+			Vector pos;
+			MatrixGetColumn( pBoneToWorld[i], 3, pos );
+			pos -= vel;
+			MatrixSetColumn( pos, 3, pBoneToWorld[i] );
+		}
+	}
+
+#if RAGDOLL_VISUALIZE
+	pAnimating->DrawRawSkeleton( pBoneToWorld, BONE_USED_BY_ANYTHING, true, 20, false );
+	pAnimating->DrawRawSkeleton( pBoneToWorldNext, BONE_USED_BY_ANYTHING, true, 20, true );
+#endif
 	// Is this a vehicle / NPC collision?
 	if ( (info.GetDamageType() & DMG_VEHICLE) && pAnimating->MyNPCPointer() )
 	{
@@ -1389,7 +1518,8 @@ void CRagdollPropAttached::InitRagdollAttached(
 	Vector offsetWS;
 	pAttached->LocalToWorld( &offsetWS, boneLocalOrigin );
 
-	AngleMatrix( QAngle(0, pFollow->GetAbsAngles().y, 0 ), offsetWS, constraintToWorld );
+	QAngle followAng = QAngle(0, pFollow->GetAbsAngles().y, 0 );
+	AngleMatrix( followAng, offsetWS, constraintToWorld );
 
 	constraint.axes[0].SetAxisFriction( -2, 2, 20 );
 	constraint.axes[1].SetAxisFriction( 0, 0, 0 );
@@ -1481,6 +1611,14 @@ bool Ragdoll_IsPropRagdoll( CBaseEntity *pEntity )
 	return false;
 }
 
+ragdoll_t *Ragdoll_GetRagdoll( CBaseEntity *pEntity )
+{
+	CRagdollProp *pProp = dynamic_cast<CRagdollProp *>(pEntity);
+	if ( pProp )
+		return pProp->GetRagdoll();
+	return NULL;
+}
+
 void CRagdollProp::GetAngleOverrideFromCurrentState( char *pOut, int size )
 {
 	pOut[0] = 0;
@@ -1496,6 +1634,18 @@ void CRagdollProp::GetAngleOverrideFromCurrentState( char *pOut, int size )
 	}
 }
 
+void CRagdollProp::DisableMotion( void )
+{
+	for ( int iRagdoll = 0; iRagdoll < m_ragdoll.listCount; ++iRagdoll )
+	{
+		IPhysicsObject *pPhysicsObject = m_ragdoll.list[ iRagdoll ].pObject;
+		if ( pPhysicsObject != NULL )
+		{
+			pPhysicsObject->EnableMotion( false );
+		}
+	}
+}
+
 void CRagdollProp::InputStartRadgollBoogie( inputdata_t &inputdata )
 {
 	float duration = inputdata.value.Float();
@@ -1506,6 +1656,50 @@ void CRagdollProp::InputStartRadgollBoogie( inputdata_t &inputdata )
 	}
 
 	CRagdollBoogie::Create( this, 100, gpGlobals->curtime, duration, 0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Enable physics motion and collision response (on by default)
+//-----------------------------------------------------------------------------
+void CRagdollProp::InputEnableMotion( inputdata_t &inputdata )
+{
+	for ( int iRagdoll = 0; iRagdoll < m_ragdoll.listCount; ++iRagdoll )
+	{
+		IPhysicsObject *pPhysicsObject = m_ragdoll.list[ iRagdoll ].pObject;
+		if ( pPhysicsObject != NULL )
+		{
+			pPhysicsObject->EnableMotion( true );
+			pPhysicsObject->Wake();
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Disable any physics motion or collision response
+//-----------------------------------------------------------------------------
+void CRagdollProp::InputDisableMotion( inputdata_t &inputdata )
+{
+	DisableMotion();
+}
+
+void CRagdollProp::InputTurnOn( inputdata_t &inputdata )
+{
+	RemoveEffects( EF_NODRAW );
+}
+
+void CRagdollProp::InputTurnOff( inputdata_t &inputdata )
+{
+	AddEffects( EF_NODRAW );
+}
+
+void CRagdollProp::InputFadeAndRemove( inputdata_t &inputdata )
+{
+	float flFadeDuration = inputdata.value.Float();
+	
+	if( flFadeDuration == 0.0f )
+		flFadeDuration = 1.0f;
+
+	FadeOut( 0.0f, flFadeDuration );
 }
 
 void Ragdoll_GetAngleOverrideString( char *pOut, int size, CBaseEntity *pEntity )

@@ -1139,7 +1139,7 @@ void CNavMesh::CommandNavMerge( void )
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CNavMesh::CommandNavMark( void )
+void CNavMesh::CommandNavMark( const CCommand &args )
 {
 	CBasePlayer *player = UTIL_GetListenServerHost();
 	if (player == NULL)
@@ -1157,9 +1157,9 @@ void CNavMesh::CommandNavMark( void )
 		Msg("Area unmarked.\n");
 		SetMarkedArea( NULL );
 	}
-	else if ( engine->Cmd_Argc() > 1 )
+	else if ( args.ArgC() > 1 )
 	{
-		const char *areaIDNameToMark = engine->Cmd_Argv(1);
+		const char *areaIDNameToMark = args[1];
 		if( areaIDNameToMark != NULL )
 		{
 			unsigned int areaIDToMark = atoi(areaIDNameToMark);
@@ -1990,7 +1990,7 @@ void CNavMesh::CommandNavCornerLower( void )
 
 
 //--------------------------------------------------------------------------------------------------------------
-void CNavMesh::CommandNavCornerPlaceOnGround( void )
+void CNavMesh::CommandNavCornerPlaceOnGround( const CCommand &args )
 {
 	CBasePlayer *player = UTIL_GetListenServerHost();
 	if (player == NULL)
@@ -2004,8 +2004,8 @@ void CNavMesh::CommandNavCornerPlaceOnGround( void )
 	if ( m_selectedArea )
 	{
 		float inset = 0.0f;
-		if ( engine->Cmd_Argc() == 2 )
-			inset = atof(engine->Cmd_Argv(1));
+		if ( args.ArgC() == 2 )
+			inset = atof( args[1] );
 		if ( m_markedArea )
 		{
 			m_markedArea->PlaceOnGround( m_markedCorner, inset );

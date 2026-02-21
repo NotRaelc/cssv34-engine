@@ -36,7 +36,7 @@ bool CAI_BaseHumanoid::HandleInteraction(int interactionType, void *data, CBaseC
 	if ( interactionType == g_interactionBarnacleVictimDangle )
 	{
 		// Force choosing of a new schedule
-		ClearSchedule();
+		ClearSchedule( "Grabbed by a barnacle" );
 		return true;
 	}
 	else if ( interactionType == g_interactionBarnacleVictimReleased )

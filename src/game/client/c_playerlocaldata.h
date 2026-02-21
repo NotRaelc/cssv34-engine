@@ -13,7 +13,7 @@
 #endif
 
 #include "basetypes.h"
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "playernet_vars.h"
 
 //-----------------------------------------------------------------------------
@@ -27,9 +27,11 @@ public:
 	DECLARE_EMBEDDED_NETWORKVAR();
 
 	CPlayerLocalData() :
-		m_iv_vecPunchAngle( "CPlayerLocalData::m_iv_vecPunchAngle" )
+		m_iv_vecPunchAngle( "CPlayerLocalData::m_iv_vecPunchAngle" ),
+		m_iv_vecPunchAngleVel( "CPlayerLocalData::m_iv_vecPunchAngleVel" )
 	{
 		m_iv_vecPunchAngle.Setup( &m_vecPunchAngle.m_Value, LATCH_SIMULATION_VAR );
+		m_iv_vecPunchAngleVel.Setup( &m_vecPunchAngleVel.m_Value, LATCH_SIMULATION_VAR );
 		m_flFOVRate = 0;
 	}
 
@@ -57,6 +59,7 @@ public:
 	CInterpolatedVar< QAngle >	m_iv_vecPunchAngle;
 
 	CNetworkQAngle( m_vecPunchAngleVel );		// velocity of auto-decaying view angle adjustment
+	CInterpolatedVar< QAngle >	m_iv_vecPunchAngleVel;
 	bool					m_bDrawViewmodel;
 	bool					m_bWearingSuit;
 	bool					m_bPoisoned;
@@ -65,8 +68,8 @@ public:
 
 	// 3d skybox
 	sky3dparams_t			m_skybox3d;
-	// wold fog
-	fogparams_t				m_fog;
+	// fog params
+	fogplayerparams_t		m_PlayerFog;
 	// audio environment
 	audioparams_t			m_audio;
 

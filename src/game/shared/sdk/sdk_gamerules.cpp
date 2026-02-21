@@ -117,29 +117,6 @@ IMPLEMENT_NETWORKCLASS_ALIASED( SDKGameRulesProxy, DT_SDKGameRulesProxy )
 	// --------------------------------------------------------------------------------------------------- //
 	// Global helper functions.
 	// --------------------------------------------------------------------------------------------------- //
-
-	// Helper function to parse arguments to player commands.
-	const char* FindEngineArg( const char *pName )
-	{
-		int nArgs = engine->Cmd_Argc();
-		for ( int i=1; i < nArgs; i++ )
-		{
-			if ( stricmp( engine->Cmd_Argv(i), pName ) == 0 )
-				return (i+1) < nArgs ? engine->Cmd_Argv(i+1) : "";
-		}
-		return 0;
-	}
-
-
-	int FindEngineArgInt( const char *pName, int defaultVal )
-	{
-		const char *pVal = FindEngineArg( pName );
-		if ( pVal )
-			return atoi( pVal );
-		else
-			return defaultVal;
-	}
-
 	
 	// World.cpp calls this but we don't use it in SDK.
 	void InitBodyQue()
@@ -174,13 +151,13 @@ IMPLEMENT_NETWORKCLASS_ALIASED( SDKGameRulesProxy, DT_SDKGameRulesProxy )
 	}
 
 	//-----------------------------------------------------------------------------
-	// Purpose: 
+	// Purpose: TF2 Specific Client Commands
 	// Input  :
 	// Output :
 	//-----------------------------------------------------------------------------
-	bool CSDKGameRules::ClientCommand( const char *pcmd, CBaseEntity *pEdict )
+	bool CSDKGameRules::ClientCommand( CBaseEntity *pEdict, const CCommand &args )
 	{
-		return BaseClass::ClientCommand( pcmd, pEdict );
+		return BaseClass::ClientCommand( pEdict, args );
 	}
 
 	//-----------------------------------------------------------------------------

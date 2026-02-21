@@ -1,8 +1,8 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
-//=============================================================================//
+//===========================================================================//
 
 #include "cbase.h"
 #include "materialsystem/IMaterialProxy.h"
@@ -10,11 +10,14 @@
 #include "materialsystem/IMaterialVar.h"
 #include "FunctionProxy.h"
 #include <KeyValues.h>
-#include "VMatrix.h"
-#include "FunctionProxy.h"
+#include "mathlib/VMatrix.h"
+#include "toolframework_client.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+// forward declarations
+void ToolFramework_RecordMaterialParams( IMaterial *pMaterial );
 
 class C_FuncConveyor : public C_BaseEntity
 {
@@ -51,6 +54,7 @@ public:
 	virtual bool Init( IMaterial *pMaterial, KeyValues *pKeyValues );
 	virtual void OnBind( void *pC_BaseEntity );
 	virtual void Release( void ) { delete this; }
+	virtual IMaterial *GetMaterial();
 
 private:
 	C_BaseEntity *BindArgToEntity( void *pArg );
@@ -109,7 +113,7 @@ void CConveyorMaterialProxy::OnBind( void *pC_BaseEntity )
 	}
 
 	float flConveyorSpeed	= pConveyor->GetConveyorSpeed();
-	float flRate			= abs( flConveyorSpeed ) / 128.0;
+	float flRate			= fabsf( flConveyorSpeed ) / 128.0;
 	float flAngle			= (flConveyorSpeed >= 0) ? 180 : 0;
 
 	float sOffset = gpGlobals->curtime * cos( flAngle * ( M_PI / 180.0f ) ) * flRate;
@@ -139,6 +143,16 @@ void CConveyorMaterialProxy::OnBind( void *pC_BaseEntity )
 	{
 		m_pTextureScrollVar->SetVecValue( sOffset, tOffset, 0.0f );
 	}
+
+	if ( ToolsEnabled() )
+	{
+		ToolFramework_RecordMaterialParams( GetMaterial() );
+	}
+}
+
+IMaterial *CConveyorMaterialProxy::GetMaterial()
+{
+	return m_pTextureScrollVar ? m_pTextureScrollVar->GetOwningMaterial() : NULL;
 }
 
 EXPOSE_INTERFACE( CConveyorMaterialProxy, IMaterialProxy, "ConveyorScroll" IMATERIAL_PROXY_INTERFACE_VERSION );

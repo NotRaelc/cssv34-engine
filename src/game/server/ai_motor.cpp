@@ -260,7 +260,7 @@ void CAI_Motor::MoveClimbStart(  const Vector &climbDest, const Vector &climbDir
 	SetGroundEntity( NULL );
 }
 
-AIMoveResult_t CAI_Motor::MoveClimbExecute( const Vector &climbDest, const Vector &climbDir, float climbDist, float yaw )
+AIMoveResult_t CAI_Motor::MoveClimbExecute( const Vector &climbDest, const Vector &climbDir, float climbDist, float yaw, int climbNodesLeft )
 {
 	if ( fabsf( climbDir.z ) > .1 )
 	{
@@ -283,7 +283,7 @@ AIMoveResult_t CAI_Motor::MoveClimbExecute( const Vector &climbDest, const Vecto
 		{
 			if (GetActivity() == ACT_CLIMB_UP )
 			{
-				if (climbDist < fabs( m_vecDismount.z ))
+				if (climbNodesLeft <= 2 && climbDist < fabs( m_vecDismount.z ))
 				{
 					// fixme: No other way to force m_nIdealSequence?
 					GetOuter()->SetActivity( ACT_CLIMB_DISMOUNT );
@@ -643,7 +643,7 @@ void CAI_Motor::MoveFacing( const AILocalMoveGoal_t &move )
 		fSequenceMoveYaw = 0;
 	}
 
-	if (!HasPoseParameter( nSequence, "move_yaw" ))
+	if (!HasPoseParameter( nSequence, GetOuter()->LookupPoseMoveYaw() ))
 	{
 		SetIdealYawAndUpdate( UTIL_AngleMod( flMoveYaw - fSequenceMoveYaw ) );
 	}
@@ -663,7 +663,7 @@ void CAI_Motor::MoveFacing( const AILocalMoveGoal_t &move )
 
 		// find movement direction to compensate for not being turned far enough
 		float flDiff = UTIL_AngleDiff( flMoveYaw, GetLocalAngles().y );
-		SetPoseParameter( "move_yaw", flDiff );
+		SetPoseParameter( GetOuter()->LookupPoseMoveYaw(), flDiff );
 		/*
 		if ((GetOuter()->m_debugOverlays & OVERLAY_NPC_SELECTED_BIT))
 		{
@@ -989,9 +989,14 @@ float CAI_Motor::GetSequenceMoveYaw( int iSequence )
 	return GetOuter()->GetSequenceMoveYaw( iSequence );
 }
 
+void CAI_Motor::SetPlaybackRate( float flRate )
+{
+	return GetOuter()->SetPlaybackRate( flRate );
+}
+
 float CAI_Motor::GetPlaybackRate()
 {
-	return GetOuter()->m_flPlaybackRate;
+	return GetOuter()->GetPlaybackRate();
 }
 
 float CAI_Motor::SetPoseParameter( const char *szName, float flValue )
@@ -1007,6 +1012,16 @@ float CAI_Motor::GetPoseParameter( const char *szName )
 bool CAI_Motor::HasPoseParameter( int iSequence, const char *szName )
 {
 	return GetOuter()->HasPoseParameter( iSequence, szName );
+}
+
+float CAI_Motor::SetPoseParameter( int iParameter, float flValue ) 
+{ 
+	return GetOuter()->SetPoseParameter( iParameter, flValue );  
+}
+
+bool CAI_Motor::HasPoseParameter( int iSequence, int iParameter ) 
+{ 
+	return GetOuter()->HasPoseParameter( iSequence, iParameter ); 
 }
 
 void CAI_Motor::SetMoveType( MoveType_t val, MoveCollide_t moveCollide )

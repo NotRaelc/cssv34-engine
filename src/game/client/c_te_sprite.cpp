@@ -12,6 +12,7 @@
 #include "tempent.h"
 #include "tier1/keyvalues.h"
 #include "toolframework_client.h"
+#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -105,6 +106,8 @@ static inline void RecordSprite( const Vector& start, int nModelIndex,
 //-----------------------------------------------------------------------------
 void C_TESprite::PostDataUpdate( DataUpdateType_t updateType )
 {
+	VPROF( "C_TESprite::PostDataUpdate" );
+
 	float a = ( 1.0 / 255.0 ) * m_nBrightness;
 	tempents->TempSprite( m_vecOrigin, vec3_origin, m_fScale, m_nModelIndex, kRenderTransAdd, 0, a, 0, FTENT_SPRANIMATE );
 	RecordSprite( m_vecOrigin, m_nModelIndex, m_fScale, m_nBrightness );

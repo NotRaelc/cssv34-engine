@@ -16,7 +16,6 @@
 class CGameRules;
 class CBasePlayer;
 
-
 abstract_class IVoiceGameMgrHelper
 {
 public:
@@ -24,7 +23,7 @@ public:
 
 	// Called each frame to determine which players are allowed to hear each other.	This overrides
 	// whatever squelch settings players have.
-	virtual bool		CanPlayerHearPlayer(CBasePlayer *pListener, CBasePlayer *pTalker) = 0;
+	virtual bool		CanPlayerHearPlayer(CBasePlayer *pListener, CBasePlayer *pTalker, bool &bProximity ) = 0;
 };
 
 
@@ -53,7 +52,12 @@ public:
 
 	// Called on ClientCommand. Checks for the squelch and unsquelch commands.
 	// Returns true if it handled the command.
-	bool				ClientCommand(CBasePlayer *pPlayer, const char *cmd);
+	bool				ClientCommand(CBasePlayer *pPlayer, const CCommand &args );
+
+	bool				CheckProximity( int iDistance );
+	void				SetProximityDistance( int iDistance );
+
+	bool				IsPlayerIgnoringPlayer( int iTalker, int iListener );
 
 private:
 
@@ -65,6 +69,7 @@ private:
 	IVoiceGameMgrHelper	*m_pHelper;
 	int					m_nMaxPlayers;
 	double				m_UpdateInterval;						// How long since the last update.
+	int					m_iProximityDistance;
 };
 
 

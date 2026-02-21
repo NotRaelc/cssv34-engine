@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 // Navigation ladders
 // Author: Michael S. Booth (mike@turtlerockstudios.com), January 2003
@@ -22,6 +22,7 @@ class CInfoLadder : public CBaseEntity
 {
 public:
 	DECLARE_CLASS( CInfoLadder, CBaseEntity );
+	DECLARE_DATADESC();
 
 	bool KeyValue( const char *szKeyName, const char *szValue );
 

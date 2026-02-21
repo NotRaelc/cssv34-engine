@@ -28,8 +28,11 @@
 #include "tier0/vprof.h"
 #include "particles_localspace.h"
 #include "physpropclientside.h"
-#include "vstdlib/ICommandLine.h"
+#include "tier0/ICommandLine.h"
 #include "datacache/imdlcache.h"
+#include "engine/IVDebugOverlay.h"
+#include "effect_dispatch_data.h"
+#include "c_te_effect_dispatch.h"
 
 // NOTE: Always include this last!
 #include "tier0/memdbgon.h"
@@ -39,29 +42,32 @@ extern ConVar muzzleflash_light;
 #define TENT_WIND_ACCEL 50
 
 //Precache the effects
+#ifndef TF_CLIENT_DLL
 CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectMuzzleFlash )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1_noz" )
-CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2_noz" )
+	CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1" )
+	CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2" )
+	CLIENTEFFECT_MATERIAL( "effects/combinemuzzle1_noz" )
+	CLIENTEFFECT_MATERIAL( "effects/combinemuzzle2_noz" )
 
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash1" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash2" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash3" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash4" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash1_noz" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash2_noz" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash3_noz" )
-CLIENTEFFECT_MATERIAL( "effects/muzzleflash4_noz" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash1" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash2" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash3" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash4" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash1_noz" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash2_noz" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash3_noz" )
+	CLIENTEFFECT_MATERIAL( "effects/muzzleflash4_noz" )
 
-CLIENTEFFECT_MATERIAL( "effects/strider_muzzle" )
+	CLIENTEFFECT_MATERIAL( "effects/strider_muzzle" )
 CLIENTEFFECT_REGISTER_END()
+#endif
 
 //Whether or not to eject brass from weapons
 ConVar cl_ejectbrass( "cl_ejectbrass", "1" );
 
 ConVar func_break_max_pieces( "func_break_max_pieces", "15", FCVAR_ARCHIVE | FCVAR_REPLICATED );
 
+ConVar cl_fasttempentcollision( "cl_fasttempentcollision", "5" );
 
 #if !defined( HL1_CLIENT_DLL )		// HL1 implements a derivative of CTempEnts
 // Temp entity interface
@@ -81,7 +87,9 @@ C_LocalTempEntity::C_LocalTempEntity()
 	m_vecTempEntAngVelocity.Init();
 	m_vecNormal.Init();
 #endif
+	m_vecTempEntAcceleration.Init();
 	m_pfnDrawHelper = 0;
+	m_pszImpactEffect = NULL;
 }
 
 
@@ -118,6 +126,7 @@ void C_LocalTempEntity::Prepare( model_t *pmodel, float time )
 	clientIndex = -1;
 	bounceFactor = 1;
 	m_nFlickerFrame = 0;
+	m_bParticleCollision = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -126,6 +135,14 @@ void C_LocalTempEntity::Prepare( model_t *pmodel, float time )
 void C_LocalTempEntity::SetVelocity( const Vector &vecVelocity )
 {
 	m_vecTempEntVelocity = vecVelocity;
+}
+
+//-----------------------------------------------------------------------------
+// Sets the velocity
+//-----------------------------------------------------------------------------
+void C_LocalTempEntity::SetAcceleration( const Vector &vecVelocity )
+{
+	m_vecTempEntAcceleration = vecVelocity;
 }
 
 
@@ -280,6 +297,8 @@ bool C_LocalTempEntity::Frame( float frametime, int framenumber )
 
 	m_vecPrevLocalOrigin = GetLocalOrigin();
 
+	m_vecTempEntVelocity = m_vecTempEntVelocity + ( m_vecTempEntAcceleration * frametime );
+
 	if ( flags & FTENT_PLYRATTACHMENT )
 	{
 		if ( IClientEntity *pClient = cl_entitylist->GetClientEntity( clientIndex ) )
@@ -346,39 +365,73 @@ bool C_LocalTempEntity::Frame( float frametime, int framenumber )
 	{
 		SetLocalAngles( GetLocalAngles() + m_vecTempEntAngVelocity * frametime );
 	}
+	else if ( flags & FTENT_ALIGNTOMOTION )
+	{
+		if ( m_vecTempEntVelocity.Length() > 0.0f )
+		{
+			QAngle angles;
+			VectorAngles( m_vecTempEntVelocity, angles );
+			SetAbsAngles( angles );
+		}
+	}
 
 	if ( flags & (FTENT_COLLIDEALL | FTENT_COLLIDEWORLD) )
 	{
 		Vector	traceNormal;
-		
 		traceNormal.Init();
+		bool bShouldCollide = true;
+
+		trace_t trace;
 
 		if ( flags & FTENT_COLLIDEALL )
 		{
-			// If the FTENT_COLLISIONGROUP flag is set, use the entity's collision group
-			int collisionGroup = COLLISION_GROUP_NONE;
-			if ( flags & FTENT_COLLISIONGROUP )
+			Vector vPrevOrigin = m_vecPrevLocalOrigin;
+
+			if ( cl_fasttempentcollision.GetInt() > 0 && flags & FTENT_USEFASTCOLLISIONS )
 			{
-				collisionGroup = GetCollisionGroup();
+				if ( m_iLastCollisionFrame + cl_fasttempentcollision.GetInt() > gpGlobals->framecount )
+				{
+					bShouldCollide = false;
+				}
+				else
+				{
+					if ( m_vLastCollisionOrigin != vec3_origin )
+					{
+						vPrevOrigin = m_vLastCollisionOrigin;
+					}
+
+					m_iLastCollisionFrame = gpGlobals->framecount;
+					bShouldCollide = true; 
+				}
 			}
 
-			trace_t pm;		
-			UTIL_TraceLine( m_vecPrevLocalOrigin, GetLocalOrigin(), MASK_SOLID, NULL, collisionGroup, &pm );
-
-			// Make sure it didn't bump into itself... (?!?)
-			if  ( 
-				(pm.fraction != 1) && 
-					( (pm.DidHitWorld()) || 
-					  (pm.m_pEnt != ClientEntityList().GetEnt(clientIndex)) ) 
-				)
+			if ( bShouldCollide == true )
 			{
-				traceFraction = pm.fraction;
-				VectorCopy( pm.plane.normal, traceNormal );
+				// If the FTENT_COLLISIONGROUP flag is set, use the entity's collision group
+				int collisionGroup = COLLISION_GROUP_NONE;
+				if ( flags & FTENT_COLLISIONGROUP )
+				{
+					collisionGroup = GetCollisionGroup();
+				}
+
+				UTIL_TraceLine( vPrevOrigin, GetLocalOrigin(), MASK_SOLID, GetOwnerEntity(), collisionGroup, &trace );
+
+				// Make sure it didn't bump into itself... (?!?)
+				if  ( 
+					(trace.fraction != 1) && 
+						( (trace.DidHitWorld()) || 
+						  (trace.m_pEnt != ClientEntityList().GetEnt(clientIndex)) ) 
+					)
+				{
+					traceFraction = trace.fraction;
+					VectorCopy( trace.plane.normal, traceNormal );
+				}
+
+				m_vLastCollisionOrigin = trace.endpos;
 			}
 		}
 		else if ( flags & FTENT_COLLIDEWORLD )
 		{
-			trace_t trace;
 			CTraceFilterWorldOnly traceFilter;
 			UTIL_TraceLine( m_vecPrevLocalOrigin, GetLocalOrigin(), MASK_SOLID, &traceFilter, &trace );
 			if ( trace.fraction != 1 )
@@ -388,14 +441,10 @@ bool C_LocalTempEntity::Frame( float frametime, int framenumber )
 			}
 		}
 		
-		if ( traceFraction != 1 )	// Decent collision now, and damping works
+		if ( traceFraction != 1  )	// Decent collision now, and damping works
 		{
 			float  proj, damp;
-
-			// Place at contact point
-			Vector newOrigin;
-			VectorMA( m_vecPrevLocalOrigin, traceFraction*frametime, m_vecTempEntVelocity, newOrigin );
-			SetLocalOrigin( newOrigin );
+			SetLocalOrigin( trace.endpos );
 			
 			// Damp velocity
 			damp = bounceFactor;
@@ -425,11 +474,66 @@ bool C_LocalTempEntity::Frame( float frametime, int framenumber )
 				tempents->PlaySound(this, damp);
 			}
 
+			if ( m_pszImpactEffect )
+			{
+				CEffectData data;
+				//data.m_vOrigin = newOrigin;
+				data.m_vOrigin = trace.endpos;
+				data.m_vStart = trace.startpos;
+				data.m_nSurfaceProp = trace.surface.surfaceProps;
+				data.m_nHitBox = trace.hitbox;
+
+				data.m_nDamageType = TEAM_UNASSIGNED;
+
+				IClientNetworkable *pClient = cl_entitylist->GetClientEntity( clientIndex );
+
+				if ( pClient )
+				{
+					C_BasePlayer *pPlayer = dynamic_cast<C_BasePlayer*>(pClient);
+					if( pPlayer )
+					{
+						data.m_nDamageType = pPlayer->GetTeamNumber();
+					}
+				}
+
+				if ( trace.m_pEnt )
+				{
+					data.m_hEntity = ClientEntityList().EntIndexToHandle( trace.m_pEnt->entindex() );
+				}
+				DispatchEffect( m_pszImpactEffect, data );
+			}
+
+			// Check for a collision and stop the particle system.
+			if ( flags & FTENT_CLIENTSIDEPARTICLES )
+			{
+				// Stop the emission of particles on collision - removed from the ClientEntityList on removal from the tempent pool.
+				ParticleProp()->StopEmission();
+				m_bParticleCollision = true;
+			}
+
 			if (flags & FTENT_COLLIDEKILL)
 			{
 				// die on impact
 				flags &= ~FTENT_FADEOUT;	
 				die = gpGlobals->curtime;			
+			}
+			else if ( flags & FTENT_ATTACHTOTARGET)
+			{
+				// If we've hit the world, just stop moving
+				if ( trace.DidHitWorld() && !( trace.surface.flags & SURF_SKY ) )
+				{
+					m_vecTempEntVelocity = vec3_origin;
+					m_vecTempEntAcceleration = vec3_origin;
+
+					// Remove movement flags so we don't keep tracing
+					flags &= ~(FTENT_COLLIDEALL | FTENT_COLLIDEWORLD);
+				}
+				else
+				{
+					// Couldn't attach to this entity. Die.
+					flags &= ~FTENT_FADEOUT;
+					die = gpGlobals->curtime;
+				}
 			}
 			else
 			{
@@ -504,6 +608,28 @@ bool C_LocalTempEntity::Frame( float frametime, int framenumber )
 	}
 
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Attach a particle effect to a temp entity.
+//-----------------------------------------------------------------------------
+void C_LocalTempEntity::AddParticleEffect( const char *pszParticleEffect )
+{
+	// Do we have a valid particle effect.
+	if ( !pszParticleEffect || ( pszParticleEffect[0] == '\0' ) )
+		return;
+
+	// Check to see that we don't already have a particle effect.
+	if ( ( flags & FTENT_CLIENTSIDEPARTICLES ) != 0 )
+		return;
+
+	// Add the entity to the ClientEntityList and create the particle system.
+	ClientEntityList().AddNonNetworkableEntity( this );
+	ParticleProp()->Create( pszParticleEffect, PATTACH_ABSORIGIN_FOLLOW );
+
+	// Set the particle flag on the temp entity and save the name of the particle effect.
+	flags |= FTENT_CLIENTSIDEPARTICLES;
+	SetParticleEffect( pszParticleEffect );
 }
 
 //-----------------------------------------------------------------------------
@@ -627,7 +753,7 @@ void C_LocalTempEntity::OnRemoveTempEntity()
 // Purpose: 
 //-----------------------------------------------------------------------------
 CTempEnts::CTempEnts( void ) :
-	m_TempEntsPool( ( MAX_TEMP_ENTITIES / 20 ), CMemoryPool::GROW_SLOW )
+	m_TempEntsPool( ( MAX_TEMP_ENTITIES / 20 ), CUtlMemoryPool::GROW_SLOW )
 {
 }
 
@@ -1001,6 +1127,57 @@ void CTempEnts::PhysicsProp( int modelindex, int skin, const Vector& pos, const 
 		pEntity->SetHealth( 0 );
 		pEntity->Break();
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Create a clientside projectile
+// Input  : vecOrigin - 
+//			vecVelocity - 
+//			modelindex - 
+//			lifetime - 
+//			*pOwner - 
+//-----------------------------------------------------------------------------
+C_LocalTempEntity *CTempEnts::ClientProjectile( const Vector& vecOrigin, const Vector& vecVelocity, const Vector& vecAcceleration, int modelIndex, int lifetime, CBaseEntity *pOwner, const char *pszImpactEffect, const char *pszParticleEffect )
+{
+	C_LocalTempEntity	*pTemp;
+	const model_t		*model;
+
+	if ( !modelIndex ) 
+		return NULL;
+
+	model = modelinfo->GetModel( modelIndex );
+	if ( !model )
+	{
+		Warning("ClientProjectile: No model %d!\n", modelIndex);
+		return NULL;
+	}
+
+	pTemp = TempEntAlloc( vecOrigin, ( model_t * )model );
+	if (!pTemp)
+		return NULL;
+
+	pTemp->SetVelocity( vecVelocity );
+	pTemp->SetAcceleration( vecAcceleration );
+	QAngle angles;
+	VectorAngles( vecVelocity, angles );
+	pTemp->SetAbsAngles( angles );
+	pTemp->SetAbsOrigin( vecOrigin );
+	pTemp->die = gpGlobals->curtime + lifetime;
+	pTemp->flags = FTENT_COLLIDEALL | FTENT_ATTACHTOTARGET | FTENT_ALIGNTOMOTION;
+	pTemp->clientIndex = ( pOwner != NULL ) ? pOwner->entindex() : 0; 
+	pTemp->SetOwnerEntity( pOwner );
+	pTemp->SetImpactEffect( pszImpactEffect );
+	if ( pszParticleEffect )
+	{
+		// Add the entity to the ClientEntityList and create the particle system.
+		ClientEntityList().AddNonNetworkableEntity( pTemp );
+		pTemp->ParticleProp()->Create( pszParticleEffect, PATTACH_ABSORIGIN_FOLLOW );
+
+		// Set the particle flag on the temp entity and save the name of the particle effect.
+		pTemp->flags |= FTENT_CLIENTSIDEPARTICLES;
+	 	pTemp->SetParticleEffect( pszParticleEffect );
+	}
+	return pTemp;
 }
 
 //-----------------------------------------------------------------------------
@@ -1823,6 +2000,17 @@ void CTempEnts::TempEntFree( int index )
 		// Cleanup its data.
 		pTemp->RemoveFromLeafSystem();
 
+		// Remove the tempent from the ClientEntityList before removing it from the pool.
+		if ( ( pTemp->flags & FTENT_CLIENTSIDEPARTICLES ) )
+		{			
+			// Stop the particle emission if this hasn't happened already - collision or system timing out on its own.
+			if ( !pTemp->m_bParticleCollision )
+			{
+				pTemp->ParticleProp()->StopEmission();
+			}
+			ClientEntityList().RemoveEntity( pTemp->GetRefEHandle() );
+		}
+
 		pTemp->OnRemoveTempEntity();
 	
 		m_TempEntsPool.Free( pTemp );
@@ -1994,7 +2182,7 @@ void CTempEnts::PlaySound ( C_LocalTempEntity *pTemp, float damp )
 #endif
 	}
 
-	zvel = abs( pTemp->GetVelocity()[2] );
+	zvel = fabsf( pTemp->GetVelocity()[2] );
 		
 	// only play one out of every n
 
@@ -2103,6 +2291,7 @@ int CTempEnts::AddVisibleTempEntity( C_LocalTempEntity *pEntity )
 //-----------------------------------------------------------------------------
 void CTempEnts::Update(void)
 {
+	VPROF_("CTempEnts::Update", 1, VPROF_BUDGETGROUP_CLIENT_SIM, false, BUDGETFLAG_CLIENT);
 	static int gTempEntFrame = 0;
 	float		frametime;
 
@@ -2169,6 +2358,7 @@ void CTempEnts::Update(void)
 // Recache tempents which might have been flushed
 void CTempEnts::LevelInit()
 {
+#ifndef TF_CLIENT_DLL
 	m_pSpriteMuzzleFlash[0] = (model_t *)engine->LoadModel( "sprites/ar2_muzzle1.vmt" );
 	m_pSpriteMuzzleFlash[1] = (model_t *)engine->LoadModel( "sprites/muzzleflash4.vmt" );
 	m_pSpriteMuzzleFlash[2] = (model_t *)engine->LoadModel( "sprites/muzzleflash4.vmt" );
@@ -2184,6 +2374,7 @@ void CTempEnts::LevelInit()
 	m_pShells[0] = (model_t *) engine->LoadModel( "models/weapons/shell.mdl" );
 	m_pShells[1] = (model_t *) engine->LoadModel( "models/weapons/rifleshell.mdl" );
 	m_pShells[2] = (model_t *) engine->LoadModel( "models/weapons/shotgun_shell.mdl" );
+#endif
 
 #if defined( HL1_CLIENT_DLL )
 	m_pHL1Shell			= (model_t *)engine->LoadModel( "models/shell.mdl" );
@@ -2375,8 +2566,8 @@ void CTempEnts::MuzzleFlash_Combine_Player( ClientEntityHandle_t hEntity, int at
 //-----------------------------------------------------------------------------
 void CTempEnts::MuzzleFlash_Combine_NPC( ClientEntityHandle_t hEntity, int attachmentIndex )
 {
-	VPROF_BUDGET( "MuzzleFlash_Strider", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
-	CSmartPtr<CLocalSpaceEmitter> pSimple = CLocalSpaceEmitter::Create( "MuzzleFlash_Strider", hEntity, attachmentIndex );
+	VPROF_BUDGET( "MuzzleFlash_Combine_NPC", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
+	CSmartPtr<CLocalSpaceEmitter> pSimple = CLocalSpaceEmitter::Create( "MuzzleFlash_Combine_NPC", hEntity, attachmentIndex );
 
 	SimpleParticle *pParticle;
 	Vector			forward(1,0,0), offset; //NOTENOTE: All coords are in local space
@@ -2392,8 +2583,7 @@ void CTempEnts::MuzzleFlash_Combine_NPC( ClientEntityHandle_t hEntity, int attac
 	{
 		offset = (forward * (i*2.0f*flScale));
 
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( VarArgs( "effects/combinemuzzle%d", random->RandomInt(1,2) ) ), offset );
-			
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_Combine_Muzzleflash[random->RandomInt(0,1)], offset );
 		if ( pParticle == NULL )
 			return;
 
@@ -2427,7 +2617,7 @@ void CTempEnts::MuzzleFlash_Combine_NPC( ClientEntityHandle_t hEntity, int attac
 	{
 		offset = (dir * (i*flScale));
 
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( VarArgs( "effects/combinemuzzle%d", random->RandomInt(1,2) ) ), offset );
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_Combine_Muzzleflash[random->RandomInt(0,1)], offset );
 			
 		if ( pParticle == NULL )
 			return;
@@ -2458,8 +2648,7 @@ void CTempEnts::MuzzleFlash_Combine_NPC( ClientEntityHandle_t hEntity, int attac
 	{
 		offset = (-dir * (i*flScale));
 
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( VarArgs( "effects/combinemuzzle%d", random->RandomInt(1,2) ) ), offset );
-			
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_Combine_Muzzleflash[random->RandomInt(0,1)], offset );
 		if ( pParticle == NULL )
 			return;
 
@@ -2489,8 +2678,7 @@ void CTempEnts::MuzzleFlash_Combine_NPC( ClientEntityHandle_t hEntity, int attac
 	{
 		offset = (dir * (i*flScale));
 
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( VarArgs( "effects/combinemuzzle%d", random->RandomInt(1,2) ) ), offset );
-			
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_Combine_Muzzleflash[random->RandomInt(0,1)], offset );
 		if ( pParticle == NULL )
 			return;
 
@@ -2512,8 +2700,7 @@ void CTempEnts::MuzzleFlash_Combine_NPC( ClientEntityHandle_t hEntity, int attac
 		pParticle->m_flRollDelta	= 0.0f;
 	}
 
-	pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( "effects/strider_muzzle" ), vec3_origin );
-		
+	pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_Combine_Muzzleflash[2], vec3_origin );
 	if ( pParticle == NULL )
 		return;
 
@@ -2734,7 +2921,7 @@ void CTempEnts::MuzzleFlash_Shotgun_NPC( ClientEntityHandle_t hEntity, int attac
 
 		for ( int i = 0; i < numEmbers; i++ )
 		{
-			pParticle = (SimpleParticle *) pEmbers->AddParticle( sizeof( SimpleParticle ), pEmbers->GetPMaterial( "effects/muzzleflash1" ), origin );
+			pParticle = (SimpleParticle *) pEmbers->AddParticle( sizeof( SimpleParticle ), g_Mat_SMG_Muzzleflash[0], origin );
 				
 			if ( pParticle == NULL )
 				return;
@@ -2779,7 +2966,7 @@ void CTempEnts::MuzzleFlash_Shotgun_NPC( ClientEntityHandle_t hEntity, int attac
 
 	for ( i = 0; i < numEmbers; i++ )
 	{
-		pTrailParticle = (TrailParticle *) pTrails->AddParticle( sizeof( TrailParticle ), pTrails->GetPMaterial( "effects/muzzleflash1" ), origin );
+		pTrailParticle = (TrailParticle *) pTrails->AddParticle( sizeof( TrailParticle ), g_Mat_SMG_Muzzleflash[0], origin );
 			
 		if ( pTrailParticle == NULL )
 			return;
@@ -2836,7 +3023,7 @@ void CTempEnts::MuzzleFlash_357_Player( ClientEntityHandle_t hEntity, int attach
 	// Smoke
 	offset = origin + forward * 8.0f;
 
-	pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( "particle/particle_smokegrenade" ), offset );
+	pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], offset );
 		
 	if ( pParticle == NULL )
 		return;
@@ -2924,7 +3111,7 @@ void CTempEnts::MuzzleFlash_Pistol_Player( ClientEntityHandle_t hEntity, int att
 
 	if ( random->RandomInt( 0, 3 ) != 0 )
 	{
-		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( "particle/particle_smokegrenade" ), offset );
+		pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[0], offset );
 			
 		if ( pParticle == NULL )
 			return;
@@ -3205,3 +3392,4 @@ void CTempEnts::CSEjectBrass( const Vector &vecPosition, const QAngle &angVeloci
 
 	
 }
+

@@ -6,7 +6,9 @@
 // $NoKeywords: $
 //=============================================================================//
 #include "cbase.h"
+#include "fx.h"
 #include "ClientEffectPrecacheSystem.h"
+#include "particles/particles.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -32,6 +34,9 @@ void CClientEffectPrecacheSystem::LevelInitPreEntity( void )
 	//FIXME: Double check this
 	//Finally, force the cache of these materials
 	materials->CacheUsedMaterials();
+
+	// Now, cache off our material handles
+	FX_CacheMaterialHandles();
 }
 
 //-----------------------------------------------------------------------------

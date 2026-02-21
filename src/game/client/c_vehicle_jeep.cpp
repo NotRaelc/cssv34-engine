@@ -5,12 +5,13 @@
 //=============================================================================//
 
 #include "cbase.h"
-#include "c_prop_vehicle.h"
+#include "c_vehicle_jeep.h"
 #include "movevars_shared.h"
 #include "view.h"
 #include "flashlighteffect.h"
 #include "c_baseplayer.h"
 #include "c_te_effect_dispatch.h"
+#include "fx.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -20,56 +21,10 @@ extern ConVar default_fov;
 ConVar r_JeepViewBlendTo( "r_JeepViewBlendTo", "1", FCVAR_CHEAT );
 ConVar r_JeepViewBlendToScale( "r_JeepViewBlendToScale", "0.03", FCVAR_CHEAT );
 ConVar r_JeepViewBlendToTime( "r_JeepViewBlendToTime", "1.5", FCVAR_CHEAT );
-ConVar r_JeepFOV( "r_JeepFOV", "90", FCVAR_CHEAT );
 
 #define JEEP_DELTA_LENGTH_MAX	12.0f			// 1 foot
 #define JEEP_FRAMETIME_MIN		1e-6
 #define JEEP_HEADLIGHT_DISTANCE 1000
-
-//=============================================================================
-//
-// Client-side Jeep Class
-//
-class C_PropJeep : public C_PropVehicleDriveable
-{
-
-	DECLARE_CLASS( C_PropJeep, C_PropVehicleDriveable );
-
-public:
-
-	DECLARE_CLIENTCLASS();
-	DECLARE_INTERPOLATION();
-
-	C_PropJeep();
-	~C_PropJeep();
-
-public:
-
-	void UpdateViewAngles( C_BasePlayer *pLocalPlayer, CUserCmd *pCmd );
-	void DampenEyePosition( Vector &vecVehicleEyePos, QAngle &vecVehicleEyeAngles );
-
-	void OnEnteredVehicle( C_BasePlayer *pPlayer );
-	void Simulate( void );
-
-private:
-
-	void DampenForwardMotion( Vector &vecVehicleEyePos, QAngle &vecVehicleEyeAngles, float flFrameTime );
-	void DampenUpMotion( Vector &vecVehicleEyePos, QAngle &vecVehicleEyeAngles, float flFrameTime );
-	void ComputePDControllerCoefficients( float *pCoefficientsOut, float flFrequency, float flDampening, float flDeltaTime );
-
-private:
-
-	Vector		m_vecLastEyePos;
-	Vector		m_vecLastEyeTarget;
-	Vector		m_vecEyeSpeed;
-	Vector		m_vecTargetSpeed;
-
-	float		m_flViewAngleDeltaTime;
-
-	float		m_flJeepFOV;
-	CHeadlightEffect *m_pHeadlight;
-	bool		m_bHeadlightIsOn;
-};
 
 IMPLEMENT_CLIENTCLASS_DT( C_PropJeep, DT_PropJeep, CPropJeep )
 	RecvPropBool( RECVINFO( m_bHeadlightIsOn ) ),
@@ -83,6 +38,8 @@ C_PropJeep::C_PropJeep()
 	m_vecEyeSpeed.Init();
 	m_flViewAngleDeltaTime = 0.0f;
 	m_pHeadlight = NULL;
+	
+	ConVarRef r_JeepFOV( "r_JeepFOV" );
 	m_ViewSmoothingData.flFOV = r_JeepFOV.GetFloat();
 }
 
@@ -335,14 +292,12 @@ void WheelDustCallback( const CEffectData &data )
 	//Find area ambient light color and use it to tint smoke
 	Vector	worldLight = WorldGetLightForPoint( offset, true );
 
-	PMaterialHandle	hMaterial = pSimple->GetPMaterial("particle/particle_smokegrenade");;
-
 	//Throw puffs
 	offset.Random( -(data.m_flScale*16.0f), data.m_flScale*16.0f );
 	offset.z = 0.0f;
 	offset += data.m_vOrigin + ( data.m_vNormal * data.m_flScale );
 
-	pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof(SimpleParticle), hMaterial, offset );
+	pParticle = (SimpleParticle *) pSimple->AddParticle( sizeof(SimpleParticle), g_Mat_DustPuff[0], offset );
 
 	if ( pParticle != NULL )
 	{			

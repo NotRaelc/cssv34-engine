@@ -14,6 +14,10 @@
 #include "ai_basenpc.h"
 #include "saverestore_utlvector.h"
 
+#ifdef PORTAL
+	#include "portal_util_shared.h"
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -61,6 +65,7 @@ BEGIN_SIMPLE_DATADESC( CAI_Senses )
 	DEFINE_FIELD( m_LookDist,			FIELD_FLOAT	),
 	DEFINE_FIELD( m_LastLookDist, 	FIELD_FLOAT	),
 	DEFINE_FIELD( m_TimeLastLook, 	FIELD_TIME	),
+	DEFINE_FIELD( m_iSensingFlags, FIELD_INTEGER ),
 	//								m_iAudibleList		(no way to save?)
 	DEFINE_UTLVECTOR(m_SeenHighPriority, FIELD_EHANDLE ),
 	DEFINE_UTLVECTOR(m_SeenNPCs, 		FIELD_EHANDLE ),
@@ -162,9 +167,15 @@ bool CAI_Senses::ShouldSeeEntity( CBaseEntity *pSightEnt )
 
 bool CAI_Senses::CanSeeEntity( CBaseEntity *pSightEnt )
 {
-	return ( GetOuter()->FInViewCone( pSightEnt ) && 
-			 GetOuter()->FVisible( pSightEnt ) );
+	return ( GetOuter()->FInViewCone( pSightEnt ) && GetOuter()->FVisible( pSightEnt ) );
 }
+
+#ifdef PORTAL
+bool CAI_Senses::CanSeeEntityThroughPortal( const CProp_Portal *pPortal, CBaseEntity *pSightEnt )
+{
+	return GetOuter()->FVisibleThroughPortal( pPortal, pSightEnt );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 
@@ -358,6 +369,20 @@ bool CAI_Senses::Look( CBaseEntity *pSightEnt )
 	return false;
 }
 
+#ifdef PORTAL
+bool CAI_Senses::LookThroughPortal( const CProp_Portal *pPortal, CBaseEntity *pSightEnt )
+{
+	if ( WaitingUntilSeen( pSightEnt ) )
+		return false;
+
+	if ( ShouldSeeEntity( pSightEnt ) && CanSeeEntityThroughPortal( pPortal, pSightEnt ) )
+	{
+		return SeeEntity( pSightEnt );
+	}
+	return false;
+}
+#endif
+
 //-----------------------------------------------------------------------------
 
 int CAI_Senses::LookForHighPriorityEntities( int iDistance )
@@ -384,6 +409,16 @@ int CAI_Senses::LookForHighPriorityEntities( int iDistance )
 				{
 					nSeen++;
 				}
+#ifdef PORTAL
+				else
+				{
+					CProp_Portal *pPortal = GetOuter()->FInViewConeThroughPortal( pPlayer );
+					if ( pPortal && UTIL_Portal_DistanceThroughPortalSqr( pPortal, origin, pPlayer->GetAbsOrigin() ) < distSq && LookThroughPortal( pPortal, pPlayer ) )
+					{
+						nSeen++;
+					}
+				}
+#endif
 			}
 		}
 	
@@ -618,12 +653,14 @@ void CAI_Senses::PerformSensing( void )
 	// -----------------
 	//  Look	
 	// -----------------
-	Look( m_LookDist );
+	if( !HasSensingFlags(SENSING_FLAGS_DONT_LOOK) )
+		Look( m_LookDist );
 	
 	// ------------------
 	//  Listen
 	// ------------------
-	Listen();
+	if( !HasSensingFlags(SENSING_FLAGS_DONT_LISTEN) )
+		Listen();
 }
 
 //-----------------------------------------------------------------------------

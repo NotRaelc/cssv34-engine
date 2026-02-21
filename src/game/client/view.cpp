@@ -2,11 +2,7 @@
 //
 // Purpose: 
 //
-// $Workfile:     $
-// $Date:         $
-// $NoKeywords: $
 //===========================================================================//
-
 
 #include "cbase.h"
 #include "view.h"
@@ -23,7 +19,7 @@
 #include "tier0/vprof.h"
 #include "IClientVehicle.h"
 #include "engine/IEngineTrace.h"
-#include "vmatrix.h"
+#include "mathlib/vmatrix.h"
 #include "rendertexture.h"
 #include "c_world.h"
 #include <KeyValues.h>
@@ -34,7 +30,8 @@
 #include "input.h"
 #include "filesystem.h"
 #include "materialsystem/itexture.h"
-#include "vstdlib/icommandline.h"
+#include "toolframework_client.h"
+#include "tier0/icommandline.h"
 #include "IEngineVGui.h"
 #include <vgui_controls/Controls.h>
 #include <vgui/ISurface.h>
@@ -44,18 +41,10 @@
 #define USE_MONITORS
 #endif
 
-#ifdef USE_MONITORS
-#include "materialsystem/IMaterialSystem.h"
-#include "materialsystem/IMaterialSystemHardwareConfig.h"
-#include "c_point_camera.h"
-
-#ifdef _XBOX
-#include "xbox/xbox_platform.h"
-#include "xbox/xbox_win32stubs.h"
-#include "xbox/xbox_core.h"
+#ifdef PORTAL
+#include "C_Prop_Portal.h" //portal surface rendering functions
 #endif
 
-#endif // USE_MONITORS
 	
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -68,13 +57,19 @@ bool ToolFramework_SetupEngineMicrophone( Vector &origin, QAngle &angles );
 extern ConVar default_fov;
 extern bool g_bRenderingScreenshot;
 
-#if !defined( _XBOX )
+#if !defined( _X360 )
 #define SAVEGAME_SCREENSHOT_WIDTH	180
 #define SAVEGAME_SCREENSHOT_HEIGHT	100
 #else
 #define SAVEGAME_SCREENSHOT_WIDTH	128
 #define SAVEGAME_SCREENSHOT_HEIGHT	128
 #endif
+
+#ifndef _XBOX
+extern ConVar sensitivity;
+#endif
+
+ConVar zoom_sensitivity_ratio( "zoom_sensitivity_ratio", "1.0", 0, "Additional mouse sensitivity scale factor applied when FOV is zoomed in." );
 
 CViewRender g_DefaultViewRender;
 IViewRender *view = NULL;	// set in cldll_client_init.cpp if no mod creates their own
@@ -98,7 +93,8 @@ static ConVar v_centerspeed( "v_centerspeed","500" );
 // 54 degrees approximates a 35mm camera - we determined that this makes the viewmodels
 // and motions look the most natural.
 ConVar v_viewmodel_fov( "viewmodel_fov", "54", FCVAR_CHEAT );
-ConVar mat_viewportscale( "mat_viewportscale", "1.0", FCVAR_CHEAT );
+static ConVar mat_viewportscale( "mat_viewportscale", "1.0", FCVAR_CHEAT, "Scale down the main viewport (to reduce GPU impact on CPU profiling)",
+								  true, (1.0f / 640.0f), true, 1.0f );
 ConVar cl_leveloverview( "cl_leveloverview", "0", FCVAR_CHEAT );
 
 static ConVar r_mapextents( "r_mapextents", "16384", FCVAR_CHEAT, 
@@ -106,6 +102,7 @@ static ConVar r_mapextents( "r_mapextents", "16384", FCVAR_CHEAT,
 
 // UNDONE: Delete this or move to the material system?
 ConVar	gl_clear( "gl_clear","0");
+ConVar	gl_clear_randomcolor( "gl_clear_randomcolor", "0", FCVAR_CHEAT, "Clear the back buffer to random colors every frame. Helps spot open seams in geometry." );
 
 static ConVar r_farz( "r_farz", "-1", FCVAR_CHEAT, "Override the far clipping plane. -1 means to use the value in env_fog_controller." );
 static ConVar cl_demoviewoverride( "cl_demoviewoverride", "0", 0, "Override view during demo playback" );
@@ -234,26 +231,26 @@ static ConCommand centerview( "centerview", StartPitchDrift );
 //-----------------------------------------------------------------------------
 void CViewRender::Init( void )
 {
-#ifndef _XBOX
+	memset( &m_PitchDrift, 0, sizeof( m_PitchDrift ) );
+
 	m_bDrawOverlay = false;
-#endif
 
 	m_pDrawEntities		= cvar->FindVar( "r_drawentities" );
 	m_pDrawBrushModels	= cvar->FindVar( "r_drawbrushmodels" );
-
-	memset( &m_PitchDrift, 0, sizeof( m_PitchDrift ) );
 
 	beams->InitBeams();
 	tempents->Init();
 
 	m_TranslucentSingleColor.Init( "debug/debugtranslucentsinglecolor", TEXTURE_GROUP_OTHER );
 	m_ModulateSingleColor.Init( "engine/modulatesinglecolor", TEXTURE_GROUP_OTHER );
+	
+	extern CMaterialReference g_material_WriteZ;
+	g_material_WriteZ.Init( "engine/writez", TEXTURE_GROUP_OTHER );
 
 	// FIXME:  
 	QAngle angles;
 	engine->GetViewAngles( angles );
 	AngleVectors( angles, &m_vecLastFacing );
-
 }
 
 
@@ -265,28 +262,17 @@ void CViewRender::LevelInit( void )
 	beams->ClearBeams();
 	tempents->Clear();
 
-	m_FrameNumber = 0;
 	m_BuildWorldListsNumber = 0;
 	m_BuildRenderableListsNumber = 0;
+
+	m_bTakeFreezeFrame = false;
+	m_flFreezeFrameUntil = 0;
 
 	// Clear our overlay materials
 	m_ScreenOverlayMaterial.Init( NULL );
 
 	// Init all IScreenSpaceEffects
 	g_pScreenSpaceEffects->InitScreenSpaceEffects( );
-
-#ifdef _XBOX
-	// set per map
-	extern ConVar mat_bloomscale;
-	if ( mat_bloomscale.GetFloat() )
-	{
-		// setup bloom materials
-		m_BloomDownsample.Init( "dev/downsample_non_hdr", TEXTURE_GROUP_OTHER );
-		m_BloomBlurX.Init( "dev/blurfilterx_nohdr", TEXTURE_GROUP_OTHER );
-		m_BloomBlurY.Init( "dev/blurfiltery_nohdr", TEXTURE_GROUP_OTHER );
-		m_BloomAdd.Init( "dev/bloomadd", TEXTURE_GROUP_OTHER );
-	}
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -294,13 +280,6 @@ void CViewRender::LevelInit( void )
 //-----------------------------------------------------------------------------
 void CViewRender::LevelShutdown( void )
 {
-#ifdef _XBOX
-	// clear bloom materials
-	m_BloomDownsample.Init( NULL );
-	m_BloomBlurX.Init( NULL );
-	m_BloomBlurY.Init( NULL );
-	m_BloomAdd.Init( NULL );
-#endif
 	g_pScreenSpaceEffects->ShutdownScreenSpaceEffects( );
 }
 
@@ -309,6 +288,7 @@ void CViewRender::LevelShutdown( void )
 //-----------------------------------------------------------------------------
 void CViewRender::Shutdown( void )
 {
+
 	m_TranslucentSingleColor.Shutdown( );
 	m_ModulateSingleColor.Shutdown( );
 	beams->ShutdownBeams();
@@ -317,66 +297,12 @@ void CViewRender::Shutdown( void )
 
 
 //-----------------------------------------------------------------------------
-// Returns the frame number
-//-----------------------------------------------------------------------------
-
-int CViewRender::FrameNumber( void ) const
-{
-	return m_FrameNumber;
-}
-
-//-----------------------------------------------------------------------------
 // Returns the worldlists build number
 //-----------------------------------------------------------------------------
 
 int CViewRender::BuildWorldListsNumber( void ) const
 {
 	return m_BuildWorldListsNumber;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Make sure view origin is pretty close so we don't look from inside a wall
-//-----------------------------------------------------------------------------
-void CViewRender::BoundOffsets( void )
-{
-	int	horiz_gap		= 14;
-	int	vert_gap_down	= 22;
-	int vert_gap_up		= 30;
-
-	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
-	if ( !player )
-		return;
-
-	Vector playerOrigin = player->GetAbsOrigin();
-
-	// Absolutely bound refresh reletive to entity clipping hull
-	//  so the view can never be inside a solid wall
-	if ( m_View.origin[0] < ( playerOrigin[0] - horiz_gap ) )
-	{
-		m_View.origin[0] = playerOrigin[0] - horiz_gap;
-	}
-	else if ( m_View.origin[0] > ( playerOrigin[0] + horiz_gap ))
-	{
-		m_View.origin[0] = playerOrigin[0] + horiz_gap;
-	}
-
-	if ( m_View.origin[1] < ( playerOrigin[1] - horiz_gap ) )
-	{
-		m_View.origin[1] = playerOrigin[1] - horiz_gap;
-	}
-	else if ( m_View.origin[1] > ( playerOrigin[1] + horiz_gap ) )
-	{
-		m_View.origin[1] = playerOrigin[1] + horiz_gap;
-	}
-
-	if ( m_View.origin[2] < ( playerOrigin[2] - vert_gap_down ) )
-	{
-		m_View.origin[2] = playerOrigin[2] - vert_gap_down;
-	}
-	else if ( m_View.origin[2] > ( playerOrigin[2] + vert_gap_up ) )
-	{
-		m_View.origin[2] = playerOrigin[2] + vert_gap_up;
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -485,7 +411,58 @@ void CViewRender::DriftPitch (void)
 // simulation so entities can access attachment points on view models during simulation.
 void CViewRender::OnRenderStart()
 {
+	VPROF_("CViewRender::OnRenderStart", 2, VPROF_BUDGETGROUP_OTHER_UNACCOUNTED, false, 0);
 	SetUpView();
+
+	// Adjust mouse sensitivity based upon the current FOV
+	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+	if ( player )
+	{
+		default_fov.SetValue( player->m_iDefaultFOV );
+
+		//Update our FOV, including any zooms going on
+		int iDefaultFOV = default_fov.GetInt();
+		int	localFOV	= player->GetFOV();
+		int min_fov		= player->GetMinFOV();
+
+		// Don't let it go too low
+		localFOV = max( min_fov, localFOV );
+
+		gHUD.m_flFOVSensitivityAdjust = 1.0f;
+#ifndef _XBOX
+		if ( gHUD.m_flMouseSensitivityFactor )
+		{
+			gHUD.m_flMouseSensitivity = sensitivity.GetFloat() * gHUD.m_flMouseSensitivityFactor;
+		}
+		else
+#endif
+		{
+			// No override, don't use huge sensitivity
+			if ( localFOV == iDefaultFOV )
+			{
+#ifndef _XBOX
+				// reset to saved sensitivity
+				gHUD.m_flMouseSensitivity = 0;
+#endif
+			}
+			else
+			{  
+				// Set a new sensitivity that is proportional to the change from the FOV default and scaled
+				//  by a separate compensating factor
+				if ( iDefaultFOV == 0 )
+				{
+					Assert(0); // would divide by zero, something is broken with iDefatulFOV
+					iDefaultFOV = 1;
+				}
+				gHUD.m_flFOVSensitivityAdjust = 
+					((float)localFOV / (float)iDefaultFOV) * // linear fov downscale
+					zoom_sensitivity_ratio.GetFloat(); // sensitivity scale factor
+#ifndef _XBOX
+				gHUD.m_flMouseSensitivity = gHUD.m_flFOVSensitivityAdjust * sensitivity.GetFloat(); // regular sensitivity
+#endif
+			}
+		}
+	}
 }
 
 
@@ -508,36 +485,6 @@ const CViewSetup *CViewRender::GetPlayerViewSetup( void ) const
 	return &m_View;
 }
 
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : origin - 
-//-----------------------------------------------------------------------------
-void CViewRender::AddVisOrigin( const Vector& origin )
-{
-	m_bOverrideVisOrigin = true;
-
-	// Don't allow them to write past array length
-	AssertMsg( m_nNumVisOrigins < MAX_VIS_LEAVES, "Added more origins than will fit in the array!" );
-
-	// If the vis origin count is greater than the size of our array, just fail to add this origin
-	if ( m_nNumVisOrigins >= MAX_VIS_LEAVES )
-		return;
-
-	m_rgVisOrigins[ m_nNumVisOrigins++ ] = origin;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Return to main view with one vis origin, and stop using custom added vis origins
-//			(added via AddVisOrigin).
-// Input  : - 
-//-----------------------------------------------------------------------------
-void CViewRender::ClearAllCustomVisOrigins( void )
-{
-	m_bOverrideVisOrigin = false;
-	m_nNumVisOrigins = 0;
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -546,35 +493,10 @@ void CViewRender::DisableVis( void )
 	m_bForceNoVis = true;
 }
 
-static Vector s_TestOrigin;
-static QAngle s_TestAngles;
-
-//-----------------------------------------------------------------------------
-// Purpose: Overrides the 'view origin' for the purposes of visibility calculation for area portals.
-//			The default behavior is to use the camera's position. This call overrides that position with the parameter
-//			vector for the next BuildWorldLists call (and is then reset to the default behavior)
-// Input: VisOverrideData_t - visData struct which contains an override origin for area portal backface cull tests
-//							  and a float tolerance which determines how close the specified origin must be to
-//							  an area portal boundary before the area portal is considered to take up the whole screen.
-// NOTE: This effects the next drawn scene, then the settings return to default. Call this before each ViewDrawScene
-//-----------------------------------------------------------------------------
-void CViewRender::ForceVisOverride( VisOverrideData_t& visData )
-{
-	m_VisData = visData;
-	m_bOverrideVisData = true;
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Overrides the 'view leaf' for the purposes of determining the starting area for flowing through area portals
-//			The default behavior is to use the camera's position. This call overrides that position with the parameter
-//			vector for the next BuildWorldLists call (and is then reset to the default behavior)
-// Input: pVisOrigin- The origin to use for visibility tests
-// NOTE: This effects the next drawn scene, then the settings return to default. Call this before each ViewDrawScene
-//-----------------------------------------------------------------------------
-void CViewRender::ForceViewLeaf( int iViewLeaf )
-{
-	m_iForceViewLeaf = iViewLeaf;
-}
+#ifdef _DEBUG
+static Vector s_DbgSetupOrigin;
+static QAngle s_DbgSetupAngles;
+#endif
 
 //-----------------------------------------------------------------------------
 // Gets znear + zfar
@@ -594,13 +516,11 @@ float CViewRender::GetZFar()
 		farZ = r_mapextents.GetFloat() * 1.73205080757f;
 		
 		C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
-		if( pPlayer )
+		if( pPlayer && pPlayer->GetFogParams() )
 		{
-			CPlayerLocalData *local = &pPlayer->m_Local;
-
-			if ( local->m_fog.farz > 0 )
+			if ( pPlayer->GetFogParams()->farz > 0 )
 			{
-				farZ = local->m_fog.farz;
+				farZ = pPlayer->GetFogParams()->farz;
 			}
 		}
 	}
@@ -618,6 +538,7 @@ float CViewRender::GetZFar()
 //-----------------------------------------------------------------------------
 void CViewRender::SetUpView()
 {
+	VPROF("CViewRender::SetUpView");
 	// Initialize view structure with default values
 	float farZ = GetZFar();
 
@@ -629,7 +550,6 @@ void CViewRender::SetUpView()
 	m_View.zNearViewmodel	= 1;
 	m_View.fov				= default_fov.GetFloat();
 
-	m_View.context			= 0;
 	m_View.m_bOrtho			= false;
 
 	// Enable spatial partition access to edicts
@@ -637,13 +557,11 @@ void CViewRender::SetUpView()
 
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
-#ifndef _XBOX
 	if ( engine->IsHLTV() )
 	{
 		HLTVCamera()->CalcView( m_View.origin, m_View.angles, m_View.fov );
 	}
 	else
-#endif
 	{
 		// FIXME: Are there multiple views? If so, then what?
 		// FIXME: What happens when there's no player?
@@ -667,17 +585,13 @@ void CViewRender::SetUpView()
 			pPlayer->CalcViewModelView( m_View.origin, m_View.angles );
 		}
 
-		// FIXME:  Should this if go away and we move this code to CalcView?
-		if ( !engine->IsPaused() )
-		{
-			g_pClientMode->OverrideView( &m_View );
-		}
+		// Even if the engine is paused need to override the view
+		// for keeping the camera control during pause.
+		g_pClientMode->OverrideView( &m_View );
 	}
 
-#ifndef _XBOX
 	// give the toolsystem a chance to override the view
 	ToolFramework_SetupEngineView( m_View.origin, m_View.angles, m_View.fov );
-#endif
 
 	if ( engine->IsPlayingDemo() )
 	{
@@ -697,47 +611,56 @@ void CViewRender::SetUpView()
 	float flFOVOffset = default_fov.GetFloat() - m_View.fov;
 
 	//Adjust the viewmodel's FOV to move with any FOV offsets on the viewer's end
-	m_View.fovViewmodel		= g_pClientMode->GetViewModelFOV() - flFOVOffset;
+	m_View.fovViewmodel = fabs(g_pClientMode->GetViewModelFOV() - flFOVOffset);
 
 	// Disable spatical partition access
 	partition->SuppressLists( PARTITION_ALL_CLIENT_EDICTS, true );
-	// Enable access to all model bones
-	C_BaseAnimating::AllowBoneAccess( true, true );
 
-	// Remember the origin, not reflected on a water plane.
-	m_View.m_vUnreflectedOrigin = m_View.origin;
-	
+	// Enable access to all model bones
+	C_BaseAnimating::PopBoneAccess( "OnRenderStart->CViewRender::SetUpView" ); // pops the (true, false) bone access set in OnRenderStart
+	C_BaseAnimating::PushAllowBoneAccess( true, true, "CViewRender::SetUpView->OnRenderEnd" ); // pop is in OnRenderEnd()
+
 	// Compute the world->main camera transform
 	ComputeCameraVariables( m_View.origin, m_View.angles, 
 		&g_vecVForward, &g_vecVRight, &g_vecVUp, &g_matCamInverse );
 
 	// set up the hearing origin...
-#ifndef _XBOX
-	ToolFramework_SetupEngineMicrophone( m_View.origin, m_View.angles );
-#endif
-	engine->SetHearingOrigin( m_View.origin, m_View.angles );
+	AudioState_t audioState;
+	audioState.m_Origin = m_View.origin;
+	audioState.m_Angles = m_View.angles;
+	audioState.m_bIsUnderwater = pPlayer && pPlayer->AudioStateIsUnderwater( m_View.origin );
+
+	ToolFramework_SetupAudioState( audioState );
+
+	m_View.origin = audioState.m_Origin;
+	m_View.angles = audioState.m_Angles;
+
+	engine->SetAudioState( audioState );
 
 	g_vecPrevRenderOrigin = g_vecRenderOrigin;
 	g_vecPrevRenderAngles = g_vecRenderAngles;
 	g_vecRenderOrigin = m_View.origin;
 	g_vecRenderAngles = m_View.angles;
 
-	s_TestOrigin = m_View.origin;
-	s_TestAngles = m_View.angles;
+#ifdef _DEBUG
+	s_DbgSetupOrigin = m_View.origin;
+	s_DbgSetupAngles = m_View.angles;
+#endif
 }
 
 void CViewRender::WriteSaveGameScreenshotOfSize( const char *pFilename, int width, int height )
 {
-	materials->MatrixMode( MATERIAL_PROJECTION );
-	materials->PushMatrix();
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
+	pRenderContext->PushMatrix();
 	
-	materials->MatrixMode( MATERIAL_VIEW );
-	materials->PushMatrix();
+	pRenderContext->MatrixMode( MATERIAL_VIEW );
+	pRenderContext->PushMatrix();
 
 	g_bRenderingScreenshot = true;
 
 	// Push back buffer on the stack with small viewport
-	materials->PushRenderTargetAndViewport( NULL, 0, 0, width, height );
+	pRenderContext->PushRenderTargetAndViewport( NULL, 0, 0, width, height );
 	
 	// render out to the backbuffer
 	CViewSetup viewSetup = m_View;
@@ -747,78 +670,44 @@ void CViewRender::WriteSaveGameScreenshotOfSize( const char *pFilename, int widt
 	viewSetup.height = height;
 	viewSetup.fov = ScaleFOVByWidthRatio( m_View.fov, ( (float)width / (float)height ) / ( 4.0f / 3.0f ) );
 	viewSetup.m_bRenderToSubrectOfLargerScreen = true;
-//	viewSetup.m_bDoBloomAndToneMapping	= true;
 
 	// draw out the scene
 	// Don't draw the HUD or the viewmodel
-	RenderViewEx( viewSetup, VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, 0 );
+	RenderView( viewSetup, VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, 0 );
 
-#ifndef _XBOX
+	// get the data from the backbuffer and save to disk
+	// bitmap bits
+	unsigned char *pImage = ( unsigned char * )malloc( width * 3 * height );
+
+	// Get Bits from the material system
+	pRenderContext->ReadPixels( 0, 0, width, height, pImage, IMAGE_FORMAT_RGB888 );
+
+	// allocate a buffer to write the tga into
+	int iMaxTGASize = 1024 + (width * height * 4);
+	void *pTGA = malloc( iMaxTGASize );
+	CUtlBuffer buffer( pTGA, iMaxTGASize );
+
+	if( !TGAWriter::WriteToBuffer( pImage, buffer, width, height, IMAGE_FORMAT_RGB888, IMAGE_FORMAT_RGB888 ) )
 	{
-		// get the data from the backbuffer and save to disk
-		// bitmap bits
-		unsigned char *pImage = ( unsigned char * )malloc( width * 3 * height );
-
-		// Get Bits from the material system
-		materials->ReadPixels( 0, 0, width, height, pImage, IMAGE_FORMAT_RGB888 );
-
-		// allocate a buffer to write the tga into
-		int iMaxTGASize = 1024 + (width * height * 4);
-		void *pTGA = malloc( iMaxTGASize );
-		CUtlBuffer buffer( pTGA, iMaxTGASize );
-
-		if( !TGAWriter::WriteToBuffer( pImage, buffer, width, height, IMAGE_FORMAT_RGB888, IMAGE_FORMAT_RGB888 ) )
-		{
-			Error( "Couldn't write bitmap data snapshot.\n" );
-		}
-		
-		free( pImage );
-
-		// async write to disk (this will take ownership of the memory)
-		char szPathedFileName[_MAX_PATH];
-		Q_snprintf( szPathedFileName, sizeof(szPathedFileName), "//MOD/%s", pFilename );
-
-		filesystem->AsyncWrite( szPathedFileName, buffer.Base(), buffer.TellPut(), true );
+		Error( "Couldn't write bitmap data snapshot.\n" );
 	}
-#else
-	// get bits from the material system
-	unsigned char *pRawImage = new unsigned char[width*height*4];
-	materials->ReadPixels( 0, 0, width, height, pRawImage, IMAGE_FORMAT_LINEAR_RGBA8888 );	
+	
+	free( pImage );
 
-	int size = 4 + ImageLoader::GetMemRequired( width, height, 1, IMAGE_FORMAT_DXT1, false );
-	int signatureSize = XBX_GetSigSize( XBX_CALCSIG_TYPE );
-	unsigned char *pDxtImage = new unsigned char[size + signatureSize];
+	// async write to disk (this will take ownership of the memory)
+	char szPathedFileName[_MAX_PATH];
+	Q_snprintf( szPathedFileName, sizeof(szPathedFileName), "//MOD/%s", pFilename );
 
-	((short*)pDxtImage)[0] = width;
-	((short*)pDxtImage)[1] = height;
-	XGCompressRect( 
-		pDxtImage + 4, 
-		D3DFMT_DXT1, 
-		0, 
-		width, 
-		height, 
-		pRawImage, 
-		D3DFMT_LIN_A8B8G8R8,
-		width*4, 
-		0, 
-		0 );
-
-	delete [] pRawImage;
-
-	XBX_CalculateSignature( pDxtImage, pDxtImage+size, size, XBX_CALCSIG_TYPE );
-
-	// async write raw bits and free memory
-	filesystem->AsyncWrite( pFilename, pDxtImage, size + signatureSize, true, false );
-#endif
+	filesystem->AsyncWrite( szPathedFileName, buffer.Base(), buffer.TellPut(), true );
 
 	// restore our previous state
-	materials->PopRenderTargetAndViewport();
+	pRenderContext->PopRenderTargetAndViewport();
 	
-	materials->MatrixMode( MATERIAL_PROJECTION );
-	materials->PopMatrix();
+	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
+	pRenderContext->PopMatrix();
 	
-	materials->MatrixMode( MATERIAL_VIEW );
-	materials->PopMatrix();
+	pRenderContext->MatrixMode( MATERIAL_VIEW );
+	pRenderContext->PopMatrix();
 
 	g_bRenderingScreenshot = false;
 }
@@ -829,119 +718,6 @@ void CViewRender::WriteSaveGameScreenshotOfSize( const char *pFilename, int widt
 void CViewRender::WriteSaveGameScreenshot( const char *pFilename )
 {
 	WriteSaveGameScreenshotOfSize( pFilename, SAVEGAME_SCREENSHOT_WIDTH, SAVEGAME_SCREENSHOT_HEIGHT );
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Sets up scene and renders camera view
-// Input  : cameraNum - 
-//			&cameraView
-//			*localPlayer - 
-//			x - 
-//			y - 
-//			width - 
-//			height - 
-//			highend - 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CViewRender::DrawOneMonitor( ITexture *pRenderTarget, int cameraNum, C_PointCamera *pCameraEnt, 
-	const CViewSetup &cameraView, C_BasePlayer *localPlayer, int x, int y, int width, int height )
-{
-#ifdef USE_MONITORS
-	VPROF_INCREMENT_COUNTER( "cameras rendered", 1 );
-	// Setup fog state for the camera.
-	fogparams_t oldFogParams;
-	float flOldZFar = 0.0f;
-
-	bool fogEnabled = pCameraEnt->IsFogEnabled();
-
-	CViewSetup monitorView = cameraView;
-
-	if ( fogEnabled )
-	{	
-		if ( !localPlayer )
-			return false;
-
-		// Save old fog data.
-		oldFogParams = localPlayer->m_Local.m_fog;
-		flOldZFar = cameraView.zFar;
-
-		localPlayer->m_Local.m_fog.enable = true;
-		localPlayer->m_Local.m_fog.start = pCameraEnt->GetFogStart();
-		localPlayer->m_Local.m_fog.end = pCameraEnt->GetFogEnd();
-		localPlayer->m_Local.m_fog.farz = pCameraEnt->GetFogEnd();
-
-		unsigned char r, g, b;
-		pCameraEnt->GetFogColor( r, g, b );
-		localPlayer->m_Local.m_fog.colorPrimary.SetR( r );
-		localPlayer->m_Local.m_fog.colorPrimary.SetG( g );
-		localPlayer->m_Local.m_fog.colorPrimary.SetB( b );
-
-		monitorView.zFar = pCameraEnt->GetFogEnd();
-	}
-
-	monitorView.width = width;
-	monitorView.height = height;
-	monitorView.x = x;
-	monitorView.y = y;
-	monitorView.origin = pCameraEnt->GetAbsOrigin();
-	monitorView.angles = pCameraEnt->GetAbsAngles();
-	monitorView.fov = pCameraEnt->GetFOV();
-	monitorView.m_bOrtho = false;
-	monitorView.m_flAspectRatio = pCameraEnt->UseScreenAspectRatio() ? 0.0f : 1.0f;
-
- 	render->Push3DView( monitorView, VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, true, pRenderTarget, m_Frustum );
-	ViewDrawScene( false, true, monitorView, 0, VIEW_MONITOR );
- 	render->PopView( m_Frustum );
-
-	// Reset the world fog parameters.
-	if ( fogEnabled )
-	{
-		localPlayer->m_Local.m_fog = oldFogParams;
-		monitorView.zFar = flOldZFar;
-	}
-#endif // USE_MONITORS
-	return true;
-}
-
-void CViewRender::DrawMonitors( const CViewSetup &cameraView )
-{
-#ifdef USE_MONITORS
-
-	// Early out if no cameras
-	C_PointCamera *pCameraEnt = GetPointCameraList();
-	if ( !pCameraEnt )
-	{
-		return;
-	}
-
-#ifdef _DEBUG
-	g_bRenderingCameraView = true;
-#endif
-
-	// FIXME: this should check for the ability to do a render target maybe instead.
-	// FIXME: shouldn't have to truck through all of the visible entities for this!!!!
-	ITexture *pCameraTarget = GetCameraTexture();
-	int width = pCameraTarget->GetActualWidth();
-	int height = pCameraTarget->GetActualHeight();
-
-	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
-	
-	for ( int cameraNum = 0; pCameraEnt != NULL; pCameraEnt = pCameraEnt->m_pNext )
-	{
-		if ( !pCameraEnt->IsActive() || pCameraEnt->IsDormant() )
-			continue;
-
-		if ( !DrawOneMonitor( pCameraTarget, cameraNum, pCameraEnt, cameraView, player, 0, 0, width, height ) )
-			continue;
-
-		++cameraNum;
-	}
-
-#ifdef _DEBUG
-	g_bRenderingCameraView = false;
-#endif
-
-#endif // USE_MONITORS
 }
 
 
@@ -988,7 +764,8 @@ void CViewRender::SetUpOverView()
 		oldCRC = newCRC;
 	}
 
-	materials->ClearColor4ub( 0, 255, 0, 255 );
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->ClearColor4ub( 0, 255, 0, 255 );
 
 	// render->DrawTopView( true );
 }
@@ -999,27 +776,22 @@ void CViewRender::SetUpOverView()
 //-----------------------------------------------------------------------------
 void CViewRender::Render( vrect_t *rect )
 {
-	Assert(s_TestOrigin == m_View.origin);
-	Assert(s_TestAngles == m_View.angles);
+	Assert(s_DbgSetupOrigin == m_View.origin);
+	Assert(s_DbgSetupAngles == m_View.angles);
 
 	VPROF_BUDGET( "CViewRender::Render", "CViewRender::Render" );
 
 	vrect_t vr = *rect;
 
 	// Stub out the material system if necessary.
-#ifndef _XBOX
 	CMatStubHandler matStub;
-#endif
+
 	bool drawViewModel;
 
 	engine->EngineStats_BeginFrame();
 	
 	// Assume normal vis
 	m_bForceNoVis			= false;
-	m_bOverrideVisOrigin	= false;
-	m_nNumVisOrigins		= 0;
-	m_bOverrideVisData		= false;
-	m_iForceViewLeaf		= -1;
 
 	float aspectRatio = engine->GetScreenAspectRatio() * 0.75f;	 // / (4/3)
 	m_View.fov = ScaleFOVByWidthRatio( m_View.fov,  aspectRatio );
@@ -1029,27 +801,29 @@ void CViewRender::Render( vrect_t *rect )
 	g_pClientMode->PreRender(&m_View);
 
 	g_pClientMode->AdjustEngineViewport( vr.x, vr.y, vr.width, vr.height );
-#if !defined( _XBOX )
+
 	ToolFramework_AdjustEngineViewport( vr.x, vr.y, vr.width, vr.height );
-#endif
 
 	float flViewportScale = mat_viewportscale.GetFloat();
-	if ( flViewportScale == 0.0f )
-	{
-		flViewportScale = 1.0f;
-	}
+
+	float engineAspectRatio = engine->GetScreenAspectRatio();
 
 	m_View.x				= vr.x;
 	m_View.y				= vr.y;
 	m_View.width			= vr.width * flViewportScale;
 	m_View.height			= vr.height * flViewportScale;
-	m_View.m_flAspectRatio	= (float)m_View.width / (float)m_View.height;
-#ifdef _XBOX
-	m_View.m_flAspectRatio *= aspectRatio;	// xbox is anamorphic, scale to match pixel shape
-#endif
+	m_View.m_flAspectRatio	= ( engineAspectRatio > 0.0f ) ? engineAspectRatio : ( (float)m_View.width / (float)m_View.height );
 
 	int nClearFlags = VIEW_CLEAR_DEPTH;
-	if ( gl_clear.GetInt() != 0 )
+
+	if( gl_clear_randomcolor.GetBool() )
+	{
+		CMatRenderContextPtr pRenderContext( materials );
+		pRenderContext->ClearColor3ub( rand()%256, rand()%256, rand()%256 );
+		pRenderContext->ClearBuffers( true, false, false );
+		pRenderContext->Release();
+	}
+	else if ( gl_clear.GetBool() )
 	{
 		nClearFlags |= VIEW_CLEAR_COLOR;
 	}
@@ -1077,13 +851,18 @@ void CViewRender::Render( vrect_t *rect )
 
 	render->SetMainView( m_View.origin, m_View.angles );
 
-	RenderView( m_View, nClearFlags, drawViewModel );
+	int flags = RENDERVIEW_DRAWHUD;
+	if ( drawViewModel )
+	{
+		flags |= RENDERVIEW_DRAWVIEWMODEL;
+	}
+	RenderView( m_View, nClearFlags, flags );
 
 	g_pClientMode->PostRender();
 
 	engine->EngineStats_EndFrame();
 
-#ifndef _XBOX
+#if !defined( _X360 )
 	// Stop stubbing the material system so we can see the budget panel
 	matStub.End();
 #endif
@@ -1095,20 +874,50 @@ void CViewRender::Render( vrect_t *rect )
 	view2d.y				= rect->y;
 	view2d.width			= rect->width;
 	view2d.height			= rect->height;
-	render->Push2DView( view2d, 0, false, NULL, m_Frustum );
+	render->Push2DView( view2d, 0, NULL, GetFrustum() );
 	render->VGui_Paint( PAINT_UIPANELS );
-	render->PopView( m_Frustum );
+	render->PopView( GetFrustum() );
+}
+
+static void GetPos( const CCommand &args, Vector &vecOrigin, QAngle &angles )
+{
+	vecOrigin = MainViewOrigin();
+	angles = MainViewAngles();
+	if ( args.ArgC() == 2 && atoi( args[1] ) == 2 )
+	{
+		C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+		if ( pPlayer )
+		{
+			vecOrigin = pPlayer->GetAbsOrigin();
+			angles = pPlayer->GetAbsAngles();
+		}
+	}
 }
 
 CON_COMMAND( spec_pos, "dump position and angles to the console" )
 {
-	Warning( "spec_goto %.1f %.1f %.1f %.1f %.1f\n", MainViewOrigin().x, MainViewOrigin().y, 
-		MainViewOrigin().z, MainViewAngles().x, MainViewAngles().y );
+	Vector vecOrigin;
+	QAngle angles;
+	GetPos( args, vecOrigin, angles );
+	Warning( "spec_goto %.1f %.1f %.1f %.1f %.1f\n", vecOrigin.x, vecOrigin.y, 
+		vecOrigin.z, angles.x, angles.y );
 }
 
 CON_COMMAND( getpos, "dump position and angles to the console" )
 {
-	Warning( "setpos %f %f %f;", MainViewOrigin().x, MainViewOrigin().y, MainViewOrigin().z );
-	Warning( "setang %f %f %f\n", MainViewAngles().x, MainViewAngles().y, MainViewAngles().z );
+	Vector vecOrigin;
+	QAngle angles;
+	GetPos( args, vecOrigin, angles );
+
+	const char *pCommand1 = "setpos";
+	const char *pCommand2 = "setang";
+	if ( args.ArgC() == 2 && atoi( args[1] ) == 2 )
+	{
+		pCommand1 = "setpos_exact";
+		pCommand2 = "setang_exact";
+	}
+
+	Warning( "%s %f %f %f;", pCommand1, vecOrigin.x, vecOrigin.y, vecOrigin.z );
+	Warning( "%s %f %f %f\n", pCommand2, angles.x, angles.y, angles.z );
 }
 

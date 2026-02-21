@@ -24,7 +24,6 @@ CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectSplash )
 CLIENTEFFECT_MATERIAL( "effects/splash1" )
 CLIENTEFFECT_MATERIAL( "effects/splash2" )
 CLIENTEFFECT_MATERIAL( "effects/splash4" )
-CLIENTEFFECT_MATERIAL( "effects/splashwake1" )
 CLIENTEFFECT_MATERIAL( "effects/slime1" )
 CLIENTEFFECT_REGISTER_END()
 
@@ -295,6 +294,8 @@ void FX_GunshotSlimeSplash( const Vector &origin, const Vector &normal, float sc
 
 	VPROF_BUDGET( "FX_GunshotSlimeSplash", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
 	
+#if 0
+
 	float	colorRamp;
 	float	flScale = min( 1.0f, scale / 8.0f );
 
@@ -407,6 +408,25 @@ void FX_GunshotSlimeSplash( const Vector &origin, const Vector &normal, float sc
 		pParticle->m_flRoll			= random->RandomInt( 0, 360 );
 		pParticle->m_flRollDelta	= random->RandomFloat( -4.0f, 4.0f );
 	}
+	
+#else
+	
+	QAngle vecAngles;
+	VectorAngles( normal, vecAngles );
+	if ( scale < 2.0f )
+	{
+		DispatchParticleEffect( "slime_splash_01", origin, vecAngles );
+	}
+	else if ( scale < 4.0f )
+	{
+		DispatchParticleEffect( "slime_splash_02", origin, vecAngles );
+	}
+	else
+	{
+		DispatchParticleEffect( "slime_splash_03", origin, vecAngles );
+	}
+
+#endif
 
 	//Play a sound
 	CLocalPlayerFilter filter;

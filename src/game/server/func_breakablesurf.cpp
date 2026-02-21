@@ -1193,7 +1193,7 @@ void CBreakableSurface::VPhysicsCollision( int index, gamevcollisionevent_t *pEv
 		if ( damage > 10 )
 		{
 			// HACKHACK: Reset mass to get correct collision response for the object breaking this
-			pEvent->pObjects[index]->SetMass( 10.0f );
+			pEvent->pObjects[index]->SetMass( 2.0f );
 
 			Vector normal, damagePos;
 			pEvent->pInternalData->GetSurfaceNormal( normal );

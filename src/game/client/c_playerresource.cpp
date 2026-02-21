@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "c_playerresource.h"
 #include "c_team.h"
+#include "gamestringpool.h"
 
 #ifdef HL2MP
 #include "hl2mp_gamerules.h"
@@ -14,6 +15,9 @@
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+const float PLAYER_RESOURCE_THINK_INTERVAL = 0.2f;
+#define PLAYER_UNCONNECTED_NAME	"unconnected"
 
 IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_PlayerResource, DT_PlayerResource, CPlayerResource)
 	RecvPropArray3( RECVINFO_ARRAY(m_iPing), RecvPropInt( RECVINFO(m_iPing[0]))),
@@ -25,6 +29,19 @@ IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_PlayerResource, DT_PlayerResource, CPlayerReso
 	RecvPropArray3( RECVINFO_ARRAY(m_iHealth), RecvPropInt( RECVINFO(m_iHealth[0]))),
 END_RECV_TABLE()
 
+BEGIN_PREDICTION_DATA( C_PlayerResource )
+
+	DEFINE_PRED_ARRAY( m_szName, FIELD_STRING, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_iPing, FIELD_INTEGER, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_iScore, FIELD_INTEGER, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_iDeaths, FIELD_INTEGER, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_bConnected, FIELD_BOOLEAN, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_iTeam, FIELD_INTEGER, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_bAlive, FIELD_BOOLEAN, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+	DEFINE_PRED_ARRAY( m_iHealth, FIELD_INTEGER, MAX_PLAYERS+1, FTYPEDESC_PRIVATE ),
+
+END_PREDICTION_DATA()	
+
 C_PlayerResource *g_PR;
 
 IGameResources * GameResources( void ) { return g_PR; }
@@ -34,7 +51,6 @@ IGameResources * GameResources( void ) { return g_PR; }
 //-----------------------------------------------------------------------------
 C_PlayerResource::C_PlayerResource()
 {
-	memset( m_szName, 0, sizeof( m_szName ) );
 	memset( m_iPing, 0, sizeof( m_iPing ) );
 //	memset( m_iPacketloss, 0, sizeof( m_iPacketloss ) );
 	memset( m_iScore, 0, sizeof( m_iScore ) );
@@ -66,31 +82,67 @@ C_PlayerResource::~C_PlayerResource()
 	g_PR = NULL;
 }
 
+void C_PlayerResource::OnDataChanged(DataUpdateType_t updateType)
+{
+	BaseClass::OnDataChanged( updateType );
+	if ( updateType == DATA_UPDATE_CREATED )
+	{
+		SetNextClientThink( gpGlobals->curtime + PLAYER_RESOURCE_THINK_INTERVAL );
+	}
+}
+
+void C_PlayerResource::UpdatePlayerName( int slot )
+{
+	if ( slot < 1 || slot > MAX_PLAYERS )
+	{
+		Error( "UpdatePlayerName with bogus slot %d\n", slot );
+		return;
+	}
+	player_info_t sPlayerInfo;
+	if ( IsConnected( slot ) && engine->GetPlayerInfo( slot, &sPlayerInfo ) )
+	{
+		m_szName[slot] = AllocPooledString( sPlayerInfo.name );
+	}
+	else
+	{
+		m_szName[slot] = AllocPooledString( PLAYER_UNCONNECTED_NAME );
+	}
+}
+
+void C_PlayerResource::ClientThink()
+{
+	BaseClass::ClientThink();
+
+	for ( int i = 1; i <= gpGlobals->maxClients; ++i )
+	{
+		UpdatePlayerName( i );
+	}
+
+	SetNextClientThink( gpGlobals->curtime + PLAYER_RESOURCE_THINK_INTERVAL );
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 const char *C_PlayerResource::GetPlayerName( int iIndex )
 {
-	if ( iIndex < 0 || iIndex > MAX_PLAYERS )
+	if ( iIndex < 1 || iIndex > MAX_PLAYERS )
 	{
 		Assert( false );
 		return "ERRORNAME";
 	}
 	
 	if ( !IsConnected( iIndex ) )
-		return "unconnected";
+		return PLAYER_UNCONNECTED_NAME;
 
-	// Yuck, make sure it's up to date
-	player_info_t sPlayerInfo;
-	if ( engine->GetPlayerInfo( iIndex, &sPlayerInfo ) )
+	// X360TBD: Network - figure out why the name isn't set
+	if ( !m_szName[ iIndex ] || !Q_stricmp( m_szName[ iIndex ], PLAYER_UNCONNECTED_NAME ) )
 	{
-		Q_strncpy( m_szName[iIndex], sPlayerInfo.name, MAX_PLAYER_NAME_LENGTH );
+		// If you get a full "reset" uncompressed update from server, then you can have NULLNAME show up in the scoreboard
+		UpdatePlayerName( iIndex );
 	}
-	else
-	{
-		return "unconnected";
-	}
-	
+
+	// This gets updated in ClientThink, so it could be up to 1 second out of date, oh well.
 	return m_szName[iIndex];
 }
 
@@ -101,7 +153,7 @@ bool C_PlayerResource::IsAlive(int iIndex )
 
 int C_PlayerResource::GetTeam(int iIndex )
 {
-	if ( iIndex < 0 || iIndex > MAX_PLAYERS )
+	if ( iIndex < 1 || iIndex > MAX_PLAYERS )
 	{
 		Assert( false );
 		return 0;
@@ -255,7 +307,7 @@ const Color &C_PlayerResource::GetTeamColor(int index )
 //-----------------------------------------------------------------------------
 bool C_PlayerResource::IsConnected( int iIndex )
 {
-	if ( iIndex < 0 || iIndex > MAX_PLAYERS )
+	if ( iIndex < 1 || iIndex > MAX_PLAYERS )
 		return false;
 	else
 		return m_bConnected[iIndex];

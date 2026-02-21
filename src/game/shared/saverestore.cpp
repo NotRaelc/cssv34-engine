@@ -14,7 +14,7 @@
 #include "decals.h"
 #include "gamerules.h"
 #include "bspfile.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 #include "engine/IEngineSound.h"
 #include "saverestoretypes.h"
 #include "saverestore_utlvector.h"
@@ -23,6 +23,7 @@
 #include "interval.h"
 #include "vphysics/object_hash.h"
 #include "datacache/imdlcache.h"
+#include "tier0/vprof.h"
 
 #if !defined( CLIENT_DLL )
 
@@ -57,37 +58,39 @@ ASSERT_INVARIANT( sizeof(EHandlePlaceholder_t) == sizeof(EHANDLE) );
 
 static int gSizes[FIELD_TYPECOUNT] = 
 {
-	CDatamapFieldSizeDeducer<FIELD_VOID>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_FLOAT>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_STRING>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_VECTOR>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_QUATERNION>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_INTEGER>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_BOOLEAN>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_SHORT>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_CHARACTER>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_COLOR32>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_EMBEDDED>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_CUSTOM>::FieldSize(),
+	FIELD_SIZE( FIELD_VOID ),
+	FIELD_SIZE( FIELD_FLOAT ),
+	FIELD_SIZE( FIELD_STRING ),
+	FIELD_SIZE( FIELD_VECTOR ),
+	FIELD_SIZE( FIELD_QUATERNION ),
+	FIELD_SIZE( FIELD_INTEGER ),
+	FIELD_SIZE( FIELD_BOOLEAN ),
+	FIELD_SIZE( FIELD_SHORT ),
+	FIELD_SIZE( FIELD_CHARACTER ),
+	FIELD_SIZE( FIELD_COLOR32 ),
+	FIELD_SIZE( FIELD_EMBEDDED ),
+	FIELD_SIZE( FIELD_CUSTOM ),
 	
-	CDatamapFieldSizeDeducer<FIELD_CLASSPTR>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_EHANDLE>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_EDICT>::FieldSize(),
+	FIELD_SIZE( FIELD_CLASSPTR ),
+	FIELD_SIZE( FIELD_EHANDLE ),
+	FIELD_SIZE( FIELD_EDICT ),
 
-	CDatamapFieldSizeDeducer<FIELD_POSITION_VECTOR>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_TIME>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_TICK>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_MODELNAME>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_SOUNDNAME>::FieldSize(),
+	FIELD_SIZE( FIELD_POSITION_VECTOR ),
+	FIELD_SIZE( FIELD_TIME ),
+	FIELD_SIZE( FIELD_TICK ),
+	FIELD_SIZE( FIELD_MODELNAME ),
+	FIELD_SIZE( FIELD_SOUNDNAME ),
 
-	CDatamapFieldSizeDeducer<FIELD_INPUT>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_FUNCTION>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_VMATRIX>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_VMATRIX_WORLDSPACE>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_MATRIX3X4_WORLDSPACE>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_INTERVAL>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_MODELINDEX>::FieldSize(),
-	CDatamapFieldSizeDeducer<FIELD_MATERIALINDEX>::FieldSize(),
+	FIELD_SIZE( FIELD_INPUT ),
+	FIELD_SIZE( FIELD_FUNCTION ),
+	FIELD_SIZE( FIELD_VMATRIX ),
+	FIELD_SIZE( FIELD_VMATRIX_WORLDSPACE ),
+	FIELD_SIZE( FIELD_MATRIX3X4_WORLDSPACE ),
+	FIELD_SIZE( FIELD_INTERVAL ),
+	FIELD_SIZE( FIELD_MODELINDEX ),
+	FIELD_SIZE( FIELD_MATERIALINDEX ),
+
+	FIELD_SIZE( FIELD_VECTOR2D ),
 };
 
 
@@ -173,12 +176,31 @@ void *UTIL_FunctionFromName( datamap_t *pMap, const char *pName )
 
 CSave::CSave( CSaveRestoreData *pdata )
  :	m_pData(pdata),
-	m_pGameInfo( pdata )
+	m_pGameInfo( pdata ),
+	m_bAsync( pdata->bAsync )
 {
 	m_BlockStartStack.EnsureCapacity( 32 );
 
 	// Logging.
 	m_hLogFile = NULL;
+}
+
+//-------------------------------------
+
+inline int CSave::DataEmpty( const char *pdata, int size )
+{
+	if ( size != 4 )
+	{
+		const char *pLimit = pdata + size;
+		while ( pdata < pLimit )
+		{
+			if ( *pdata++ )
+				return 0;
+		}
+		return 1;
+	}
+
+	return ( *((int *)pdata) == 0 );
 }
 
 //-----------------------------------------------------------------------------
@@ -320,6 +342,13 @@ void CSave::Log( const char *pName, fieldtype_t fieldType, void *value, int coun
 
 	int nLength = strlen( szBuf ) + 1;
 	filesystem->Write( szBuf, nLength, m_hLogFile );
+}
+
+//-------------------------------------
+
+bool CSave::IsAsync()
+{
+	return m_bAsync;
 }
 
 //-------------------------------------
@@ -593,6 +622,12 @@ bool CSave::ShouldSaveField( const void *pData, typedescription_t *pField )
 			if ( (pField->flags & FTYPEDESC_PTR) && !*((void **)pData) )
 				return false;
 
+			// @TODO: need real logic for handling embedded types with base classes
+			if ( pField->td->baseMap )
+			{
+				return true;
+			}
+
 			int nFieldCount = pField->fieldSize;
 			char *pTestData = (char *)( ( !(pField->flags & FTYPEDESC_PTR) ) ? pData : *((void **)pData) );
 			while ( --nFieldCount >= 0 )
@@ -765,39 +800,46 @@ bool CSave::WriteField( const char *pname, void *pData, datamap_t *pRootMap, typ
 
 //-------------------------------------
 
-int CSave::CountFieldsToSave( const void *pBaseData, typedescription_t *pFields, int fieldCount )
-{
-	int result = 0;
-	for ( int i = 0; i < fieldCount; i++ )
-	{
-		if ( ShouldSaveField( (char *)pBaseData + pFields[i].fieldOffset[ TD_OFFSET_NORMAL ], &pFields[i] ) )
-			result++;
-	}
-	return result;
-}
-
-//-------------------------------------
-
 int CSave::WriteFields( const char *pname, const void *pBaseData, datamap_t *pRootMap, typedescription_t *pFields, int fieldCount )
 {
-	int				i, actualCount;
 	typedescription_t *pTest;
+	int iHeaderPos = m_pData->GetCurPos();
+	int count = -1;
+	WriteInt( pname, &count, 1 );
 
-	// Empty fields will not be written, write out the actual number of fields to be written
-	actualCount = CountFieldsToSave( pBaseData, pFields, fieldCount );
-	WriteInt( pname, &actualCount, 1 );
+	count = 0;
 
-	for ( i = 0; i < fieldCount; i++ )
+#ifdef _X360
+	__dcbt( 0, pBaseData );
+	__dcbt( 128, pBaseData );
+	__dcbt( 256, pBaseData );
+	__dcbt( 512, pBaseData );
+	void *pDest = m_pData->AccessCurPos();	
+	__dcbt( 0, pDest );
+	__dcbt( 128, pDest );
+	__dcbt( 256, pDest );
+	__dcbt( 512, pDest );
+#endif
+
+	for ( int i = 0; i < fieldCount; i++ )
 	{
 		pTest = &pFields[ i ];
-
 		void *pOutputData = ( (char *)pBaseData + pTest->fieldOffset[ TD_OFFSET_NORMAL ] );
+			
 		if ( !ShouldSaveField( pOutputData, pTest ) )
 			continue;
-			
+
 		if ( !WriteField( pname, pOutputData, pRootMap, pTest ) )
 			break;
+		count++;
 	}
+
+	int iCurPos = m_pData->GetCurPos();
+	int iRewind = iCurPos - iHeaderPos;
+	m_pData->Rewind( iRewind );
+	WriteInt( pname, &count, 1 );
+	iCurPos = m_pData->GetCurPos();
+	m_pData->MoveCurPos( iRewind - ( iCurPos - iHeaderPos ) );
 
 	return 1;
 }
@@ -863,18 +905,6 @@ void CSave::BufferString( char *pdata, int len )
 
 //-------------------------------------
 
-int CSave::DataEmpty( const char *pdata, int size )
-{
-	for ( int i = 0; i < size; i++ )
-	{
-		if ( pdata[i] )
-			return 0;
-	}
-	return 1;
-}
-
-//-------------------------------------
-
 void CSave::BufferField( const char *pname, int size, const char *pdata )
 {
 	WriteHeader( pname, size );
@@ -932,19 +962,7 @@ int	CSave::EntityIndex( const edict_t *pentLookup )
 
 int	CSave::EntityIndex( const CBaseEntity *pEntity )
 {
-	if ( !m_pGameInfo || pEntity == NULL )
-		return -1;
-
-	int i;
-	entitytable_t *pTable;
-
-	for ( i = 0; i < m_pGameInfo->NumEntities(); i++ )
-	{
-		pTable = m_pGameInfo->GetEntityInfo( i );
-		if ( pTable->hEnt == pEntity )
-			return pTable->id;
-	}
-	return -1;
+	return m_pGameInfo->GetEntityIndex( pEntity );
 }
 
 //-------------------------------------
@@ -1111,16 +1129,14 @@ void CSave::WriteFunction( datamap_t *pRootMap, const char *pname, const int *da
 {
 	AssertMsg( count == 1, "Arrays of functions not presently supported" );
 	const char *functionName = UTIL_FunctionToName( pRootMap, (void *)(*data) );
-
-	if ( functionName )
-	{
-		BufferField( pname, strlen(functionName) + 1, functionName );
-	}
-	else
+	if ( !functionName )
 	{
 		Warning( "Invalid function pointer in entity!\n" );
 		Assert(0);
+		functionName = "BADFUNCTIONPOINTER";
 	}
+
+	BufferField( pname, strlen(functionName) + 1, functionName );
 }
 
 //-------------------------------------
@@ -2060,6 +2076,17 @@ void CRestore::ReadGameField( const SaveRestoreRecordHeader_t &header, void *pDe
 			int nRead = ReadString( pStringDest, pField->fieldSize, header.size );
 			if ( m_precache )
 			{
+#if !defined( CLIENT_DLL )
+				// HACKHACK: Rewrite the .bsp models to match the map name in case the bugreporter renamed it
+				if ( pField->fieldType == FIELD_MODELNAME && Q_stristr(pStringDest->ToCStr(), ".bsp") )
+				{
+					char buf[MAX_PATH];
+					Q_strncpy( buf, "maps/", sizeof(buf) );
+					Q_strncat( buf, gpGlobals->mapname.ToCStr(), sizeof(buf) );
+					Q_strncat( buf, ".bsp", sizeof(buf) );
+					*pStringDest = AllocPooledString( buf );
+				}
+#endif
 				for ( int i = 0; i < nRead; i++ )
 				{
 					if ( pStringDest[i] != NULL_STRING )
@@ -2363,6 +2390,7 @@ const char *CEntitySaveRestoreBlockHandler::GetBlockName()
 
 void CEntitySaveRestoreBlockHandler::PreSave( CSaveRestoreData *pSaveData )
 {
+	MDLCACHE_CRITICAL_SECTION();
 	IGameSystem::OnSaveAllSystems();
 
 	m_EntitySaveUtils.PreSave();
@@ -2377,35 +2405,34 @@ void CEntitySaveRestoreBlockHandler::PreSave( CSaveRestoreData *pSaveData )
 #else
 	// Do this because it'll force entities to figure out their origins, and that requires
 	// SetupBones in the case of aiments.
-	C_BaseAnimating::PushAllowBoneAccess( true, true );
-	
-	int last = ClientEntityList().GetHighestEntityIndex();
-	ClientEntityHandle_t iter = ClientEntityList().FirstHandle();
-
-	for ( int e = 0; e <= last; e++ )
 	{
-		pEnt = ClientEntityList().GetBaseEntity( e );
+		C_BaseAnimating::AutoAllowBoneAccess boneaccess( true, true );
 
-		if(  !pEnt )
-			continue;
-	
-		pEnt->OnSave();
-	}
+		int last = ClientEntityList().GetHighestEntityIndex();
+		ClientEntityHandle_t iter = ClientEntityList().FirstHandle();
 
-	while ( iter != ClientEntityList().InvalidHandle() )
-	{
-		pEnt = ClientEntityList().GetBaseEntityFromHandle( iter );
-
-		if ( pEnt && pEnt->ObjectCaps() & FCAP_SAVE_NON_NETWORKABLE ) 
+		for ( int e = 0; e <= last; e++ )
 		{
+			pEnt = ClientEntityList().GetBaseEntity( e );
+
+			if(  !pEnt )
+				continue;
+
 			pEnt->OnSave();
 		}
 
-		iter = ClientEntityList().NextHandle( iter );
-	}
-	
+		while ( iter != ClientEntityList().InvalidHandle() )
+		{
+			pEnt = ClientEntityList().GetBaseEntityFromHandle( iter );
 
-	C_BaseAnimating::PopBoneAccess();
+			if ( pEnt && pEnt->ObjectCaps() & FCAP_SAVE_NON_NETWORKABLE ) 
+			{
+				pEnt->OnSave();
+			}
+
+			iter = ClientEntityList().NextHandle( iter );
+		}
+	}
 #endif
 	SaveInitEntities( pSaveData );
 }
@@ -2492,6 +2519,10 @@ void CEntitySaveRestoreBlockHandler::ReadRestoreHeaders( IRestore *pRestore )
 	pRestore->ReadInt( &nEntities );
 
 	entitytable_t *pEntityTable = ( entitytable_t *)engine->SaveAllocMemory( (sizeof(entitytable_t) * nEntities), sizeof(char) );
+	if ( !pEntityTable )
+	{
+		return;
+	}
 
 	pSaveData->InitEntityTable( pEntityTable, nEntities );
 	
@@ -2705,8 +2736,8 @@ void SaveEntityOnTable( CBaseEntity *pEntity, CSaveRestoreData *pSaveData, int &
 	pEntInfo->edictindex = pEntity->RequiredEdictIndex();
 #else
 	pEntInfo->edictindex = -1;
-	pEntInfo->modelname = pEntity->GetModelName();
 #endif
+	pEntInfo->modelname = pEntity->GetModelName();
 	pEntInfo->restoreentityindex = -1;
 	pEntInfo->saveentityindex = pEntity ? pEntity->entindex() : -1;
 	pEntInfo->hEnt = pEntity;
@@ -2731,6 +2762,9 @@ bool CEntitySaveRestoreBlockHandler::SaveInitEntities( CSaveRestoreData *pSaveDa
 	number_of_entities = ClientEntityList().NumberOfEntities( true );
 #endif
 	entitytable_t *pEntityTable = ( entitytable_t *)engine->SaveAllocMemory( (sizeof(entitytable_t) * number_of_entities), sizeof(char) );
+	if ( !pEntityTable )
+		return false;
+
 	pSaveData->InitEntityTable( pEntityTable, number_of_entities );
 
 	// build the table of entities
@@ -2770,6 +2804,8 @@ bool CEntitySaveRestoreBlockHandler::SaveInitEntities( CSaveRestoreData *pSaveDa
 		iter = ClientEntityList().NextHandle( iter );
 	}
 #endif
+
+	pSaveData->BuildEntityHash();
 
 	Assert( i == pSaveData->NumEntities() );
 	return ( i == pSaveData->NumEntities() );
@@ -2958,7 +2994,7 @@ CSaveRestoreData *SaveInit( int size )
 {
 	CSaveRestoreData	*pSaveData;
 
-#ifdef DISABLE_DEBUG_HISTORY
+#if ( defined( CLIENT_DLL ) || defined( DISABLE_DEBUG_HISTORY ) )
 	if ( size <= 0 )
 		size = 2*1024*1024;		// Reserve 2048K for now, UNDONE: Shrink this after compressing strings
 #else
@@ -2974,11 +3010,24 @@ CSaveRestoreData *SaveInit( int size )
 	numentities = ClientEntityList().NumberOfEntities();
 #endif
 
-	pSaveData = MakeSaveRestoreData(engine->SaveAllocMemory( sizeof(CSaveRestoreData) + (sizeof(entitytable_t) * numentities) + size, sizeof(char) ));
+	void *pSaveMemory = engine->SaveAllocMemory( sizeof(CSaveRestoreData) + (sizeof(entitytable_t) * numentities) + size, sizeof(char) );
+	if ( !pSaveMemory )
+	{
+		return NULL;
+	}
+
+	pSaveData = MakeSaveRestoreData( pSaveMemory );
 	pSaveData->Init( (char *)(pSaveData + 1), size );	// skip the save structure
 	
 	const int nTokens = 0xfff; // Assume a maximum of 4K-1 symbol table entries(each of some length)
-	pSaveData->InitSymbolTable( (char **)engine->SaveAllocMemory( nTokens, sizeof( char * ) ), nTokens );
+	pSaveMemory = engine->SaveAllocMemory( nTokens, sizeof( char * ) );
+	if ( !pSaveMemory )
+	{
+		engine->SaveFreeMemory( pSaveMemory );
+		return NULL;
+	}
+
+	pSaveData->InitSymbolTable( (char **)pSaveMemory, nTokens );
 
 	//---------------------------------
 	

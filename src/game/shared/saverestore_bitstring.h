@@ -17,10 +17,10 @@
 //-------------------------------------
 
 template <class BITSTRING>
-class CBitStringSaveRestoreOps : public CDefSaveRestoreOps
+class CVarBitVecSaveRestoreOps : public CDefSaveRestoreOps
 {
 public:
-	CBitStringSaveRestoreOps()
+	CVarBitVecSaveRestoreOps()
 	{
 	}
 
@@ -28,9 +28,9 @@ public:
 	virtual void Save( const SaveRestoreFieldInfo_t &fieldInfo, ISave *pSave )
 	{
 		BITSTRING *pBitString = (BITSTRING *)fieldInfo.pField;
-		int numBits = pBitString->Size();
+		int numBits = pBitString->GetNumBits();
 		pSave->WriteInt( &numBits );
-		pSave->WriteInt( pBitString->GetInts(), pBitString->GetNumInts() );
+		pSave->WriteInt( pBitString->Base(), pBitString->GetNumDWords() );
 	}
 	
 	virtual void Restore( const SaveRestoreFieldInfo_t &fieldInfo, IRestore *pRestore )
@@ -41,12 +41,12 @@ public:
 			pBitString->Resize( numBits );
 		else
 		{
-			Assert( pBitString->Size() >= numBits );
-			pBitString->ClearAllBits();
+			Assert( pBitString->GetNumBits() >= numBits );
+			pBitString->ClearAll();
 		}
 		int numIntsInStream = CalcNumIntsForBits( numBits );
-		int readSize = min( pBitString->GetNumInts(), numIntsInStream );
-		pRestore->ReadInt( pBitString->GetInts(), numIntsInStream );
+		int readSize = min( pBitString->GetNumDWords(), numIntsInStream );
+		pRestore->ReadInt( pBitString->Base(), numIntsInStream );
 
 		numIntsInStream -= readSize;
 		while ( numIntsInStream-- > 0 )
@@ -59,7 +59,7 @@ public:
 	virtual void MakeEmpty( const SaveRestoreFieldInfo_t &fieldInfo )
 	{
 		BITSTRING *pBitString = (BITSTRING *)fieldInfo.pField;
-		pBitString->ClearAllBits();
+		pBitString->ClearAll();
 	}
 
 	virtual bool IsEmpty( const SaveRestoreFieldInfo_t &fieldInfo )
@@ -74,7 +74,7 @@ public:
 template <class BITSTRING>
 ISaveRestoreOps *GetBitstringDataOps(BITSTRING *)
 {
-	static CBitStringSaveRestoreOps<BITSTRING> ops;
+	static CVarBitVecSaveRestoreOps<BITSTRING> ops;
 	return &ops;
 }
 

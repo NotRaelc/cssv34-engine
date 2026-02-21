@@ -17,6 +17,11 @@
 #include "ai_initutils.h"
 #include "globalstate.h"
 #include "datacache/imdlcache.h"
+
+#ifdef HL2_DLL
+#include "npc_playercompanion.h"
+#endif // HL2_DLL
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -118,24 +123,16 @@ void AimTarget_ForceRepopulateList()
 }
 
 
-// used to sort the think list by nextthink
-int __cdecl CompareEntityThinkTimes( const unsigned short *pIndex0, const unsigned short *pIndex1 )
-{
-	float thinkTime0 = CBaseEntity::Instance( *pIndex0 )->GetNextThink();
-	float thinkTime1 = CBaseEntity::Instance( *pIndex1 )->GetNextThink();
-
-	// returns -1 if time0<time1, 1 if time0>time1, and zero if they are equal
-	if ( thinkTime0 > thinkTime1 )
-		return 1;
-	if ( thinkTime0 < thinkTime1 )
-		return -1;
-	return 0;
-}
-
 // Manages a list of all entities currently doing game simulation or thinking
 // NOTE: This is usually a small subset of the global entity list, so it's
 // an optimization to maintain this list incrementally rather than polling each
 // frame.
+struct simthinkentry_t
+{
+	unsigned short	entEntry;
+	unsigned short	unused0;
+	int				nextThinkTick;
+};
 class CSimThinkManager : public IEntityListener
 {
 public:
@@ -177,14 +174,14 @@ public:
 		// If this guy is in the active list, remove him
 		if ( listHandle != 0xFFFF )
 		{
-			Assert(m_simThinkList[listHandle] == index);
+			Assert(m_simThinkList[listHandle].entEntry == index);
 			m_simThinkList.FastRemove( listHandle );
 			m_entinfoIndex[index] = 0xFFFF;
 			
 			// fast remove shifted someone, update that someone
 			if ( listHandle < m_simThinkList.Count() )
 			{
-				m_entinfoIndex[m_simThinkList[listHandle]] = listHandle;
+				m_entinfoIndex[m_simThinkList[listHandle].entEntry] = listHandle;
 			}
 		}
 	}
@@ -196,15 +193,23 @@ public:
 	int ListCopy( CBaseEntity *pList[], int listMax )
 	{
 		int count = min(listMax, ListCount());
+		int out = 0;
 		for ( int i = 0; i < count; i++ )
 		{
-			int entinfoIndex = m_simThinkList[i];
-			const CEntInfo *pInfo = gEntList.GetEntInfoPtrByIndex( entinfoIndex );
-			pList[i] = (CBaseEntity *)pInfo->m_pEntity;
-			Assert( gEntList.IsEntityPtr( pList[i] ) );
+			// only copy out entities that will simulate or think this frame
+			if ( m_simThinkList[i].nextThinkTick <= gpGlobals->tickcount )
+			{
+				Assert(m_simThinkList[i].nextThinkTick>=0);
+				int entinfoIndex = m_simThinkList[i].entEntry;
+				const CEntInfo *pInfo = gEntList.GetEntInfoPtrByIndex( entinfoIndex );
+				pList[out] = (CBaseEntity *)pInfo->m_pEntity;
+				Assert(m_simThinkList[i].nextThinkTick==0 || pList[out]->GetFirstThinkTick()==m_simThinkList[i].nextThinkTick);
+				Assert( gEntList.IsEntityPtr( pList[out] ) );
+				out++;
+			}
 		}
 
-		return count;
+		return out;
 	}
 
 	void EntityChanged( CBaseEntity *pEntity )
@@ -218,12 +223,8 @@ public:
 			return;
 
 		int index = eh.GetEntryIndex();
-		// UNDONE: Maintain separate lists for "no think/no sim" and just "no sim"
-		// UNDONE: Keep "no sim" list sorted by thinktime
-		// UNDONE: Add query for "no sim" list that includes a time and just get ents that will think by that time
 		if ( pEntity->IsEFlagSet( EFL_NO_THINK_FUNCTION ) && pEntity->IsEFlagSet( EFL_NO_GAME_PHYSICS_SIMULATION ) )
 		{
-			Assert( !pEntity->IsPlayer() );
 			RemoveEntinfoIndex( index );
 		}
 		else
@@ -232,30 +233,34 @@ public:
 			if ( m_entinfoIndex[index] == 0xFFFF )
 			{
 				MEM_ALLOC_CREDIT();
-				m_entinfoIndex[index] = m_simThinkList.AddToTail( (unsigned short)index );
+				m_entinfoIndex[index] = m_simThinkList.AddToTail();
+				m_simThinkList[m_entinfoIndex[index]].entEntry = (unsigned short)index;
+				m_simThinkList[m_entinfoIndex[index]].nextThinkTick = 0;
+				if ( pEntity->IsEFlagSet(EFL_NO_GAME_PHYSICS_SIMULATION) )
+				{
+					m_simThinkList[m_entinfoIndex[index]].nextThinkTick = pEntity->GetFirstThinkTick();
+					Assert(m_simThinkList[m_entinfoIndex[index]].nextThinkTick>=0);
+				}
+			}
+			else
+			{
+				// updating existing entry - if no sim, reset think time
+				if ( pEntity->IsEFlagSet(EFL_NO_GAME_PHYSICS_SIMULATION) )
+				{
+					m_simThinkList[m_entinfoIndex[index]].nextThinkTick = pEntity->GetFirstThinkTick();
+					Assert(m_simThinkList[m_entinfoIndex[index]].nextThinkTick>=0);
+				}
+				else
+				{
+					m_simThinkList[m_entinfoIndex[index]].nextThinkTick = 0;
+				}
 			}
 		}
 	}
 
-	void ListSort()
-	{
-		int i;
-		int count = m_simThinkList.Count();
-		if ( !count )
-			return;
-
-		// sort by think time (lowest first)
-		m_simThinkList.Sort( CompareEntityThinkTimes );
-
-		// now remap the entindex map
-		for ( i = 0; i < count; i++ )
-		{
-			m_entinfoIndex[m_simThinkList[i]] = i;
-		}
-	}
 private:
 	unsigned short m_entinfoIndex[NUM_ENT_ENTRIES];
-	CUtlVector<unsigned short>	m_simThinkList;
+	CUtlVector<simthinkentry_t>	m_simThinkList;
 };
 
 CSimThinkManager g_SimThinkManager;
@@ -273,11 +278,6 @@ int SimThink_ListCopy( CBaseEntity *pList[], int listMax )
 void SimThink_EntityChanged( CBaseEntity *pEntity )
 {
 	g_SimThinkManager.EntityChanged( pEntity );
-}
-
-void SimThink_SortThinkList()
-{
-	g_SimThinkManager.ListSort();
 }
 
 // This manages a list of entities queued up to receive PostClientMessages callbacks
@@ -350,12 +350,9 @@ void CGlobalEntityList::CleanupDeleteList( void )
 {
 	VPROF( "CGlobalEntityList::CleanupDeleteList" );
 	g_fInCleanupDelete = true;
-
 	// clean up the vphysics delete list as well
-	if ( physenv )
-	{
-		physenv->CleanupDeleteList();
-	}
+	PhysOnCleanupDeleteList();
+
 	g_bDisableEhandleAccess = true;
 	for ( int i = 0; i < g_DeleteList.Count(); i++ )
 	{
@@ -566,7 +563,7 @@ CBaseEntity *CGlobalEntityList::FindEntityProcedural( const char *szName, CBaseE
 		//
 		if ( FStrEq( pName, "player" ) )
 		{
-			return (CBaseEntity *)UTIL_PlayerByIndex( 1 );
+			return (CBaseEntity *)UTIL_GetLocalPlayer();
 		}
 		else if ( FStrEq( pName, "pvsplayer" ) )
 		{
@@ -582,7 +579,7 @@ CBaseEntity *CGlobalEntityList::FindEntityProcedural( const char *szName, CBaseE
 			else
 			{
 				// FIXME: error condition?
-				return (CBaseEntity *)UTIL_PlayerByIndex( 1 );
+				return (CBaseEntity *)UTIL_GetLocalPlayer();
 			}
 
 		}
@@ -596,7 +593,8 @@ CBaseEntity *CGlobalEntityList::FindEntityProcedural( const char *szName, CBaseE
 		}
 		else if ( FStrEq( pName, "picker" ) )
 		{
-			return FindPickerEntity( UTIL_PlayerByIndex(1) );
+			// this doesn't seem right
+			return FindPickerEntity( UTIL_GetLocalPlayer() );
 		}
 		else if ( FStrEq( pName, "self" ) )
 		{
@@ -1413,6 +1411,9 @@ public:
 		g_TouchManager.LevelInitPreEntity();
 		g_AimManager.LevelInitPreEntity();
 		g_SimThinkManager.LevelInitPreEntity();
+#ifdef HL2_DLL
+		OverrideMoveCache_LevelInitPreEntity();
+#endif	// HL2_DLL
 	}
 	void LevelShutdownPreEntity()
 	{
@@ -1424,7 +1425,9 @@ public:
 		g_AimManager.LevelShutdownPostEntity();
 		g_PostClientManager.LevelShutdownPostEntity();
 		g_SimThinkManager.LevelShutdownPostEntity();
-
+#ifdef HL2_DLL
+		OverrideMoveCache_LevelShutdownPostEntity();
+#endif // HL2_DLL
 		CBaseEntityClassList *pClassList = s_pClassLists;
 		while ( pClassList )
 		{
@@ -1500,7 +1503,7 @@ void RespawnEntities()
 	g_EntityListSystem.m_bRespawnAllEntities = true;
 }
 
-static ConCommand restart_entities( "respawn_entities", RespawnEntities, "Respawn all the entities in the map." );
+static ConCommand restart_entities( "respawn_entities", RespawnEntities, "Respawn all the entities in the map.", FCVAR_CHEAT | FCVAR_SPONLY );
 
 class CSortedEntityList
 {
@@ -1577,11 +1580,6 @@ private:
 
 CON_COMMAND(report_entities, "Lists all entities")
 {
-#ifdef BUGFIXED
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-#endif
-	
 	CSortedEntityList list;
 	CBaseEntity *pEntity = gEntList.FirstEnt();
 	while ( pEntity )
@@ -1595,23 +1593,26 @@ CON_COMMAND(report_entities, "Lists all entities")
 
 CON_COMMAND(report_touchlinks, "Lists all touchlinks")
 {
-#ifdef BUGFIXED
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-#endif
-	
 	CSortedEntityList list;
 	CBaseEntity *pEntity = gEntList.FirstEnt();
+	const char *pClassname = NULL;
+	if ( args.ArgC() > 1 )
+	{
+		pClassname = args.Arg(1);
+	}
 	while ( pEntity )
 	{
-		touchlink_t *root = ( touchlink_t * )pEntity->GetDataObject( TOUCHLINK );
-		if ( root )
+		if ( !pClassname || FClassnameIs(pEntity, pClassname) )
 		{
-			touchlink_t *link = root->nextLink;
-			while ( link != root )
+			touchlink_t *root = ( touchlink_t * )pEntity->GetDataObject( TOUCHLINK );
+			if ( root )
 			{
-				list.AddEntityToList( link->entityTouched );
-				link = link->nextLink;
+				touchlink_t *link = root->nextLink;
+				while ( link != root )
+				{
+					list.AddEntityToList( link->entityTouched );
+					link = link->nextLink;
+				}
 			}
 		}
 		pEntity = gEntList.NextEnt( pEntity );
@@ -1621,11 +1622,6 @@ CON_COMMAND(report_touchlinks, "Lists all touchlinks")
 
 CON_COMMAND(report_simthinklist, "Lists all simulating/thinking entities")
 {
-#ifdef BUGFIXED
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-#endif
-	
 	CBaseEntity *pTmp[NUM_ENT_ENTRIES];
 	int count = SimThink_ListCopy( pTmp, ARRAYSIZE(pTmp) );
 

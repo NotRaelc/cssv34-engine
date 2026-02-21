@@ -60,7 +60,6 @@ enum
 #define NUM_BACKUP_COMMAND_BITS		3
 #define MAX_BACKUP_COMMANDS			((1 << NUM_BACKUP_COMMAND_BITS)-1)
 
-
 #define PROTOCOL_AUTHCERTIFICATE 0x01   // Connection from client is using a WON authenticated certificate
 #define PROTOCOL_HASHEDCDKEY     0x02	// Connection from client is using hashed CD key because WON comm. channel was unreachable
 #define PROTOCOL_STEAM			 0x03	// Steam certificates

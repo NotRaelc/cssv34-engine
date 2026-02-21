@@ -23,7 +23,7 @@ struct studiohdr_t;
 class CStudioHdr;
 class CBoneAccessor;
 
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "bone_accessor.h"
 
 // UNDONE: Remove and make dynamic?
@@ -54,7 +54,9 @@ struct ragdollanimatedfriction_t
 
 struct ragdoll_t
 {
-	int					listCount;
+	int						listCount;
+	bool					allowStretch;
+	bool					unused;
 	IPhysicsConstraintGroup *pGroup;
 	// store these in separate arrays for save/load
 	ragdollelement_t 	list[RAGDOLL_MAX_ELEMENTS];
@@ -71,10 +73,9 @@ struct ragdollparams_t
 	Vector		forcePosition;
 	Vector		forceVector;
 	int			forceBoneIndex;
-	CBoneAccessor pPrevBones;
-	CBoneAccessor pCurrentBones;
-	float		boneDt;		// time delta between prev/cur samples
+	const matrix3x4_t *pCurrentBones;
 	float		jointFrictionScale;
+	bool		allowStretch;
 };
 
 //-----------------------------------------------------------------------------
@@ -147,13 +148,8 @@ void RagdollComputeExactBbox( const ragdoll_t &ragdoll, const Vector &origin, Ve
 bool RagdollIsAsleep( const ragdoll_t &ragdoll );
 void RagdollSetupAnimatedFriction( IPhysicsEnvironment *pPhysEnv, ragdoll_t *ragdoll, int iModelIndex );
 
-void RagdollApplyAnimationAsVelocity( 
-	ragdoll_t &ragdoll, 
-	const CBoneAccessor &pPrevBones, 
-	const CBoneAccessor &pCurrentBones, 
-	float dt );
-
-void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const CBoneAccessor &pBoneToWorld );
+void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const matrix3x4_t *pBoneToWorld );
+void RagdollApplyAnimationAsVelocity( ragdoll_t &ragdoll, const matrix3x4_t *pPrevBones, const matrix3x4_t *pCurrentBones, float dt );
 
 void RagdollSolveSeparation( ragdoll_t &ragdoll, CBaseEntity *pEntity );
 

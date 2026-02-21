@@ -31,7 +31,7 @@ public:
 		g_pClientMode->Layout();
 		return true;
 	}
-
+	virtual void PostInit() {}
 	virtual void Shutdown() {}
 	virtual void LevelInitPreEntity() {}
 	virtual void LevelInitPostEntity() {}

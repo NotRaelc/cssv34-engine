@@ -42,10 +42,10 @@ namespace physicssound
 		for ( int i = list.Count()-1; i >= 0; --i )
 		{
 			impactsound_t &sound = list.GetElement(i);
-			surfacedata_t *psurf = physprops->GetSurfaceData( sound.surfaceProps );
+			const surfacedata_t *psurf = physprops->GetSurfaceData( sound.surfaceProps );
 			if ( psurf->sounds.impactHard )
 			{
-				surfacedata_t *pHit = physprops->GetSurfaceData( sound.surfacePropsHit );
+				const surfacedata_t *pHit = physprops->GetSurfaceData( sound.surfacePropsHit );
 				unsigned short soundName = psurf->sounds.impactHard;
 				if ( pHit && psurf->sounds.impactSoft )
 				{
@@ -115,6 +115,61 @@ namespace physicssound
 		sound.surfacePropsHit = surfacePropsHit;
 		sound.volume = volume;
 		sound.impactSpeed = impactSpeed;
+	}
+
+	struct breaksound_t
+	{
+		Vector			origin;
+		int				surfacePropsBreak;
+	};
+
+	void AddBreakSound( CUtlVector<breaksound_t> &list, const Vector &origin, unsigned short surfaceProps )
+	{
+		const surfacedata_t *psurf = physprops->GetSurfaceData( surfaceProps );
+		if ( !psurf->sounds.breakSound )
+			return;
+
+		for ( int i = list.Count()-1; i >= 0; --i )
+		{
+			breaksound_t &sound = list.Element(i);
+			// Allow 3 break sounds before you start merging anything.
+			if ( list.Count() > 2 && surfaceProps == sound.surfacePropsBreak )
+			{
+				sound.origin = (sound.origin + origin) * 0.5f;
+				return;
+			}
+		}
+		breaksound_t sound;
+		sound.origin = origin;
+		sound.surfacePropsBreak = surfaceProps;
+		list.AddToTail(sound);
+
+	}
+
+	void PlayBreakSounds( CUtlVector<breaksound_t> &list )
+	{
+		for ( int i = list.Count()-1; i >= 0; --i )
+		{
+			breaksound_t &sound = list.Element(i);
+
+			const surfacedata_t *psurf = physprops->GetSurfaceData( sound.surfacePropsBreak );
+			const char *pSound = physprops->GetString( psurf->sounds.breakSound );
+			CSoundParameters params;
+			if ( !CBaseEntity::GetParametersForSound( pSound, params, NULL ) )
+				return;
+
+			// Play from the world, because the entity is breaking, so it'll be destroyed soon
+			CPASAttenuationFilter filter( sound.origin, params.soundlevel );
+			EmitSound_t ep;
+			ep.m_nChannel = CHAN_STATIC;
+			ep.m_pSoundName = params.soundname;
+			ep.m_flVolume = params.volume;
+			ep.m_SoundLevel = params.soundlevel;
+			ep.m_nPitch = params.pitch;
+			ep.m_pOrigin = &sound.origin;
+			CBaseEntity::EmitSound( filter, 0 /*sound.entityIndex*/, ep );
+		}
+		list.RemoveAll();
 	}
 };
 

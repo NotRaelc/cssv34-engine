@@ -9,6 +9,7 @@
 #include "particle_util.h"
 #include "baseparticleentity.h"
 #include "ClientEffectPrecacheSystem.h"
+#include "fx.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -20,11 +21,6 @@
 #define STEAMJET_NUMRAMPS			5
 #define SF_EMISSIVE					0x00000001
 
-
-CLIENTEFFECT_REGISTER_BEGIN( PrecacheSteamJet )
-CLIENTEFFECT_MATERIAL( "particle/particle_smokegrenade" )
-CLIENTEFFECT_MATERIAL( "sprites/heatwave" )
-CLIENTEFFECT_REGISTER_END()
 
 //==================================================
 // C_SteamJet
@@ -198,7 +194,7 @@ void C_SteamJet::Start(CParticleMgr *pParticleMgr, IPrototypeArgAccess *pArgs)
 	{
 	case STEAM_NORMAL:
 	default:
-		m_MaterialHandle = m_ParticleEffect.FindOrAddMaterial("particle/particle_smokegrenade");
+		m_MaterialHandle = g_Mat_DustPuff[0];
 		break;
 
 	case STEAM_HEATWAVE:

@@ -21,6 +21,29 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
+
+/********************************************************************
+ NOTE: if you are looking at this file becase you would like flares 
+ to be considered as fires (and thereby trigger gas traps), be aware 
+ that the env_flare class is actually found in weapon_flaregun.cpp 
+ and is really a repurposed piece of ammunition. (env_flare isn't the 
+ rod-like safety flare prop, but rather the bit of flame on the end.)
+
+ You will have some difficulty making it work here, because CFlare 
+ does not inherit from CFire and will thus not be enumerated by 
+ CFireSphere::EnumElement(). In order to have flares be detected and 
+ used by this system, you will need to promote certain member functions 
+ of CFire into an interface class from which both CFire and CFlare 
+ inherit. You will also need to modify CFireSphere::EnumElement so that
+ it properly disambiguates between fires and flares.
+
+ For some partial work towards this end, see changelist 192474.
+
+ ********************************************************************/
+
+
+
+
 #define	FIRE_HEIGHT				256.0f
 #define FIRE_SCALE_FROM_SIZE(firesize)		(firesize * (1/FIRE_HEIGHT))
 
@@ -56,6 +79,8 @@ class CFire : public CBaseEntity
 {
 public:
 	DECLARE_CLASS( CFire, CBaseEntity );
+	
+	int DrawDebugTextOverlays(void);
 
 	CFire( void );
 	
@@ -588,6 +613,21 @@ void CFire::Precache( void )
 	if ( m_nFireType == FIRE_NATURAL )
 	{
 		UTIL_PrecacheOther("_firesmoke");
+		
+		if ( m_spawnflags & SF_FIRE_SMOKELESS )
+		{
+			PrecacheParticleSystem( "env_fire_tiny" );
+			PrecacheParticleSystem( "env_fire_small" );
+			PrecacheParticleSystem( "env_fire_medium" );
+			PrecacheParticleSystem( "env_fire_large" );
+		}
+		else
+		{
+			PrecacheParticleSystem( "env_fire_tiny_smoke" );
+			PrecacheParticleSystem( "env_fire_small_smoke" );
+			PrecacheParticleSystem( "env_fire_medium_smoke" );
+			PrecacheParticleSystem( "env_fire_large_smoke" );
+		}
 	}
 
 	if ( m_nFireType == FIRE_PLASMA )
@@ -708,7 +748,7 @@ void CFire::Spawn( void )
 int CFire::UpdateTransmitState()
 {
 	// Don't want to be FL_EDICT_DONTSEND because our fire entity may make us transmit.
-	return SetTransmitState( FL_EDICT_PVSCHECK );
+	return SetTransmitState( FL_EDICT_ALWAYS );
 }
 
 //-----------------------------------------------------------------------------
@@ -769,7 +809,7 @@ void CFire::SpawnEffect( fireType_e type, float scale )
 	UTIL_SetOrigin( pEffect, GetAbsOrigin() );
 	pEffect->Spawn();
 	pEffect->SetParent( this );
-	
+	pEffect->Scale( m_flFireSize, m_flFireSize, 0 );
 	//Start it going
 	pEffect->Enable( ( m_spawnflags & SF_FIRE_START_ON ) );
 	m_hEffect = pEffect;
@@ -1402,4 +1442,22 @@ void CEnvFireSensor::InputDisable( inputdata_t &inputdata )
 	TurnOff();
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Draw any debug text overlays
+// Output : Current text offset from the top
+//-----------------------------------------------------------------------------
+int CFire::DrawDebugTextOverlays( void ) 
+{
+	int text_offset = BaseClass::DrawDebugTextOverlays();
 
+	if (m_debugOverlays & OVERLAY_TEXT_BIT) 
+	{
+		char tempstr[512];
+
+		// print flame size
+		Q_snprintf(tempstr,sizeof(tempstr),"    size: %f", m_flFireSize);
+		EntityText(text_offset,tempstr,0);
+		text_offset++;
+	}
+	return text_offset;
+}

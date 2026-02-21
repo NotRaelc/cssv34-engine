@@ -12,10 +12,6 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-extern Vector g_vecRenderOrigin;
-extern ConVar r_DoCovertTransitions;
-
-
 class C_Func_LOD : public C_BaseEntity
 {
 public:
@@ -38,7 +34,6 @@ public:
 
 
 ConVar lod_TransitionDist("lod_TransitionDist", "800");
-ConVar lod_Enable("lod_Enable", "0");
 
 
 // ------------------------------------------------------------------------- //

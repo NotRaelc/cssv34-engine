@@ -118,9 +118,6 @@ public:
 
 #define STEAMFRIENDS_INTERFACE_VERSION "SteamFriends001"
 
-
-enum {	k_iSteamFriendsCallbacks = 300 };
-
 //-----------------------------------------------------------------------------
 // Purpose: called after a friend has been successfully added
 //-----------------------------------------------------------------------------
@@ -172,9 +169,6 @@ struct SystemIM_t
 	char m_rgchMsgBody[k_cchSystemIMTextMax];		// text associated with message (if any)
 };
 
-
-// 32KB max size on chat messages
-enum { k_cchFriendChatMsgMax = 32 * 1024 };
 
 //-----------------------------------------------------------------------------
 // Purpose: called when this client has received a chat/invite/etc. message from a friend

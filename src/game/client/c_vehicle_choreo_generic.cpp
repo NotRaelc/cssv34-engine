@@ -6,11 +6,12 @@
 
 #include "cbase.h"
 #include "hud.h"		
-#include "c_physicsprop.h"		
+#include "c_props.h"
 #include "IClientVehicle.h"
 #include <vgui_controls/Controls.h>
 #include <Color.h>
 #include "vehicle_choreo_generic_shared.h"
+#include "vehicle_viewblend_shared.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -28,9 +29,9 @@ extern float RemapAngleRange( float startInterval, float endInterval, float valu
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-class C_PropVehicleChoreoGeneric : public C_PhysicsProp, public IClientVehicle
+class C_PropVehicleChoreoGeneric : public C_DynamicProp, public IClientVehicle
 {
-	DECLARE_CLASS( C_PropVehicleChoreoGeneric, C_PhysicsProp );
+	DECLARE_CLASS( C_PropVehicleChoreoGeneric, C_DynamicProp );
 
 public:
 
@@ -45,7 +46,7 @@ public:
 public:
 
 	// IClientVehicle overrides.
-	virtual void GetVehicleViewPosition( int nRole, Vector *pOrigin, QAngle *pAngles );
+	virtual void GetVehicleViewPosition( int nRole, Vector *pOrigin, QAngle *pAngles, float *pFOV = NULL );
 	virtual void GetVehicleFOV( float &flFOV )
 	{
 		flFOV = m_flFOV;
@@ -60,6 +61,7 @@ public:
 	virtual int GetPrimaryAmmoCount() const { return -1; }
 	virtual int GetPrimaryAmmoClip() const  { return -1; }
 	virtual bool PrimaryAmmoUsesClips() const { return false; }
+	virtual int GetJoystickResponseCurve() const { return 0; }
 
 public:
 
@@ -187,9 +189,14 @@ int	C_PropVehicleChoreoGeneric::GetPassengerRole( C_BaseCombatCharacter *pPassen
 //-----------------------------------------------------------------------------
 // Purpose: Modify the player view/camera while in a vehicle
 //-----------------------------------------------------------------------------
-void C_PropVehicleChoreoGeneric::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles )
+void C_PropVehicleChoreoGeneric::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles, float *pFOV /*=NULL*/ )
 {
-	VehicleViewSmoothing( m_hPlayer, pAbsOrigin, pAbsAngles, m_bEnterAnimOn, m_bExitAnimOn, &m_vecEyeExitEndpoint, &m_ViewSmoothingData, &m_flFOV );
+	SharedVehicleViewSmoothing( m_hPlayer, 
+								pAbsOrigin, pAbsAngles, 
+								m_bEnterAnimOn, m_bExitAnimOn, 
+								m_vecEyeExitEndpoint, 
+								&m_ViewSmoothingData, 
+								pFOV );
 }
 
 

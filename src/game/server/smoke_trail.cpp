@@ -15,6 +15,7 @@
 #define SMOKETRAIL_ENTITYNAME		"env_smoketrail"
 #define SPORETRAIL_ENTITYNAME		"env_sporetrail"
 #define SPOREEXPLOSION_ENTITYNAME	"env_sporeexplosion"
+#define DUSTTRAIL_ENTITYNAME		"env_dusttrail"
 
 //-----------------------------------------------------------------------------
 //Data table
@@ -384,6 +385,7 @@ BEGIN_DATADESC( SporeExplosion )
 	DEFINE_FIELD( m_flSpawnRadius, FIELD_FLOAT ),
 	DEFINE_FIELD( m_bEmit, FIELD_BOOLEAN ),
 	DEFINE_KEYFIELD( m_bDisabled, FIELD_BOOLEAN, "startdisabled" ),
+	DEFINE_FIELD( m_bDontRemove, FIELD_BOOLEAN ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "Disable", InputDisable ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Enable", InputEnable ),
@@ -465,6 +467,17 @@ END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( env_fire_trail, CFireTrail );
 
+void CFireTrail::Precache( void )
+{
+	PrecacheMaterial( "sprites/flamelet1" );
+	PrecacheMaterial( "sprites/flamelet2" );
+	PrecacheMaterial( "sprites/flamelet3" );
+	PrecacheMaterial( "sprites/flamelet4" );
+	PrecacheMaterial( "sprites/flamelet5" );
+	PrecacheMaterial( "particle/particle_smokegrenade" );
+	PrecacheMaterial( "particle/particle_noisesphere" );
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Attach the smoke trail to an entity or point 
 // Input  : index - entity that has the attachment
@@ -508,4 +521,125 @@ CFireTrail *CFireTrail::CreateFireTrail( void )
 	}
 
 	return NULL;	
+}
+
+
+//-----------------------------------------------------------------------------
+//Data table
+//-----------------------------------------------------------------------------
+IMPLEMENT_SERVERCLASS_ST(DustTrail, DT_DustTrail)
+	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
+	SendPropVector(SENDINFO(m_Color), 8, 0, 0, 1),
+	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
+	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_MinDirectedSpeed), -1, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_MaxDirectedSpeed), -1, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
+	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
+	SendPropBool(SENDINFO(m_bEmit) ),
+	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
+END_SEND_TABLE()
+
+LINK_ENTITY_TO_CLASS( env_dusttrail, DustTrail);
+
+BEGIN_DATADESC( DustTrail )
+
+	DEFINE_FIELD( m_Color, FIELD_VECTOR ),
+	DEFINE_KEYFIELD( m_Opacity, FIELD_FLOAT, "opacity" ),
+	DEFINE_KEYFIELD( m_SpawnRate, FIELD_FLOAT, "spawnrate" ),
+	DEFINE_KEYFIELD( m_ParticleLifetime, FIELD_FLOAT, "lifetime" ),
+	DEFINE_FIELD( m_StopEmitTime, FIELD_TIME ),
+	DEFINE_KEYFIELD( m_MinSpeed, FIELD_FLOAT, "minspeed" ),
+	DEFINE_KEYFIELD( m_MaxSpeed, FIELD_FLOAT, "maxspeed" ),
+	DEFINE_KEYFIELD( m_MinDirectedSpeed, FIELD_FLOAT, "mindirectedspeed" ),
+	DEFINE_KEYFIELD( m_MaxDirectedSpeed, FIELD_FLOAT, "maxdirectedspeed" ),
+	DEFINE_KEYFIELD( m_StartSize, FIELD_FLOAT, "startsize" ),
+	DEFINE_KEYFIELD( m_EndSize, FIELD_FLOAT, "endsize" ),
+	DEFINE_KEYFIELD( m_SpawnRadius, FIELD_FLOAT, "spawnradius" ),
+	DEFINE_FIELD( m_bEmit, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_nAttachment, FIELD_INTEGER ),
+
+END_DATADESC()
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : 
+//-----------------------------------------------------------------------------
+DustTrail::DustTrail()
+{
+	m_SpawnRate = 10;
+	m_Color.GetForModify().Init(0.5, 0.5, 0.5);
+	m_ParticleLifetime = 5;
+	m_StopEmitTime = 0; // Don't stop emitting particles
+	m_MinSpeed = 2;
+	m_MaxSpeed = 4;
+	m_MinDirectedSpeed = m_MaxDirectedSpeed = 0;
+	m_StartSize = 35;
+	m_EndSize = 55;
+	m_SpawnRadius = 2;
+	m_bEmit = true;
+	m_Opacity = 0.5f;
+}
+
+
+//-----------------------------------------------------------------------------
+// Parse data from a map file
+//-----------------------------------------------------------------------------
+bool DustTrail::KeyValue( const char *szKeyName, const char *szValue ) 
+{
+	if ( FStrEq( szKeyName, "color" ) )
+	{
+		color32 tmp;
+		UTIL_StringToColor32( &tmp, szValue );
+		m_Color.GetForModify().Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
+		return true;
+	}
+
+	if ( FStrEq( szKeyName, "emittime" ) )
+	{
+		m_StopEmitTime = gpGlobals->curtime + atof( szValue );
+		return true;
+	}
+
+	return BaseClass::KeyValue( szKeyName, szValue );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose :
+// Input   :
+// Output  :
+//-----------------------------------------------------------------------------
+void DustTrail::SetEmit(bool bVal)
+{
+	m_bEmit = bVal;
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Output : DustTrail*
+//-----------------------------------------------------------------------------
+DustTrail* DustTrail::CreateDustTrail()
+{
+	CBaseEntity *pEnt = CreateEntityByName(DUSTTRAIL_ENTITYNAME);
+	if(pEnt)
+	{
+		DustTrail *pDust = dynamic_cast<DustTrail*>(pEnt);
+		if(pDust)
+		{
+			pDust->Activate();
+			return pDust;
+		}
+		else
+		{
+			UTIL_Remove(pEnt);
+		}
+	}
+
+	return NULL;
 }

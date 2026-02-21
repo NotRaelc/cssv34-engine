@@ -87,6 +87,9 @@ struct triggerevent_t
 void PhysSolidOverride( solid_t &solid, string_t overrideScript );
 
 extern CEntityList *g_pShadowEntities;
+#ifdef PORTAL
+extern CEntityList *g_pShadowEntities_Main;
+#endif
 void PhysAddShadow( CBaseEntity *pEntity );
 void PhysRemoveShadow( CBaseEntity *pEntity );
 bool PhysHasShadow( CBaseEntity *pEntity );
@@ -96,6 +99,9 @@ void PhysEnableFloating( IPhysicsObject *pObject, bool bEnable );
 void PhysCollisionSound( CBaseEntity *pEntity, IPhysicsObject *pPhysObject, int channel, int surfaceProps, int surfacePropsHit, float deltaTime, float speed );
 void PhysCollisionScreenShake( gamevcollisionevent_t *pEvent, int index );
 void PhysCollisionDust( gamevcollisionevent_t *pEvent, surfacedata_t *phit );
+#if HL2_EPISODIC
+void PhysCollisionWarpEffect( gamevcollisionevent_t *pEvent, surfacedata_t *phit );
+#endif
 void PhysBreakSound( CBaseEntity *pEntity, IPhysicsObject *pPhysObject, Vector vecOrigin );
 
 // plays the impact sound for a particular material
@@ -129,7 +135,13 @@ bool PhysIsInCallback();
 bool PhysIsFinalTick();
 
 bool PhysGetTriggerEvent( triggerevent_t *pEvent, CBaseEntity *pTrigger );
-IPhysicsObject *FindPhysicsObjectByName( const char *pName );
+// note: pErrorEntity is used to report errors (object not found, more than one found).  It can be NULL
+IPhysicsObject *FindPhysicsObjectByName( const char *pName, CBaseEntity *pErrorEntity );
+bool PhysFindOrAddVehicleScript( const char *pScriptName, struct vehicleparams_t *pParams, struct vehiclesounds_t *pSounds );
+void PhysFlushVehicleScripts();
+
+// this is called to flush all queues when the delete list is cleared
+void PhysOnCleanupDeleteList();
 
 struct masscenteroverride_t
 {
@@ -171,5 +183,7 @@ void PhysSetMassCenterOverride( masscenteroverride_t &override );
 void PhysGetMassCenterOverride( CBaseEntity *pEntity, vcollide_t *pCollide, solid_t &solidOut );
 float PhysGetEntityMass( CBaseEntity *pEntity );
 void PhysSetEntityGameFlags( CBaseEntity *pEntity, unsigned short flags );
+
+void DebugDrawContactPoints(IPhysicsObject *pPhysics);
 
 #endif		// PHYSICS_H

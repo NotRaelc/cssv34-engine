@@ -33,7 +33,7 @@ public:
 	static CSDKPlayer* Instance( int iEnt );
 
 	// This passes the event to the client's and server's CPlayerAnimState.
-	void DoAnimationEvent( PlayerAnimEvent_t event );
+	void DoAnimationEvent( PlayerAnimEvent_t event, int nData = 0 );
 
 	virtual void FlashlightTurnOn( void );
 	virtual void FlashlightTurnOff( void );

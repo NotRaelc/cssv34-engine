@@ -19,12 +19,13 @@
 #include "game.h"
 #include "engine/IEngineSound.h"
 #include "sendproxy.h"
-#include "vstdlib/strtools.h"
+#include "tier1/strtools.h"
 #include "vphysics/constraints.h"
 #include "npcevent.h"
 #include "igamesystem.h"
 #include "collisionutils.h"
 #include "iservervehicle.h"
+#include "func_break.h"
 
 #ifdef HL2MP
 	#include "hl2mp_gamerules.h"
@@ -59,19 +60,30 @@ void W_Precache(void)
 {
 	PrecacheFileWeaponInfoDatabase( filesystem, g_pGameRules->GetEncryptionKey() );
 
-	g_sModelIndexFireball = CBaseEntity::PrecacheModel ("sprites/zerogxplode.vmt");// fireball
+
+
+#ifdef HL1_DLL
 	g_sModelIndexWExplosion = CBaseEntity::PrecacheModel ("sprites/WXplo1.vmt");// underwater fireball
-	g_sModelIndexSmoke = CBaseEntity::PrecacheModel ("sprites/steam1.vmt");// smoke
-	g_sModelIndexBubbles = CBaseEntity::PrecacheModel ("sprites/bubble.vmt");//bubbles
 	g_sModelIndexBloodSpray = CBaseEntity::PrecacheModel ("sprites/bloodspray.vmt"); // initial blood
 	g_sModelIndexBloodDrop = CBaseEntity::PrecacheModel ("sprites/blood.vmt"); // splattered blood 
-	g_sModelIndexLaser = CBaseEntity::PrecacheModel( (char *)g_pModelNameLaser );
 	g_sModelIndexLaserDot = CBaseEntity::PrecacheModel("sprites/laserdot.vmt");
+#endif // HL1_DLL
+
+#ifndef TF_DLL
+	g_sModelIndexFireball = CBaseEntity::PrecacheModel ("sprites/zerogxplode.vmt");// fireball
+
+	g_sModelIndexSmoke = CBaseEntity::PrecacheModel ("sprites/steam1.vmt");// smoke
+	g_sModelIndexBubbles = CBaseEntity::PrecacheModel ("sprites/bubble.vmt");//bubbles
+	g_sModelIndexLaser = CBaseEntity::PrecacheModel( (char *)g_pModelNameLaser );
+
+	PrecacheParticleSystem( "blood_impact_red_01" );
+	PrecacheParticleSystem( "blood_impact_green_01" );
+	PrecacheParticleSystem( "blood_impact_yellow_01" );
 
 	CBaseEntity::PrecacheModel ("effects/bubble.vmt");//bubble trails
 
-	CBaseEntity::PrecacheModel("sprites/fire1.vmt"); // Precache C_EntityFlame
 	CBaseEntity::PrecacheModel("models/weapons/w_bullet.mdl");
+#endif
 
 	CBaseEntity::PrecacheScriptSound( "BaseCombatWeapon.WeaponDrop" );
 	CBaseEntity::PrecacheScriptSound( "BaseCombatWeapon.WeaponMaterialize" );
@@ -130,7 +142,7 @@ void CBaseCombatWeapon::Operator_FrameUpdate( CBaseCombatCharacter *pOperator )
 	if ( pOwner == NULL )
 		return;
 
-	CBaseViewModel *vm = pOwner->GetViewModel();
+	CBaseViewModel *vm = pOwner->GetViewModel( m_nViewModelIndex );
 	
 	if ( vm != NULL )
 	{
@@ -209,8 +221,17 @@ class CWeaponLOSFilter : public CTraceFilterSkipTwoEntities
 	DECLARE_CLASS( CWeaponLOSFilter, CTraceFilterSkipTwoEntities );
 public:
 	CWeaponLOSFilter::CWeaponLOSFilter( IHandleEntity *pHandleEntity, IHandleEntity *pHandleEntity2, int collisionGroup ) :
-		CTraceFilterSkipTwoEntities( pHandleEntity, pHandleEntity2, collisionGroup )
+	  CTraceFilterSkipTwoEntities( pHandleEntity, pHandleEntity2, collisionGroup ), m_pVehicle( NULL )
 	{
+		// If the tracing entity is in a vehicle, then ignore it
+		if ( pHandleEntity != NULL )
+		{
+			CBaseCombatCharacter *pBCC = ((CBaseEntity *)pHandleEntity)->MyCombatCharacterPointer();
+			if ( pBCC != NULL )
+			{
+				m_pVehicle = pBCC->GetVehicleEntity();
+			}
+		}
 	}
 	virtual bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask )
 	{
@@ -219,8 +240,24 @@ public:
 		if ( pEntity->GetCollisionGroup() == COLLISION_GROUP_WEAPON )
 			return false;
 
+		// Don't collide with the tracing entity's vehicle (if it exists)
+		if ( pServerEntity == m_pVehicle )
+			return false;
+
+		if ( pEntity->GetHealth() > 0 )
+		{
+			CBreakable *pBreakable = dynamic_cast<CBreakable *>(pEntity);
+			if ( pBreakable  && pBreakable->IsBreakable() && pBreakable->GetMaterialType() == matGlass)
+			{
+				return false;
+			}
+		}
+
 		return BaseClass::ShouldHitEntity( pServerEntity, contentsMask );
 	}
+
+private:
+	CBaseEntity *m_pVehicle;
 };
 
 //-----------------------------------------------------------------------------
@@ -238,6 +275,8 @@ bool CBaseCombatWeapon::WeaponLOSCondition( const Vector &ownerPos, const Vector
 	Vector vecRelativeShootPosition;
 	VectorSubtract( npcOwner->Weapon_ShootPosition(), npcOwner->GetAbsOrigin(), vecRelativeShootPosition );
 	Vector barrelPos = ownerPos + vecRelativeShootPosition;
+
+	// FIXME: If we're in a vehicle, we need some sort of way to handle shooting out of them
 
 	// Use the custom LOS trace filter
 	CWeaponLOSFilter traceFilter( m_hOwner.Get(), npcOwner->GetEnemy(), COLLISION_GROUP_BREAKABLE_GLASS );

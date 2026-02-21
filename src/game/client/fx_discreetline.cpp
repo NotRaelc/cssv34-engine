@@ -108,6 +108,8 @@ void CFXDiscreetLine::Draw( double frametime )
 	CMeshBuilder meshBuilder;
 	IMesh *pMesh;
 
+	CMatRenderContextPtr pRenderContext( materials );
+		
 	// Better, more visible tracers
 	if ( tracer_extra.GetBool() )
 	{
@@ -133,9 +135,9 @@ void CFXDiscreetLine::Draw( double frametime )
 		}
 
 		//Bind the material
-		pMesh = materials->GetDynamicMesh( true, NULL, NULL, m_pMaterial );
+		pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_pMaterial );
 
-		meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
+		meshBuilder.Begin( pMesh, MATERIAL_QUADS, 2 );
 
 		float color = (int) 255.0f * flAlpha;
 
@@ -203,7 +205,7 @@ void CFXDiscreetLine::Draw( double frametime )
 	else
 	{
 		//Bind the material
-		pMesh = materials->GetDynamicMesh( true, NULL, NULL, m_pMaterial );
+		pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_pMaterial );
 
 		meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 

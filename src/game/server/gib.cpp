@@ -1,11 +1,11 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose:		A gib is a chunk of a body, or a piece of wood/metal/rocks/etc.
 //
 // $Workfile:     $
 // $Date:         $
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #include "cbase.h"
 #include "gib.h"
@@ -30,6 +30,7 @@ BEGIN_DATADESC( CGib )
 //	DEFINE_FIELD( m_material, FIELD_INTEGER ),
 //	DEFINE_FIELD( m_lifeTime, FIELD_TIME ),
 //	DEFINE_FIELD( m_pSprite, CSprite ),
+//	DEFINE_FIELD( m_hFlame, FIELD_EHANDLE ),
 
 //	DEFINE_FIELD( m_hPhysicsAttacker, FIELD_EHANDLE ),
 //	DEFINE_FIELD( m_flLastPhysicsInfluenceTime, FIELD_TIME ),
@@ -399,9 +400,7 @@ bool CGib::SUB_AllowedToFade( void )
 			return false;
 	}
 
-	CBasePlayer *pPlayer = ( AI_IsSinglePlayer() ) ? UTIL_GetLocalPlayer() : NULL;
-
-	if ( pPlayer && pPlayer->FInViewCone( this ) && m_bForceRemove == false )
+	if ( UTIL_IsAnyPlayerLookingAtEntity(this) && m_bForceRemove == false )
 	{
 		return false;
 	}
@@ -614,9 +613,22 @@ void CGib::Spawn( const char *szGibModel )
 
 }
 
+
+//-----------------------------------------------------------------------------
+// Spawn a gib with a finite lifetime, after which it will fade out.
+//-----------------------------------------------------------------------------
+void CGib::Spawn( const char *szGibModel, float flLifetime )
+{
+	Spawn( szGibModel );
+	m_lifeTime = flLifetime;
+	SetThink ( &CGib::SUB_FadeOut );
+	SetNextThink( gpGlobals->curtime + m_lifeTime );
+}
+
+
 LINK_ENTITY_TO_CLASS( gib, CGib );
 
-CBaseEntity *CreateRagGib( const char *szModel, const Vector &vecOrigin, const QAngle &vecAngles, const Vector &vecForce, float flFadeTime )
+CBaseEntity *CreateRagGib( const char *szModel, const Vector &vecOrigin, const QAngle &vecAngles, const Vector &vecForce, float flFadeTime, bool bShouldIgnite )
 {
 	CRagGib *pGib;
 
@@ -628,6 +640,15 @@ CBaseEntity *CreateRagGib( const char *szModel, const Vector &vecOrigin, const Q
 	{
 		Msg( "**Can't create ragdoll gib!\n" );
 		return NULL;
+	}
+
+	if ( bShouldIgnite )
+	{
+		CBaseAnimating *pAnimating = pGib->GetBaseAnimating();
+		if (pAnimating != NULL )
+		{
+			pAnimating->Ignite( random->RandomFloat( 8.0, 12.0 ), false );
+		}
 	}
 
 	pGib->Spawn( szModel, vecOrigin, vecForce, flFadeTime );
@@ -646,11 +667,10 @@ void CRagGib::Spawn( const char *szModel, const Vector &vecOrigin, const Vector 
 	{
 		AddSolidFlags( FSOLID_NOT_STANDABLE );
 		RemoveSolidFlags( FSOLID_NOT_SOLID );
-	}
-
-	if( flFadeTime > 0.0 )
-	{
-		SUB_StartFadeOut( flFadeTime );
+		if( flFadeTime > 0.0 )
+		{
+			SUB_StartFadeOut( flFadeTime );
+		}
 	}
 }
 

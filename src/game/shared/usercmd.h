@@ -11,7 +11,7 @@
 #pragma once
 #endif
 
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "utlvector.h"
 #include "imovehelper.h"
 
@@ -86,6 +86,11 @@ public:
 #endif
 
 		return *this;
+	}
+
+	CUserCmd( const CUserCmd& src )
+	{
+		*this = src;
 	}
 
 	// For matching server and client commands for debugging

@@ -52,6 +52,10 @@ public:
 	bool CreateVPhysics();
 
 	DECLARE_DATADESC();
+	virtual void VPhysicsUpdate( IPhysicsObject *pPhysics );
+
+	virtual QAngle PreferredCarryAngles( void ) { return QAngle( -90, 0, 0 ); }
+	virtual bool HasPreferredCarryAnglesForPlayer( CBasePlayer *pPlayer ) { return true; }
 
 	//
 	// Input handlers.
@@ -98,9 +102,19 @@ public:
 	virtual void OnPhysGunPickup( CBasePlayer *pPhysGunUser, PhysGunPickup_t reason );
 	virtual void OnPhysGunDrop( CBasePlayer *pPhysGunUser, PhysGunDrop_t reason );
 	virtual	CBasePlayer *HasPhysicsAttacker( float dt );
+	virtual bool ShouldPuntUseLaunchForces( PhysGunForce_t reason ) 
+	{ 
+		if ( reason == PHYSGUN_FORCE_LAUNCHED ) 
+			return (m_thrustTime!=0);
+			
+		return false; 
+	}
+	virtual AngularImpulse PhysGunLaunchAngularImpulse( void ) { return vec3_origin; }
+	virtual Vector PhysGunLaunchVelocity( const Vector &forward, float flMass ) { return vec3_origin; }
 
 protected:
 	void SetPhysicsAttacker( CBasePlayer *pEntity, float flTime );
+
 
 public:
 	Vector				m_thrustOrigin;
@@ -118,6 +132,7 @@ public:
 	bool				m_bFired;		// True if this cannister was fire by a weapon
 
 	COutputEvent		m_onActivate;
+	COutputEvent		m_OnAwakened;
 
 	CHandle<CBasePlayer>	m_hPhysicsAttacker;
 	float					m_flLastPhysicsInfluenceTime;

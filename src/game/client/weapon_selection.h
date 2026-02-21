@@ -78,8 +78,6 @@ public:
 
 	virtual void		SelectSlot( int iSlot );
 
-	virtual bool ShouldDraw();
-
 	virtual bool IsHudMenuTakingInput();
 	virtual bool IsHudMenuPreventingWeaponSelection();
 
@@ -89,7 +87,7 @@ public:
 	virtual void DrawWList( C_BasePlayer *pPlayer, C_BaseCombatWeapon *pSelectedWeapon, bool drawOutline = false, int or = 0, int og = 0, int ob = 0, int oa = 0 ) {}
 	virtual bool ComputeRect( C_BasePlayer *pPlayer, C_BaseCombatWeapon *pSelectedWeapon, wrect_t *outrect ) { return false; }
 	
-	virtual int	KeyInput( int down, int keynum, const char *pszCurrentBinding );
+	virtual int	KeyInput( int down, ButtonCode_t keynum, const char *pszCurrentBinding );
 
 protected:
 	// returns true if there is a weapon currently visible to select

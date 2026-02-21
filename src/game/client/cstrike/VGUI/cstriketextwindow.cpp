@@ -40,7 +40,7 @@ CCSTextWindow::CCSTextWindow(IViewPort *pViewPort) : CTextWindow( pViewPort )
 {
 	SetProportional( true );
 
-	m_iScoreBoardKey = -1; // this is looked up in Activate()
+	m_iScoreBoardKey = BUTTON_CODE_INVALID; // this is looked up in Activate()
 
 	CreateBackground( this );
 	m_backgroundLayoutFinished = false;
@@ -84,9 +84,9 @@ void CCSTextWindow::ShowPanel(bool bShow)
 	if ( bShow )
 	{
 		// get key binding if shown
-		if ( m_iScoreBoardKey == -1 ) // you need to lookup the jump key AFTER the engine has loaded
+		if ( m_iScoreBoardKey == BUTTON_CODE_INVALID ) // you need to lookup the jump key AFTER the engine has loaded
 		{
-			m_iScoreBoardKey = gameuifuncs->GetEngineKeyCodeForBind( "showscores" );
+			m_iScoreBoardKey = gameuifuncs->GetButtonCodeForBind( "showscores" );
 		}
 	}
 
@@ -98,10 +98,10 @@ void CCSTextWindow::ShowPanel(bool bShow)
 //-----------------------------------------------------------------------------
 void CCSTextWindow::OnKeyCodePressed( KeyCode code )
 {
-	if ( m_iScoreBoardKey != -1 && m_iScoreBoardKey == code )
+	if ( m_iScoreBoardKey != BUTTON_CODE_INVALID && m_iScoreBoardKey == code )
 	{
 		gViewPortInterface->ShowPanel( PANEL_SCOREBOARD, true );
-		//gViewPortInterface->PostMessageToPanel( PANEL_SCOREBOARD, new KeyValues( "PollHideCode", "code", code ) );
+		gViewPortInterface->PostMessageToPanel( PANEL_SCOREBOARD, new KeyValues( "PollHideCode", "code", code ) );
 	}
 	else
 	{

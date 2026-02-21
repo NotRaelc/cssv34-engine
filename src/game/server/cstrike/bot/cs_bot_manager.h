@@ -122,7 +122,7 @@ public:
 	virtual CBasePlayer *AllocateBotEntity( void );			///< factory method to allocate the appropriate entity for the bot
 
 	virtual void ClientDisconnect( CBaseEntity *entity );
-	virtual bool ClientCommand( CBasePlayer *player, const char* command );
+	virtual bool ClientCommand( CBasePlayer *player, const CCommand &args );
 
 	virtual void ServerActivate( void );
 	virtual void ServerDeactivate( void );

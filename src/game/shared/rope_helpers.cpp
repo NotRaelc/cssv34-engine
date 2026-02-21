@@ -8,7 +8,7 @@
 #include "cbase.h"
 #include "rope_helpers.h"
 #include "basetypes.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 #include "rope_shared.h"
 #include "rope_physics.h"
 #include "networkvar.h"

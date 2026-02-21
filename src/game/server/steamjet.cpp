@@ -65,6 +65,8 @@ CSteamJet::CSteamJet( void )
 //-----------------------------------------------------------------------------
 void CSteamJet::Spawn( void )
 {
+	Precache();
+
 	//
 	// Legacy env_steamjet pointed left instead of forward.
 	//
@@ -78,6 +80,27 @@ void CSteamJet::Spawn( void )
 		m_bEmit = true;
 	}
 }
+
+void CSteamJet::Precache( void )
+{
+	PrecacheMaterial( "particle/particle_smokegrenade" );
+	PrecacheMaterial( "sprites/heatwave" );
+}
+
+ void CSteamJet::Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+ {
+	if (!pActivator->IsPlayer())
+	{
+		if (useType == USE_ON)
+		{
+			m_bEmit = true;
+		}
+		else if (useType == USE_OFF)
+		{
+			m_bEmit = false;
+		}
+	}
+ }
 
 
 //-----------------------------------------------------------------------------

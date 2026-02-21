@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: This is an entity that represents a vgui screen
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 #include "cbase.h"
 #include "vguiscreen.h"
@@ -24,6 +24,7 @@ IMPLEMENT_SERVERCLASS_ST(CVGuiScreen, DT_VGuiScreen)
 	SendPropInt(SENDINFO(m_nPanelName), MAX_VGUI_SCREEN_STRING_BITS, SPROP_UNSIGNED ),
 	SendPropInt(SENDINFO(m_fScreenFlags), VGUI_SCREEN_MAX_BITS, SPROP_UNSIGNED ),
 	SendPropInt(SENDINFO(m_nOverlayMaterial), MAX_MATERIAL_STRING_BITS, SPROP_UNSIGNED ),
+	SendPropEHandle(SENDINFO(m_hPlayerOwner)),
 END_SEND_TABLE();
 
 LINK_ENTITY_TO_CLASS( vgui_screen, CVGuiScreen );
@@ -38,11 +39,12 @@ BEGIN_DATADESC( CVGuiScreen )
 
 	DEFINE_CUSTOM_FIELD( m_nPanelName, &g_VguiScreenStringOps ),
 	DEFINE_FIELD( m_nAttachmentIndex, FIELD_INTEGER ),
-	DEFINE_FIELD( m_nOverlayMaterial, FIELD_INTEGER ),
+//	DEFINE_FIELD( m_nOverlayMaterial, FIELD_INTEGER ),
 	DEFINE_FIELD( m_fScreenFlags, FIELD_INTEGER ),
 	DEFINE_KEYFIELD( m_flWidth, FIELD_FLOAT, "width" ),
 	DEFINE_KEYFIELD( m_flHeight, FIELD_FLOAT, "height" ),
 	DEFINE_KEYFIELD( m_strOverlayMaterial, FIELD_STRING, "overlaymaterial" ),
+	DEFINE_FIELD( m_hPlayerOwner, FIELD_EHANDLE ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetActive", InputSetActive ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetInactive", InputSetInactive ),
@@ -56,6 +58,7 @@ END_DATADESC()
 CVGuiScreen::CVGuiScreen()
 {
 	m_nOverlayMaterial = OVERLAY_MATERIAL_INVALID_STRING;
+	m_hPlayerOwner = NULL;
 }
 
 
@@ -142,10 +145,17 @@ void CVGuiScreen::Activate()
 {
 	BaseClass::Activate();
 
-	if ( m_nOverlayMaterial == OVERLAY_MATERIAL_INVALID_STRING )
+	if ( m_nOverlayMaterial == OVERLAY_MATERIAL_INVALID_STRING && m_strOverlayMaterial != NULL_STRING )
 	{
 		SetOverlayMaterial( STRING(m_strOverlayMaterial) );
 	}
+}
+
+void CVGuiScreen::OnRestore()
+{
+	UpdateTransmitState();
+
+	BaseClass::OnRestore();
 }
 
 void CVGuiScreen::SetAttachmentIndex( int nIndex )
@@ -211,10 +221,25 @@ void CVGuiScreen::SetAttachedToViewModel( bool bAttached )
 		else
 		{
 			m_fScreenFlags.Set( m_fScreenFlags | VGUI_SCREEN_ATTACHED_TO_VIEWMODEL );
+
+			// attached screens have different transmit rules
+			DispatchUpdateTransmitState();
 		}
 
 		// attached screens have different transmit rules
 		DispatchUpdateTransmitState();
+	}
+}
+
+void CVGuiScreen::SetTransparency( bool bTransparent )
+{
+	if (!bTransparent)
+	{
+		m_fScreenFlags &= ~VGUI_SCREEN_TRANSPARENT;
+	}
+	else
+	{
+		m_fScreenFlags.Set( m_fScreenFlags | VGUI_SCREEN_TRANSPARENT );
 	}
 }
 
@@ -314,7 +339,7 @@ int CVGuiScreen::ShouldTransmit( const CCheckTransmitInfo *pInfo )
 //-----------------------------------------------------------------------------
 void CVGuiScreen::SetPanelName( const char *pPanelName )
 {
-	m_nPanelName = g_pStringTableVguiScreen->AddString( pPanelName );
+	m_nPanelName = g_pStringTableVguiScreen->AddString( CBaseEntity::IsServer(), pPanelName );
 }
 
 const char *CVGuiScreen::GetPanelName() const
@@ -346,13 +371,26 @@ void CVGuiScreen::SetActualSize( float flWidth, float flHeight )
 	UTIL_SetSize( this, mins, maxs );
 }
 
+//-----------------------------------------------------------------------------
+// 
+//-----------------------------------------------------------------------------
+void CVGuiScreen::SetPlayerOwner( CBasePlayer *pPlayer, bool bOwnerOnlyInput /* = false */ )
+{
+	m_hPlayerOwner = pPlayer;
+
+	if ( bOwnerOnlyInput )
+	{
+		m_fScreenFlags.Set( VGUI_SCREEN_ONLY_USABLE_BY_OWNER );
+	}
+}
+
 
 //-----------------------------------------------------------------------------
 // Precaches a vgui screen
 //-----------------------------------------------------------------------------
 void PrecacheVGuiScreen( const char *pScreenType )
 {
-	g_pStringTableVguiScreen->AddString( pScreenType );
+	g_pStringTableVguiScreen->AddString( CBaseEntity::IsServer(), pScreenType );
 }
 
 

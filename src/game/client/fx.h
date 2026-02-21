@@ -1,18 +1,18 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $Workfile:     $
 // $Date:         $
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 #if !defined( FX_H )
 #define FX_H
 #ifdef _WIN32
 #pragma once
 #endif
 
-#include "vector.h"
+#include "mathlib/vector.h"
 #include "particles_simple.h"
 #include "c_pixel_visibility.h"
 
@@ -45,6 +45,7 @@ void FX_DebrisFlecks( const Vector& origin, trace_t *trace, char materialType, i
 void FX_Tracer( Vector& start, Vector& end, int velocity, bool makeWhiz = true );
 void FX_GunshipTracer( Vector& start, Vector& end, int velocity, bool makeWhiz = true );
 void FX_StriderTracer( Vector& start, Vector& end, int velocity, bool makeWhiz = true );
+void FX_HunterTracer( Vector& start, Vector& end, int velocity, bool makeWhiz = true );
 void FX_PlayerTracer( Vector& start, Vector& end );
 void FX_BulletPass( Vector& start, Vector& end );
 void FX_MetalSpark( const Vector &position, const Vector &direction, const Vector &surfaceNormal, int iScale = 1 );
@@ -93,4 +94,15 @@ public:
 void FX_Tesla( const CTeslaInfo &teslaInfo );
 extern ConVar r_decals;
 
+extern void FX_CacheMaterialHandles( void );
+
+extern PMaterialHandle g_Mat_Fleck_Wood[2];
+extern PMaterialHandle g_Mat_Fleck_Cement[2];
+extern PMaterialHandle g_Mat_Fleck_Antlion[2];
+extern PMaterialHandle g_Mat_Fleck_Tile[2];
+extern PMaterialHandle g_Mat_DustPuff[2];
+extern PMaterialHandle g_Mat_BloodPuff[2];
+extern PMaterialHandle g_Mat_Fleck_Glass[2];
+extern PMaterialHandle g_Mat_SMG_Muzzleflash[4];
+extern PMaterialHandle g_Mat_Combine_Muzzleflash[3];
 #endif // FX_H

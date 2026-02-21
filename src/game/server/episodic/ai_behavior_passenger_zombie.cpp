@@ -9,10 +9,11 @@
 #include "ai_motor.h"
 #include "ai_senses.h"
 #include "vehicle_jeep_episodic.h"
+#include "npc_alyx_episodic.h"
 #include "ai_behavior_passenger_zombie.h"
 
 #define JUMP_ATTACH_DIST_THRESHOLD			1000
-#define JUMP_ATTACH_FACING_THRESHOLD		0.70710678	// cos(45)
+#define JUMP_ATTACH_FACING_THRESHOLD		DOT_45DEGREE
 
 #define ATTACH_PREDICTION_INTERVAL			0.2f
 #define ATTACH_PREDICTION_FACING_THRESHOLD	0.75f
@@ -30,6 +31,8 @@ BEGIN_DATADESC( CAI_PassengerBehaviorZombie )
 	DEFINE_FIELD( m_flNextLeapTime,		FIELD_TIME ),
 
 END_DATADESC();
+
+extern int AE_PASSENGER_PHYSICS_PUSH;
 
 //==============================================================================================
 // Passenger damage table
@@ -90,13 +93,31 @@ bool CAI_PassengerBehaviorZombie::CanEnterVehicle( void )
 //-----------------------------------------------------------------------------
 int CAI_PassengerBehaviorZombie::TranslateSchedule( int scheduleType )
 {
-	if ( scheduleType == SCHED_MELEE_ATTACK1 )
-		return SCHED_PASSENGER_MELEE_ATTACK1;
+	// We do different animations when inside the vehicle
+	if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
+	{
+		if ( scheduleType == SCHED_MELEE_ATTACK1 )
+			return SCHED_PASSENGER_ZOMBIE_MELEE_ATTACK1;
 
-	if ( scheduleType == SCHED_RANGE_ATTACK1 )
-		return SCHED_PASSENGER_ZOMBIE_RANGE_ATTACK1;
+		if ( scheduleType == SCHED_RANGE_ATTACK1 )
+			return SCHED_PASSENGER_ZOMBIE_RANGE_ATTACK1;
+	}
 
 	return BaseClass::TranslateSchedule( scheduleType );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : activity - 
+// Output : Activity
+//-----------------------------------------------------------------------------
+Activity CAI_PassengerBehaviorZombie::NPC_TranslateActivity( Activity activity )
+{
+	Activity nNewActivity = BaseClass::NPC_TranslateActivity( activity );
+	if ( activity == ACT_IDLE )
+		return (Activity) ACT_PASSENGER_IDLE;
+
+	return nNewActivity;
 }
 
 //-----------------------------------------------------------------------------
@@ -105,12 +126,12 @@ int CAI_PassengerBehaviorZombie::TranslateSchedule( int scheduleType )
 //-----------------------------------------------------------------------------
 void CAI_PassengerBehaviorZombie::SuppressAttack( float flDuration )
 {
-	GetOuter()->SetNextAttack ( gpGlobals->curtime + flDuration );
+	GetOuter()->SetNextAttack( gpGlobals->curtime + flDuration );
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
-// Output : Returns true on success, false on failure.
+// Purpose: Determines if an enemy is inside a vehicle or not
+// Output : Returns true if the enemy is outside the vehicle.
 //-----------------------------------------------------------------------------
 bool CAI_PassengerBehaviorZombie::EnemyInVehicle( void )
 {
@@ -127,7 +148,7 @@ bool CAI_PassengerBehaviorZombie::EnemyInVehicle( void )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Select a schedule when we're outside of the vehicle
 //-----------------------------------------------------------------------------
 int CAI_PassengerBehaviorZombie::SelectOutsideSchedule( void )
 {
@@ -135,21 +156,26 @@ int CAI_PassengerBehaviorZombie::SelectOutsideSchedule( void )
 	if ( HasCondition( COND_CAN_RANGE_ATTACK1 ) )
 		return SCHED_PASSENGER_ZOMBIE_RANGE_ATTACK1;
 
+	// Attack the player if we're able
 	if ( HasCondition( COND_CAN_MELEE_ATTACK1 ) )
 		return SCHED_MELEE_ATTACK1;
 
+	// Attach to the vehicle
+	if ( HasCondition( COND_PASSENGER_ZOMBIE_CAN_ATTACH_TO_VEHICLE ) )
+		return SCHED_PASSENGER_ZOMBIE_ATTACH;
+
 	// Otherwise chase after him
-	return SCHED_CHASE_ENEMY;
+	return SCHED_PASSENGER_ZOMBIE_RUN_TO_VEHICLE;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Pick a schedule for being "inside" the vehicle
 //-----------------------------------------------------------------------------
 int CAI_PassengerBehaviorZombie::SelectInsideSchedule( void )
 {
 	// Attacking target
 	if ( HasCondition( COND_CAN_MELEE_ATTACK1 ) )
-		return SCHED_PASSENGER_MELEE_ATTACK1;
+		return SCHED_PASSENGER_ZOMBIE_MELEE_ATTACK1;
 
 	return SCHED_IDLE_STAND;
 }
@@ -165,21 +191,27 @@ int CAI_PassengerBehaviorZombie::SelectSchedule( void )
 		if ( GetPassengerState() == PASSENGER_STATE_INSIDE )
 		{
 			// Exit the vehicle
-			SetCondition( COND_EXITING_VEHICLE );
+			SetCondition( COND_PASSENGER_EXITING );
+		}
+		else if ( GetPassengerState() == PASSENGER_STATE_OUTSIDE )
+		{
+			// Our target has left the vehicle and we're outside as well, so give up
+			Disable();
+			return BaseClass::SelectSchedule();
 		}
 	}
 
 	// Entering schedule
-	if ( HasCondition( COND_ENTERING_VEHICLE ) )
+	if ( HasCondition( COND_PASSENGER_ENTERING ) )
 	{
-		ClearCondition( COND_ENTERING_VEHICLE );
+		ClearCondition( COND_PASSENGER_ENTERING );
 		return SCHED_PASSENGER_ZOMBIE_ENTER_VEHICLE;
 	}
 
 	// Exiting schedule
-	if ( HasCondition( COND_EXITING_VEHICLE ) )
+	if ( HasCondition( COND_PASSENGER_EXITING ) )
 	{
-		ClearCondition( COND_EXITING_VEHICLE );
+		ClearCondition( COND_PASSENGER_EXITING );
 		return SCHED_PASSENGER_ZOMBIE_EXIT_VEHICLE;
 	}
 
@@ -225,9 +257,7 @@ bool CAI_PassengerBehaviorZombie::CanJumpToAttachToVehicle( void )
 
 	// If we're facing them enough, allow the jump
 	if ( ( flDist < JUMP_ATTACH_DIST_THRESHOLD ) && UTIL_IsFacingWithinTolerance( GetOuter(), pEnemy, JUMP_ATTACH_FACING_THRESHOLD ) )
-	{
 		return true;
-	}
 
 	return false;
 }
@@ -265,6 +295,30 @@ void CAI_PassengerBehaviorZombie::GatherConditions( void )
 		if ( CanBeOnEnemyVehicle() && CanJumpToAttachToVehicle() )
 		{
 			SetCondition( COND_CAN_RANGE_ATTACK1 );
+		}
+		
+		// Determine if we can latch on to the vehicle (out of sight)
+		ClearCondition( COND_PASSENGER_ZOMBIE_CAN_ATTACH_TO_VEHICLE );
+		CBasePlayer *pPlayer = AI_GetSinglePlayer();
+		
+		if ( pPlayer != NULL && 
+			 GetOuter()->GetEnemy() == pPlayer && 
+			 pPlayer->GetVehicleEntity() == m_hVehicle )
+		{
+			// Can't be visible to the player and must be close enough
+			bool bNotVisibleToPlayer = ( pPlayer->FInViewCone( GetOuter() ) == false );
+			float flDistSqr = ( pPlayer->GetAbsOrigin() - GetOuter()->GetAbsOrigin() ).LengthSqr();
+			bool bInRange = ( flDistSqr < Square(250.0f) );
+			if ( bNotVisibleToPlayer && bInRange )
+			{
+				// We can latch on and "enter" the vehicle
+				SetCondition( COND_PASSENGER_ZOMBIE_CAN_ATTACH_TO_VEHICLE );
+			}
+			else if ( bNotVisibleToPlayer == false && flDistSqr < Square(128.0f) )
+			{
+				// Otherwise just hit the vehicle in anger
+				SetCondition( COND_CAN_MELEE_ATTACK1 );
+			}
 		}
 	}
 
@@ -304,7 +358,7 @@ void CAI_PassengerBehaviorZombie::BuildScheduleTestBits( void )
 	if ( GetPassengerState() == PASSENGER_STATE_OUTSIDE )
 	{
 		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_CAN_RANGE_ATTACK1 ) );
-		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_ENTERING_VEHICLE ) );
+		GetOuter()->SetCustomInterruptCondition( GetClassScheduleIdSpace()->ConditionLocalToGlobal( COND_PASSENGER_ENTERING ) );
 	}
 
 	BaseClass::BuildScheduleTestBits();
@@ -320,44 +374,6 @@ void CAI_PassengerBehaviorZombie::GetAttachmentPoint( Vector *vecPoint )
 	VectorRotate( vecEntryOffset, m_hVehicle->GetAbsAngles(), vecFinalOffset );
 	*vecPoint = ( m_hVehicle->GetAbsOrigin() + vecFinalOffset );
 }
-
-/*
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Output : Returns true on success, false on failure.
-//-----------------------------------------------------------------------------
-bool CAI_PassengerBehaviorZombie::WithinAttachRange( void )
-{
-	// Target's predicted position
-	Vector vecPredictedTargetPos;
-	UTIL_PredictedPosition( GetEnemy(), ATTACH_PREDICTION_INTERVAL, &vecPredictedTargetPos );
-
-	// Our predicted position
-	Vector vecPredictedPos;
-	UTIL_PredictedPosition( GetOuter(), ATTACH_PREDICTION_INTERVAL, &vecPredictedPos );
-
-	// Get our target position
-	Vector vecAttachPoint;
-	GetAttachmentPoint( &vecAttachPoint );
-
-	// Get our current velocity and direction to the target position
-	Vector vecVelocity = GetOuter()->GetAbsVelocity();
-	Vector vecTargetDir = vecAttachPoint - GetOuter()->GetAbsOrigin();
-
-	VectorNormalize( vecVelocity );
-	float flDist = VectorNormalize( vecTargetDir );
-	float flDot = vecVelocity.Dot( vecTargetDir );
-
-	// Must be close enough to the target and also mostly moving towards it
-	if ( ( flDot > ATTACH_PREDICTION_FACING_THRESHOLD ) && ( flDist < ATTACH_PREDICTION_DIST_THRESHOLD ) )
-	{
-		return true;
-	}
-
-	// Not there yet
-	return false;
-}
-*/
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -420,8 +436,6 @@ void CAI_PassengerBehaviorZombie::StartDismount( void )
 
 	// Clear this
 	m_PassengerIntent = PASSENGER_INTENT_NONE;
-
-	m_hVehicle = NULL;
 	SetPassengerState( PASSENGER_STATE_EXITING );
 
 	// Get the velocity
@@ -465,6 +479,13 @@ void CAI_PassengerBehaviorZombie::StartTask( const Task_t *pTask )
 
 	case TASK_MELEE_ATTACK1:
 		{
+			// Only override this if we're "in" the vehicle
+			if ( GetPassengerState() != PASSENGER_STATE_INSIDE )
+			{
+				BaseClass::StartTask( pTask );
+				break;
+			}
+
 			// Swipe
 			GetOuter()->SetIdealActivity( (Activity) ACT_PASSENGER_MELEE_ATTACK1 );
 			
@@ -478,6 +499,18 @@ void CAI_PassengerBehaviorZombie::StartTask( const Task_t *pTask )
 		{
 			// Start the process of dismounting from the vehicle
 			StartDismount();
+		}
+		break;
+
+	case TASK_PASSENGER_ZOMBIE_ATTACH:
+		{
+			if ( AttachToVehicle() )
+			{
+				TaskComplete();
+				return;
+			}
+
+			TaskFail( "Unable to attach to vehicle!" );
 		}
 		break;
 
@@ -539,39 +572,77 @@ void CAI_PassengerBehaviorZombie::RunTask( const Task_t *pTask )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Enter the vehicle
+// Purpose: Find the relative cost of an entry point based on facing
+// Input  : &vecEntryPos - Position we're evaluating
+// Output : Returns the cost as a modified distance value
 //-----------------------------------------------------------------------------
-void CAI_PassengerBehaviorZombie::EnterVehicle( void )
+float CAI_PassengerBehaviorZombie::GetEntryPointCost( const Vector &vecEntryPos )
 {
-	if ( m_hVehicle->NPC_CanEnterVehicle( GetOuter(), false ) == false )
-		return;
-	
-	// Reserve the seat
-	if ( ReserveEntryPoint( VEHICLE_SEAT_ANY ) == false )
-		return;
+	// FIXME: We don't care about cost any longer!
+	return 1.0f;
 
+	// Find the direction from us to the entry point
+	Vector vecEntryDir = ( vecEntryPos - GetAbsOrigin() );
+	float flCost = VectorNormalize( vecEntryDir );
+	
+	// Get our current facing
+	Vector vecDir;
+	GetOuter()->GetVectors( &vecDir, NULL, NULL );
+
+	// Scale our cost by how closely it matches our facing
+	float flDot = DotProduct( vecEntryDir, vecDir );
+	if ( flDot < 0.0f )
+		return FLT_MAX;
+
+	flCost *= RemapValClamped( flDot, 1.0f, 0.0f, 1.0f, 2.0f );
+
+	return flCost;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : bNearest - 
+// Output : int
+//-----------------------------------------------------------------------------
+int CAI_PassengerBehaviorZombie::FindEntrySequence( bool bNearest /*= false*/ )
+{
 	// Get a list of all our animations
 	const PassengerSeatAnims_t *pEntryAnims = m_hVehicle->GetServerVehicle()->NPC_GetPassengerSeatAnims( GetOuter(), PASSENGER_SEAT_ENTRY );
 	if ( pEntryAnims == NULL )
-		return;
+		return -1;
+
+	Vector vecStartPos;
+	const CPassengerSeatTransition *pTransition;
+	float flBestCost = FLT_MAX;
+	float flCost;
+	int nBestSequence = -1;
+	int nSequence = -1;
 
 	// Test each animation (sorted by priority) for the best match
 	for ( int i = 0; i < pEntryAnims->Count(); i++ )
 	{
 		// Find the activity for this animation name
-		const CPassengerSeatTransition *pTransition = &pEntryAnims->Element(i);
-		int nSequence = GetOuter()->LookupSequence( STRING( pTransition->GetAnimationName() ) );
+		pTransition = &pEntryAnims->Element(i);
+		nSequence = GetOuter()->LookupSequence( STRING( pTransition->GetAnimationName() ) );
 
 		Assert( nSequence != -1 );
 		if ( nSequence == -1 )
 			continue;
 
-		SetTransitionSequence( nSequence );
-		break;
+		// Test this entry for validity
+		GetEntryPoint( nSequence, &vecStartPos );
+
+		// Evaluate the cost
+		flCost = GetEntryPointCost( vecStartPos );
+		if ( flCost < flBestCost )
+		{
+			nBestSequence = nSequence;
+			flBestCost = flCost;
+			continue;
+		}
 	}
 
-	// Get in the vehicle
-	BaseClass::EnterVehicle();
+	return nBestSequence;
 }
 
 //-----------------------------------------------------------------------------
@@ -600,7 +671,7 @@ void CAI_PassengerBehaviorZombie::CalculateBodyLean( void )
 	m_flLastLateralLean = ( m_flLastLateralLean * 0.2f ) + ( flLateralDisp * 0.8f );
 
 	// Factor in a "stun" if the zombie was moved too far off course
-	if ( fabs( m_flLastLateralLean ) > 0.5f )
+	if ( fabs( m_flLastLateralLean ) > 0.75f )
 	{
 		SuppressAttack( 0.5f );
 	}
@@ -659,6 +730,60 @@ void CAI_PassengerBehaviorZombie::GatherVehicleStateConditions( void )
 	}
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pEvent - 
+//-----------------------------------------------------------------------------
+void CAI_PassengerBehaviorZombie::HandleAnimEvent( animevent_t *pEvent )
+{
+	if ( pEvent->event == AE_PASSENGER_PHYSICS_PUSH )
+	{
+		// Add a push into the vehicle
+		float flForce = (float) atof( pEvent->options );
+		AddPhysicsPush( flForce * 0.75f );
+		return;
+	}
+
+	BaseClass::HandleAnimEvent( pEvent );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Attach to the vehicle if we're able
+//-----------------------------------------------------------------------------
+bool CAI_PassengerBehaviorZombie::AttachToVehicle( void )
+{
+	// Must be able to enter the vehicle
+	if ( m_hVehicle->NPC_CanEnterVehicle( GetOuter(), false ) == false )
+		return false;
+
+	// Reserve the seat
+	if ( ReserveEntryPoint( VEHICLE_SEAT_ANY ) == false )
+		return false;
+
+	// Use the best one we've found
+	int nSequence = FindEntrySequence();
+	if ( nSequence == -1 )
+		return false;
+
+	// Take the transition sequence
+	SetTransitionSequence( nSequence );
+
+	// Get in the vehicle
+	EnterVehicle();
+
+	// Start our scripted sequence with any other passengers
+	// Find Alyx
+	// TODO: Iterate through the list of passengers in the vehicle and find one we can interact with
+	CNPC_Alyx *pAlyx = CNPC_Alyx::GetAlyx();
+	if ( pAlyx )
+	{
+		// Tell Alyx to play along!
+		pAlyx->ForceVehicleInteraction( GetOuter()->GetSequenceName( nSequence ), GetOuter() );
+	}
+
+	return true;
+}
+
 AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorZombie )
 {
 	DECLARE_ACTIVITY( ACT_PASSENGER_MELEE_ATTACK1 )
@@ -668,6 +793,9 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorZombie )
 
 	DECLARE_TASK( TASK_PASSENGER_ZOMBIE_RANGE_ATTACK1 )
 	DECLARE_TASK( TASK_PASSENGER_ZOMBIE_DISMOUNT )
+	DECLARE_TASK( TASK_PASSENGER_ZOMBIE_ATTACH )
+
+	DECLARE_CONDITION( COND_PASSENGER_ZOMBIE_CAN_ATTACH_TO_VEHICLE )
 
 	DEFINE_SCHEDULE
 		(
@@ -676,12 +804,11 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorZombie )
 		"	Tasks"
 		"		TASK_PASSENGER_ATTACH_TO_VEHICLE	0"
 		"		TASK_PASSENGER_ENTER_VEHICLE		0"
-		"		TASK_PLAY_SEQUENCE					ACTIVITY:ACT_PASSENGER_THREATEN"
 		""
 		"	Interrupts"
 		)
 
-		DEFINE_SCHEDULE
+	DEFINE_SCHEDULE
 		(
 		SCHED_PASSENGER_ZOMBIE_EXIT_VEHICLE,
 
@@ -694,9 +821,9 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorZombie )
 		"		COND_TASK_FAILED"
 		)
 
-		DEFINE_SCHEDULE
+	DEFINE_SCHEDULE
 		(
-		SCHED_PASSENGER_MELEE_ATTACK1,
+		SCHED_PASSENGER_ZOMBIE_MELEE_ATTACK1,
 
 		"	Tasks"
 		"		TASK_ANNOUNCE_ATTACK	1"
@@ -717,5 +844,35 @@ AI_BEGIN_CUSTOM_SCHEDULE_PROVIDER( CAI_PassengerBehaviorZombie )
 		"	Interrupts"
 		)
 
-	AI_END_CUSTOM_SCHEDULE_PROVIDER()
+	DEFINE_SCHEDULE
+		(
+		SCHED_PASSENGER_ZOMBIE_RUN_TO_VEHICLE,
+
+		"	Tasks"
+		"		TASK_STOP_MOVING				0"
+		"		TASK_SET_FAIL_SCHEDULE			SCHEDULE:SCHED_CHASE_ENEMY_FAILED"
+		"		TASK_GET_CHASE_PATH_TO_ENEMY	2400"
+		"		TASK_RUN_PATH					0"
+		"		TASK_WAIT_FOR_MOVEMENT			0"
+		""
+		"	Interrupts"
+		"		COND_NEW_ENEMY"
+		"		COND_ENEMY_DEAD"
+		"		COND_ENEMY_UNREACHABLE"
+		"		COND_TASK_FAILED"
+		"		COND_LOST_ENEMY"
+		"		COND_PASSENGER_ZOMBIE_CAN_ATTACH_TO_VEHICLE"
+		)
+
+	DEFINE_SCHEDULE
+		(
+		SCHED_PASSENGER_ZOMBIE_ATTACH,
+
+		"	Tasks"
+		"		TASK_PASSENGER_ZOMBIE_ATTACH	0"
+		""
+		"	Interrupts"
+		)
+
+		AI_END_CUSTOM_SCHEDULE_PROVIDER()
 }

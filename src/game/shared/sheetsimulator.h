@@ -11,8 +11,8 @@
 #pragma once
 #endif
 
-#include "mathlib.h"
-#include "vector.h"
+#include "mathlib/mathlib.h"
+#include "mathlib/vector.h"
 #include "utlvector.h"
 
 

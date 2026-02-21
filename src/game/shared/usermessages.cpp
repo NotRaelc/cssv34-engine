@@ -185,16 +185,6 @@ bool CUserMessages::DispatchUserMessage( int msg_type, bf_read &msg_data )
 #endif
 }
 
-void CUserMessages::ListUserMessages()
-{
-	Msg( "--- %d user messages ---\n", m_UserMessages.Count() );
-	
-	for ( int index = m_UserMessages.First(); index != m_UserMessages.InvalidIndex(); index = m_UserMessages.Next( index ) )
-	{
-		Msg( "Message %d: %s\n", index, m_UserMessages.GetElementName( index ) );
-	}
-}
-
 // Singleton
 static CUserMessages g_UserMessages;
 // Expose to rest of .dll

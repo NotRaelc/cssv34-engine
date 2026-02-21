@@ -55,6 +55,7 @@ CON_COMMAND(soundscape_flush, "Flushes the server & client side soundscapes")
 
 CSoundscapeSystem g_SoundscapeSystem( "CSoundscapeSystem" );
 
+extern ConVar soundscape_debug;
 
 void CSoundscapeSystem::AddSoundscapeFile( const char *filename )
 {
@@ -77,10 +78,11 @@ void CSoundscapeSystem::AddSoundscapeFile( const char *filename )
 					}
 				}
 				m_soundscapes.AddString( pKeys->GetName(), m_soundscapeCount );
-#ifdef _XBOX
-				const char *pStr = pKeys->GetName();
-				AddSoundscapeSounds( pKeys, m_soundscapeCount );
-#endif
+
+				if ( IsX360() )
+				{
+					AddSoundscapeSounds( pKeys, m_soundscapeCount );
+				}
 				m_soundscapeCount++;
 			}
 			pKeys = pKeys->GetNextKey();
@@ -91,9 +93,6 @@ void CSoundscapeSystem::AddSoundscapeFile( const char *filename )
 
 CON_COMMAND(sv_soundscape_printdebuginfo, "print soundscapes")
 {
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-	
 	g_SoundscapeSystem.PrintDebugInfo();
 }
 
@@ -180,10 +179,11 @@ void CSoundscapeSystem::Shutdown()
 	FlushSoundscapes();
 	m_soundscapeEntities.RemoveAll();
 	m_activeIndex = -1;
-#ifdef _XBOX
-	m_soundscapeSounds.Purge();
-#endif
 
+	if ( IsX360() )
+	{
+		m_soundscapeSounds.Purge();
+	}
 }
 
 void CSoundscapeSystem::LevelInitPreEntity()
@@ -194,9 +194,10 @@ void CSoundscapeSystem::LevelInitPreEntity()
 
 void CSoundscapeSystem::LevelInitPostEntity()
 {
-#ifdef _XBOX
-	m_soundscapeSounds.Purge();
-#endif
+	if ( IsX360() )
+	{
+		m_soundscapeSounds.Purge();
+	}
 }
 
 int	CSoundscapeSystem::GetSoundscapeIndex( const char *pName )
@@ -234,8 +235,9 @@ void CSoundscapeSystem::FrameUpdatePostEntityThink()
 			m_activeIndex = 0;
 		}
 
-		// update 2 soundscape entities each tick
-		int count = min(2, total);
+		// update 2 soundscape entities each tick. (when debugging update 
+		// them all)
+		int count = soundscape_debug.GetBool() ? total : min(2, total);
 		for ( int i = 0; i < count; i++ )
 		{
 			m_activeIndex++;
@@ -245,9 +247,13 @@ void CSoundscapeSystem::FrameUpdatePostEntityThink()
 	}
 }
 
-#ifdef _XBOX
 void CSoundscapeSystem::AddSoundscapeSounds( KeyValues *pSoundscape, int soundscapeIndex )
 {
+	if ( !IsX360() )
+	{
+		return;
+	}
+
 	int i = m_soundscapeSounds.AddToTail();
 	Assert( i == soundscapeIndex );
 
@@ -304,11 +310,14 @@ void CSoundscapeSystem::AddSoundscapeSounds( KeyValues *pSoundscape, int soundsc
 		pKey = pKey->GetNextKey();
 	}
 }
-#endif
 
-#ifdef _XBOX
 void CSoundscapeSystem::PrecacheSounds( int soundscapeIndex )
 {
+	if ( !IsX360() )
+	{
+		return;
+	}
+
 	if ( !IsValidIndex( soundscapeIndex ) )
 	{
 		return;
@@ -329,4 +338,3 @@ void CSoundscapeSystem::PrecacheSounds( int soundscapeIndex )
 		}
 	}
 }
-#endif

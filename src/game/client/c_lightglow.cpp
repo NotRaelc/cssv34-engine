@@ -73,6 +73,9 @@ protected:
 	bool	m_bModulateByDot;
 };
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 class C_LightGlow : public C_BaseEntity
 {
 public:
@@ -85,8 +88,8 @@ public:
 public:
 
 	virtual void	OnDataChanged( DataUpdateType_t updateType );
-	virtual void	NotifyShouldTransmit( ShouldTransmitState_t state );
 	virtual void	Simulate( void );
+	virtual void	ClientThink( void );
 
 public:
 	
@@ -173,7 +176,7 @@ void C_LightGlow::OnDataChanged( DataUpdateType_t updateType )
 			m_Glow.SetOneSided();
 		}
 
-		m_Glow.Activate();
+		SetNextClientThink( gpGlobals->curtime + RandomFloat(0,3.0) );
 	}
 	else if ( updateType == DATA_UPDATE_DATATABLE_CHANGED ) //Right now only color should change.
 	{
@@ -196,19 +199,17 @@ void C_LightGlow::OnDataChanged( DataUpdateType_t updateType )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void C_LightGlow::NotifyShouldTransmit( ShouldTransmitState_t state )
+void C_LightGlow::ClientThink( void )
 {
-	BaseClass::NotifyShouldTransmit( state );
-
-	// Turn off
-	if ( state == SHOULDTRANSMIT_END )
+	Vector mins = GetAbsOrigin();
+	if ( engine->IsBoxVisible( mins, mins ) )
+	{
+		m_Glow.Activate();
+	}
+	else
 	{
 		m_Glow.Deactivate();
 	}
 
-	// Turn on
-	if ( state == SHOULDTRANSMIT_START )
-	{
-		m_Glow.Activate();
-	}
+	SetNextClientThink( gpGlobals->curtime + RandomFloat(1.0,3.0) );
 }

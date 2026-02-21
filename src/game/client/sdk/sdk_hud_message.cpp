@@ -74,7 +74,7 @@ void CHudGameMessage::MsgFunc_GameMessage( bf_read &msg )
 	msg.ReadString( szString, sizeof(szString) );
 
 	// Convert it to localize friendly unicode
-	vgui::localize()->ConvertANSIToUnicode( szString, m_pText, sizeof(m_pText) );
+	g_pVGuiLocalize->ConvertANSIToUnicode( szString, m_pText, sizeof(m_pText) );
 
 	// Setup our time trackers
 	m_flStartTime = gpGlobals->curtime;

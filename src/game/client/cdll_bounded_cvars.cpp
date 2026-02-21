@@ -1,4 +1,4 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
@@ -8,7 +8,6 @@
 #include "cbase.h"
 #include "cdll_bounded_cvars.h"
 #include "convar_serverbounded.h"
-#include "tier0/icommandline.h"
 
 
 bool g_bForceCLPredictOff = false;
@@ -26,7 +25,7 @@ public:
 #if defined(DOD_DLL) || defined(CSTRIKE_DLL)
 		  FCVAR_USERINFO | FCVAR_CHEAT, 
 #else
-		  FCVAR_USERINFO | FCVAR_NOT_CONNECTED, 
+		  FCVAR_USERINFO, 
 #endif
 		  "Perform client side prediction." )
 	  {
@@ -38,7 +37,7 @@ public:
 		  if ( g_bForceCLPredictOff )
 			  return 0;
 
-		  static const ConVar *pClientPredict = cvar->FindVar( "sv_client_predict" );
+		  static const ConVar *pClientPredict = dynamic_cast< const ConVar* >( g_pCVar->FindCommandBase( "sv_client_predict" ) );
 		  if ( pClientPredict && pClientPredict->GetInt() != -1 )
 		  {
 			  // Ok, the server wants to control this value.
@@ -66,15 +65,15 @@ public:
 	CBoundedCvar_InterpRatio() :
 	  ConVar_ServerBounded( "cl_interp_ratio", 
 		  "2.0", 
-		  FCVAR_USERINFO | FCVAR_NOT_CONNECTED, 
+		  FCVAR_USERINFO, 
 		  "Sets the interpolation amount (final amount is cl_interp_ratio / cl_updaterate)." )
 	  {
 	  }
 
 	  virtual float GetFloat() const
 	  {
-		  static const ConVar *pMin = cvar->FindVar( "sv_client_min_interp_ratio" );
-		  static const ConVar *pMax = cvar->FindVar( "sv_client_max_interp_ratio" );
+		  static const ConVar *pMin = dynamic_cast< const ConVar* >( g_pCVar->FindCommandBase( "sv_client_min_interp_ratio" ) );
+		  static const ConVar *pMax = dynamic_cast< const ConVar* >( g_pCVar->FindCommandBase( "sv_client_max_interp_ratio" ) );
 		  if ( pMin && pMax && pMin->GetFloat() != -1 )
 		  {
 			  return clamp( GetBaseFloatValue(), pMin->GetFloat(), pMax->GetFloat() );
@@ -100,15 +99,15 @@ public:
 	CBoundedCvar_Interp() :
 	  ConVar_ServerBounded( "cl_interp", 
 		  "0.1", 
-		  FCVAR_USERINFO | FCVAR_NOT_CONNECTED, 
+		  FCVAR_USERINFO, 
 		  "Sets the interpolation amount (bounded on low side by server interp ratio settings).", true, 0.0f, true, 0.5f )
 	  {
 	  }
 
 	  virtual float GetFloat() const
 	  {
-		  static const ConVar *pUpdateRate = cvar->FindVar( "cl_updaterate" );
-		  static const ConVar *pMin = cvar->FindVar( "sv_client_min_interp_ratio" );
+		  static const ConVar_ServerBounded *pUpdateRate = dynamic_cast< const ConVar_ServerBounded* >( g_pCVar->FindCommandBase( "cl_updaterate" ) );
+		  static const ConVar *pMin = dynamic_cast< const ConVar* >( g_pCVar->FindCommandBase( "sv_client_min_interp_ratio" ) );
 		  if ( pUpdateRate && pMin && pMin->GetFloat() != -1 )
 		  {
 			  return max( GetBaseFloatValue(), pMin->GetFloat() / pUpdateRate->GetFloat() );
@@ -125,7 +124,7 @@ ConVar_ServerBounded *cl_interp = &cl_interp_var;
 
 float GetClientInterpAmount()
 {
-	static const ConVar *pUpdateRate = cvar->FindVar( "cl_updaterate" );
+	static const ConVar_ServerBounded *pUpdateRate = dynamic_cast< const ConVar_ServerBounded* >( g_pCVar->FindCommandBase( "cl_updaterate" ) );
 	if ( pUpdateRate )
 	{
 		// #define FIXME_INTERP_RATIO
@@ -134,7 +133,6 @@ float GetClientInterpAmount()
 	else
 	{
 		AssertMsgOnce( false, "GetInterpolationAmount: can't get cl_updaterate cvar." );
-	
 		return 0.1;
 	}
 }

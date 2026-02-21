@@ -61,11 +61,6 @@ class IClientMessageHandler;
 	DECLARE_BASE_MESSAGE( clc_##name );	\
 	IClientMessageHandler *m_pMessageHandler;\
 	bool Process() { return m_pMessageHandler->Process##name( this ); }\
-		
-#define DECLARE_MM_MESSAGE( name )		\
-	DECLARE_BASE_MESSAGE( mm_##name );	\
-	IMatchmakingMessageHandler *m_pMessageHandler;\
-	bool Process() { return m_pMessageHandler->Process##name( this ); }\
 
 class CNetMessage : public INetMessage
 {

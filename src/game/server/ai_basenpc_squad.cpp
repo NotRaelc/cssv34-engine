@@ -143,7 +143,8 @@ bool CAI_BaseNPC::IsValidShootPosition( const Vector &vecShootLocation, CAI_Node
 	{
 		if (!pHint || pHint->GetGroup() != GetHintGroup())
 		{
-			return false;
+			if ( ( vecShootLocation - GetAbsOrigin() ).Length2DSqr() > 1 )
+				return false;
 		}
 	}
 
@@ -186,6 +187,23 @@ void CAI_BaseNPC::AddToSquad( string_t name )
 
 //-----------------------------------------------------------------------------
 
+void CAI_BaseNPC::SetSquad( CAI_Squad *pSquad )	
+{ 
+	if ( m_pSquad == pSquad )
+	{
+		return;
+	}
+
+	if ( m_pSquad && m_iMySquadSlot != SQUAD_SLOT_NONE)
+	{
+		VacateStrategySlot();
+	}
+
+	m_pSquad = pSquad; 	
+}
+
+//-----------------------------------------------------------------------------
+
 void CAI_BaseNPC::RemoveFromSquad()
 {
 	if ( m_pSquad )
@@ -204,6 +222,13 @@ void CAI_BaseNPC::CheckSquad()
 	if( !GetSquad()->IsLeader(this) )
 		return;
 
+	if( VPhysicsGetObject() != NULL && (VPhysicsGetObject()->GetGameFlags() & FVPHYSICS_PLAYER_HELD) )
+	{
+		// I AM the leader, and I'm currently being held. This will screw up all of my relationship checks
+		// if I'm a manhack or a rollermine, so just bomb out and try next time.
+		return;
+	}
+
 	AISquadIter_t iter;
 	CAI_BaseNPC *pSquadmate = m_pSquad->GetFirstMember( &iter );
 	while ( pSquadmate )
@@ -212,15 +237,15 @@ void CAI_BaseNPC::CheckSquad()
 		{
 			bool bWarn = true;
 
-			if( hl2_episodic.GetBool() )
+			// Rollermines and manhacks set their Class to NONE when held by the player, which makes all of 
+			// their squadmates complain that an enemy is in the squad. Suppress this.
+			if( pSquadmate->VPhysicsGetObject() != NULL )
 			{
-				if( FClassnameIs(pSquadmate, "npc_rollermine") || FClassnameIs(pSquadmate, "npc_manhack") )
+				if (pSquadmate->VPhysicsGetObject()->GetGameFlags() & FVPHYSICS_PLAYER_HELD)
 				{
-					// These two items set their Class to NONE when held by the player, which makes all of 
-					// their squadmates complain that an enemy is in the squad. Suppress this.
 					bWarn = false;
 				}
-			}
+			}	
 
 			if( bWarn )
 			{

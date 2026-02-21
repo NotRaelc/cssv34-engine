@@ -91,7 +91,7 @@ void CEnvZoom::InputZoom( inputdata_t &inputdata )
 		// If the player's already holding a fov from another env_zoom, we're allowed to overwrite it
 		if ( pPlayer->GetFOVOwner() && FClassnameIs( pPlayer->GetFOVOwner(), "env_zoom" ) )
 		{
-			pPlayer->SetFOV( pPlayer->GetFOVOwner(), 0 );
+			pPlayer->ClearZoomOwner();
 		}
 
 		//Stuff the values

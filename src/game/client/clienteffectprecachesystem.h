@@ -44,6 +44,7 @@ public:
 
 	// Init, shutdown
 	virtual bool Init() { return true; }
+	virtual void PostInit() {}
 	virtual void Shutdown();
 
 	// Level init, shutdown

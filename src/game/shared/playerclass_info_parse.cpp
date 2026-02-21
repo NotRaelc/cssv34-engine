@@ -79,13 +79,9 @@ static FilePlayerClassInfo_t gNullPlayerClassInfo;
 //-----------------------------------------------------------------------------
 FilePlayerClassInfo_t *GetFilePlayerClassInfoFromHandle( PLAYERCLASS_FILE_INFO_HANDLE handle )
 {
-	if ( handle < 0 || handle >= m_PlayerClassInfoDatabase.Count() )
+	if ( handle == GetInvalidPlayerClassInfoHandle() )
 	{
-		return &gNullPlayerClassInfo;
-	}
-
-	if ( handle == m_PlayerClassInfoDatabase.InvalidIndex() )
-	{
+		Assert( !"bad index into playerclass info UtlDict" );
 		return &gNullPlayerClassInfo;
 	}
 
@@ -103,12 +99,7 @@ PLAYERCLASS_FILE_INFO_HANDLE GetInvalidPlayerClassInfoHandle( void )
 
 void ResetFilePlayerClassInfoDatabase( void )
 {
-	int c = m_PlayerClassInfoDatabase.Count(); 
-	for ( int i = 0; i < c; ++i )
-	{
-		delete m_PlayerClassInfoDatabase[ i ];
-	}
-	m_PlayerClassInfoDatabase.RemoveAll();
+	m_PlayerClassInfoDatabase.PurgeAndDeleteElements();
 
 #ifdef _DEBUG
 	memset(g_bUsedPlayerClassSlots, 0, sizeof(g_bUsedPlayerClassSlots));

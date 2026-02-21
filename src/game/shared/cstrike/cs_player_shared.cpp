@@ -38,6 +38,41 @@ ConVar sv_showplayerhitboxes( "sv_showplayerhitboxes", "0", FCVAR_REPLICATED, "S
 
 void DispatchEffect( const char *pName, const CEffectData &data );
 
+//Pistols
+ConVar mp_weapon_glock_price( "mp_weapon_glock_price", "400", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_usp_price( "mp_weapon_usp_price", "500", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_p228_price( "mp_weapon_p228_price", "600", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_deagle_price( "mp_weapon_deagle_price", "650", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_fiveseven_price( "mp_weapon_fiveseven_price", "750", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_elite_price( "mp_weapon_elite_price", "800", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+
+//Shotguns
+ConVar mp_weapon_m3_price( "mp_weapon_m3_price", "1700", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_xm1014_price( "mp_weapon_xm1014_price", "3000", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+
+//Sub-Machineguns
+ConVar mp_weapon_tmp_price( "mp_weapon_tmp_price", "1250", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_mac10_price( "mp_weapon_mac10_price", "1400", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_mp5navy_price( "mp_weapon_mp5navy_price", "1500", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_ump45_price( "mp_weapon_ump45_price", "1700", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_p90_price( "mp_weapon_p90_price", "2350", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+
+//Rifles
+ConVar mp_weapon_famas_price( "mp_weapon_famas_price", "2250", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_galil_price( "mp_weapon_galil_price", "2000", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_scout_price( "mp_weapon_scout_price", "2750", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_ak47_price( "mp_weapon_ak47_price", "2500", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_m4a1_price( "mp_weapon_m4a1_price", "3100", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_aug_price( "mp_weapon_aug_price", "3500", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_sg552_price( "mp_weapon_sg552_price", "3500", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_sg550_price( "mp_weapon_sg550_price", "4200", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_awp_price( "mp_weapon_awp_price", "4750", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+ConVar mp_weapon_g3sg1_price( "mp_weapon_g3sg1_price", "5000", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+
+//Machineguns
+ConVar mp_weapon_m249_price( "mp_weapon_m249_price", "5750", FCVAR_REPLICATED | FCVAR_UNLOGGED | FCVAR_PRINTABLEONLY );
+
+
 #ifdef _DEBUG
 
 	// This is some extra code to collect weapon accuracy stats:
@@ -339,11 +374,6 @@ void CCSPlayer::FireBullet(
 
 	bool bFirstHit = true;
 
-#ifdef BUGFIXED
-	bool bHitPlayer = false;
-	bool bHitTeammate = false;
-#endif
-	
 	CBasePlayer *lastPlayerHit = NULL;
 
 	if( sv_showplayerhitboxes.GetInt() > 0 )
@@ -376,16 +406,6 @@ void CCSPlayer::FireBullet(
 		}
 
 		lastPlayerHit = ToBasePlayer(tr.m_pEnt);
-		
-#ifdef BUGFIXED
-		if ( lastPlayerHit )
-		{
-			if ( lastPlayerHit->GetTeamNumber() == GetTeamNumber() )
-				bHitTeammate = true;
-			
-			bHitPlayer = true;
-		}
-#endif
 
 		if ( tr.fraction == 1.0f )
 			break; // we didn't hit anything, stop tracing shoot
@@ -596,13 +616,6 @@ void CCSPlayer::FireBullet(
 		iPenetration--;
 	}
 
-#ifdef BUGFIXED
-	if ( bHitPlayer && !bHitTeammate )
-	{
-		m_iLockViewanglesTickNumber = gpGlobals->tickcount;
-		m_qangLockViewangles 		= pl.v_angle;
-	}
-#endif
 }
 
 

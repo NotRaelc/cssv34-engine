@@ -128,6 +128,50 @@ bool CMoveHelperClient::AddToTouched( const trace_t& tr, const Vector& impactvel
 
 void CMoveHelperClient::ProcessImpacts( void )
 {
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if ( !pPlayer )
+		return;
+
+	// Relink in order to build absorigin and absmin/max to reflect any changes
+	//  from prediction.  Relink will early out on SOLID_NOT
+
+	// TODO: Touch triggers on the client
+	//pPlayer->PhysicsTouchTriggers();
+
+	// Don't bother if the player ain't solid
+	if ( pPlayer->IsSolidFlagSet( FSOLID_NOT_SOLID ) )
+		return;
+
+	// Save off the velocity, cause we need to temporarily reset it
+	Vector vel = pPlayer->GetAbsVelocity();
+
+	// Touch other objects that were intersected during the movement.
+	for (int i = 0 ; i < m_TouchList.Size(); i++)
+	{
+		// Run the impact function as if we had run it during movement.
+		C_BaseEntity *entity = ClientEntityList().GetEnt( m_TouchList[i].trace.m_pEnt->entindex() );
+		if ( !entity )
+			continue;
+
+		Assert( entity != pPlayer );
+		// Don't ever collide with self!!!!
+		if ( entity == pPlayer )
+			continue;
+
+		// Reconstruct trace results.
+		m_TouchList[i].trace.m_pEnt = entity;
+
+		// Use the velocity we had when we collided, so boxes will move, etc.
+		pPlayer->SetAbsVelocity( m_TouchList[i].deltavelocity );
+
+		entity->PhysicsImpact( pPlayer, m_TouchList[i].trace );
+	}
+
+	// Restore the velocity
+	pPlayer->SetAbsVelocity( vel );
+
+	// So no stuff is ever left over, sigh...
+	ResetTouchList();
 }
 
 void CMoveHelperClient::StartSound( const Vector& origin, const char *soundname )

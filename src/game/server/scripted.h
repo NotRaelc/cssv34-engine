@@ -2,7 +2,6 @@
 //
 // Purpose: 
 //
-// $NoKeywords: $
 //=============================================================================//
 
 #ifndef SCRIPTED_H
@@ -32,11 +31,12 @@
 #define SF_SCRIPT_START_ON_SPAWN		16
 #define SF_SCRIPT_NOINTERRUPT			32
 #define SF_SCRIPT_OVERRIDESTATE			64
-#define SF_SCRIPT_NOSCRIPTMOVEMENT		128
+#define SF_SCRIPT_DONT_TELEPORT_AT_END	128		// Don't fixup end position with a teleport when the SS is finished
 #define SF_SCRIPT_LOOP_IN_POST_IDLE		256		// Loop in the post idle animation after playing the action animation.
 #define SF_SCRIPT_HIGH_PRIORITY			512		// If set, we don't allow other scripts to steal our spot in the queue.
 #define SF_SCRIPT_SEARCH_CYCLICALLY		1024	// Start search from last entity found.
 #define SF_SCRIPT_NO_COMPLAINTS			2048	// doesn't bitch if it can't find anything
+#define SF_SCRIPT_ALLOW_DEATH			4096	// the actor using this scripted sequence may die without interrupting the scene (used for scripted deaths)
 
 
 enum script_moveto_t
@@ -120,7 +120,6 @@ public:
 	void AllowInterrupt( bool fAllow );
 	void RemoveIgnoredConditions( void );
 	bool PlayedSequence( void ) { return m_sequenceStarted; }
-	bool ScriptHasNoMovement( void ) { return HasSpawnFlags(SF_SCRIPT_NOSCRIPTMOVEMENT); }
 	bool CanEnqueueAfter( void );
 
 	// Entry & Action loops
@@ -163,16 +162,26 @@ private:
 	bool m_bIsPlayingEntry;
 	bool m_bLoopActionSequence;
 	bool m_bSynchPostIdles;
+	bool m_bIgnoreGravity;
+	bool m_bDisableNPCCollisions;	// Used when characters must interpenetrate while riding on elevators, trains, etc.
 
 	float m_flRadius;			// Range to search for an NPC to possess.
 	float m_flRepeat;			// Repeat rate
 
 	int m_iDelay;					// A counter indicating how many scripts are NOT ready to start.
+
+	bool m_bDelayed;				// This moderately hacky hack ensures that we don't calls to DelayStart(true) or DelayStart(false)
+									// twice in succession. This is necessary because we didn't want to remove the call to DelayStart(true)
+									// from StartScript, even though DelayStart(true) is called from TASK_PRE_SCRIPT.
+									// All of this is necessary in case the NPCs schedule gets cleared during the script and then they
+									// reselect the schedule to play the script. Without this you can get NPCs stuck with m_iDelay = -1
+
 	float m_startTime;				// Time when script actually started, used for synchronization
 	bool m_bWaitForBeginSequence;	// Set to true when we are told to MoveToPosition. Holds the actor in the pre-action idle until BeginSequence is called.
 
 	int m_saved_effects;
 	int m_savedFlags;
+	int m_savedCollisionGroup;
 
 	bool m_interruptable;
 	bool m_sequenceStarted;

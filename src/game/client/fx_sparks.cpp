@@ -37,6 +37,8 @@ CLIENTEFFECT_REGISTER_END()
 
 PMaterialHandle g_Material_Spark = NULL;
 
+static ConVar fx_drawmetalspark( "fx_drawmetalspark", "1", FCVAR_DEVELOPMENTONLY, "Draw metal spark effects." );
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : &pos - 
@@ -490,7 +492,7 @@ void FX_ElectricSpark( const Vector &pos, int nMagnitude, int nTrailLength, cons
 	sOffs[1] = pos[1] + random->RandomFloat( -4.0f, 4.0f );
 	sOffs[2] = pos[2];
 
-	sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), pSimple->GetPMaterial( "particle/particle_noisesphere" ), sOffs );
+	sParticle = (SimpleParticle *) pSimple->AddParticle( sizeof( SimpleParticle ), g_Mat_DustPuff[1], sOffs );
 		
 	if ( sParticle == NULL )
 		return;
@@ -616,6 +618,10 @@ void FX_MetalScrape( Vector &position, Vector &normal )
 void FX_MetalSpark( const Vector &position, const Vector &direction, const Vector &surfaceNormal, int iScale )
 {
 	VPROF_BUDGET( "FX_MetalSpark", VPROF_BUDGETGROUP_PARTICLE_RENDERING );
+
+	if ( !fx_drawmetalspark.GetBool() )
+		return;
+
 	//
 	// Emitted particles
 	//
@@ -1107,24 +1113,21 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 	// Only create dirt chunks on concrete/world
 	if ( materialType == 'C' || materialType == 'W' )
 	{
-		CSmartPtr<CFleckParticles> fleckEmitter = CFleckParticles::Create( "FX_Explosion 10", offset );
+		CSmartPtr<CFleckParticles> fleckEmitter = CFleckParticles::Create( "FX_Explosion 10", offset, Vector(5,5,5) );
 		if ( !fleckEmitter )
 			return;
-
-		fleckEmitter->SetSortOrigin( offset );
 
 		// Setup our collision information
 		fleckEmitter->m_ParticleCollision.Setup( offset, &normal, EXPLOSION_FLECK_ANGULAR_SPRAY, EXPLOSION_FLECK_MIN_SPEED, EXPLOSION_FLECK_MAX_SPEED, EXPLOSION_FLECK_GRAVITY, EXPLOSION_FLECK_DAMPEN );
 
-		PMaterialHandle	hMaterialArray[2];
+		PMaterialHandle	*hMaterialArray;
 		
 		switch ( materialType )
 		{
 		case 'C':
 		case 'c':
 		default:
-			hMaterialArray[0] = fleckEmitter->GetPMaterial( "effects/fleck_cement1" );
-			hMaterialArray[1] = fleckEmitter->GetPMaterial( "effects/fleck_cement2" );
+			hMaterialArray = g_Mat_Fleck_Cement;
 			break;
 		}
 
@@ -1156,7 +1159,7 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 
 	// Large sphere bursts
 	CSmartPtr<CSimpleEmitter> pSimpleEmitter = CSimpleEmitter::Create( "FX_Explosion 1" );
-	PMaterialHandle	hSphereMaterial = pSimpleEmitter->GetPMaterial( "particle/particle_noisesphere" );;
+	PMaterialHandle	hSphereMaterial = g_Mat_DustPuff[1];
 	Vector vecBurstOrigin = offset + normal * 8.0;
 	pSimpleEmitter->SetSortOrigin( vecBurstOrigin );
 	SimpleParticle *pSphereParticle = (SimpleParticle *) pSimpleEmitter->AddParticle( sizeof(SimpleParticle), hSphereMaterial, vecBurstOrigin );
@@ -1209,10 +1212,9 @@ void FX_Explosion( Vector& origin, Vector& normal, char materialType )
 	// Create a couple of big, floating smoke clouds
 	CSmartPtr<CSimpleEmitter> pSmokeEmitter = CSimpleEmitter::Create( "FX_Explosion 2" );
 	pSmokeEmitter->SetSortOrigin( offset );
-	hSphereMaterial = pSmokeEmitter->GetPMaterial( "particle/particle_noisesphere" );
 	for ( i = 0; i < 2; i++ )
 	{
-		SimpleParticle *pParticle = (SimpleParticle *) pSmokeEmitter->AddParticle( sizeof(SimpleParticle), hSphereMaterial, offset );
+		SimpleParticle *pParticle = (SimpleParticle *) pSmokeEmitter->AddParticle( sizeof(SimpleParticle), g_Mat_DustPuff[1], offset );
 		if ( pParticle == NULL )
 			break;
 
@@ -1254,12 +1256,11 @@ void FX_ConcussiveExplosion( Vector &origin, Vector &normal )
 
 	CSmartPtr<CSimpleEmitter> pSmokeEmitter = CSimpleEmitter::Create( "FX_ConcussiveExplosion 1" );
 	pSmokeEmitter->SetSortOrigin( offset );
-	PMaterialHandle	hSphereMaterial = pSmokeEmitter->GetPMaterial( "particle/particle_noisesphere" );
 
 	//Quick moving sprites
 	 for ( i = 0; i < 16; i++ )
 	{
-		SimpleParticle *pParticle = (SimpleParticle *) pSmokeEmitter->AddParticle( sizeof(SimpleParticle), hSphereMaterial, offset );
+		SimpleParticle *pParticle = (SimpleParticle *) pSmokeEmitter->AddParticle( sizeof(SimpleParticle), g_Mat_DustPuff[1], offset );
 
 		if ( pParticle == NULL )
 			return;
@@ -1288,7 +1289,7 @@ void FX_ConcussiveExplosion( Vector &origin, Vector &normal )
 	//Slow lingering sprites
 	for ( i = 0; i < 2; i++ )
 	{
-		SimpleParticle *pParticle = (SimpleParticle *) pSmokeEmitter->AddParticle( sizeof(SimpleParticle), hSphereMaterial, offset );
+		SimpleParticle *pParticle = (SimpleParticle *) pSmokeEmitter->AddParticle( sizeof(SimpleParticle), g_Mat_DustPuff[1], offset );
 		if ( pParticle == NULL )
 			return;
 

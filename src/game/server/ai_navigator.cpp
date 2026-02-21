@@ -50,6 +50,8 @@ const char * g_ppszGoalTypes[] =
 
 #define AIGetGoalTypeText(type)	(g_ppszGoalTypes[(type)])
 
+ConVar ai_vehicle_avoidance("ai_vehicle_avoidance", "1", FCVAR_CHEAT );
+
 #ifdef DEBUG_AI_NAVIGATION
 ConVar ai_debug_nav("ai_debug_nav", "0");
 #endif
@@ -70,6 +72,40 @@ int g_MoveFailureCounter;
 #ifdef DEBUG
 bool g_fTestSteering = 0;
 #endif
+
+//-----------------------------------------------------------------------------
+
+class CAI_NavInHintGroupFilter : public INearestNodeFilter
+{
+public:
+	CAI_NavInHintGroupFilter( string_t iszGroup = NULL_STRING ) :
+	  m_iszGroup( iszGroup )
+	  {
+	  }
+
+	  bool IsValid( CAI_Node *pNode )
+	  {
+		  if ( !pNode->GetHint() )
+		  {
+			  return false;
+		  }
+
+		  if ( pNode->GetHint()->GetGroup() != m_iszGroup )
+		  {
+			  return false;
+		  }
+
+		  return true;
+	  }
+
+	  bool ShouldContinue()
+	  {
+		  return true;
+	  }
+
+	  string_t m_iszGroup;
+
+};
 
 //-----------------------------------------------------------------------------
 
@@ -311,6 +347,8 @@ bool CAI_Navigator::FindPath( const AI_NavGoal_t &goal, unsigned flags )
 {
 	CAI_Path *pPath = GetPath();
 
+	MARK_TASK_EXPENSIVE();
+
 	// Clear out previous state
 	if ( flags & AIN_CLEAR_PREVIOUS_STATE )
 		pPath->Clear();
@@ -412,10 +450,30 @@ bool CAI_Navigator::FindPath( const AI_NavGoal_t &goal, unsigned flags )
 	return result;
 }
 
+ConVar ai_navigator_generate_spikes( "ai_navigator_generate_spikes", "0" );
+ConVar ai_navigator_generate_spikes_strength( "ai_navigator_generate_spikes_strength", "8" );
+
 //-----------------------------------------------------------------------------
 
 bool CAI_Navigator::SetGoal( const AI_NavGoal_t &goal, unsigned flags )
 {
+	// Queue this up if we're in the middle of a frame
+	if ( PostFrameNavigationSystem()->IsGameFrameRunning() )
+	{
+		// Send off the query for queuing
+		PostFrameNavigationSystem()->EnqueueEntityNavigationQuery( GetOuter(), CreateFunctor( this, &CAI_Navigator::SetGoal, RefToVal( goal ), flags ) );
+
+		// Complete immediately if we're waiting on that
+		// FIXME: This will probably cause a lot of subtle little nuisances...
+		if ( ( flags & AIN_NO_PATH_TASK_FAIL ) == 0 || GetOuter()->IsCurTaskContinuousMove() )
+		{
+			TaskComplete();
+		}
+
+		// For now, always succeed -- we need to deal with failures on the next frame
+		return true;
+	}
+
 	CAI_Path *pPath = GetPath();
 
 	OnNewGoal();
@@ -424,7 +482,7 @@ bool CAI_Navigator::SetGoal( const AI_NavGoal_t &goal, unsigned flags )
 	if ( flags & AIN_CLEAR_PREVIOUS_STATE )
 		ClearPath();
 
-	if ( GetOuter()->IsCurTaskContinuousMove() )
+	if ( GetOuter()->IsCurTaskContinuousMove() || ai_post_frame_navigation.GetBool() )
 		flags |= AIN_NO_PATH_TASK_FAIL;
 
 	bool result = FindPath( goal, flags );
@@ -505,8 +563,16 @@ bool CAI_Navigator::SetRandomGoal( const Vector &from, float minPathLength, cons
 	OnNewGoal();
 	if ( GetNetwork()->NumNodes() <= 0 )
 		return false;
+
+	INearestNodeFilter *pFilter = NULL;
+	CAI_NavInHintGroupFilter filter;
+	if ( GetOuter()->GetHintGroup() != NULL_STRING )
+	{
+		filter.m_iszGroup = GetOuter()->GetHintGroup();
+		pFilter = &filter;
+	}
 		
-	int fromNodeID = GetPathfinder()->NearestNodeToPoint( from );
+	int fromNodeID = GetNetwork()->NearestNodeToPoint( GetOuter(), from, true, pFilter );
 	
 	if (fromNodeID == NO_NODE)
 		return false;
@@ -541,21 +607,43 @@ bool CAI_Navigator::SetDirectGoal( const Vector &goalPos, Navigation_t navType )
 }
 
 //-----------------------------------------------------------------------------
+// Placeholder implementation for wander goals: cast a few random vectors and
+// accept the first one that still lies on the navmesh.
+// Side effect: vector goal of navigator is set.
+// Returns: true on goal set, false otherwise.
+static bool SetWanderGoalByRandomVector(CAI_Navigator *pNav, float minRadius, float maxRadius, int numTries)
+{
+	while (--numTries >= 0)
+	{
+		float dist = random->RandomFloat( minRadius, maxRadius );
+		Vector dir = UTIL_YawToVector( random->RandomFloat( 0, 359.99 ) );
+
+		if ( pNav->SetVectorGoal( dir, dist, minRadius ) )
+			return true;
+	}
+
+	return false;
+}
 
 bool CAI_Navigator::SetWanderGoal( float minRadius, float maxRadius )
 {
 	// @Note (toml 11-07-02): this is a bogus placeholder implementation!!!
-	for ( int i = 0; i < 5; i++ )
+	// 
+	// First try using a random setvector goal, and then try SetRandomGoal().
+	// Except, if we have a hint group, first try SetRandomGoal() (which 
+	// respects hint groups) and then fall back on the setvector.
+	if( !GetOuter()->GetHintGroup() )
 	{
-		float dist = random->RandomFloat( minRadius, maxRadius );
-		Vector dir = UTIL_YawToVector( random->RandomFloat( 0, 359.99 ) );
-		
-		if ( SetVectorGoal( dir, dist, minRadius ) )
-			return true;
+		return ( SetWanderGoalByRandomVector( this, minRadius, maxRadius, 5 ) || 
+			SetRandomGoal( 1 ) );
 	}
-	
-	return SetRandomGoal( 1 );
+	else
+	{
+		return ( SetRandomGoal(1) ||
+			SetWanderGoalByRandomVector( this, minRadius, maxRadius, 5 ) );
+	}
 }
+
 
 //-----------------------------------------------------------------------------
 
@@ -597,6 +685,8 @@ bool CAI_Navigator::FindVectorGoal( Vector *pResult, const Vector &dir, float ta
 	AIMoveTrace_t moveTrace;
 	float distAchieved = 0;
 	
+	MARK_TASK_EXPENSIVE();
+
 	Vector testLoc = GetLocalOrigin() + ( dir * targetDist );
 	GetMoveProbe()->MoveLimit( GetNavType(), GetLocalOrigin(), testLoc, MASK_NPCSOLID, NULL, &moveTrace );
 	
@@ -776,6 +866,16 @@ bool CAI_Navigator::RefindPathToGoal( bool fSignalTaskStatus, bool bDontIgnoreBa
 
 bool CAI_Navigator::UpdateGoalPos( const Vector &goalPos )
 {
+	// Queue this up if we're in the middle of a frame
+	if ( PostFrameNavigationSystem()->IsGameFrameRunning() )
+	{
+		// Send off the query for queuing
+		PostFrameNavigationSystem()->EnqueueEntityNavigationQuery( GetOuter(), CreateFunctor( this, &CAI_Navigator::UpdateGoalPos, RefToVal( goalPos ) ) );
+
+		// For now, always succeed -- we need to deal with failures on the next frame
+		return true;
+	}
+
 	DbgNavMsg( GetOuter(), "Updating goal pos\n" );
 
 	if ( GetNavType() == NAV_JUMP )
@@ -791,7 +891,12 @@ bool CAI_Navigator::UpdateGoalPos( const Vector &goalPos )
 	Assert( (GetPath()->GoalType() != GOALTYPE_ENEMY) && (GetPath()->GoalType() != GOALTYPE_TARGETENT) );
 
 	GetPath()->ResetGoalPosition( goalPos );
-	return FindPath( !GetOuter()->IsCurTaskContinuousMove() );
+	if ( FindPath( !GetOuter()->IsCurTaskContinuousMove() ) )
+	{
+		SimplifyPath( true );
+		return true;
+	}
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1197,32 +1302,49 @@ void CAI_Navigator::OnNavFailed( AI_TaskFailureCode_t code, bool bMovement )
 	{
 		m_nNavFailCounter++;
 		m_flLastNavFailTime = gpGlobals->curtime;
-
-		if ( bMovement && GetOuter()->ShouldBruteForceFailedNav() )
+		if ( GetOuter()->ShouldBruteForceFailedNav() )
 		{
-			m_timeBeginFailedSteer = FLT_MAX;
-
-			// if failing, turn off collisions with the object
-			CBaseEntity *pBlocker = GetBlockingEntity();
-			// FIXME: change this to only be for MOVETYPE_VPHYSICS?
-			if (pBlocker && !pBlocker->IsWorld() && !pBlocker->IsPlayer() && !FClassnameIs( pBlocker, "func_tracktrain" ))
+			if (bMovement)
 			{
-				if (NPCPhysics_CreateSolver( GetOuter(), pBlocker, true, 10.0f ) != NULL)
+
+				m_timeBeginFailedSteer = FLT_MAX;
+
+				// if failing, turn off collisions with the object
+				CBaseEntity *pBlocker = GetBlockingEntity();
+				// FIXME: change this to only be for MOVETYPE_VPHYSICS?
+				if (pBlocker && !pBlocker->IsWorld() && !pBlocker->IsPlayer() && !FClassnameIs( pBlocker, "func_tracktrain" ))
 				{
-					ClearNavFailCounter();
+					//pBlocker->DrawBBoxOverlay( 2.0f );
+					if (NPCPhysics_CreateSolver( GetOuter(), pBlocker, true, 10.0f ) != NULL)
+					{
+						ClearNavFailCounter();
+					}
+				}
+
+				// if still failing, try jumping forward through the route
+				if (GetNavFailCounter() > 0)
+				{
+					if (TeleportAlongPath())
+					{
+						ClearNavFailCounter();
+					}
 				}
 			}
-
-			// if still failing, try jumping forward through the route
-			if (GetNavFailCounter() > 0)
+			else
 			{
-				if (TeleportAlongPath())
+				CBaseEntity *pBlocker = GetMoveProbe()->GetBlockingEntity();
+				if (pBlocker)
 				{
-					ClearNavFailCounter();
+					//pBlocker->DrawBBoxOverlay( 2.0f );
+					if (NPCPhysics_CreateSolver( GetOuter(), pBlocker, true, 10.0f ) != NULL)
+					{
+						ClearNavFailCounter();
+					}
 				}
 			}
 		}
 	}
+
 }
 //-----------------------------------------------------------------------------
 
@@ -1266,7 +1388,7 @@ bool CAI_Navigator::TeleportAlongPath()
 
 		GetOuter()->GetMoveProbe()->FloorPoint( vecStart, MASK_NPCSOLID, GetOuter()->StepHeight(), -64, &vTestPoint );
 
-		if ( CanFitAtPosition( vTestPoint, MASK_NPCSOLID ) )
+		if ( CanFitAtPosition( vTestPoint, MASK_NPCSOLID, false, false ) )
 		{
 			if ( GetOuter()->GetMoveProbe()->CheckStandPosition( vTestPoint, MASK_NPCSOLID ) )
 			{
@@ -1306,6 +1428,7 @@ void CAI_Navigator::ResetCalculations()
 
 	GetLocalNavigator()->ResetMoveCalculations();
 	GetMotor()->ResetMoveCalculations();
+	GetMoveProbe()->ClearBlockingEntity();
 
 	m_nNavFailCounter = 0;
 	m_flLastNavFailTime = -1;
@@ -1327,7 +1450,6 @@ AIMoveResult_t CAI_Navigator::MoveClimb()
 	// --------------------------------------------------
 	//  CLIMB START
 	// --------------------------------------------------
-	
 	const Vector &climbDest = GetPath()->CurWaypointPos();
 	Vector climbDir = climbDest - GetLocalOrigin();
 	float climbDist = VectorNormalize( climbDir );
@@ -1386,7 +1508,16 @@ AIMoveResult_t CAI_Navigator::MoveClimb()
 		}
 	}
 
-	AIMoveResult_t result = GetMotor()->MoveClimbExecute( climbDest, climbDir, climbDist, GetPath()->CurWaypointYaw() );
+	// count NAV_CLIMB nodes remaining
+	int climbNodesLeft = 0;
+	AI_Waypoint_t *pWaypoint = GetPath()->GetCurWaypoint();
+	while (pWaypoint && pWaypoint->NavType() == NAV_CLIMB)
+	{
+		++climbNodesLeft;
+		pWaypoint = pWaypoint->GetNext();
+	}
+
+	AIMoveResult_t result = GetMotor()->MoveClimbExecute( climbDest, climbDir, climbDist, GetPath()->CurWaypointYaw(), climbNodesLeft );
 
 	if ( result == AIMR_CHANGE_TYPE )
 	{
@@ -1605,6 +1736,38 @@ bool CAI_Navigator::OnObstructionPreSteer( AILocalMoveGoal_t *pMoveGoal, float d
 			}
 		}
 	}
+
+#ifdef HL2_EPISODIC
+	// Build an avoidance path around a vehicle
+	if ( ai_vehicle_avoidance.GetBool() && pMoveGoal->directTrace.pObstruction != NULL && pMoveGoal->directTrace.pObstruction->GetServerVehicle() != NULL )
+	{
+		//FIXME: This should change into a flag which forces an OBB route to be formed around the entity in question!
+		AI_Waypoint_t *pOBB = GetPathfinder()->BuildOBBAvoidanceRoute( GetOuter()->GetAbsOrigin(),
+																	   GetGoalPos(),
+																	   pMoveGoal->directTrace.pObstruction,
+																	   GetNavTargetEntity(), 
+																	   GetNavType() );
+
+		// See if we need to complete this navigation
+		if ( pOBB == NULL )
+		{
+			/*
+			if ( GetOuter()->ShouldFailNav( true ) == false )
+			{
+				// Create a physics solver to allow us to pass
+				NPCPhysics_CreateSolver( GetOuter(), pMoveGoal->directTrace.pObstruction, true, 5.0f );
+				return true;
+			}
+			*/
+		}
+		else
+		{
+			// Otherwise we have a clear path to move around
+			GetPath()->PrependWaypoints( pOBB );
+			return true;
+		}
+	}
+#endif // HL2_EPISODIC
 
 	// Allow the NPC to override this behavior. Above logic takes priority
 	if ( GetOuter()->OnObstructionPreSteer( pMoveGoal, distClear, pResult ) )
@@ -2049,7 +2212,10 @@ AIMoveResult_t CAI_Navigator::MoveEnact( const AILocalMoveGoal_t &baseMove )
 	if ( result != AIMR_OK )
 		m_hLastBlockingEnt = move.directTrace.pObstruction;
 	else
+	{
 		m_hLastBlockingEnt = NULL;
+		GetMoveProbe()->ClearBlockingEntity();
+	}
 	
 	if ( result == AIMR_OK && !m_fNavComplete )
 	{
@@ -2828,22 +2994,24 @@ bool CAI_Navigator::SimplifyPathQuick()
 {
 	AI_PROFILE_SCOPE(CAI_Navigator_SimplifyPathQuick);
 
-	static SimplifyForwardScanParams quickScanParams = 
-	{
-#ifndef AI_STRONG_OPTIMIZATIONS
-		(12.0 * 12.0) - 0.1,	// Distance to move out path
-		12 * 12, 				// Radius within which a point must be to be valid
-		0.5 * 12, 				// Increment to move out on
-		1, 						// maximum number of point samples
-#else
-		(6.0 * 12.0) - 0.1,	// Distance to move out path
-		8 * 12, 				// Radius within which a point must be to be valid
-		1.0 * 12, 				// Increment to move out on
-		1, 						// maximum number of point samples
-#endif
+	static SimplifyForwardScanParams quickScanParams[2] = 
+	{ 
+		{
+			(12.0 * 12.0) - 0.1,	// Distance to move out path
+			12 * 12, 				// Radius within which a point must be to be valid
+			0.5 * 12, 				// Increment to move out on
+			1, 						// maximum number of point samples
+		},
+		// Strong optimization version
+		{
+			(6.0 * 12.0) - 0.1,	// Distance to move out path
+			8 * 12, 				// Radius within which a point must be to be valid
+			1.0 * 12, 				// Increment to move out on
+			1, 						// maximum number of point samples
+		} 
 	};
-
-	if ( SimplifyPathForwardScan( quickScanParams ) )
+	
+	if ( SimplifyPathForwardScan( quickScanParams[AIStrongOpt()] ) )
 		return true;
 
 	return false;
@@ -2851,15 +3019,11 @@ bool CAI_Navigator::SimplifyPathQuick()
 
 //-------------------------------------
 
-#ifndef AI_STRONG_OPTIMIZATIONS
-const float ROUTE_SIMPLIFY_TIME_DELAY			= 0.5;
-const float NO_PVS_ROUTE_SIMPLIFY_TIME_DELAY	= 1.0;
-const float QUICK_SIMPLIFY_TIME_DELAY			= FLT_MIN;
-#else
-const float ROUTE_SIMPLIFY_TIME_DELAY			= 1.0;
-const float NO_PVS_ROUTE_SIMPLIFY_TIME_DELAY	= 2.0;
-const float QUICK_SIMPLIFY_TIME_DELAY			= 0.3;
-#endif
+// Second entry is the strong opt version
+const float ROUTE_SIMPLIFY_TIME_DELAY[2]		= { 0.5, 1.0f };
+const float NO_PVS_ROUTE_SIMPLIFY_TIME_DELAY[2]	= { 1.0, 2.0f };
+const float QUICK_SIMPLIFY_TIME_DELAY[2]		= { FLT_MIN, 0.3f };
+
 int g_iFrameLastSimplified;
 
 bool CAI_Navigator::SimplifyPath( bool bFirstForPath, float scanDist )
@@ -2908,8 +3072,8 @@ bool CAI_Navigator::SimplifyPath( bool bFirstForPath, float scanDist )
 
 		if ( bFullSimplify )
 		{
-			float simplifyDelay = ( bInPVS ) ? ROUTE_SIMPLIFY_TIME_DELAY : NO_PVS_ROUTE_SIMPLIFY_TIME_DELAY;
-
+			float simplifyDelay = ( bInPVS ) ? ROUTE_SIMPLIFY_TIME_DELAY[AIStrongOpt()] : NO_PVS_ROUTE_SIMPLIFY_TIME_DELAY[AIStrongOpt()];
+			
 			if ( GetOuter()->GetMoveEfficiency() > AIME_NORMAL )
 				simplifyDelay *= 2;
 
@@ -2924,7 +3088,7 @@ bool CAI_Navigator::SimplifyPath( bool bFirstForPath, float scanDist )
 		}
 		else if ( bFirstForPath || ( bInPVS && GetOuter()->GetMoveEfficiency() == AIME_NORMAL ) )
 		{
-			if ( !bFirstForPath && ( !AIStrongOpt() || gpGlobals->curtime - m_flLastSuccessfulSimplifyTime > QUICK_SIMPLIFY_TIME_DELAY ) )
+			if ( !AIStrongOpt() || gpGlobals->curtime - m_flLastSuccessfulSimplifyTime > QUICK_SIMPLIFY_TIME_DELAY[AIStrongOpt()] )
 			{
 				if ( SimplifyPathQuick() )
 					bRetVal = true;
@@ -3122,9 +3286,9 @@ bool CAI_Navigator::CanFitAtNode(int nodeNum, unsigned int collisionMask )
 // Input  :
 // Output :
 //-----------------------------------------------------------------------------
-bool CAI_Navigator::CanFitAtPosition( const Vector &vStartPos, unsigned int collisionMask, bool bIgnoreTransients )
+bool CAI_Navigator::CanFitAtPosition( const Vector &vStartPos, unsigned int collisionMask, bool bIgnoreTransients, bool bAllowPlayerAvoid  )
 {
-	CTraceFilterNav traceFilter( const_cast<CAI_BaseNPC *>(GetOuter()), bIgnoreTransients, GetOuter(), COLLISION_GROUP_NONE );
+	CTraceFilterNav traceFilter( const_cast<CAI_BaseNPC *>(GetOuter()), bIgnoreTransients, GetOuter(), COLLISION_GROUP_NONE, bAllowPlayerAvoid );
 
 	Vector vEndPos	= vStartPos;
 	vEndPos.z += 0.01;
@@ -3151,8 +3315,31 @@ float CAI_Navigator::GetPathDistToCurWaypoint() const
 				0;
 }
 
-//-----------------------------------------------------------------------------
 
+//-----------------------------------------------------------------------------
+// Computes the distance to our goal, rebuilding waypoint distances if necessary.
+// Returns -1 if we still don't have a valid path length after rebuilding.
+//
+// NOTE: this should really be part of GetPathDistToGoal below, but I didn't
+// want to affect OnFailedSteer this close to shipping! (dvs: 8/16/07)
+//-----------------------------------------------------------------------------
+float CAI_Navigator::BuildAndGetPathDistToGoal()
+{
+	if ( !GetPath() )
+		return -1;
+	
+	// Make sure it's fresh.	
+	GetPath()->GetPathLength();
+
+	if ( GetPath()->GetCurWaypoint() && ( GetPath()->GetCurWaypoint()->flPathDistGoal >= 0 ) )
+		return GetPathDistToGoal();
+	
+	return -1;
+}
+
+
+// FIXME: this ignores the fact that flPathDistGoal might be -1, yielding nonsensical results.
+// See BuildAndGetPathDistToGoal above.
 float CAI_Navigator::GetPathDistToGoal() const
 {
 	return ( GetPath()->GetCurWaypoint() ) ? 
@@ -3168,6 +3355,13 @@ float CAI_Navigator::GetPathDistToGoal() const
 //-----------------------------------------------------------------------------
 bool CAI_Navigator::FindPath( bool fSignalTaskStatus, bool bDontIgnoreBadLinks )
 {
+	// Test to see if we're resolving spiking problems via threading
+	if ( ai_navigator_generate_spikes.GetBool() )
+	{
+		unsigned int nLargeCount = (INT_MAX>>(ai_navigator_generate_spikes_strength.GetInt()));
+		while ( nLargeCount-- ) {}
+	}
+
 	bool bRetrying = (HasMemory(bits_MEMORY_PATH_FAILED) && m_timePathRebuildMax != 0 );
 	if ( bRetrying )
 	{
@@ -3717,6 +3911,13 @@ bool CAI_Navigator::GetStoppingPath( CAI_WaypointList *	pClippedWaypoints )
 					break;
 				}
 
+#if PARANOID_NAV_CHECK_ON_MOMENTUM
+				if ( !CanFitAtPosition( pNextPoint->GetPos(), MASK_NPCSOLID ) )
+				{
+					break;
+				}
+#endif
+
 				if ( pNextPoint->NavType() != NAV_CLIMB || !pNextPoint->GetNext() || pNextPoint->GetNext()->NavType() != NAV_CLIMB )
 					bMustCompleteCurrent = false;
 
@@ -3742,6 +3943,9 @@ bool CAI_Navigator::GetStoppingPath( CAI_WaypointList *	pClippedWaypoints )
 					pLastSavedWaypoint = pNewWaypoint;
 
 					vPosPrev = pNextPoint->GetPos();
+
+//					NDebugOverlay::Cross3D( vPosPrev, 16, 255, 255, 0, false, 10.0f );
+
 					pNextPoint = pNextPoint->GetNext();
 					distRemaining -= distToNext;
 				}
@@ -3826,7 +4030,7 @@ bool CAI_Navigator::SetGoalFromStoppingPath()
 		if ( m_PreviousMoveActivity <= ACT_RESET && GetMovementActivity() <= ACT_RESET  )
 		{
 			m_pClippedWaypoints->RemoveAll();
-			DevWarning( "%s has a stopping path and no valid. Movement activity: %s (prev %s)\n", GetOuter()->GetDebugName(), ActivityList_NameForIndex(GetMovementActivity()), ActivityList_NameForIndex(m_PreviousMoveActivity) );
+			DevWarning( 2, "%s has a stopping path and no valid. Movement activity: %s (prev %s)\n", GetOuter()->GetDebugName(), ActivityList_NameForIndex(GetMovementActivity()), ActivityList_NameForIndex(m_PreviousMoveActivity) );
 			return false;
 		}
 
@@ -3943,6 +4147,15 @@ void CAI_Navigator::DrawDebugRouteOverlay(void)
 		waypoint = waypoint->GetNext();
 	}
 
+	if ( GetPath()->GoalType() != GOALTYPE_NONE )
+	{
+		Vector vecGoalPos = GetPath()->ActualGoalPosition();
+		Vector vecGoalDir = GetPath()->GetGoalDirection( GetOuter()->GetAbsOrigin() );
+		NDebugOverlay::Line( vecGoalPos, vecGoalPos + vecGoalDir * 32, 0,0,255, true, 2.0 );
+
+		float flYaw = UTIL_VecToYaw( vecGoalDir );
+		NDebugOverlay::Text( vecGoalPos, CFmtStr("yaw: %f", flYaw), true, 1 );
+	}
 }
 
 //-----------------------------------------------------------------------------

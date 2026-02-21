@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -13,11 +13,8 @@
 #include "soundchars.h"
 #include "filesystem.h"
 #include "tier0/vprof.h"
-#if !defined( _XBOX )
 #include "checksum_crc.h"
-#endif
-#include "vstdlib/ICommandLine.h"
-#include "haptics/haptic_utils.h"
+#include "tier0/icommandline.h"
 
 #ifndef CLIENT_DLL
 #include "envmicrophone.h"
@@ -47,85 +44,15 @@ static bool g_bPermitDirectSoundPrecache = false;
 
 void ClearModelSoundsCache();
 
-#if !defined( _XBOX )
-struct TokenNameLookup
-{
-	TokenNameLookup()
-	{
-		crc = 0;
-		sym = UTL_INVAL_SYMBOL;
-		reported = false;
-	}
-
-	CRC32_t crc;
-	CUtlSymbol sym;
-	bool reported;
-};
-
-static bool TokenCRCLessFunc( const TokenNameLookup &lhs, const TokenNameLookup &rhs )
-{
-	return (unsigned int)lhs.crc < (unsigned int)rhs.crc;
-}
-
-static CUtlSymbolTable g_CloseCaptionCRCToTokenLookupSymbols;
-static CUtlRBTree< TokenNameLookup, int > g_CloseCaptionCRCToTokenLookup( 0, 0, TokenCRCLessFunc );
-
-static char const *FindTokenForCRC( const CRC32_t& crc )
-{
-	TokenNameLookup lookup;
-	lookup.crc = crc;
-
-	int idx = g_CloseCaptionCRCToTokenLookup.Find( lookup );
-	if ( idx == g_CloseCaptionCRCToTokenLookup.InvalidIndex() )
-	{
-		return "";
-	}
-
-	if ( g_CloseCaptionCRCToTokenLookup[ idx ].reported )
-	{
-		return "";
-	}
-
-	g_CloseCaptionCRCToTokenLookup[ idx ].reported = true;
-
-	return g_CloseCaptionCRCToTokenLookupSymbols.String( g_CloseCaptionCRCToTokenLookup[ idx ].sym );
-}
-
-void RememberCRC( const CRC32_t& crc, const char *tokenname )
-{
-	CUtlSymbol sym = g_CloseCaptionCRCToTokenLookupSymbols.AddString( tokenname );
-
-	TokenNameLookup lookup;
-	lookup.crc = crc;
-	if ( g_CloseCaptionCRCToTokenLookup.Find( lookup ) == g_CloseCaptionCRCToTokenLookup.InvalidIndex() )
-	{
-		lookup.sym = sym;
-		lookup.reported = false;
-		g_CloseCaptionCRCToTokenLookup.Insert( lookup );
-	}
-}
-
-static void CC_LookupCaptionCRC( void )
-{
-	if ( engine->Cmd_Argc() != 2 )
-		return;
-
-	CRC32_t crc = (CRC32_t)atoi( engine->Cmd_Argv(1) );
-	char const *token = FindTokenForCRC( crc );
-	if ( token && token[ 0 ] )
-	{
-		Msg( "Missing Close Caption Token %s\n", token );
-	}
-}
-
-static ConCommand cc_lookup_crc( "cc_lookup_crc", CC_LookupCaptionCRC, "For tracking down missing CC token strings\n", FCVAR_CLIENTCMD_CAN_EXECUTE );
-#endif // !_XBOX
-
 #endif // !CLIENT_DLL
 
-#ifndef _XBOX
 void WaveTrace( char const *wavname, char const *funcname )
 {
+	if ( IsX360() && !IsDebug() )
+	{
+		return;
+	}
+
 	static CUtlSymbolTable s_WaveTrace;
 
 	// Make sure we only show the message once
@@ -136,15 +63,11 @@ void WaveTrace( char const *wavname, char const *funcname )
 		s_WaveTrace.AddString( wavname );
 	}
 }
-#else
-// xboxissue - condition should be fixed pc-side
-#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : &src - 
 //-----------------------------------------------------------------------------
-#if !defined(_XBOX) || defined(CLIENT_DLL)
 EmitSound_t::EmitSound_t( const CSoundParameters &src )
 {
 	m_nChannel = src.channel;
@@ -161,7 +84,6 @@ EmitSound_t::EmitSound_t( const CSoundParameters &src )
 	m_bWarnOnDirectWaveReference = false;
 	m_nSpeakerEntity = -1;
 }
-#endif
 
 void Hack_FixEscapeChars( char *str )
 {
@@ -306,8 +228,8 @@ public:
 		if ( !sv_soundemitter_trace.GetBool() )
 			return;
 
-		va_list					argptr;
-		char					string[256];
+		va_list	argptr;
+		char string[256];
 		va_start (argptr, fmt);
 		Q_vsnprintf( string, sizeof( string ), fmt, argptr );
 		va_end (argptr);
@@ -329,8 +251,8 @@ public:
 
 		Q_FixSlashes( mapname );
 		Q_strlower( mapname );
-		// Load in any map specific overrides
 
+		// Load in any map specific overrides
 		char scriptfile[ 512 ];
 		Q_StripExtension( mapname, scriptfile, sizeof( scriptfile ) );
 		Q_strncat( scriptfile, "_level_sounds.txt", sizeof( scriptfile ), COPY_ALL_CHARACTERS );
@@ -427,6 +349,7 @@ public:
 			}
 
 #if !defined( CLIENT_DLL )
+			if ( soundname[ 0 ] )
 			{
 				static CUtlSymbolTable s_PrecacheScriptSoundFailures;
 
@@ -505,16 +428,19 @@ public:
 			params.volume = ep.m_flVolume;
 		}
 
+		static const ConVar* pHostTimescale;
+		pHostTimescale = cvar->FindVar("host_timescale");
+
 #if !defined( CLIENT_DLL )
 		bool bSwallowed = CEnvMicrophone::OnSoundPlayed( 
 			entindex, 
 			params.soundname, 
 			params.soundlevel, 
 			params.volume, 
-			ep.m_nFlags, 
-			params.pitch, 
+			ep.m_nFlags | SND_SHOULDPAUSE,
+			Clamp(int(params.pitch * pHostTimescale->GetFloat()), 0, 255),
 			ep.m_pOrigin, 
-			ep.m_flSoundTime,
+			ep.m_flSoundTime / pHostTimescale->GetFloat(),
 			ep.m_UtlVecSoundOrigin );
 		if ( bSwallowed )
 			return;
@@ -527,7 +453,7 @@ public:
 		}
 #endif
 
-		float st = ep.m_flSoundTime;
+		float st = ep.m_flSoundTime / pHostTimescale->GetFloat();
 		if ( !st && 
 			params.delay_msec != 0 )
 		{
@@ -541,8 +467,8 @@ public:
 			params.soundname,
 			params.volume,
 			(soundlevel_t)params.soundlevel,
-			ep.m_nFlags,
-			params.pitch,
+			ep.m_nFlags | SND_SHOULDPAUSE,
+			Clamp(int(params.pitch * pHostTimescale->GetFloat()), 0, 255),
 			ep.m_pOrigin,
 			NULL,
 			&ep.m_UtlVecSoundOrigin,
@@ -563,19 +489,34 @@ public:
 		{
 			EmitCloseCaption( filter, entindex, params, ep );
 		}
-		
-		HapticProcessSound(ep.m_pSoundName, entindex);
 	}
 
 	void EmitSound( IRecipientFilter& filter, int entindex, const EmitSound_t & ep )
 	{
+		static const ConVar* pHostTimescale;
+		pHostTimescale = cvar->FindVar("host_timescale");
+
 		VPROF( "CSoundEmitterSystem::EmitSound (calls engine)" );
 		if ( ep.m_pSoundName && 
 			( Q_stristr( ep.m_pSoundName, ".wav" ) || 
 			  Q_stristr( ep.m_pSoundName, ".mp3" ) || 
 			  ep.m_pSoundName[0] == '!' ) )
 		{
-#ifndef _XBOX
+#if !defined( CLIENT_DLL )
+			bool bSwallowed = CEnvMicrophone::OnSoundPlayed( 
+				entindex, 
+				ep.m_pSoundName, 
+				ep.m_SoundLevel, 
+				ep.m_flVolume, 
+				ep.m_nFlags | SND_SHOULDPAUSE,
+				Clamp(int(ep.m_nPitch * pHostTimescale->GetFloat()), 0, 255),
+				ep.m_pOrigin, 
+				ep.m_flSoundTime / pHostTimescale->GetFloat(),
+				ep.m_UtlVecSoundOrigin );
+			if ( bSwallowed )
+				return;
+#endif
+
 			if ( ep.m_bWarnOnDirectWaveReference && 
 				Q_stristr( ep.m_pSoundName, ".wav" ) )
 			{
@@ -588,7 +529,6 @@ public:
 				Msg( "Sound %s was not precached\n", ep.m_pSoundName );
 			}
 #endif
-#endif
 			enginesound->EmitSound( 
 				filter, 
 				entindex, 
@@ -596,13 +536,13 @@ public:
 				ep.m_pSoundName, 
 				ep.m_flVolume, 
 				ep.m_SoundLevel, 
-				ep.m_nFlags, 
-				ep.m_nPitch, 
+				ep.m_nFlags | SND_SHOULDPAUSE,
+				Clamp(int(ep.m_nPitch * pHostTimescale->GetFloat()), 0, 255),
 				ep.m_pOrigin,
 				NULL, 
 				&ep.m_UtlVecSoundOrigin,
 				true, 
-				ep.m_flSoundTime,
+				ep.m_flSoundTime / pHostTimescale->GetFloat(),
 				ep.m_nSpeakerEntity );
 			if ( ep.m_pflSoundDuration )
 			{
@@ -655,16 +595,6 @@ public:
 			Hack_FixEscapeChars( lowercase );
 		}
 
-#if !defined( _XBOX )
-		// Get the crc of the token name so we don't have to network down a full string!!!
-		CRC32_t tokenCRC;
-		CRC32_Init( &tokenCRC );
-		CRC32_ProcessBuffer( &tokenCRC, lowercase, Q_strlen( lowercase ) );
-		CRC32_Final( &tokenCRC );
-#if !defined( CLIENT_DLL )
-		RememberCRC( tokenCRC, lowercase );
-#endif
-#endif
 		// NOTE:  We must make a copy or else if the filter is owned by a SoundPatch, we'll end up destructively removing
 		//  all players from it!!!!
 		CRecipientFilter filterCopy;
@@ -731,11 +661,7 @@ public:
 
 			// Send caption and duration hint down to client
 			UserMessageBegin( filterCopy, "CloseCaption" );
-#if !defined( _XBOX )
-				WRITE_LONG( (int)tokenCRC ); // NOTE This will be the CRC of the caption token w/o the _male or _female suffix!!!
-#else
 				WRITE_STRING( lowercase );
-#endif
 				WRITE_SHORT( min( 255, (int)( duration * 10.0f ) ) ),
 				WRITE_BYTE( byteflags ),
 			MessageEnd();
@@ -897,13 +823,13 @@ public:
 
 	void StopSound( int entindex, const char *soundname )
 	{
-		int soundindex = soundemitterbase->GetSoundIndex( soundname );
-		if ( soundindex == -1 )
+		HSOUNDSCRIPTHANDLE handle = (HSOUNDSCRIPTHANDLE)soundemitterbase->GetSoundIndex( soundname );
+		if ( handle == SOUNDEMITTER_INVALID_HANDLE )
 		{
 			return;
 		}
 
-		StopSoundByHandle( entindex, soundname, (HSOUNDSCRIPTHANDLE &)soundindex );
+		StopSoundByHandle( entindex, soundname, handle );
 	}
 
 
@@ -975,16 +901,11 @@ IGameSystem *SoundEmitterSystem()
 }
 
 #if defined( CLIENT_DLL )
-CON_COMMAND( cl_soundemitter_flush, "Flushes the sounds.txt system (client only)" )
+CON_COMMAND_F( cl_soundemitter_flush, "Flushes the sounds.txt system (client only)", FCVAR_CHEAT )
 #else
 CON_COMMAND( sv_soundemitter_flush, "Flushes the sounds.txt system (server only)" )
 #endif
 {
-#if !defined( CLIENT_DLL )
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-#endif
-	
 	// save the current soundscape
 	// kill the system
 	g_SoundEmitterSystem.Shutdown();
@@ -997,7 +918,6 @@ CON_COMMAND( sv_soundemitter_flush, "Flushes the sounds.txt system (server only)
 	g_SoundEmitterSystem.LevelInitPreEntity();
 
 	// These store raw sound indices for faster precaching, blow them away.
-	ResetPrecacheInstancedSceneDictionary();
 	ClearModelSoundsCache();
 #endif
 
@@ -1012,25 +932,19 @@ CON_COMMAND( sv_soundemitter_flush, "Flushes the sounds.txt system (server only)
 
 CON_COMMAND( sv_soundemitter_filecheck, "Report missing wave files for sounds and game_sounds files." )
 {
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-	
 	int missing = soundemitterbase->CheckForMissingWavFiles( true );
 	DevMsg( "---------------------------\nTotal missing files %i\n", missing );
 }
 
 CON_COMMAND( sv_findsoundname, "Find sound names which reference the specified wave files." )
 {
-	if ( !UTIL_IsCommandIssuedByServerAdmin() )
-		return;
-	
-	if ( engine->Cmd_Argc() != 2 )
+	if ( args.ArgC() != 2 )
 		return;
 
 	int c = soundemitterbase->GetSoundCount();
 	int i;
 
-	char const *search = engine->Cmd_Argv( 1 );
+	char const *search = args[ 1 ];
 	if ( !search )
 		return;
 
@@ -1061,20 +975,20 @@ CON_COMMAND( sv_findsoundname, "Find sound names which reference the specified w
 #endif // !_XBOX
 
 #else
-void Playgamesound_f()
+void Playgamesound_f( const CCommand &args )
 {
 	CBasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	if ( pPlayer )
 	{
-		if ( engine->Cmd_Argc() > 2 )
+		if ( args.ArgC() > 2 )
 		{
 			Vector position = pPlayer->EyePosition();
 			Vector forward;
 			pPlayer->GetVectors( &forward, NULL, NULL );
-			position += atof( engine->Cmd_Argv(2) ) * forward;
+			position += atof( args[2] ) * forward;
 			CPASAttenuationFilter filter( pPlayer );
 			EmitSound_t params;
-			params.m_pSoundName = engine->Cmd_Argv(1);
+			params.m_pSoundName = args[1];
 			params.m_pOrigin = &position;
 			params.m_flVolume = 0.0f;
 			params.m_nPitch = 0;
@@ -1082,7 +996,7 @@ void Playgamesound_f()
 		}
 		else
 		{
-			pPlayer->EmitSound( engine->Cmd_Argv(1) );
+			pPlayer->EmitSound( args[1] );
 		}
 	}
 	else
@@ -1090,7 +1004,7 @@ void Playgamesound_f()
 		Msg("Can't play until a game is started.\n");
 		// UNDONE: Make something like this work?
 		//CBroadcastRecipientFilter filter;
-		//g_SoundEmitterSystem.EmitSound( filter, 1, engine->Cmd_Argv(1), 0.0, 0, 0, &vec3_origin, 0, NULL );
+		//g_SoundEmitterSystem.EmitSound( filter, 1, args[1], 0.0, 0, 0, &vec3_origin, 0, NULL );
 	}
 }
 
@@ -1123,7 +1037,7 @@ static int GamesoundCompletion( const char *partial, char commands[ COMMAND_COMP
 	return current;
 }
 
-static ConCommand Command_Playgamesound( "playgamesound", Playgamesound_f, "Play a sound from the game sounds txt file", 0, GamesoundCompletion );
+static ConCommand Command_Playgamesound( "playgamesound", Playgamesound_f, "Play a sound from the game sounds txt file", FCVAR_CLIENTCMD_CAN_EXECUTE | FCVAR_SERVER_CAN_EXECUTE, GamesoundCompletion );
 #endif
 
 #endif
@@ -1359,12 +1273,10 @@ static const char *UTIL_TranslateSoundName( const char *soundname, const char *a
 
 	if ( Q_stristr( soundname, ".wav" ) || Q_stristr( soundname, ".mp3" ) )
 	{
-#ifndef _XBOX
 		if ( Q_stristr( soundname, ".wav" ) )
 		{
 			WaveTrace( soundname, "UTIL_TranslateSoundName" );
 		}
-#endif
 		return soundname;
 	}
 
@@ -1446,7 +1358,7 @@ void CBaseEntity::EmitCloseCaption( IRecipientFilter& filter, int entindex, char
 //-----------------------------------------------------------------------------
 bool CBaseEntity::PrecacheSound( const char *name )
 {
-	if ( !IsXbox() && !g_bPermitDirectSoundPrecache )
+	if ( IsPC() && !g_bPermitDirectSoundPrecache )
 	{
 		Warning( "Direct precache of %s\n", name );
 	}

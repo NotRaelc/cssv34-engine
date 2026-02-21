@@ -10,7 +10,7 @@
 #include "cbase.h"
 #include "convar.h"
 #include "ai_basenpc.h"
-#include "vstdlib/strtools.h"
+#include "tier1/strtools.h"
 #include "ai_activity.h"
 #include "ai_schedule.h"
 #include "ai_default.h"
@@ -494,7 +494,7 @@ bool CAI_SchedulesManager::LoadSchedulesFromBuffer( const char *prefix, char *pS
 			{
 				int interrupt = AI_RemapFromGlobal(condID);
 				Assert( AI_IdIsGlobal( condID ) && interrupt >= 0 && interrupt < MAX_CONDITIONS );
-				new_schedule->m_InterruptMask.SetBit(interrupt);
+				new_schedule->m_InterruptMask.Set(interrupt);
 			}
 
 			// Read the next token

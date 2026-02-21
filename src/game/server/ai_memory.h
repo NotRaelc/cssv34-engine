@@ -46,7 +46,6 @@ struct AI_EnemyInfo_t
 	bool			bMobbedMe;			// True if enemy was part of a mob at some point
 
 	DECLARE_SIMPLE_DATADESC();
-	DECLARE_FIXEDSIZE_ALLOCATOR(AI_EnemyInfo_t);
 };
 
 //-----------------------------------------------------------------------------

@@ -162,11 +162,11 @@ void CClientState::SendClientInfo( void )
 	info.m_nServerCount = m_nServerCount;
 	info.m_bIsHLTV = false;
 #if !defined( NO_STEAM )
-	info.m_nFriendsID = SteamUser() ? SteamUser()->GetSteamID().GetAccountID() : 0;
+	info.m_nFriendsID = 0;
 #else
 	info.m_nFriendsID = 0;
 #endif
-	Q_strncpy( info.m_FriendsName, m_FriendsName, sizeof(info.m_FriendsName) );
+	Q_strncpy( info.m_FriendsName, m_FriendsName, 32 );
 
 	CheckOwnCustomFiles(); // load & verfiy custom player files
 
@@ -191,7 +191,7 @@ bool CClientState::SetSignonState ( int state, int count )
 	}
 
 	// ConDMsg ("Signon state: %i\n", state );
-
+	Warning("CClientState::SetSignonState: state = %i, count = %i\n", state, count);
 	COM_TimestampedLog( "CClientState::SetSignonState: start %i", state );
 
 	switch ( m_nSignonState )

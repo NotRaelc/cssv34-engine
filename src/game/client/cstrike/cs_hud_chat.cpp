@@ -16,7 +16,6 @@
 #include "engine/IEngineSound.h"
 #include "radio_status.h"
 #include "cstrike/bot/shared_util.h"
-#include "ihudlcd.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -121,10 +120,10 @@ void CHudChat::MsgFunc_RadioText( bf_read &msg )
 	ReadLocalizedString( msg, szBuf[3], sizeof( szBuf[3] ), true );	// radio text
 	ReadLocalizedString( msg, szBuf[4], sizeof( szBuf[4] ), true );	// unused :(
 
-	vgui::localize()->ConstructString( szBuf[5], sizeof( szBuf[5] ), msg_text, 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+	g_pVGuiLocalize->ConstructString( szBuf[5], sizeof( szBuf[5] ), msg_text, 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
 
 	char ansiString[512];
-	vgui::localize()->ConvertUnicodeToANSI( ConvertCRtoNL( szBuf[5] ), ansiString, sizeof( ansiString ) );
+	g_pVGuiLocalize->ConvertUnicodeToANSI( ConvertCRtoNL( szBuf[5] ), ansiString, sizeof( ansiString ) );
 	ChatPrintf( client, CHAT_FILTER_TEAMCHANGE, "%s", ansiString );
 
 	CLocalPlayerFilter filter;
@@ -153,10 +152,10 @@ void CHudChat::MsgFunc_SayText2( bf_read &msg )
 	ReadLocalizedString( msg, szBuf[3], sizeof( szBuf[3] ), true );	// location
 	ReadLocalizedString( msg, szBuf[4], sizeof( szBuf[4] ), true );	// unused :(
 
-	vgui::localize()->ConstructString( szBuf[5], sizeof( szBuf[5] ), msg_text, 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
+	g_pVGuiLocalize->ConstructString( szBuf[5], sizeof( szBuf[5] ), msg_text, 4, szBuf[1], szBuf[2], szBuf[3], szBuf[4] );
 
 	char ansiString[512];
-	vgui::localize()->ConvertUnicodeToANSI( ConvertCRtoNL( szBuf[5] ), ansiString, sizeof( ansiString ) );
+	g_pVGuiLocalize->ConvertUnicodeToANSI( ConvertCRtoNL( szBuf[5] ), ansiString, sizeof( ansiString ) );
 
 	// flash speaking player dot
 	if ( client > 0 )

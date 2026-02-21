@@ -19,6 +19,7 @@
 #include <vgui/IPanel.h>
 #include <vgui_controls/ImageList.h>
 #include <vgui_controls/MenuItem.h>
+#include <vgui_controls/TextImage.h>
 
 #include <stdio.h> // _snprintf define
 
@@ -48,19 +49,7 @@ ConVar spec_scoreboard( "spec_scoreboard", "0", FCVAR_CLIENTDLL | FCVAR_ARCHIVE 
 
 CSpectatorGUI *g_pSpectatorGUI = NULL;
 
-
-// NB disconnect between localization text and observer mode enums
-static const char *s_SpectatorModes[] =
-{
-	"#Spec_Mode0",	// 	OBS_MODE_NONE = 0,	
-	"#Spec_Mode1",	// 	OBS_MODE_DEATHCAM,	
-	"",				// 	OBS_MODE_FREEZECAM,	
-	"#Spec_Mode2",	// 	OBS_MODE_FIXED,		
-	"#Spec_Mode3",	// 	OBS_MODE_IN_EYE,	
-	"#Spec_Mode4",	// 	OBS_MODE_CHASE,		
-	"#Spec_Mode_POI",	// 	OBS_MODE_POI, PASSTIME
-	"#Spec_Mode5",	// 	OBS_MODE_ROAMING,	
-};
+static char *s_SpectatorModes[] = { "#Spec_Mode0", "#Spec_Mode1", "#Spec_Mode2", "#Spec_Mode3", "#Spec_Mode4", "#Spec_Mode5", "" };
 
 using namespace vgui;
 
@@ -93,7 +82,7 @@ private:
 //-----------------------------------------------------------------------------
 CSpectatorMenu::CSpectatorMenu( IViewPort *pViewPort ) : Frame( NULL, PANEL_SPECMENU )
 {
-	m_iDuckKey = -1;
+	m_iDuckKey = BUTTON_CODE_INVALID;
 		
 	m_pViewPort = pViewPort;
 
@@ -107,6 +96,12 @@ CSpectatorMenu::CSpectatorMenu( IViewPort *pViewPort ) : Frame( NULL, PANEL_SPEC
 	SetScheme("ClientScheme");
 
 	m_pPlayerList = new ComboBox(this, "playercombo", 10 , false);
+	HFont hFallbackFont = scheme()->GetIScheme( GetScheme() )->GetFont( "DefaultVerySmallFallBack", false );
+	if ( INVALID_FONT != hFallbackFont )
+	{
+		m_pPlayerList->SetUseFallbackFont( true, hFallbackFont );
+	}
+
 	m_pViewOptions = new ComboBox(this, "viewcombo", 10 , false );
 	m_pConfigSettings = new ComboBox(this, "settingscombo", 10 , false );	
 
@@ -134,6 +129,7 @@ CSpectatorMenu::CSpectatorMenu( IViewPort *pViewPort ) : Frame( NULL, PANEL_SPEC
 	m_pViewOptions->SetMenu( menu );	// attach menu to combo box
 
 	LoadControlSettings("Resource/UI/BottomSpectator.res");
+	ListenForGameEvent( "spec_target_updated" );
 }
 
 void CSpectatorMenu::ApplySchemeSettings(IScheme *pScheme)
@@ -144,9 +140,12 @@ void CSpectatorMenu::ApplySchemeSettings(IScheme *pScheme)
 	m_pViewOptions->GetMenu()->MakeReadyForUse();
 	m_pPlayerList->GetMenu()->MakeReadyForUse();
 
-	m_pConfigSettings->GetMenu()->SetBgColor( BLACK_BAR_COLOR );
-	m_pViewOptions->GetMenu()->SetBgColor( BLACK_BAR_COLOR );
-	m_pPlayerList->GetMenu()->SetBgColor( BLACK_BAR_COLOR );
+	if ( g_pSpectatorGUI )
+	{
+		m_pConfigSettings->GetMenu()->SetBgColor( g_pSpectatorGUI->GetBlackBarColor() );
+		m_pViewOptions->GetMenu()->SetBgColor( g_pSpectatorGUI->GetBlackBarColor() );
+		m_pPlayerList->GetMenu()->SetBgColor( g_pSpectatorGUI->GetBlackBarColor() );
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -207,18 +206,49 @@ void CSpectatorMenu::OnCommand( const char *command )
 	}
 }
 
+void CSpectatorMenu::FireGameEvent( IGameEvent * event )
+{
+	const char *pEventName = event->GetName();
+
+ 	if ( Q_strcmp( "spec_target_updated", pEventName ) == 0 )
+	{
+		IGameResources *gr = GameResources();
+		if ( !gr )
+			return;
+
+		// make sure the player combo box is up to date
+		int playernum = GetSpectatorTarget();
+		if ( playernum < 1 || playernum > MAX_PLAYERS )
+			return;
+
+		const char *selectedPlayerName = gr->GetPlayerName( playernum );
+		const char *currentPlayerName = "";
+		KeyValues *kv = m_pPlayerList->GetActiveItemUserData();
+		if ( kv )
+		{
+			currentPlayerName = kv->GetString( "player" );
+		}
+		if ( !FStrEq( currentPlayerName, selectedPlayerName ) )
+		{
+			for ( int i=0; i<m_pPlayerList->GetItemCount(); ++i )
+			{
+				KeyValues *kv = m_pPlayerList->GetItemUserData( i );
+				if ( kv && FStrEq( kv->GetString( "player" ), selectedPlayerName ) )
+				{
+					m_pPlayerList->ActivateItemByRow( i );
+					break;
+				}
+			}
+		}
+	}
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: when duck is pressed it hides the active part of the GUI
 //-----------------------------------------------------------------------------
 void CSpectatorMenu::OnKeyCodePressed(KeyCode code)
 {
-	// we can't compare the keycode to a known code, because translation from bound keys
-	// to vgui key codes is not 1:1. Get the engine version of the key for the binding
-	// and the actual pressed key, and compare those..
-	int iLastTrappedKey = engine->GetLastPressedEngineKey();	// the enginekey version of the code param
-
-	if( iLastTrappedKey == m_iDuckKey )
+	if ( code == m_iDuckKey )
 	{
 		// hide if DUCK is pressed again
 		m_pViewPort->ShowPanel( this, false );
@@ -247,7 +277,7 @@ void CSpectatorMenu::ShowPanel(bool bShow)
 	
 	 if ( engine->IsHLTV() && HLTVCamera()->IsPVSLocked() )
 	 {
-		 // when wattching HLTV with a locked PVS, some elements are disabled
+		 // when watching HLTV with a locked PVS, some elements are disabled
 		 bIsEnabled = false;
 	 }
 	
@@ -257,27 +287,75 @@ void CSpectatorMenu::ShowPanel(bool bShow)
 	m_pViewOptions->SetVisible( bIsEnabled );
 }
 
-
-int CSpectatorMenu::PlayerAddItem( int itemID, wchar_t *name, KeyValues *data ) 
+void CSpectatorMenu::Update( void )
 {
-	if ( m_pPlayerList->IsItemIDValid( itemID ) )
-	{	
-		m_pPlayerList->UpdateItem( itemID, name, data );
-		return itemID + 1;
-	}
-	else
-	{
-		return m_pPlayerList->AddItem( name, data ) + 1; 
-	}
-}
+	IGameResources *gr = GameResources();
 
-void CSpectatorMenu::SetPlayerNameText(const wchar_t *text )
-{
-	char *ansiText = (char *) _alloca( (wcslen( text ) + 1) * sizeof( char ) );
-	if ( ansiText )
+	Reset();
+
+	if ( m_iDuckKey == BUTTON_CODE_INVALID )
 	{
-		localize()->ConvertUnicodeToANSI( text, ansiText, (wcslen( text ) + 1) * sizeof( char ) );
-		m_pPlayerList->SetText( ansiText );
+		m_iDuckKey = gameuifuncs->GetButtonCodeForBind( "duck" );
+	}
+
+	if ( !gr )
+		return;
+
+	int iPlayerIndex;
+	for ( iPlayerIndex = 1 ; iPlayerIndex <= gpGlobals->maxClients; iPlayerIndex++ )
+	{
+
+		// does this slot in the array have a name?
+		if ( !gr->IsConnected( iPlayerIndex ) )
+			continue;
+
+		if ( gr->IsLocalPlayer( iPlayerIndex ) )
+			continue;
+
+		if ( !gr->IsAlive( iPlayerIndex ) )
+			continue;
+
+		wchar_t playerText[ 80 ], playerName[ 64 ], *team, teamText[ 64 ];
+		char localizeTeamName[64];
+		char szPlayerIndex[16];
+		g_pVGuiLocalize->ConvertANSIToUnicode( UTIL_SafeName( gr->GetPlayerName(iPlayerIndex) ), playerName, sizeof( playerName ) );
+		const char * teamname = gr->GetTeamName( gr->GetTeam(iPlayerIndex) );
+		if ( teamname )
+		{	
+			Q_snprintf( localizeTeamName, sizeof( localizeTeamName ), "#%s", teamname );
+			team=g_pVGuiLocalize->Find( localizeTeamName );
+
+			if ( !team ) 
+			{
+				g_pVGuiLocalize->ConvertANSIToUnicode( teamname , teamText, sizeof( teamText ) );
+				team = teamText;
+			}
+
+			g_pVGuiLocalize->ConstructString( playerText, sizeof( playerText ), g_pVGuiLocalize->Find( "#Spec_PlayerItem_Team" ), 2, playerName, team );
+		}
+		else
+		{
+			g_pVGuiLocalize->ConstructString( playerText, sizeof( playerText ), g_pVGuiLocalize->Find( "#Spec_PlayerItem" ), 1, playerName );
+		}
+
+		Q_snprintf( szPlayerIndex, sizeof( szPlayerIndex ), "%d", iPlayerIndex );
+
+		KeyValues *kv = new KeyValues( "UserData", "player", gr->GetPlayerName( iPlayerIndex ), "index", szPlayerIndex );
+		m_pPlayerList->AddItem( playerText, kv );
+		kv->deleteThis();
+	}
+
+	// make sure the player combo box is up to date
+	int playernum = GetSpectatorTarget();
+	const char *selectedPlayerName = gr->GetPlayerName( playernum );
+	for ( iPlayerIndex=0; iPlayerIndex<m_pPlayerList->GetItemCount(); ++iPlayerIndex )
+	{
+		KeyValues *kv = m_pPlayerList->GetItemUserData( iPlayerIndex );
+		if ( kv && FStrEq( kv->GetString( "player" ), selectedPlayerName ) )
+		{
+			m_pPlayerList->ActivateItemByRow( iPlayerIndex );
+			break;
+		}
 	}
 }
 
@@ -289,7 +367,7 @@ void CSpectatorMenu::SetPlayerNameText(const wchar_t *text )
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
 //-----------------------------------------------------------------------------
-CSpectatorGUI::CSpectatorGUI(IViewPort *pViewPort) : Frame( NULL, PANEL_SPECGUI )
+CSpectatorGUI::CSpectatorGUI(IViewPort *pViewPort) : EditablePanel( NULL, PANEL_SPECGUI )
 {
 // 	m_bHelpShown = false;
 //	m_bInsetVisible = false;
@@ -301,18 +379,12 @@ CSpectatorGUI::CSpectatorGUI(IViewPort *pViewPort) : Frame( NULL, PANEL_SPECGUI 
 
 	// initialize dialog
 	SetVisible(false);
-	SetTitle("SpectatorGUI", true);
 	SetProportional(true);
 
 	// load the new scheme early!!
 	SetScheme("ClientScheme");
-	SetMoveable(false);
-	SetSizeable(false);
 	SetMouseInputEnabled( false );
 	SetKeyBoardInputEnabled( false );
-
-	// hide the system buttons
-	SetTitleBarVisible( false );
 
 	m_pTopBar = new Panel( this, "topbar" );
  	m_pBottomBarBlank = new Panel( this, "bottombarblank" );
@@ -320,14 +392,18 @@ CSpectatorGUI::CSpectatorGUI(IViewPort *pViewPort) : Frame( NULL, PANEL_SPECGUI 
 	// m_pBannerImage = new ImagePanel( m_pTopBar, NULL );
 	m_pPlayerLabel = new Label( this, "playerlabel", "" );
 	m_pPlayerLabel->SetVisible( false );
+	TextImage *image = m_pPlayerLabel->GetTextImage();
+	if ( image )
+	{
+		HFont hFallbackFont = scheme()->GetIScheme( GetScheme() )->GetFont( "DefaultVerySmallFallBack", false );
+		if ( INVALID_FONT != hFallbackFont )
+		{
+			image->SetUseFallbackFont( true, hFallbackFont );
+		}
+	}
 
-	LoadControlSettings("Resource/UI/Spectator.res");
-	
 	SetPaintBorderEnabled(false);
 	SetPaintBackgroundEnabled(false);
-
-	m_pBottomBarBlank->SetVisible( true );
-	m_pTopBar->SetVisible( true );
 
 	// m_pBannerImage->SetVisible(false);
 	InvalidateLayout();
@@ -346,10 +422,14 @@ CSpectatorGUI::~CSpectatorGUI()
 //-----------------------------------------------------------------------------
 void CSpectatorGUI::ApplySchemeSettings(IScheme *pScheme)
 {
+	LoadControlSettings("Resource/UI/Spectator.res");
+	m_pBottomBarBlank->SetVisible( true );
+	m_pTopBar->SetVisible( true );
+
 	BaseClass::ApplySchemeSettings( pScheme );
 	SetBgColor(Color( 0,0,0,0 ) ); // make the background transparent
-	m_pTopBar->SetBgColor(BLACK_BAR_COLOR);
-	m_pBottomBarBlank->SetBgColor(BLACK_BAR_COLOR);
+	m_pTopBar->SetBgColor(GetBlackBarColor());
+	m_pBottomBarBlank->SetBgColor(GetBlackBarColor());
 	// m_pBottomBar->SetBgColor(Color( 0,0,0,0 ));
 	SetPaintBorderEnabled(false);
 
@@ -517,18 +597,18 @@ void CSpectatorGUI::Update()
 		
 		wchar_t playerText[ 80 ], playerName[ 64 ], health[ 10 ];
 		wcscpy( playerText, L"Unable to find #Spec_PlayerItem*" );
-		memset( playerName, 0x0, sizeof( playerName ) * sizeof( wchar_t ) );
+		memset( playerName, 0x0, sizeof( playerName ) );
 
-		localize()->ConvertANSIToUnicode( UTIL_SafeName(gr->GetPlayerName( playernum )), playerName, sizeof( playerName ) );
+		g_pVGuiLocalize->ConvertANSIToUnicode( UTIL_SafeName(gr->GetPlayerName( playernum )), playerName, sizeof( playerName ) );
 		int iHealth = gr->GetHealth( playernum );
 		if ( iHealth > 0  && gr->IsAlive(playernum) )
 		{
 			_snwprintf( health, sizeof( health ), L"%i", iHealth );
-			localize()->ConstructString( playerText, sizeof( playerText ), localize()->Find( "#Spec_PlayerItem_Team" ), 2, playerName,  health );
+			g_pVGuiLocalize->ConstructString( playerText, sizeof( playerText ), g_pVGuiLocalize->Find( "#Spec_PlayerItem_Team" ), 2, playerName,  health );
 		}
 		else
 		{
-			localize()->ConstructString( playerText, sizeof( playerText ), localize()->Find( "#Spec_PlayerItem" ), 1, playerName );
+			g_pVGuiLocalize->ConstructString( playerText, sizeof( playerText ), g_pVGuiLocalize->Find( "#Spec_PlayerItem" ), 1, playerName );
 		}
 
 		m_pPlayerLabel->SetText( playerText );
@@ -547,10 +627,10 @@ void CSpectatorGUI::Update()
 	{
 		// set spectator number and HLTV title
 		Q_snprintf(tempstr,sizeof(tempstr),"Spectators : %d", HLTVCamera()->GetNumSpectators() );
-		localize()->ConvertANSIToUnicode(tempstr,szEtxraInfo,sizeof(szEtxraInfo));
+		g_pVGuiLocalize->ConvertANSIToUnicode(tempstr,szEtxraInfo,sizeof(szEtxraInfo));
 		
 		Q_strncpy( tempstr, HLTVCamera()->GetTitleText(), sizeof(tempstr) );
-		localize()->ConvertANSIToUnicode(tempstr,szTitleLabel,sizeof(szTitleLabel));
+		g_pVGuiLocalize->ConvertANSIToUnicode(tempstr,szTitleLabel,sizeof(szTitleLabel));
 	}
 	else
 	{
@@ -558,122 +638,14 @@ void CSpectatorGUI::Update()
 		Q_FileBase( engine->GetLevelName(), tempstr, sizeof(tempstr) );
 
 		wchar_t wMapName[64];
-		localize()->ConvertANSIToUnicode(tempstr,wMapName,sizeof(wMapName));
-		localize()->ConstructString( szEtxraInfo,sizeof( szEtxraInfo ), localize()->Find("#Spec_Map" ),1, wMapName );
+		g_pVGuiLocalize->ConvertANSIToUnicode(tempstr,wMapName,sizeof(wMapName));
+		g_pVGuiLocalize->ConstructString( szEtxraInfo,sizeof( szEtxraInfo ), g_pVGuiLocalize->Find("#Spec_Map" ),1, wMapName );
 
-		localize()->ConvertANSIToUnicode( "" ,szTitleLabel,sizeof(szTitleLabel));
+		g_pVGuiLocalize->ConvertANSIToUnicode( "" ,szTitleLabel,sizeof(szTitleLabel));
 	}
 
 	SetLabelText("extrainfo", szEtxraInfo );
 	SetLabelText("titlelabel", szTitleLabel );
-}
-
-
-//-----------------------------------------------------------------------------
-// Purpose: Resets the list of players
-//-----------------------------------------------------------------------------
-void CSpectatorMenu::Update( void )
-{
-	int itemID = 0;
-
-	IGameResources *gr = GameResources();
-
-	Reset();
-
-	if( m_iDuckKey < 0 )
-	{
-		m_iDuckKey = gameuifuncs->GetEngineKeyCodeForBind( "duck" );
-	}
-	
-	if ( !gr )
-		return;
-
-	int iPlayerIndex;
-	for ( iPlayerIndex = 1 ; iPlayerIndex <= gpGlobals->maxClients; iPlayerIndex++ )
-	{
-
-		// does this slot in the array have a name?
-		if ( !gr->IsConnected( iPlayerIndex ) )
-			continue;
-			
-		if ( gr->IsLocalPlayer( iPlayerIndex ) )
-			continue;
-
-		if ( !gr->IsAlive( iPlayerIndex ) )
-			continue;
-
-		wchar_t playerText[ 80 ], playerName[ 64 ], *team, teamText[ 64 ];
-		char localizeTeamName[64];
-		localize()->ConvertANSIToUnicode( UTIL_SafeName( gr->GetPlayerName(iPlayerIndex) ), playerName, sizeof( playerName ) );
-		const char * teamname = gr->GetTeamName( gr->GetTeam(iPlayerIndex) );
-		if ( teamname )
-		{	
-			Q_snprintf( localizeTeamName, sizeof( localizeTeamName ), "#%s", teamname );
-			team=localize()->Find( localizeTeamName );
-
-			if ( !team ) 
-			{
-				localize()->ConvertANSIToUnicode( teamname , teamText, sizeof( teamText ) );
-				team = teamText;
-			}
-
-			localize()->ConstructString( playerText, sizeof( playerText ), localize()->Find( "#Spec_PlayerItem_Team" ), 2, playerName, team );
-		}
-		else
-		{
-			localize()->ConstructString( playerText, sizeof( playerText ), localize()->Find( "#Spec_PlayerItem" ), 1, playerName );
-		}
-
-		KeyValues *kv = new KeyValues("UserData", "player", gr->GetPlayerName( iPlayerIndex ) );
-		itemID = PlayerAddItem( itemID, playerText, kv ); // -1 means a new slot
-		kv->deleteThis();
-	}
-
-	// make sure the player combo box is up to date
-	int playernum = GetSpectatorTarget();
-	const char *selectedPlayerName = gr->GetPlayerName( playernum );
-	for ( iPlayerIndex=0; iPlayerIndex<m_pPlayerList->GetItemCount(); ++iPlayerIndex )
-	{
-		KeyValues *kv = m_pPlayerList->GetItemUserData( iPlayerIndex );
-		if ( kv && FStrEq( kv->GetString( "player" ), selectedPlayerName ) )
-		{
-			m_pPlayerList->ActivateItemByRow( iPlayerIndex );
-			m_pPlayerList->SetText( selectedPlayerName );
-			break;
-		}
-	}
-}
-
-void CSpectatorMenu::OnThink()
-{
-	BaseClass::OnThink();
-
-	IGameResources *gr = GameResources();
-	if ( !gr )
-		return;
-
-	// make sure the player combo box is up to date
-	int playernum = GetSpectatorTarget();
-	const char *selectedPlayerName = gr->GetPlayerName( playernum );
-	const char *currentPlayerName = "";
-	KeyValues *kv = m_pPlayerList->GetActiveItemUserData();
-	if ( kv )
-	{
-		currentPlayerName = kv->GetString("player");
-	}
-	if ( !FStrEq( currentPlayerName, selectedPlayerName ) )
-	{
-		for ( int i=0; i<m_pPlayerList->GetItemCount(); ++i )
-		{
-			KeyValues *kv = m_pPlayerList->GetItemUserData( i );
-			if ( kv && FStrEq( kv->GetString( "player" ), selectedPlayerName ) )
-			{
-				m_pPlayerList->ActivateItemByRow( i );
-				m_pPlayerList->SetText( selectedPlayerName );
-				break;
-			}
-		}
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -693,26 +665,26 @@ void CSpectatorGUI::UpdateTimer()
 	SetLabelText("timerlabel", szText );
 }
 
-static void ForwardSpecCmdToServer()
+static void ForwardSpecCmdToServer( const CCommand &args )
 {
 	if ( engine->IsPlayingDemo() )
 		return;
 
-	if ( engine->Cmd_Argc() == 1 )
+	if ( args.ArgC() == 1 )
 	{
 		// just forward the command without parameters
-		engine->ServerCmd( engine->Cmd_Argv(0) );
+		engine->ServerCmd( args[ 0 ] );
 	}
-	else if ( engine->Cmd_Argc() == 2 )
+	else if ( args.ArgC() == 2 )
 	{
 		// forward the command with parameter
 		char command[128];
-		Q_snprintf( command, sizeof(command), "%s \"%s\"", engine->Cmd_Argv(0), engine->Cmd_Argv(1) );
+		Q_snprintf( command, sizeof(command), "%s \"%s\"", args[ 0 ], args[ 1 ] );
 		engine->ServerCmd( command );
 	}
 }
 
-CON_COMMAND( spec_next, "Spectate next player" )
+CON_COMMAND_F( spec_next, "Spectate next player", FCVAR_CLIENTCMD_CAN_EXECUTE )
 {
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
@@ -729,11 +701,11 @@ CON_COMMAND( spec_next, "Spectate next player" )
 	}
 	else
 	{
-		ForwardSpecCmdToServer();
+		ForwardSpecCmdToServer( args );
 	}
 }
 
-CON_COMMAND( spec_prev, "Spectate previous player" )
+CON_COMMAND_F( spec_prev, "Spectate previous player", FCVAR_CLIENTCMD_CAN_EXECUTE )
 {
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
@@ -750,11 +722,11 @@ CON_COMMAND( spec_prev, "Spectate previous player" )
 	}
 	else
 	{
-		ForwardSpecCmdToServer();
+		ForwardSpecCmdToServer( args );
 	}
 }
 
-CON_COMMAND( spec_mode, "Set spectator mode" )
+CON_COMMAND_F( spec_mode, "Set spectator mode", FCVAR_CLIENTCMD_CAN_EXECUTE )
 {
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
@@ -773,17 +745,17 @@ CON_COMMAND( spec_mode, "Set spectator mode" )
 			// we can choose any mode, not loked to PVS
 			int mode;
 
-			if ( engine->Cmd_Argc() == 2 )
+			if ( args.ArgC() == 2 )
 			{
 				// set specifc mode
-				mode = Q_atoi( engine->Cmd_Argv(1) );
+				mode = Q_atoi( args[1] );
 			}
 			else
 			{
 				// set next mode 
 				mode = HLTVCamera()->GetMode()+1;
 
-				if ( mode > OBS_MODE_ROAMING )
+				if ( mode > LAST_PLAYER_OBSERVERMODE )
 					mode = OBS_MODE_IN_EYE;
 			}
 			
@@ -797,18 +769,18 @@ CON_COMMAND( spec_mode, "Set spectator mode" )
 	else
 	{
 		// we spectate on a game server, forward command
-		ForwardSpecCmdToServer();
+		ForwardSpecCmdToServer( args );
 	}
 }
 
-CON_COMMAND( spec_player, "Spectate player by name" )
+CON_COMMAND_F( spec_player, "Spectate player by name", FCVAR_CLIENTCMD_CAN_EXECUTE )
 {
 	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
 	if ( !pPlayer || !pPlayer->IsObserver() )
 		return;
 
-	if ( engine->Cmd_Argc() != 2 )
+	if ( args.ArgC() != 2 )
 		return;
 
 	if ( engine->IsHLTV() )
@@ -816,12 +788,12 @@ CON_COMMAND( spec_player, "Spectate player by name" )
 		// we can only switch primary spectator targets is PVS isnt locked by auto-director
 		if ( !HLTVCamera()->IsPVSLocked() )
 		{
-			HLTVCamera()->SpecNamedPlayer( engine->Cmd_Argv(1) );
+			HLTVCamera()->SpecNamedPlayer( args[1] );
 		}
 	}
 	else
 	{
-		ForwardSpecCmdToServer();
+		ForwardSpecCmdToServer( args );
 	}
 }
 

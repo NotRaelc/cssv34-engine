@@ -8,7 +8,7 @@
 
 #include "info_camera_link.h"
 #include "point_camera.h"
-#include "utlfixedlinkedlist.h"
+#include "utllinkedlist.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

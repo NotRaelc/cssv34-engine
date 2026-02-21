@@ -27,6 +27,14 @@
 ConVar g_debug_vehiclebase( "g_debug_vehiclebase", "0", FCVAR_CHEAT );
 extern ConVar g_debug_vehicledriver;
 
+// CFourWheelServerVehicle
+BEGIN_SIMPLE_DATADESC_( CFourWheelServerVehicle, CBaseServerVehicle )
+
+	DEFINE_EMBEDDED( m_ViewSmoothing ),
+
+END_DATADESC()
+
+// CPropVehicle
 BEGIN_DATADESC( CPropVehicle )
 
 	DEFINE_EMBEDDED( m_VehiclePhysics ),
@@ -97,7 +105,20 @@ void CPropVehicle::Spawn( )
 	m_vecSmoothedVelocity.Init();
 }
 
-
+// this allows reloading the script variables from disk over an existing vehicle state
+// This is useful for tuning vehicles or updating old saved game formats
+CON_COMMAND(vehicle_flushscript, "Flush and reload all vehicle scripts")
+{
+	PhysFlushVehicleScripts();
+	for ( CBaseEntity *pEnt = gEntList.FirstEnt(); pEnt != NULL; pEnt = gEntList.NextEnt(pEnt) )
+	{
+		IServerVehicle *pServerVehicle = pEnt->GetServerVehicle();
+		if ( pServerVehicle )
+		{
+			pServerVehicle->ReloadScript();
+		}
+	}
+}
 //-----------------------------------------------------------------------------
 // Purpose: Restore
 //-----------------------------------------------------------------------------
@@ -401,9 +422,18 @@ void CPropVehicleDriveable::DestroyServerVehicle()
 void CPropVehicleDriveable::Precache( void )
 {
 	BaseClass::Precache();
+
+	// This step is needed because if we're precaching from a templated instance, we'll miss our vehicle 
+	// script sounds unless we do the parse below.  This instance of the vehicle will be nuked when we're actually created.
+	if ( m_pServerVehicle == NULL )
+	{
+		CreateServerVehicle();
+	}
+	
+	// Load the script file and precache our assets
 	if ( m_pServerVehicle )
 	{
-		m_pServerVehicle->Precache( );
+		m_pServerVehicle->Initialize( STRING( m_vehicleScript ) );
 	}
 }
 
@@ -416,7 +446,15 @@ void CPropVehicleDriveable::Spawn( void )
 	// Has to be created before Spawn is called (since that causes Precache to be called)
 	DestroyServerVehicle();
 	CreateServerVehicle();
-	m_pServerVehicle->Initialize( STRING(m_vehicleScript) );
+	
+	// Initialize our vehicle via script
+	if ( m_pServerVehicle->Initialize( STRING(m_vehicleScript) ) == false )
+	{
+		Warning( "Vehicle (%s) unable to properly initialize due to script error in (%s)!\n", GetEntityName().ToCStr(), STRING( m_vehicleScript ) );
+		SetThink( &CBaseEntity::SUB_Remove );
+		SetNextThink( gpGlobals->curtime + 0.1f );
+		return;
+	}
 
 	BaseClass::Spawn();
 
@@ -438,16 +476,6 @@ int CPropVehicleDriveable::Restore( IRestore &restore )
 	CreateServerVehicle();
 
 	int nRetVal = BaseClass::Restore( restore );
-
-	// NOTE: This is necessary to prevent overflow of datatables on level transition
-	// since the last exit eyepoint in the last level will have been fixed up
-	// based on the level landmarks, resulting in a position that lies outside
-	// typical map coordinates. If we're not in the middle of an exit anim, the
-	// eye exit endpoint field isn't being used at all.
-	if ( !m_bExitAnimOn )
-	{
-		m_vecEyeExitEndpoint = GetAbsOrigin();
-	}
 	 
 	return nRetVal;
 }
@@ -458,6 +486,17 @@ int CPropVehicleDriveable::Restore( IRestore &restore )
 void CPropVehicleDriveable::OnRestore( void )
 {
 	BaseClass::OnRestore();
+
+	// NOTE: This is necessary to prevent overflow of datatables on level transition
+	// since the last exit eyepoint in the last level will have been fixed up
+	// based on the level landmarks, resulting in a position that lies outside
+	// typical map coordinates. If we're not in the middle of an exit anim, the
+	// eye exit endpoint field isn't being used at all.
+	if ( !m_bExitAnimOn )
+	{
+		m_vecEyeExitEndpoint = GetAbsOrigin();
+	}
+
 	m_flNoImpactDamageTime = gpGlobals->curtime + 5.0f;
 
 	IServerVehicle *pServerVehicle = GetServerVehicle();
@@ -562,6 +601,11 @@ void CPropVehicleDriveable::EnterVehicle( CBaseCombatCharacter *pPassenger )
 		// Start Thinking
 		SetNextThink( gpGlobals->curtime );
 
+		Vector vecViewOffset = m_pServerVehicle->GetSavedViewOffset();
+
+		// Clear our state
+		m_pServerVehicle->InitViewSmoothing( pPlayer->GetAbsOrigin() + vecViewOffset, pPlayer->EyeAngles() );
+
 		m_VehiclePhysics.GetVehicle()->OnVehicleEnter();
 	}
 	else
@@ -595,6 +639,9 @@ void CPropVehicleDriveable::ExitVehicle( int nRole )
 	StopEngine();
 
 	m_VehiclePhysics.GetVehicle()->OnVehicleExit();
+
+	// Clear our state
+	m_pServerVehicle->InitViewSmoothing( vec3_origin, vec3_angle );
 }
 
 //-----------------------------------------------------------------------------
@@ -852,7 +899,8 @@ void CPropVehicleDriveable::VPhysicsCollision( int index, gamevcollisionevent_t 
 //=============================================================================
 
 	// Don't care if we don't have a driver
-	if ( !GetDriver() )
+	CBaseCombatCharacter *pDriver = GetDriver() ? GetDriver()->MyCombatCharacterPointer() : NULL;
+	if ( !pDriver )
 		return;
 
 	// Make sure we don't keep hitting the same entity
@@ -862,6 +910,16 @@ void CPropVehicleDriveable::VPhysicsCollision( int index, gamevcollisionevent_t 
 		return;
 
 	BaseClass::VPhysicsCollision( index, pEvent );
+
+	// if this is a bone follower, promote to the owner entity
+	if ( pHitEntity->GetOwnerEntity() && (pHitEntity->GetEffects() & EF_NODRAW) )
+	{
+		CBaseEntity *pOwner = pHitEntity->GetOwnerEntity();
+		// no friendly bone follower damage
+		// this allows strider legs to damage the player on impact but not d0g for example
+		if ( pDriver->IRelationType( pOwner ) == D_LI )
+			return;
+	}
 
 	// If we hit hard enough, damage the player
 	// Don't take damage from ramming bad guys
@@ -891,7 +949,7 @@ void CPropVehicleDriveable::VPhysicsCollision( int index, gamevcollisionevent_t 
 		Vector damagePos;
 		pEvent->pInternalData->GetContactPoint( damagePos );
 		Vector damageForce = pEvent->postVelocity[index] * pEvent->pObjects[index]->GetMass();
-		CTakeDamageInfo info( this, GetDriver(), damageForce, damagePos, flDamage, damageType );
+		CTakeDamageInfo info( this, GetDriver(), damageForce, damagePos, flDamage, (damageType|DMG_VEHICLE) );
 		GetDriver()->TakeDamage( info );
 	}
 }
@@ -933,6 +991,19 @@ void CPropVehicleDriveable::TraceAttack( const CTakeDamageInfo &info, const Vect
 			m_flTurnOffKeepUpright = gpGlobals->curtime + GetUprightTime();
 			SetNextThink( gpGlobals->curtime );
 		}
+
+#ifdef HL2_EPISODIC
+		// Notify all children
+		for ( int i = 0; i < m_hPhysicsChildren.Count(); i++ )
+		{
+			if ( m_hPhysicsChildren[i] == NULL )
+				continue;
+
+			variant_t emptyVariant;
+			m_hPhysicsChildren[i]->AcceptInput( "VehiclePunted", info.GetAttacker(), this, emptyVariant, USE_TOGGLE );
+		}
+#endif // HL2_EPISODIC
+
 	}
 
 	BaseClass::TraceAttack( info, vecDir, ptr );
@@ -1002,9 +1073,55 @@ bool CPropVehicleDriveable::NPC_RemovePassenger( CAI_BaseNPC *pPassenger )
 	return true;
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : *pVictim - 
+//			&info - 
+//-----------------------------------------------------------------------------
+void CPropVehicleDriveable::Event_KilledOther( CBaseEntity *pVictim, const CTakeDamageInfo &info )
+{ 
+	CBaseEntity *pDriver = GetDriver();
+	if ( pDriver != NULL )
+	{
+		pDriver->Event_KilledOther( pVictim, info );
+	}
+
+	BaseClass::Event_KilledOther( pVictim, info );
+}
+
 //========================================================================================================================================
 // FOUR WHEEL PHYSICS VEHICLE SERVER VEHICLE
 //========================================================================================================================================
+CFourWheelServerVehicle::CFourWheelServerVehicle( void )
+{
+	// Setup our smoothing data
+	memset( &m_ViewSmoothing, 0, sizeof( m_ViewSmoothing ) );
+
+	m_ViewSmoothing.bClampEyeAngles		= true;
+	m_ViewSmoothing.bDampenEyePosition	= true;
+	m_ViewSmoothing.flPitchCurveZero	= PITCH_CURVE_ZERO;
+	m_ViewSmoothing.flPitchCurveLinear	= PITCH_CURVE_LINEAR;
+	m_ViewSmoothing.flRollCurveZero		= ROLL_CURVE_ZERO;
+	m_ViewSmoothing.flRollCurveLinear	= ROLL_CURVE_LINEAR;
+}
+
+#ifdef HL2_EPISODIC
+ConVar r_JeepFOV( "r_JeepFOV", "82", FCVAR_CHEAT | FCVAR_REPLICATED );
+#else
+ConVar r_JeepFOV( "r_JeepFOV", "90", FCVAR_CHEAT | FCVAR_REPLICATED );
+#endif // HL2_EPISODIC
+
+//-----------------------------------------------------------------------------
+// Purpose: Setup our view smoothing information
+//-----------------------------------------------------------------------------
+void CFourWheelServerVehicle::InitViewSmoothing( const Vector &vecOrigin, const QAngle &vecAngles )
+{
+	m_ViewSmoothing.bWasRunningAnim = false;
+	m_ViewSmoothing.vecOriginSaved = vecOrigin;
+	m_ViewSmoothing.vecAnglesSaved = vecAngles;
+	m_ViewSmoothing.flFOV = r_JeepFOV.GetFloat();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -1012,22 +1129,30 @@ void CFourWheelServerVehicle::SetVehicle( CBaseEntity *pVehicle )
 {
 	ASSERT( dynamic_cast<CPropVehicleDriveable*>(pVehicle) );
 	BaseClass::SetVehicle( pVehicle );
+	
+	// Save this for view smoothing
+	if ( pVehicle != NULL )
+	{
+		m_ViewSmoothing.pVehicle = pVehicle->GetBaseAnimating();
+	}
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: Modify the player view/camera while in a vehicle
 //-----------------------------------------------------------------------------
-void CFourWheelServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles )
+void CFourWheelServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles, float *pFOV /*= NULL*/ )
 {
-	Assert( nRole == VEHICLE_ROLE_DRIVER );
-	CBaseCombatCharacter *pPassenger = GetPassenger( VEHICLE_ROLE_DRIVER );
-	Assert( pPassenger );
-
-	CBasePlayer *pPlayer = ToBasePlayer( pPassenger );
-	if ( pPlayer != NULL )
+	CBaseEntity *pDriver = GetPassenger( nRole );
+	if ( pDriver && pDriver->IsPlayer())
 	{
-		*pAbsAngles = pPlayer->EyeAngles(); // yuck. this is an in/out parameter.
-		GetFourWheelVehiclePhysics()->GetVehicleViewPosition( "vehicle_driver_eyes", 1.0f, pAbsOrigin, pAbsAngles );
+		CBasePlayer *pPlayerDriver = ToBasePlayer( pDriver );
+		CPropVehicleDriveable *pVehicle = GetFourWheelVehicle();
+		SharedVehicleViewSmoothing( pPlayerDriver,
+									pAbsOrigin, pAbsAngles,
+									pVehicle->IsEnterAnimOn(), pVehicle->IsExitAnimOn(),
+									pVehicle->GetEyeExitEndpoint(), 
+									&m_ViewSmoothing,
+									pFOV );
 	}
 	else
 	{
@@ -1042,6 +1167,27 @@ void CFourWheelServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOri
 const vehicleparams_t *CFourWheelServerVehicle::GetVehicleParams( void )
 { 
 	return &GetFourWheelVehiclePhysics()->GetVehicleParams(); 
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const vehicle_operatingparams_t	*CFourWheelServerVehicle::GetVehicleOperatingParams( void )
+{
+	return &GetFourWheelVehiclePhysics()->GetVehicleOperatingParams();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+const vehicle_controlparams_t *CFourWheelServerVehicle::GetVehicleControlParams( void )
+{
+	return &GetFourWheelVehiclePhysics()->GetVehicleControls();
+}
+
+IPhysicsVehicleController *CFourWheelServerVehicle::GetVehicleController()
+{
+	return GetFourWheelVehiclePhysics()->GetVehicleController();
 }
 
 //-----------------------------------------------------------------------------
@@ -1072,6 +1218,22 @@ bool CFourWheelServerVehicle::IsVehicleUpright( void )
 bool CFourWheelServerVehicle::IsVehicleBodyInWater() 
 { 
 	return GetFourWheelVehicle()->IsVehicleBodyInWater(); 
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CFourWheelServerVehicle::IsPassengerEntering( void )
+{
+	return GetFourWheelVehicle()->IsEnterAnimOn();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+bool CFourWheelServerVehicle::IsPassengerExiting( void )
+{
+	return GetFourWheelVehicle()->IsExitAnimOn();
 }
 
 //-----------------------------------------------------------------------------
@@ -1158,4 +1320,24 @@ void CFourWheelServerVehicle::NPC_DriveVehicle( void )
 	// Clear out attack buttons each frame
 	m_nNPCButtons &= ~IN_ATTACK;
 	m_nNPCButtons &= ~IN_ATTACK2;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : nWheelIndex - 
+//			&vecPos - 
+//-----------------------------------------------------------------------------
+bool CFourWheelServerVehicle::GetWheelContactPoint( int nWheelIndex, Vector &vecPos )
+{
+	// Dig through a couple layers to get to our data
+	CFourWheelVehiclePhysics  *pVehiclePhysics = GetFourWheelVehiclePhysics();
+	if ( pVehiclePhysics )
+	{
+		IPhysicsVehicleController *pVehicleController = pVehiclePhysics->GetVehicle();
+		if ( pVehicleController )
+		{
+			return pVehicleController->GetWheelContactPoint( nWheelIndex, &vecPos, NULL );
+		}
+	}
+	return false;
 }

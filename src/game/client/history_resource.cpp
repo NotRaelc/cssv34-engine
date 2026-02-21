@@ -47,7 +47,7 @@ void CHudHistoryResource::ApplySchemeSettings( IScheme *pScheme )
 	SetPaintBackgroundEnabled( false );
 
 	// lookup text to display for ammo full message
-	wchar_t *wcs = localize()->Find("#hl2_AmmoFull");
+	wchar_t *wcs = g_pVGuiLocalize->Find("#hl2_AmmoFull");
 	if (wcs)
 	{
 		wcsncpy(m_wcsAmmoFullMsg, wcs, sizeof(m_wcsAmmoFullMsg) / sizeof(wchar_t));
@@ -158,7 +158,7 @@ void CHudHistoryResource::AddIconToHistory( int iType, int iId, C_BaseCombatWeap
 	m_bNeedsDraw = true;
 
 	// Check to see if the pic would have to be drawn too high. If so, start again from the bottom
-	if ( (m_flHistoryGap * m_iCurrentHistorySlot) > GetTall() )
+	if ( (m_flHistoryGap * (m_iCurrentHistorySlot+1)) > GetTall() )
 	{
 		m_iCurrentHistorySlot = 0;
 	}
@@ -268,7 +268,11 @@ void CHudHistoryResource::CheckClearHistory( void )
 //-----------------------------------------------------------------------------
 bool CHudHistoryResource::ShouldDraw( void )
 {
+#ifdef TF_CLIENT_DLL
+	return false;
+#else
 	return ( ( m_iCurrentHistorySlot > 0 || m_bNeedsDraw ) && CHudElement::ShouldDraw() );
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -312,13 +316,30 @@ void CHudHistoryResource::Paint( void )
 
 			// get the icon and number to draw
 			const CHudTexture *itemIcon = NULL;
+			const CHudTexture *itemAmmoIcon = NULL;
 			int iAmount = 0;
+			bool bHalfHeight = true;
 
 			switch ( m_PickupHistory[i].type )
 			{
 			case HISTSLOT_AMMO:
 				{
-					itemIcon = gWR.GetAmmoIconFromWeapon( m_PickupHistory[i].iId );
+					// Get the weapon we belong to
+#ifndef HL2MP
+					const FileWeaponInfo_t *pWpnInfo = gWR.GetWeaponFromAmmo( m_PickupHistory[i].iId );
+					if ( pWpnInfo && ( pWpnInfo->iMaxClip1 >= 0 || pWpnInfo->iMaxClip2 >= 0 ) )
+					{
+						// The weapon will be the main icon, and the ammo the smaller
+						itemIcon = pWpnInfo->iconSmall;
+						itemAmmoIcon = gWR.GetAmmoIconFromWeapon( m_PickupHistory[i].iId );
+					}
+					else
+#endif // HL2MP
+					{
+						itemIcon = gWR.GetAmmoIconFromWeapon( m_PickupHistory[i].iId );
+						itemAmmoIcon = NULL;
+					}
+
 					iAmount = m_PickupHistory[i].iCount;
 				}
 				break;
@@ -347,6 +368,7 @@ void CHudHistoryResource::Paint( void )
 					}
 
 					itemIcon = pWeapon->GetSpriteInactive();
+					bHalfHeight = false;
 				}
 				break;
 			case HISTSLOT_ITEM:
@@ -355,6 +377,7 @@ void CHudHistoryResource::Paint( void )
 						continue;
 
 					itemIcon = m_PickupHistory[i].icon;
+					bHalfHeight = false;
 				}
 				break;
 			default:
@@ -375,7 +398,20 @@ void CHudHistoryResource::Paint( void )
 			int ypos = tall - (m_flHistoryGap * (i + 1));
 			int xpos = wide - itemIcon->Width() - m_flIconInset;
 
+#ifndef HL2MP
+			// Adjust for a half-height icon
+			if ( bHalfHeight )
+			{
+				ypos += itemIcon->Height() / 2;
+			}
+#endif // HL2MP
+
 			itemIcon->DrawSelf( xpos, ypos, clr );
+
+			if ( itemAmmoIcon )
+			{
+				itemAmmoIcon->DrawSelf( xpos - ( itemAmmoIcon->Width() * 1.25f ), ypos, clr );
+			}
 
 			if ( iAmount )
 			{

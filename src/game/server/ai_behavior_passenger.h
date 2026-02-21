@@ -10,15 +10,16 @@
 #pragma once
 #endif
 
+#include "ai_speech.h"
 #include "ai_behavior.h"
 #include "ai_utils.h"
-
-#ifdef HL2_EPISODIC
 #include "vehicle_jeep_episodic.h"
-#endif //HL2_EPISODIC
 
 #define STOPPED_VELOCITY_THRESHOLD		32.0f
 #define	STOPPED_VELOCITY_THRESHOLD_SQR	(STOPPED_VELOCITY_THRESHOLD*STOPPED_VELOCITY_THRESHOLD)
+
+#define STARTED_VELOCITY_THRESHOLD		64.0f
+#define	STARTED_VELOCITY_THRESHOLD_SQR	(STARTED_VELOCITY_THRESHOLD*STARTED_VELOCITY_THRESHOLD)
 
 // Custom activities
 extern int ACT_PASSENGER_IDLE;
@@ -29,13 +30,14 @@ extern int ACT_PASSENGER_RANGE_ATTACK1;
 // ---------------------------------------------
 struct passengerVehicleState_t
 {
-	bool	m_bWasBoosting;
-	bool	m_bWasOverturned;
 	Vector	m_vecLastLocalVelocity;
 	Vector	m_vecDeltaVelocity;
 	QAngle	m_vecLastAngles;
 	float	m_flNextWarningTime;
-	float	m_flLastSpeed;
+	float	m_flLastSpeedSqr;
+	bool	m_bPlayerInVehicle;
+	bool	m_bWasBoosting;
+	bool	m_bWasOverturned;
 
 	DECLARE_SIMPLE_DATADESC();
 };
@@ -79,6 +81,7 @@ public:
 		SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE,
 		SCHED_PASSENGER_ENTER_VEHICLE_PAUSE,
 		SCHED_PASSENGER_RUN_TO_ENTER_VEHICLE_FAILED,
+		SCHED_PASSENGER_PLAY_SCRIPTED_ANIM,
 		NEXT_SCHEDULE,
 
 		// Tasks
@@ -90,16 +93,22 @@ public:
 		NEXT_TASK,
 
 		// Conditions
-		COND_VEHICLE_HARD_IMPACT = BaseClass::NEXT_CONDITION,
-		COND_ENTERING_VEHICLE,
-		COND_EXITING_VEHICLE,
-		COND_VEHICLE_MOVED_FROM_MARK,
-		COND_VEHICLE_STOPPED,
-		COND_VEHICLE_OVERTURNED,
-		COND_CANCEL_ENTER_VEHICLE,
+		COND_PASSENGER_HARD_IMPACT = BaseClass::NEXT_CONDITION,
+		COND_PASSENGER_ENTERING,
+		COND_PASSENGER_EXITING,
+		COND_PASSENGER_VEHICLE_STARTED,
+		COND_PASSENGER_VEHICLE_STOPPED,
+		COND_PASSENGER_OVERTURNED,
+		COND_PASSENGER_CANCEL_ENTER,
+		COND_PASSENGER_ERRATIC_DRIVING,
+		COND_PASSENGER_PLAYER_ENTERED_VEHICLE,
+		COND_PASSENGER_PLAYER_EXITED_VEHICLE,
+		COND_PASSENGER_JOSTLE_SMALL,
 
 		NEXT_CONDITION
 	};
+
+			bool	ForceVehicleInteraction( const char *lpszInteractionName, CBaseCombatCharacter *pOther );
 
 	virtual bool	CanSelectSchedule( void );
 	virtual int		SelectSchedule( void );
@@ -110,14 +119,18 @@ public:
 	virtual int		TranslateSchedule( int scheduleType );
 	virtual void	GetEntryTarget( Vector *vecOrigin, QAngle *vecAngles );
 	virtual void	GatherConditions( void );
+	virtual void	ModifyOrAppendCriteria( AI_CriteriaSet& criteriaSet );
+	virtual void	Teleport( const Vector *newPosition, const QAngle *newAngles, const Vector *newVelocity );
+	virtual void	ClearSchedule( const char *szReason );
+	virtual bool	IsInterruptable( void );
+	virtual void	PrescheduleThink( void );
+	virtual void	CancelEnterVehicle( void );
 
 	virtual const char *GetName( void ) { return "Passenger"; }
 	virtual string_t GetRoleName( void ) { return MAKE_STRING( "passenger" ); }
 
 	// Enable/disable code
-#ifdef HL2_EPISODIC
-	void	Enable( CPropJeepEpisodic *pVehicle );
-#endif //HL2_EPISODIC
+	void	Enable( CPropJeepEpisodic *pVehicle, bool bImmediateEntrance = false );
 	void	Disable( void );
 	bool	IsEnabled( void ) const { return m_bEnabled; }
 
@@ -129,10 +142,18 @@ public:
 	CPropVehicleDriveable *GetTargetVehicle( void ) const { return m_hVehicle; }
 
 	PassengerState_e	GetPassengerState( void ) const { return m_PassengerState; }
+	
+	virtual void OnRestore();
 
 protected:
 	
+	virtual int		SelectTransitionSchedule( void );
+
+	bool			SpeakIfAllowed( AIConcept_t concept, const char *modifiers = NULL, bool bRespondingToPlayer = false, char *pszOutResponseChosen = NULL, size_t bufsize = 0 );
+
+	bool			CanExitVehicle( void );
 	void			SetTransitionSequence( int nSequence );
+	void			AttachToVehicle( void );
 
 	virtual void	OnExitVehicleFailed( void ) { }	// NPC attempted to leave vehicle, but was unable to
 	virtual void	GatherVehicleStateConditions( void );
@@ -144,10 +165,11 @@ protected:
 	virtual void	FinishEnterVehicle( void );
 	virtual void	FinishExitVehicle( void );
 
+	void	DetachFromVehicle( void );
 	void	DrawDebugTransitionInfo( const Vector &vecIdealPos, const QAngle &vecIdealAngles, const Vector &vecAnimPos, const QAngle &vecAnimAngles );
-	void	FixInterpolation( void );
-	void	GetEntryPoint( int nSequence, Vector *vecEntryPoint, QAngle *vecEntryAngles = NULL );
+	bool	GetEntryPoint( int nSequence, Vector *vecEntryPoint, QAngle *vecEntryAngles = NULL );
 	bool	GetExitPoint( int nSequence, Vector *vecExitPoint, QAngle *vecExitAngles = NULL );
+	bool	PointIsNavigable( const Vector &vecTargetPos );
 	bool	ReserveEntryPoint( VehicleSeatQuery_e eSeatSearchType );
 	bool	ReserveExitPoint( void );
 	bool	FindGroundAtPosition( const Vector &in, float flUpDelta, float flDownDelta, Vector *out );
@@ -159,6 +181,7 @@ protected:
 	void	GetLocalVehicleVelocity( Vector *pOut  );
 	void	CacheBlendTargets( void );
 
+	void	InitVehicleState( void );
 	int		FindEntrySequence( bool bNearest = false );
 	int		FindExitSequence( void );
 	bool	IsValidTransitionPoint( const Vector &vecStartPos, const Vector &vecEndPos );
@@ -188,6 +211,35 @@ protected:
 
 protected:
 	DEFINE_CUSTOM_SCHEDULE_PROVIDER;
+};
+
+class CTraceFilterVehicleTransition : public CTraceFilterSkipTwoEntities
+{
+public:
+	DECLARE_CLASS( CTraceFilterVehicleTransition, CTraceFilterSkipTwoEntities );
+
+	CTraceFilterVehicleTransition( const IHandleEntity *passentity, const IHandleEntity *passentity2, int collisionGroup ) : 
+	CTraceFilterSkipTwoEntities( passentity, passentity2, collisionGroup ) {}
+
+	bool ShouldHitEntity( IHandleEntity *pServerEntity, int contentsMask )
+	{
+		bool bRet = BaseClass::ShouldHitEntity( pServerEntity, contentsMask );
+
+		CBaseEntity *pEntity = EntityFromEntityHandle( pServerEntity );
+		if ( pEntity )
+		{
+			IPhysicsObject *pPhys = pEntity->VPhysicsGetObject();
+			if ( pPhys )
+			{
+				// Ignore physics objects
+				// TODO: This will have to be fleshed out more as cases arise
+				if ( pPhys->IsMoveable() && pPhys->GetMass() < 80.0f )
+					return false;
+			}
+		}
+
+		return bRet;
+	}
 };
 
 #endif // AI_BEHAVIOR_PASSENGER_H

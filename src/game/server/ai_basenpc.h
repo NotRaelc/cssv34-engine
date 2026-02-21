@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:		Base NPC character with AI
 //
@@ -34,8 +34,9 @@
 #include "ai_navgoaltype.h" //GoalType_t enum
 #include "eventlist.h"
 #include "soundent.h"
-#undef MINMAX_H
-#include "minmax.h"
+#include "ai_navigator.h"
+#include "tier1/functors.h"
+
 
 #define PLAYER_SQUADNAME "player_squad"
 
@@ -56,7 +57,7 @@ class CAI_Motor;
 class CAI_MoveProbe;
 class CAI_LocalNavigator;
 class CAI_TacticalServices;
-class CBitString;
+class CVarBitVec;
 class CAI_ScriptedSequence;
 class CSceneEntity;
 class CBaseGrenade;
@@ -66,13 +67,17 @@ struct AI_Waypoint_t;
 class AI_Response;
 class CBaseFilter;
 
-typedef CFixedBitString<MAX_CONDITIONS> CAI_ScheduleBits;
+typedef CBitVec<MAX_CONDITIONS> CAI_ScheduleBits;
 
-#if defined( AI_STRONG_OPTIMIZATIONS )
-#define AIStrongOpt() 1
-#else
-#define AIStrongOpt() 0
-#endif
+// Used to control optimizations mostly dealing with pathfinding for NPCs
+extern ConVar ai_strong_optimizations;
+
+extern bool AIStrongOpt( void );
+
+// AI_MONITOR_FOR_OSCILLATION defaults to OFF. If you build with this ON, you can flag
+// NPC's and monitor them to detect oscillations in their schedule (circular logic and conditions bugs)
+// DO NOT SHIP WITH THIS ON!
+#undef AI_MONITOR_FOR_OSCILLATION
 
 //=============================================================================
 //
@@ -90,6 +95,12 @@ typedef CFixedBitString<MAX_CONDITIONS> CAI_ScheduleBits;
 // Max's of the box used to search for a weapon to pick up. 45x45x~8 ft.
 #define WEAPON_SEARCH_DELTA	Vector( 540, 540, 100 )
 
+enum Interruptability_t
+{
+	GENERAL_INTERRUPTABILITY,
+	DAMAGEORDEATH_INTERRUPTABILITY,
+	DEATH_INTERRUPTABILITY
+};
 
 //-------------------------------------
 // Memory
@@ -99,7 +110,7 @@ typedef CFixedBitString<MAX_CONDITIONS> CAI_ScheduleBits;
 #define bits_MEMORY_PROVOKED			( 1 << 0 )// right now only used for houndeyes.
 #define bits_MEMORY_INCOVER				( 1 << 1 )// npc knows it is in a covered position.
 #define bits_MEMORY_SUSPICIOUS			( 1 << 2 )// Ally is suspicious of the player, and will move to provoked more easily
-//#define	bits_MEMORY_				( 1 << 3 )
+#define	bits_MEMORY_TASK_EXPENSIVE		( 1 << 3 )// NPC has completed a task which is considered costly, so don't do another task this frame
 //#define	bits_MEMORY_				( 1 << 4 )
 #define bits_MEMORY_PATH_FAILED			( 1 << 5 )// Failed to find a path
 #define bits_MEMORY_FLINCHED			( 1 << 6 )// Has already flinched
@@ -244,6 +255,19 @@ enum SentenceIndex_t
 	SENTENCE_BASE_BEHAVIOR_INDEX = 1000,
 };
 
+#ifdef AI_MONITOR_FOR_OSCILLATION
+struct AIScheduleChoice_t 
+{
+	float			m_flTimeSelected;
+	CAI_Schedule	*m_pScheduleSelected;
+};
+#endif//AI_MONITOR_FOR_OSCILLATION
+
+#define MARK_TASK_EXPENSIVE()	\
+	if ( GetOuter() ) \
+	{ \
+		GetOuter()->Remember( bits_MEMORY_TASK_EXPENSIVE ); \
+	}
 
 //=============================================================================
 //
@@ -261,6 +285,7 @@ struct AIScheduleState_t
 	int					 iTaskInterrupt;
 	bool 				 bTaskRanAutomovement;
 	bool 				 bTaskUpdatedYaw;
+	bool				 bScheduleWasInterrupted;
 
 	DECLARE_SIMPLE_DATADESC();
 };
@@ -289,6 +314,8 @@ struct UnreachableEnt_t
 #define SCNPC_FLAG_LOOP_IN_ACTION				( 1 << 3 )
 #define SCNPC_FLAG_NEEDS_WEAPON_ME				( 1 << 4 )
 #define SCNPC_FLAG_NEEDS_WEAPON_THEM			( 1 << 5 )
+#define SCNPC_FLAG_DONT_TELEPORT_AT_END_ME		( 1 << 6 )
+#define SCNPC_FLAG_DONT_TELEPORT_AT_END_THEM	( 1 << 7 )
 
 // -----------------------------------------
 //	Scripted NPC interaction trigger methods
@@ -398,6 +425,7 @@ struct ScriptedNPCInteraction_t
 //=============================================================================
 
 Vector VecCheckToss ( CBaseEntity *pEdict, Vector vecSpot1, Vector vecSpot2, float flHeightMaxRatio, float flGravityAdj, bool bRandomize, Vector *vecMins = NULL, Vector *vecMaxs = NULL );
+Vector VecCheckToss ( CBaseEntity *pEntity, ITraceFilter *pFilter, Vector vecSpot1, Vector vecSpot2, float flHeightMaxRatio, float flGravityAdj, bool bRandomize, Vector *vecMins = NULL, Vector *vecMaxs = NULL );
 Vector VecCheckThrow( CBaseEntity *pEdict, const Vector &vecSpot1, Vector vecSpot2, float flSpeed, float flGravityAdj = 1.0f, Vector *vecMins = NULL, Vector *vecMaxs = NULL );
 
 extern Vector g_vecAttackDir;
@@ -498,6 +526,8 @@ public:
 	virtual void		CleanupOnDeath( CBaseEntity *pCulprit = NULL, bool bFireDeathOutput = true );
 	virtual void		UpdateOnRemove( void );
 
+	virtual int			UpdateTransmitState();
+
 	//---------------------------------
 	// Component creation factories
 	// 
@@ -570,6 +600,7 @@ public:
 	virtual void		HandleAnimEvent( animevent_t *pEvent );
 
 	virtual bool		IsInterruptable();
+	virtual void		OnStartScene( void ) {}	// Called when an NPC begins a cine scene (useful for clean-up)
 	virtual bool		ShouldPlayerAvoid( void );
 	virtual void		SetPlayerAvoidState( void );
 	virtual void		PlayerPenetratingVPhysics( void );
@@ -635,7 +666,7 @@ public:
 	
 	void				SetDefaultFailSchedule( int failSchedule )	{ m_failSchedule = failSchedule; }
 	
-	void				ClearSchedule( void );
+	void				ClearSchedule( const char *szReason );
 	
 	CAI_Schedule *		GetCurSchedule()							{ return m_pSchedule; }
 	bool				IsCurSchedule( int schedId, bool fIdeal = true );
@@ -742,7 +773,19 @@ private:
 	static float		gm_flTimeLastSpawn;
 	static int			gm_nSpawnedThisFrame;
 
+protected: // pose parameters
+	int					m_poseAim_Pitch;
+	int					m_poseAim_Yaw;
+	int					m_poseMove_Yaw;
+	virtual void		PopulatePoseParameters( void );
+
 public:
+	inline bool			HasPoseMoveYaw()		{ return ( m_poseMove_Yaw >= 0 );  }
+
+	// Return the stored pose parameter for "move_yaw"
+	inline int			LookupPoseMoveYaw()		{ return m_poseMove_Yaw; }
+ 
+
 	//-----------------------------------------------------
 	//
 	// Hooks for CAI_Behaviors, *if* derived class supports them
@@ -807,6 +850,8 @@ public:
 	bool				ConditionsGathered() const		{ return m_bConditionsGathered; }
 	const CAI_ScheduleBits &AccessConditionBits() const { return m_Conditions; }
 	CAI_ScheduleBits &	AccessConditionBits()			{ return m_Conditions; }
+
+	bool				DidChooseEnemy() const			{ return !m_bSkippedChooseEnemy; }
 
 private:
 	CAI_ScheduleBits	m_Conditions;
@@ -891,7 +936,7 @@ public:
 	Activity			GetScriptCustomMoveActivity( void );
 	int					GetScriptCustomMoveSequence( void );
 	Activity			GetStoppedActivity( void );
-	bool				HaveSequenceForActivity( Activity activity )				{ return ( (GetModelPtr()) ? (SelectWeightedSequence( activity ) != ACTIVITY_NOT_AVAILABLE) : false ); }
+	inline bool			HaveSequenceForActivity( Activity activity );
 	inline bool			IsActivityStarted(void);
 	virtual bool		IsActivityFinished( void );
 	virtual bool		IsActivityMovementPhased( Activity activity );
@@ -989,6 +1034,8 @@ public:
 	bool				ChooseEnemy();
 	virtual bool		ShouldChooseNewEnemy();
 	virtual void		GatherEnemyConditions( CBaseEntity *pEnemy );
+	virtual float		EnemyDistTolerance() {  return 0; } // Enemy distances within this tolerance of each other are considered equivalent.
+	
 	float				EnemyDistance( CBaseEntity *pEnemy );
 	CBaseCombatCharacter *GetEnemyCombatCharacterPointer();
 	void SetEnemyOccluder(CBaseEntity *pBlocker);
@@ -1002,7 +1049,7 @@ public:
 	void				SetTarget( CBaseEntity *pTarget );
 	void				CheckTarget( CBaseEntity *pTarget );
 	float				GetAcceptableTimeSeenEnemy( void )		{ return m_flAcceptableTimeSeenEnemy; }
-	virtual	CAI_BaseNPC *CreateCustomTarget( const Vector &vecOrigin, float duration );
+	virtual	CAI_BaseNPC *CreateCustomTarget( const Vector &vecOrigin, float duration = -1 );
 
 	void				SetDeathPose( const int &iDeathPose ) { m_iDeathPose = iDeathPose; }
 	void				SetDeathPoseFrame( const int &iDeathPoseFrame ) { m_iDeathFrame = iDeathPoseFrame; }
@@ -1108,6 +1155,7 @@ private:
 	// Forced interactions
 	CHandle<CAI_BaseNPC>				 m_hForcedInteractionPartner;
 	Vector								 m_vecForcedWorldPosition;
+	float								m_flForcedInteractionTimeout; // Abort the interaction if it hasn't started by this time.
 
 	CHandle<CAI_BaseNPC>				 m_hInteractionPartner;
 	EHANDLE								 m_hLastInteractionTestTarget;
@@ -1130,7 +1178,6 @@ public:
 	virtual bool		CanPlaySentence( bool fDisregardState ) { return IsAlive(); }
 	virtual int			PlaySentence( const char *pszSentence, float delay, float volume, soundlevel_t soundlevel, CBaseEntity *pListener = NULL );
 	virtual int			PlayScriptedSentence( const char *pszSentence, float delay, float volume, soundlevel_t soundlevel, bool bConcurrent, CBaseEntity *pListener );
-	void				SentenceStop( void );
 
 	virtual bool		FOkToMakeSound( int soundPriority = 0 );
 	virtual void		JustMadeSound( int soundPriority = 0, float flSoundLength = 0.0f );
@@ -1157,7 +1204,7 @@ public:
 	//---------------------------------
 	// NPC Event Response System
 	virtual bool		CanRespondToEvent( const char *ResponseConcept ) { return false; }
-	virtual bool 		RespondedTo( const char *ResponseConcept, bool bForce ) { return false; }
+	virtual bool 		RespondedTo( const char *ResponseConcept, bool bForce, bool bCancelScene ) { return false; }
 
 	virtual void		PlayerHasIlluminatedNPC( CBasePlayer *pPlayer, float flDot );
 
@@ -1277,7 +1324,7 @@ public:
 
 	bool				FindNearestValidGoalPos( const Vector &vTestPoint, Vector *pResult );
 
-	void				RememberUnreachable( CBaseEntity* pEntity );	// Remember that entity is unreachable
+	void				RememberUnreachable( CBaseEntity* pEntity, float duration = -1 );	// Remember that entity is unreachable
 	virtual bool		IsUnreachable( CBaseEntity* pEntity );			// Is entity is unreachable?
 
 	//---------------------------------
@@ -1326,6 +1373,9 @@ protected:
 	int FlyMove( const Vector& vecPosition, unsigned int mask );
 	int WalkMove( const Vector& vecPosition, unsigned int mask );
 
+	//  Unreachable Entities
+	CUtlVector<UnreachableEnt_t> m_UnreachableEnts;								// Array of unreachable entities
+
 private:
 	CAI_Navigator *		m_pNavigator;
 	CAI_LocalNavigator *m_pLocalNavigator;
@@ -1337,8 +1387,6 @@ private:
 
 	float				m_flTimeLastMovement;
 
-	//  Unreachable Entities
-	CUtlVector<UnreachableEnt_t> m_UnreachableEnts;								// Array of unreachable entities
 
 	CSimpleSimTimer		m_CheckOnGroundTimer;
 
@@ -1369,6 +1417,8 @@ public:
 	virtual void		SetHeadDirection( const Vector &vTargetPos, float flInterval );
 	virtual void		MaintainLookTargets( float flInterval );
 	virtual bool		ValidEyeTarget(const Vector &lookTargetPos);
+
+	virtual	Vector		FacingPosition( void ) { return EyePosition(); }; // position that other npc's use when facing you
 
 	virtual	void		MaintainTurnActivity( void );
 
@@ -1416,6 +1466,8 @@ public:
 
 	void				CleanupScriptsOnTeleport( bool bEnrouteAsWell );
 
+	virtual	void		SetScriptedScheduleIgnoreConditions( Interruptability_t interrupt );
+
 private:
 	bool				m_bInAScript;
 
@@ -1450,11 +1502,9 @@ public:
 	static void			ForceSelectedGo(CBaseEntity *pPlayer, const Vector &targetPos, const Vector &traceDir, bool bRun);
 	static void			ForceSelectedGoRandom(void);
 
-	virtual float		PlayScene( const char *pszScene, float flDelay = 0.0f, AI_Response *response = NULL );
-	virtual float		PlayAutoGeneratedSoundScene( const char *soundname );
-
 	bool				AutoMovement( CBaseEntity *pTarget = NULL, AIMoveTrace_t *pTraceResult = NULL );
 	bool				AutoMovement( float flInterval, CBaseEntity *pTarget = NULL, AIMoveTrace_t *pTraceResult = NULL );
+	bool				TaskRanAutomovement( void ) { return m_ScheduleState.bTaskRanAutomovement; }
 
 	SCRIPTSTATE			m_scriptState;		// internal cinematic state
 	CHandle<CAI_ScriptedSequence>	m_hCine;
@@ -1467,7 +1517,8 @@ public:
 	//
 	//-----------------------------------------------------
 
-	void				AddSceneLock( float flDuration ) { m_flSceneTime = max( gpGlobals->curtime + flDuration, m_flSceneTime ); };
+	void				AddSceneLock( float flDuration = 0.2f ) { m_flSceneTime = max( gpGlobals->curtime + flDuration, m_flSceneTime ); };
+	void				ClearSceneLock( float flDuration = 0.2f ) { m_flSceneTime = gpGlobals->curtime + flDuration; };
 	bool				IsInLockedScene( void ) { return m_flSceneTime > gpGlobals->curtime; };
 	float				m_flSceneTime;
 	string_t			m_iszSceneCustomMoveSeq;
@@ -1532,6 +1583,7 @@ protected:
 	float				m_flLastEnemyTime;
 	float				m_flNextWeaponSearchTime;	// next time to search for a better weapon
 	string_t			m_iszPendingWeapon;			// THe NPC should create and equip this weapon.
+	bool				m_bIgnoreUnseenEnemies;
 
 private:
 	CAI_ShotRegulator	m_ShotRegulator;			// When should I shoot next?
@@ -1557,7 +1609,7 @@ public:
 	bool				IsStrategySlotRangeOccupied( int slotIDStart, int slotIDEnd );	// Returns true if all in the range are occupied
 	
 	CAI_Squad *			GetSquad()						{ return m_pSquad; 		}
-	virtual void		SetSquad( CAI_Squad *pSquad )	{ m_pSquad = pSquad; 	}
+	virtual void		SetSquad( CAI_Squad *pSquad );
 	void				AddToSquad( string_t name );
 	void				RemoveFromSquad();
 	void				CheckSquad();
@@ -1633,6 +1685,9 @@ public:
 	virtual int			MeleeAttack1Conditions( float flDot, float flDist );
 	virtual int			MeleeAttack2Conditions( float flDot, float flDist );
 
+	virtual float		InnateRange1MinRange( void ) { return 0.0f; }
+	virtual float		InnateRange1MaxRange( void ) { return FLT_MAX; }
+
 	virtual bool		OnBeginMoveAndShoot( void )	{ return true; }
 	virtual void		OnEndMoveAndShoot( void )	{}
 
@@ -1655,6 +1710,7 @@ public:
 	virtual void		OnGivenWeapon( CBaseCombatWeapon *pNewWeapon ) { }
 	bool				IsMovingToPickupWeapon();
 	virtual bool		WeaponLOSCondition(const Vector &ownerPos, const Vector &targetPos, bool bSetConditions);
+	virtual bool		CurrentWeaponLOSCondition(const Vector &targetPos, bool bSetConditions) { return WeaponLOSCondition( GetAbsOrigin(), targetPos, bSetConditions ); }
 	virtual bool		IsWaitingToRappel( void ) { return false; }
 	virtual void		BeginRappel() {}
 
@@ -1756,6 +1812,7 @@ public:
 	// Inputs
 	//---------------------------------
 	void InputSetRelationship( inputdata_t &inputdata );
+	void InputSetEnemyFilter( inputdata_t &inputdata );
 	void InputSetHealth( inputdata_t &inputdata );
 	void InputBeginRappel( inputdata_t &inputdata );
 	void InputSetSquad( inputdata_t &inputdata );
@@ -1843,6 +1900,7 @@ public:
 	COutputEvent		m_OnRappelTouchdown;
 	COutputEvent		m_OnSleep;
 	COutputEvent		m_OnWake;
+	COutputEvent		m_OnForcedInteractionStarted;
 	COutputEvent		m_OnForcedInteractionAborted;
 	COutputEvent		m_OnForcedInteractionFinished;
 
@@ -1872,7 +1930,7 @@ private:
 	void StartTurn( float flDeltaYaw );
 	bool FindCoverFromEnemy( bool bNodesOnly = false, float flMinDistance = 0, float flMaxDistance = FLT_MAX );
 	bool FindCoverFromBestSound( Vector *pCoverPos );
-	void StartMoveToTargetTask( int task );
+	void StartScriptMoveToTargetTask( int task );
 	
 	void RunDieTask();
 	void RunAttackTask( int task );
@@ -1946,7 +2004,18 @@ private:
 	bool	m_bCrouchDesired;
 	bool	m_bForceCrouch;
 	bool	m_bIsCrouching;
+	//-----------------------------------------------------
 
+	//-----------------------------------------------------
+	// ai_post_frame_navigation
+	//-----------------------------------------------------
+
+private:
+	bool	m_bDeferredNavigation;	// This NPCs has a navigation query that's being deferred until later in the frame
+
+public:
+	void	SetNavigationDeferred( bool bState ) { m_bDeferredNavigation = bState; }
+	bool	IsNavigationDeferred( void ) { return m_bDeferredNavigation; }
 
 	//-----------------------------------------------------
 protected:
@@ -1995,6 +2064,7 @@ public:
 	void 				DumpTaskTimings();
 	void				DrawDebugGeometryOverlays(void);
 	virtual int			DrawDebugTextOverlays(void);
+	void				ToggleFreeze(void);
 
 	static void			ClearAllSchedules(void);
 
@@ -2016,8 +2086,11 @@ public:
 	int					m_nSoundPriority;
 	float				m_flIgnoreDangerSoundsUntil;
 
+#ifdef AI_MONITOR_FOR_OSCILLATION
+	CUtlVector<AIScheduleChoice_t>	m_ScheduleHistory;
+#endif//AI_MONITOR_FOR_OSCILLATION
+
 private:
-	void				ToggleFreeze(void);
 
 	// Break into pieces!
 	void				Break( CBaseEntity *pBreaker );
@@ -2025,7 +2098,7 @@ private:
 
 	friend void 		CC_NPC_Go();
 	friend void 		CC_NPC_GoRandom();
-	friend void 		CC_NPC_Freeze();
+	friend void 		CC_NPC_Freeze( const CCommand &args );
 
 public:
 
@@ -2037,6 +2110,7 @@ public:
 	CNetworkVar( bool,  m_bSpeedModActive );
 	CNetworkVar( int,   m_iSpeedModRadius );
 	CNetworkVar( int,   m_iSpeedModSpeed );
+	CNetworkVar( float, m_flTimePingEffect );			// Display the pinged effect until this time
 
 	void				InputActivateSpeedModifier( inputdata_t &inputdata ) { m_bSpeedModActive = true; }
 	void				InputDisableSpeedModifier( inputdata_t &inputdata ) { m_bSpeedModActive = false; }
@@ -2047,6 +2121,8 @@ public:
 
 	bool				m_bPlayerAvoidState;
 	void				GetPlayerAvoidBounds( Vector *pMins, Vector *pMaxs );
+
+	void				StartPingEffect( void ) { m_flTimePingEffect = gpGlobals->curtime + 2.0f; DispatchUpdateTransmitState(); }
 };
 
 
@@ -2199,6 +2275,15 @@ inline void	CAI_BaseNPC::ClearForceCrouch( void )
 	{
 		Stand();
 	}
+}
+
+inline bool	CAI_BaseNPC::HaveSequenceForActivity( Activity activity )				
+{
+#if STUDIO_SEQUENCE_ACTIVITY_LOOKUPS_ARE_SLOW
+	return ( (GetModelPtr()) ? (SelectWeightedSequence( activity ) != ACTIVITY_NOT_AVAILABLE) : false ); 
+#else
+	return ( (GetModelPtr()) ? GetModelPtr()->HaveSequenceForActivity(activity) : false ); 
+#endif
 }
 
 typedef CHandle<CAI_BaseNPC> AIHANDLE;
@@ -3009,5 +3094,32 @@ public:
 	COutputEvent	m_OnAlyxStartedInteraction;
 	COutputEvent	m_OnAlyxFinishedInteraction;
 };
+
+//
+//	Deferred Navigation calls go here
+//
+
+extern ConVar ai_post_frame_navigation;
+
+class CPostFrameNavigationHook : public CBaseGameSystemPerFrame
+{
+public:
+	virtual const char *Name( void ) { return "CPostFrameNavigationHook"; }
+
+	virtual bool Init( void );
+	virtual void FrameUpdatePostEntityThink( void );
+	virtual void FrameUpdatePreEntityThink( void );
+
+	bool IsGameFrameRunning( void ) { return m_bGameFrameRunning; }
+	void SetGrameFrameRunning( bool bState ) { m_bGameFrameRunning = bState; }
+	
+	void EnqueueEntityNavigationQuery( CAI_BaseNPC *pNPC, CFunctor *functor );
+
+private:
+	CUtlVector<CFunctor *>	m_Functors;
+	bool					m_bGameFrameRunning;
+};
+
+extern CPostFrameNavigationHook *PostFrameNavigationSystem( void );
 
 #endif // AI_BASENPC_H

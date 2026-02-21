@@ -7,7 +7,7 @@
 
 #include "cbase.h"
 #include "debugoverlay_shared.h"
-#include "mathlib.h"
+#include "mathlib/mathlib.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -525,4 +525,87 @@ void NDebugOverlay::Axis( const Vector &position, const QAngle &angles, float si
 	Line( position, xvec, 255, 0, 0, noDepthTest, flDuration );
 	Line( position, yvec, 0, 255, 0, noDepthTest, flDuration );
 	Line( position, zvec, 0, 0, 255, noDepthTest, flDuration );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Draw a circle whose center is at a position, facing the camera
+//-----------------------------------------------------------------------------
+void NDebugOverlay::Circle( const Vector &position, float radius, int r, int g, int b, int a, bool bNoDepthTest, float flDuration )
+{
+	CBasePlayer *player = GetLocalPlayer();
+	if ( player == NULL )
+		return;
+
+	Vector clientForward;
+	player->EyeVectors( &clientForward );
+
+	QAngle vecAngles;
+	VectorAngles( clientForward, vecAngles );
+	
+	Circle( position, vecAngles, radius, r, g, b, a, bNoDepthTest, flDuration );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Draw a circle whose center is at a position and is facing a specified direction
+//-----------------------------------------------------------------------------
+void NDebugOverlay::Circle( const Vector &position, const QAngle &angles, float radius, int r, int g, int b, int a, bool bNoDepthTest, float flDuration )
+{
+	// Setup our transform matrix
+	matrix3x4_t xform;
+	AngleMatrix( angles, position, xform );
+	Vector xAxis, yAxis;
+	// default draws circle in the y/z plane
+	MatrixGetColumn( xform, 2, xAxis );
+	MatrixGetColumn( xform, 1, yAxis );
+	Circle( position, xAxis, yAxis, radius, r, g, b, a, bNoDepthTest, flDuration );
+}
+
+void NDebugOverlay::Circle( const Vector &position, const Vector &xAxis, const Vector &yAxis, float radius, int r, int g, int b, int a, bool bNoDepthTest, float flDuration )
+{
+	const unsigned int nSegments = 16;
+	const float flRadStep = (M_PI*2.0f) / (float) nSegments;
+
+	Vector vecLastPosition;
+	
+	// Find our first position
+	// Retained for triangle fanning
+	Vector vecStart = position + xAxis * radius;
+	Vector vecPosition = vecStart;
+
+	// Draw out each segment (fanning triangles if we have an alpha amount)
+	for ( int i = 1; i <= nSegments; i++ )
+	{
+		// Store off our last position
+		vecLastPosition = vecPosition;
+
+		// Calculate the new one
+		float flSin, flCos;
+		SinCos( flRadStep*i, &flSin, &flCos );
+		vecPosition = position + (xAxis * flCos * radius) + (yAxis * flSin * radius);
+
+		// Draw the line
+		Line( vecLastPosition, vecPosition, r, g, b, bNoDepthTest, flDuration );
+
+		// If we have an alpha value, then draw the fan
+		if ( a && i > 1 )
+		{		
+			debugoverlay->AddTriangleOverlay( vecStart, vecLastPosition, vecPosition, r, g, b, a, bNoDepthTest, flDuration );
+		}
+	}
+}
+
+void NDebugOverlay::Sphere( const Vector &position, const QAngle &angles, float radius, int r, int g, int b, int a, bool bNoDepthTest, float flDuration )
+{
+	// Setup our transform matrix
+	matrix3x4_t xform;
+	AngleMatrix( angles, position, xform );
+	Vector xAxis, yAxis, zAxis;
+	// default draws circle in the y/z plane
+	MatrixGetColumn( xform, 0, xAxis );
+	MatrixGetColumn( xform, 1, yAxis );
+	MatrixGetColumn( xform, 2, zAxis );
+	Circle( position, xAxis, yAxis, radius, r, g, b, a, bNoDepthTest, flDuration );	// xy plane
+	Circle( position, yAxis, zAxis, radius, r, g, b, a, bNoDepthTest, flDuration );	// yz plane
+	Circle( position, xAxis, zAxis, radius, r, g, b, a, bNoDepthTest, flDuration );	// xz plane
 }

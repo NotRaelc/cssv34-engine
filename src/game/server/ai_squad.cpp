@@ -139,6 +139,7 @@ BEGIN_SIMPLE_DATADESC( CAI_Squad )
  	DEFINE_FIELD( m_flSquadSoundWaitTime,		FIELD_TIME ),
  	DEFINE_FIELD( m_nSquadSoundPriority,		FIELD_INTEGER ),
 	DEFINE_FIELD( m_hSquadInflictor,			FIELD_EHANDLE ),
+	DEFINE_AUTO_ARRAY( m_SquadData,				FIELD_INTEGER ),
  	//							m_pLastFoundEnemyInfo  (think transient)
 
 #ifdef PER_ENEMY_SQUADSLOTS
@@ -729,9 +730,9 @@ void CAI_Squad::OccupySlot( CBaseEntity *pEnemy, int i )
 { 
 #ifdef PER_ENEMY_SQUADSLOTS
 	AISquadEnemyInfo_t *pInfo = FindEnemyInfo( pEnemy );
-	pInfo->slots.SetBit(i);
+	pInfo->slots.Set(i);
 #else
-	m_squadSlotsUsed.SetBit(i); 
+	m_squadSlotsUsed.Set(i); 
 #endif
 }
 
@@ -741,9 +742,9 @@ void CAI_Squad::VacateSlot( CBaseEntity *pEnemy, int i )
 { 
 #ifdef PER_ENEMY_SQUADSLOTS
 	AISquadEnemyInfo_t *pInfo = FindEnemyInfo( pEnemy );
-	pInfo->slots.ClearBit(i);
+	pInfo->slots.Clear(i);
 #else
-	m_squadSlotsUsed.ClearBit(i); 
+	m_squadSlotsUsed.Clear(i); 
 #endif
 }
 
@@ -753,9 +754,9 @@ bool CAI_Squad::IsSlotOccupied( CBaseEntity *pEnemy, int i ) const
 { 
 #ifdef PER_ENEMY_SQUADSLOTS
 	const AISquadEnemyInfo_t *pInfo = FindEnemyInfo( pEnemy );
-	return pInfo->slots.GetBit(i);
+	return pInfo->slots.IsBitSet(i);
 #else
-	return m_squadSlotsUsed.GetBit(i); 
+	return m_squadSlotsUsed.IsBitSet(i); 
 #endif
 }
 

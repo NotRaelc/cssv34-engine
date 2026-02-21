@@ -80,6 +80,7 @@
 #include "inputsystem/iinputsystem.h"
 #include "iachievementmgr.h"
 #include "profile.h"
+#include "SteamIDConfig.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -1637,6 +1638,8 @@ void ClientDLL_Init( void )
 	COM_TimestampedLog( "ClientDLL_InitRecvTableMgr" );
 
 	ClientDLL_InitRecvTableMgr();
+
+	SteamIDConfig cfg; // initialize steam id cfg at client startup
 	
 	InitExtraClientCmdCanExecuteVars();
 }

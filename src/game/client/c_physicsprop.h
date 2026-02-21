@@ -23,7 +23,7 @@ public:
 	C_PhysicsProp();
 	~C_PhysicsProp();
 
-	int				InternalDrawModel( int flags );
+	virtual bool OnInternalDrawModel( ClientModelRenderInfo_t *pInfo );
 
 protected:
 	// Networked vars.

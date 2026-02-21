@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Implements breakables and pushables. func_breakable is a bmodel
 //			that breaks into pieces after taking damage.
@@ -20,12 +20,19 @@
 #include "globals.h"
 #include "util.h"
 #include "physics_impact_damage.h"
-#include "vstdlib/ICommandLine.h"
+#include "tier0/icommandline.h"
+
+#ifdef PORTAL
+	#include "portal_shareddefs.h"
+	#include "portal_util_shared.h"
+	#include "prop_portal_shared.h"
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 ConVar func_break_max_pieces( "func_break_max_pieces", "15", FCVAR_ARCHIVE | FCVAR_REPLICATED );
+ConVar func_break_reduction_factor( "func_break_reduction_factor", ".5" );
 
 #ifdef HL1_DLL
 extern void PlayerPickupObject( CBasePlayer *pPlayer, CBaseEntity *pObject );
@@ -145,11 +152,13 @@ BEGIN_DATADESC( CBreakable )
 	DEFINE_FIELD( m_bTookPhysicsDamage, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_iszPropData, FIELD_STRING ),
 	DEFINE_INPUT( m_impactEnergyScale, FIELD_FLOAT, "physdamagescale" ),
+	DEFINE_KEYFIELD( m_PerformanceMode, FIELD_INTEGER, "PerformanceMode" ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "Break", InputBreak ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetHealth", InputSetHealth ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "AddHealth", InputAddHealth ),
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "RemoveHealth", InputRemoveHealth ),
+	DEFINE_INPUTFUNC( FIELD_FLOAT, "SetMass", InputSetMass ),
 
 	// Function Pointers
 	DEFINE_ENTITYFUNC( BreakTouch ),
@@ -424,6 +433,12 @@ void CBreakable::Precache( void )
 		break;
 #endif
 
+#if HL2_EPISODIC 
+	case matNone:
+		pGibName = "";
+		break;
+#endif
+
 	default:
 		Warning("%s (%s) at (%.3f %.3f %.3f) using obsolete or unknown material type.\n", GetClassname(), GetDebugName(), GetAbsOrigin().x, GetAbsOrigin().y, GetAbsOrigin().z );
 		pGibName = "WoodChunks";
@@ -638,6 +653,25 @@ void CBreakable::InputSetHealth( inputdata_t &inputdata )
 
 
 //-----------------------------------------------------------------------------
+// Purpose: Input handler for setting the breakable's mass.
+//-----------------------------------------------------------------------------
+void CBreakable::InputSetMass( inputdata_t &inputdata )
+{
+	IPhysicsObject * vPhys = VPhysicsGetObject();
+	if ( vPhys )
+	{
+		float toMass = inputdata.value.Float();
+		Assert(toMass > 0);
+		vPhys->SetMass( toMass );
+	}
+	else
+	{
+		Warning( "Tried to call SetMass() on %s but it has no physics.\n", GetEntityName().ToCStr() );
+	}
+}
+
+
+//-----------------------------------------------------------------------------
 // Purpose: Choke point for changes to breakable health. Ensures outputs are fired.
 // Input  : iNewHealth - 
 //			pActivator - 
@@ -748,6 +782,11 @@ void CBreakable::VPhysicsCollision( int index, gamevcollisionevent_t *pEvent )
 		m_bTookPhysicsDamage = true;
 		CBaseEntity *pHitEntity = pEvent->pEntities[!index];
 
+		// HACKHACK: Reset mass to get correct collision response for the object breaking this glass
+		if ( m_Material == matGlass )
+		{
+			pEvent->pObjects[index]->SetMass( 2.0f );
+		}
 		CTakeDamageInfo dmgInfo( pHitEntity, pHitEntity, damageForce, damagePos, (m_iHealth + 1), DMG_CRUSH );
 		PhysCallbackDamage( this, dmgInfo, *pEvent, index );
 	}
@@ -762,6 +801,11 @@ void CBreakable::VPhysicsCollision( int index, gamevcollisionevent_t *pEvent )
 		float damage = CalculateDefaultPhysicsDamage( index, pEvent, m_impactEnergyScale, true, damageType, pBreakableInterface->GetPhysicsDamageTable() );
 		if ( damage > 0 )
 		{
+			// HACKHACK: Reset mass to get correct collision response for the object breaking this glass
+			if ( m_Material == matGlass )
+			{
+				pEvent->pObjects[index]->SetMass( 2.0f );
+			}
 			CTakeDamageInfo dmgInfo( pOther, pOther, damageForce, damagePos, damage, damageType );
 			PhysCallbackDamage( this, dmgInfo, *pEvent, index );
 		}
@@ -844,6 +888,31 @@ void CBreakable::ResetOnGroundFlags(void)
 			pList[i]->SetGroundEntity( (CBaseEntity *)NULL );
 		}
 	}
+
+#ifdef PORTAL
+	// !!! HACK  This should work!
+	// Tell touching portals to fizzle
+	int iPortalCount = CProp_Portal_Shared::AllPortals.Count();
+	if( iPortalCount != 0 )
+	{
+		Vector vMin, vMax;
+		CollisionProp()->WorldSpaceAABB( &vMin, &vMax );
+
+		Vector vBoxCenter = ( vMin + vMax ) * 0.5f;
+		Vector vBoxExtents = ( vMax - vMin ) * 0.5f;
+
+		CProp_Portal **pPortals = CProp_Portal_Shared::AllPortals.Base();
+		for( int i = 0; i != iPortalCount; ++i )
+		{
+			CProp_Portal *pTempPortal = pPortals[i];
+			if( UTIL_IsBoxIntersectingPortal( vBoxCenter, vBoxExtents, pTempPortal ) )
+			{
+				pTempPortal->DoFizzleEffect( PORTAL_FIZZLE_KILLED, false );
+				pTempPortal->Fizzle();
+			}
+		}
+	}
+#endif
 }
 
 
@@ -985,33 +1054,50 @@ void CBreakable::Die( void )
 		iCount = func_break_max_pieces.GetInt();
 	}
 
-	for ( int i = 0; i < iCount; i++ )
+	ConVarRef breakable_disable_gib_limit( "breakable_disable_gib_limit" );
+	if ( !breakable_disable_gib_limit.GetBool() && iCount )
 	{
-
-#ifdef HL1_DLL
-		// Use the passed model instead of the propdata type
-		const char *modelName = STRING( m_iszModelName );
-		
-		// if the map specifies a model by name
-		if( strstr( modelName, ".mdl" ) != NULL )
+		if ( m_PerformanceMode == PM_NO_GIBS )
 		{
-			iModelIndex = modelinfo->GetModelIndex( modelName );
+			iCount = 0;
 		}
-		else	// do the hl2 / normal way
-#endif
-
-		iModelIndex = modelinfo->GetModelIndex( g_PropDataSystem.GetRandomChunkModel(  STRING( m_iszModelName ) ) );
-
-		// All objects except the first one in this run are marked as slaves...
-		int slaveFlag = 0;
-		if ( i != 0 )
+		else if ( m_PerformanceMode == PM_REDUCED_GIBS )
 		{
-			slaveFlag = BREAK_SLAVE;
+			int iNewCount = iCount * func_break_reduction_factor.GetFloat();
+			iCount = max( iNewCount, 1 );
 		}
+	}
 
-		te->BreakModel( filter2, 0.0, 
-			vecSpot, pCollisionProp->GetCollisionAngles(), vSize, 
-			vecVelocity, iModelIndex, 100, 1, 2.5, cFlag | slaveFlag );
+	if ( m_iszModelName != NULL_STRING )
+	{
+		for ( int i = 0; i < iCount; i++ )
+		{
+
+	#ifdef HL1_DLL
+			// Use the passed model instead of the propdata type
+			const char *modelName = STRING( m_iszModelName );
+			
+			// if the map specifies a model by name
+			if( strstr( modelName, ".mdl" ) != NULL )
+			{
+				iModelIndex = modelinfo->GetModelIndex( modelName );
+			}
+			else	// do the hl2 / normal way
+	#endif
+
+			iModelIndex = modelinfo->GetModelIndex( g_PropDataSystem.GetRandomChunkModel(  STRING( m_iszModelName ) ) );
+
+			// All objects except the first one in this run are marked as slaves...
+			int slaveFlag = 0;
+			if ( i != 0 )
+			{
+				slaveFlag = BREAK_SLAVE;
+			}
+
+			te->BreakModel( filter2, 0.0, 
+				vecSpot, pCollisionProp->GetCollisionAngles(), vSize, 
+				vecVelocity, iModelIndex, 100, 1, 2.5, cFlag | slaveFlag );
+		}
 	}
 
 	ResetOnGroundFlags();

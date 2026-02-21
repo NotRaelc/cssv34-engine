@@ -345,7 +345,9 @@ public:
 	
 	virtual int PrecacheDecal( const char *name, bool preload /*=false*/ )
 	{
-		PR_CheckEmptyString( name );
+		//PR_CheckEmptyString( name );
+		if (name[0] <= ' ')
+			return 0;
 		int i = SV_FindOrAddDecal( name, preload );
 		if ( i >= 0 )
 		{
@@ -358,7 +360,9 @@ public:
 	
 	virtual int PrecacheModel( const char *s, bool preload /*= false*/ )
 	{
-		PR_CheckEmptyString (s);
+		//PR_CheckEmptyString( s );
+		if (s[0] <= ' ')
+			return 0;
 		int i = SV_FindOrAddModel( s, preload );
 		if ( i >= 0 )
 		{
@@ -374,7 +378,10 @@ public:
 	{
 		int		i;
 		
-		PR_CheckEmptyString (s);
+		//PR_CheckEmptyString( s );
+		if (s[0] <= ' ')
+			return 0;
+
 		i = SV_FindOrAddGeneric( s, preload );
 		if (i >= 0)
 		{
@@ -1401,20 +1408,6 @@ public:
 	virtual void AllowImmediateEdictReuse( )
 	{
 		ED_AllowImmediateReuse();
-	}
-			
-	virtual void MultiplayerEndGame()
-	{
-#if !defined( SWDS )
-		g_pMatchmaking->EndGame();
-#endif
-	}
-
-	virtual void ChangeTeam( const char *pTeamName )
-	{
-#if !defined( SWDS )
-		g_pMatchmaking->ChangeTeam( pTeamName );
-#endif
 	}
 
 	virtual void SetAchievementMgr( IAchievementMgr *pAchievementMgr )

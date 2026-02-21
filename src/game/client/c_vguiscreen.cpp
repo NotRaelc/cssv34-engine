@@ -10,7 +10,7 @@
 #include <KeyValues.h>
 #include "PanelMetaClassMgr.h"
 #include <vgui_controls/Controls.h>
-#include "VMatrix.h"
+#include "mathlib/VMatrix.h"
 #include "VGUIMatSurface/IMatSystemSurface.h"
 #include "view.h"
 #include "CollisionUtils.h"
@@ -27,6 +27,7 @@
 #include "vgui_bitmapbutton.h"
 #include "vgui_bitmappanel.h"
 #include "filesystem.h"
+#include "iinput.h"
 
 #include <vgui/IInputInternal.h>
 extern vgui::IInputInternal *g_InputInternal;
@@ -40,7 +41,6 @@ extern vgui::IInputInternal *g_InputInternal;
 CLIENTEFFECT_REGISTER_BEGIN( PrecacheEffectVGuiScreen )
 CLIENTEFFECT_MATERIAL( "engine/writez" )
 CLIENTEFFECT_REGISTER_END()
-
 
 
 // ----------------------------------------------------------------------------- //
@@ -77,100 +77,6 @@ void ClearKeyValuesCache()
 }
 
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-class C_VGuiScreen : public C_BaseEntity
-{
-	DECLARE_CLASS( C_VGuiScreen, C_BaseEntity );
-public:
-	DECLARE_CLIENTCLASS();
-
-	C_VGuiScreen();
-
-	virtual void PreDataUpdate( DataUpdateType_t updateType );
-	virtual void OnDataChanged( DataUpdateType_t type );
-	virtual int DrawModel( int flags );
-	virtual bool ShouldDraw() { return !IsEffectActive(EF_NODRAW); }
-	virtual void ClientThink( );
-	virtual void GetAimEntOrigin( IClientEntity *pAttachedTo, Vector *pOrigin, QAngle *pAngles );
-
-	const char *PanelName() const;
-
-	// The view screen has the cursor pointing at it
-	void GainFocus( );
-	void LoseFocus();
-
-	// Button state...
-	void SetButtonState( int nButtonState );
-
-	// Is the screen backfaced given a view position?
-	bool IsBackfacing( const Vector &viewOrigin );
-
-	// Return intersection point of ray with screen in barycentric coords
-	bool IntersectWithRay( const Ray_t &ray, float *u, float *v, float *t );
-
-	// Is the screen turned on?
-	bool IsActive() const;
-
-	// Are we only visible to teammates?
-	bool IsVisibleOnlyToTeammates() const;
-
-	// Are we visible to someone on this team?
-	bool IsVisibleToTeam( int nTeam );
-
-	bool IsAttachedToViewModel() const;
-
-	virtual RenderGroup_t GetRenderGroup();
-
-	bool AcceptsInput() const;
-	void SetAcceptsInput( bool acceptsinput );
-
-private:
-	// Vgui screen management
-	void CreateVguiScreen( const char *pTypeName );
-	void DestroyVguiScreen( );
-
-	//  Computes the panel to world transform
-	void ComputePanelToWorld();
-
-	// Computes control points of the quad describing the screen
-	void ComputeEdges( Vector *pUpperLeft, Vector *pUpperRight, Vector *pLowerLeft );
-
-	// Writes the z buffer
-	void DrawScreenOverlay();
-
-private:
-	int m_nPixelWidth; 
-	int m_nPixelHeight;
-	float m_flWidth; 
-	float m_flHeight;
-	int m_nPanelName;	// The name of the panel 
-	int	m_nButtonState;
-	int m_nButtonPressed;
-	int m_nButtonReleased;
-	int m_nOldPx;
-	int m_nOldPy;
-	int m_nOldButtonState;
-	int m_nAttachmentIndex;
-	int m_nOverlayMaterial;
-	int m_fScreenFlags;
-
-	int	m_nOldPanelName;
-	int m_nOldOverlayMaterial;
-
-	bool m_bLooseThinkNextFrame;
-
-	bool	m_bAcceptsInput;
-
-	CMaterialReference	m_WriteZMaterial;
-	CMaterialReference	m_OverlayMaterial;
-
-	VMatrix	m_PanelToWorld;
-
-	CPanelWrapper m_PanelWrapper;
-};
-
 IMPLEMENT_CLIENTCLASS_DT(C_VGuiScreen, DT_VGuiScreen, CVGuiScreen)
 	RecvPropFloat( RECVINFO(m_flWidth) ),
 	RecvPropFloat( RECVINFO(m_flHeight) ),
@@ -178,6 +84,7 @@ IMPLEMENT_CLIENTCLASS_DT(C_VGuiScreen, DT_VGuiScreen, CVGuiScreen)
 	RecvPropInt( RECVINFO(m_nPanelName) ),
 	RecvPropInt( RECVINFO(m_nAttachmentIndex) ),
 	RecvPropInt( RECVINFO(m_nOverlayMaterial) ),
+	RecvPropEHandle( RECVINFO(m_hPlayerOwner) ),
 END_RECV_TABLE()
 
 
@@ -190,11 +97,16 @@ C_VGuiScreen::C_VGuiScreen()
 	m_nOldOverlayMaterial = m_nOverlayMaterial = -1;
 	m_nOldPx = m_nOldPy = -1;
 	m_nButtonState = 0;
-	m_bLooseThinkNextFrame = false;
+	m_bLoseThinkNextFrame = false;
 	m_bAcceptsInput = true;
 
 	m_WriteZMaterial.Init( "engine/writez", TEXTURE_GROUP_VGUI );
 	m_OverlayMaterial.Init( m_WriteZMaterial );
+}
+
+C_VGuiScreen::~C_VGuiScreen()
+{
+	DestroyVguiScreen();
 }
 
 //-----------------------------------------------------------------------------
@@ -244,9 +156,10 @@ void C_VGuiScreen::GetAimEntOrigin( IClientEntity *pAttachedTo, Vector *pOrigin,
 	C_BaseEntity *pEnt = pAttachedTo->GetBaseEntity();
 	if (pEnt && (m_nAttachmentIndex > 0))
 	{
-		C_BaseAnimating::PushAllowBoneAccess( true, true );
-		pEnt->GetAttachment( m_nAttachmentIndex, *pOrigin, *pAngles );
-		C_BaseAnimating::PopBoneAccess();
+		{
+			C_BaseAnimating::AutoAllowBoneAccess boneaccess( true, true );
+			pEnt->GetAttachment( m_nAttachmentIndex, *pOrigin, *pAngles );
+		}
 		
 		if ( IsAttachedToViewModel() )
 		{
@@ -259,7 +172,6 @@ void C_VGuiScreen::GetAimEntOrigin( IClientEntity *pAttachedTo, Vector *pOrigin,
 	}
 }
 
-
 //-----------------------------------------------------------------------------
 // Create, destroy vgui panels...
 //-----------------------------------------------------------------------------
@@ -267,6 +179,8 @@ void C_VGuiScreen::CreateVguiScreen( const char *pTypeName )
 {
 	// Clear out any old screens.
 	DestroyVguiScreen();
+
+	AddEFlags( EFL_USE_PARTITION_WHEN_NOT_SOLID );
 
 	// Create the new screen...
 	VGuiScreenInitData_t initData( this );
@@ -372,25 +286,19 @@ bool C_VGuiScreen::IsVisibleToTeam( int nTeam )
 void C_VGuiScreen::GainFocus( )
 {
 	SetNextClientThink( CLIENT_THINK_ALWAYS );
+	m_bLoseThinkNextFrame = false;
+	m_nOldButtonState = 0;
 }
 
 void C_VGuiScreen::LoseFocus()
 {
-	m_bLooseThinkNextFrame = true;
+	m_bLoseThinkNextFrame = true;
 	m_nOldButtonState = 0;
 }
 
 void C_VGuiScreen::SetButtonState( int nButtonState )
 {
-	m_nOldButtonState = m_nButtonState;
 	m_nButtonState = nButtonState;
-
- 	int nButtonsChanged = m_nOldButtonState ^ m_nButtonState;
-	
-	// Debounced button codes for pressed/released
-	// UNDONE: Do we need auto-repeat?
-	m_nButtonPressed =  nButtonsChanged & m_nButtonState;		// The changed ones still down are "pressed"
-	m_nButtonReleased = nButtonsChanged & (~m_nButtonState);	// The ones not down are "released"
 }
 
 
@@ -403,12 +311,66 @@ const char *C_VGuiScreen::PanelName() const
 	return g_StringTableVguiScreen->GetString( m_nPanelName );
 }
 
+//--------------------------------------------------------------------------
+// Purpose:
+// Given a field of view and mouse/screen positions as well as the current
+// render origin and angles, returns a unit vector through the mouse position
+// that can be used to trace into the world under the mouse click pixel.
+// Input : 
+// mousex -
+// mousey -
+// fov -
+// vecRenderOrigin - 
+// vecRenderAngles -
+// Output :
+// vecPickingRay
+//--------------------------------------------------------------------------
+void ScreenToWorld( int mousex, int mousey, float fov,
+					const Vector& vecRenderOrigin,
+					const QAngle& vecRenderAngles,
+					Vector& vecPickingRay )
+{
+	float dx, dy;
+	float c_x, c_y;
+	float dist;
+	Vector vpn, vup, vright;
+
+	float scaled_fov = ScaleFOVByWidthRatio( fov, engine->GetScreenAspectRatio() * 0.75f );
+
+	c_x = ScreenWidth() / 2;
+	c_y = ScreenHeight() / 2;
+
+	dx = (float)mousex - c_x;
+	// Invert Y
+	dy = c_y - (float)mousey;
+
+	// Convert view plane distance
+	dist = c_x / tan( M_PI * scaled_fov / 360.0 );
+
+	// Decompose view angles
+	AngleVectors( vecRenderAngles, &vpn, &vright, &vup );
+
+	// Offset forward by view plane distance, and then by pixel offsets
+	vecPickingRay = vpn * dist + vright * ( dx ) + vup * ( dy );
+
+	// Convert to unit vector
+	VectorNormalize( vecPickingRay );
+} 
 
 //-----------------------------------------------------------------------------
 // Purpose: Deal with input
 //-----------------------------------------------------------------------------
 void C_VGuiScreen::ClientThink( void )
 {
+	int nButtonsChanged = m_nOldButtonState ^ m_nButtonState;
+
+	m_nOldButtonState = m_nButtonState;
+
+	// Debounced button codes for pressed/released
+	// UNDONE: Do we need auto-repeat?
+	m_nButtonPressed =  nButtonsChanged & m_nButtonState;		// The changed ones still down are "pressed"
+	m_nButtonReleased = nButtonsChanged & (~m_nButtonState);	// The ones not down are "released"
+
 	BaseClass::ClientThink();
 
 	// FIXME: We should really be taking bob, shake, and roll into account
@@ -428,20 +390,23 @@ void C_VGuiScreen::ClientThink( void )
 	
 	QAngle viewAngles = pLocalPlayer->EyeAngles( );
 
-	Vector viewDir, endPos;
-	AngleVectors( viewAngles, &viewDir );
-	VectorMA( vecEyePosition, 1000.0f, viewDir, endPos );
-
 	// Compute cursor position...
 	Ray_t lookDir;
-	lookDir.Init( vecEyePosition, endPos );
+	Vector endPos;
 	
 	float u, v;
+
+	// Viewmodel attached screens that take input need to have a moving cursor
+	// Do a pick under the cursor as our selection
+	Vector viewDir;
+	AngleVectors( viewAngles, &viewDir );
+	VectorMA( vecEyePosition, 1000.0f, viewDir, endPos );
+	lookDir.Init( vecEyePosition, endPos );
 
 	if (!IntersectWithRay( lookDir, &u, &v, NULL ))
 		return;
 
-	if ( ((u < 0) || (v < 0) || (u > 1) || (v > 1)) && !m_bLooseThinkNextFrame)
+	if ( ((u < 0) || (v < 0) || (u > 1) || (v > 1)) && !m_bLoseThinkNextFrame)
 		return;
 
 	// This will cause our panel to grab all input!
@@ -461,27 +426,30 @@ void C_VGuiScreen::ClientThink( void )
 
 	if (m_nButtonPressed & IN_ATTACK)
 	{
-		g_InputInternal->InternalMousePressed(vgui::MOUSE_LEFT);
+		g_InputInternal->SetMouseCodeState( MOUSE_LEFT, vgui::BUTTON_PRESSED );
+		g_InputInternal->InternalMousePressed(MOUSE_LEFT);
 	}
 	if (m_nButtonPressed & IN_ATTACK2)
 	{
-		g_InputInternal->InternalMousePressed(vgui::MOUSE_RIGHT);
+		g_InputInternal->SetMouseCodeState( MOUSE_RIGHT, vgui::BUTTON_PRESSED );
+		g_InputInternal->InternalMousePressed( MOUSE_RIGHT );
 	}
-	if ( (m_nButtonReleased & IN_ATTACK) || m_bLooseThinkNextFrame) // for a button release on loosing focus
+	if ( (m_nButtonReleased & IN_ATTACK) || m_bLoseThinkNextFrame) // for a button release on loosing focus
 	{
-		g_InputInternal->InternalMouseReleased(vgui::MOUSE_LEFT);
+		g_InputInternal->SetMouseCodeState( MOUSE_LEFT, vgui::BUTTON_RELEASED );
+		g_InputInternal->InternalMouseReleased( MOUSE_LEFT );
 	}
 	if (m_nButtonReleased & IN_ATTACK2)
 	{
-		g_InputInternal->InternalMouseReleased(vgui::MOUSE_RIGHT);
+		g_InputInternal->SetMouseCodeState( MOUSE_RIGHT, vgui::BUTTON_RELEASED );
+		g_InputInternal->InternalMouseReleased( MOUSE_RIGHT );
 	}
 
-	if ( m_bLooseThinkNextFrame == true )
+	if ( m_bLoseThinkNextFrame == true )
 	{
-		m_bLooseThinkNextFrame = false;
+		m_bLoseThinkNextFrame = false;
 		SetNextClientThink( CLIENT_THINK_NEVER );
 	}
-
 
 	g_pClientMode->DeactivateInGameVGuiContext( );
 }
@@ -553,14 +521,15 @@ void C_VGuiScreen::ComputePanelToWorld()
 //-----------------------------------------------------------------------------
 void C_VGuiScreen::DrawScreenOverlay()
 {
-	materials->MatrixMode( MATERIAL_MODEL );
-	materials->PushMatrix();
-	materials->LoadMatrix( m_PanelToWorld );
+	CMatRenderContextPtr pRenderContext( materials );
+	pRenderContext->MatrixMode( MATERIAL_MODEL );
+	pRenderContext->PushMatrix();
+	pRenderContext->LoadMatrix( m_PanelToWorld );
 
 	unsigned char pColor[4] = {255, 255, 255, 255};
 
 	CMeshBuilder meshBuilder;
-	IMesh *pMesh = materials->GetDynamicMesh( true, NULL, NULL, m_OverlayMaterial );
+	IMesh *pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_OverlayMaterial );
 	meshBuilder.Begin( pMesh, MATERIAL_QUADS, 1 );
 
 	meshBuilder.Position3f( 0.0f, 0.0f, 0 );
@@ -586,7 +555,7 @@ void C_VGuiScreen::DrawScreenOverlay()
 	meshBuilder.End();
 	pMesh->Draw();
 
-	materials->PopMatrix();
+	pRenderContext->PopMatrix();
 }
 
 
@@ -603,6 +572,11 @@ int	C_VGuiScreen::DrawModel( int flags )
 	C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
 	if (!pLocalPlayer || !IsVisibleToTeam(pLocalPlayer->GetTeamNumber()) )
 		return 0;
+
+	if ( !IsVisibleToPlayer( pLocalPlayer ) )
+	{
+		return 0;
+	}
 	
 	// Backface cull the entire panel here...
 	if (IsBackfacing(CurrentViewOrigin()))
@@ -621,7 +595,37 @@ int	C_VGuiScreen::DrawModel( int flags )
 	return 1;
 }
 
+bool C_VGuiScreen::ShouldDraw( void )
+{
+	return !IsEffectActive(EF_NODRAW);
+}
 
+
+//-----------------------------------------------------------------------------
+// Purpose: Hook for vgui screens to determine visibility
+//-----------------------------------------------------------------------------
+bool C_VGuiScreen::IsVisibleToPlayer( C_BasePlayer *pViewingPlayer )
+{
+	return true;
+}
+
+bool C_VGuiScreen::IsTransparent( void )
+{
+	return (m_fScreenFlags & VGUI_SCREEN_TRANSPARENT) != 0;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Sometimes we only want a specific player to be able to input to a panel
+//-----------------------------------------------------------------------------
+C_BasePlayer *C_VGuiScreen::GetPlayerOwner( void )
+{
+	return ( C_BasePlayer * )( m_hPlayerOwner.Get() );
+}
+
+bool C_VGuiScreen::IsInputOnlyToOwner( void )
+{
+	return (m_fScreenFlags & VGUI_SCREEN_ONLY_USABLE_BY_OWNER) != 0;
+}
 
 //-----------------------------------------------------------------------------
 //
@@ -666,7 +670,7 @@ int	CVGuiScreenEnumerator::GetScreenCount()
 C_VGuiScreen *CVGuiScreenEnumerator::GetVGuiScreen( int index )
 {
 	return m_VguiScreens[index].Get();
-}							
+}	
 
 
 //-----------------------------------------------------------------------------
@@ -676,6 +680,19 @@ C_VGuiScreen *CVGuiScreenEnumerator::GetVGuiScreen( int index )
 //-----------------------------------------------------------------------------
 C_BaseEntity *FindNearbyVguiScreen( const Vector &viewPosition, const QAngle &viewAngle, int nTeam )
 {
+	if ( IsX360() )
+	{
+		// X360TBD: Turn this on if feature actually used
+		return NULL;
+	}
+
+	C_BasePlayer *pLocalPlayer = C_BasePlayer::GetLocalPlayer();
+
+	Assert( pLocalPlayer );
+
+	if ( !pLocalPlayer )
+		return NULL;
+
 	// Get the view direction...
 	Vector lookDir;
 	AngleVectors( viewAngle, &lookDir );
@@ -699,8 +716,14 @@ C_BaseEntity *FindNearbyVguiScreen( const Vector &viewPosition, const QAngle &vi
 	{
 		C_VGuiScreen *pScreen = localScreens.GetVGuiScreen(i);
 
+		if ( pScreen->IsAttachedToViewModel() )
+			continue;
+
 		// Don't bother with screens I'm behind...
-		if (pScreen->IsBackfacing(viewPosition))
+		// Hax - don't cancel backfacing with viewmodel attached screens.
+		// we can get prediction bugs that make us backfacing for one frame and
+		// it resets the mouse position if we lose focus.
+		if ( pScreen->IsBackfacing(viewPosition) )
 			continue;
 
 		// Don't bother with screens that are turned off
@@ -713,6 +736,9 @@ C_BaseEntity *FindNearbyVguiScreen( const Vector &viewPosition, const QAngle &vi
 			continue;
 
 		if ( !pScreen->AcceptsInput() )
+			continue;
+
+		if ( pScreen->IsInputOnlyToOwner() && pScreen->GetPlayerOwner() != pLocalPlayer )
 			continue;
 
 		// Test perpendicular distance from the screen...
@@ -738,7 +764,7 @@ C_BaseEntity *FindNearbyVguiScreen( const Vector &viewPosition, const QAngle &vi
 			pBestScreen = pScreen;
 		}
 	}
-
+	
 	return pBestScreen;
 }
 
@@ -834,6 +860,19 @@ vgui::Panel *CVGuiScreenPanel::CreateControlByName(const char *controlName)
 
 	// Didn't find it? Just use the default stuff
 	return BaseClass::CreateControlByName( controlName );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Called when the user presses a button
+//-----------------------------------------------------------------------------
+void CVGuiScreenPanel::OnCommand( const char *command)
+{
+	if ( Q_stricmp( command, "vguicancel" ) )
+	{
+		engine->ClientCmd( const_cast<char *>( command ) );
+	}
+
+	BaseClass::OnCommand(command);
 }
 
 DECLARE_VGUI_SCREEN_FACTORY( CVGuiScreenPanel, "vgui_screen_panel" );

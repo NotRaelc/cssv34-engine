@@ -17,6 +17,7 @@
 
 //--------------------------------------------------------------------------------------------------------------
 ConVar bot_loadout( "bot_loadout", "", FCVAR_CHEAT, "bots are given these items at round start" );
+ConVar bot_randombuy( "bot_randombuy", "0", FCVAR_CHEAT, "should bots ignore their prefered weapons and just buy weapons at random?" );
 
 //--------------------------------------------------------------------------------------------------------------
 /**
@@ -403,7 +404,7 @@ void BuyState::OnUpdate( CCSBot *me )
 		bool isPreferredAllDisallowed = true;
 
 		// try to buy our preferred weapons first
-		if (m_prefIndex < me->GetProfile()->GetWeaponPreferenceCount() )
+		if (m_prefIndex < me->GetProfile()->GetWeaponPreferenceCount() && bot_randombuy.GetBool() == false )
 		{
 			// need to retry because sometimes first buy fails??
 			const int maxPrefRetries = 2;
@@ -483,7 +484,9 @@ void BuyState::OnUpdate( CCSBot *me )
 			{
 				Q_snprintf( cmdBuffer, 256, "buy %s\n", buyAlias );
 
-				me->ClientCommand( cmdBuffer );
+				CCommand args;
+				args.Tokenize( cmdBuffer );
+				me->ClientCommand( args );
 
 				me->PrintIfWatched( "Tried to buy preferred weapon %s.\n", buyAlias );
 				isPreferredAllDisallowed = false;
@@ -503,7 +506,9 @@ void BuyState::OnUpdate( CCSBot *me )
 			if (m_buyShield)
 			{
 				// buy a shield
-				me->ClientCommand( "buy shield" );
+				CCommand args;
+				args.Tokenize( "buy shield" );
+				me->ClientCommand( args );
 
 				me->PrintIfWatched( "Tried to buy a shield.\n" );
 			}
@@ -517,6 +522,11 @@ void BuyState::OnUpdate( CCSBot *me )
 				// dont choose sniper rifles as often
 				const float sniperRifleChance = 50.0f;
 				bool wantSniper = (RandomFloat( 0, 100 ) < sniperRifleChance) ? true : false;
+
+				if ( bot_randombuy.GetBool() )
+				{
+					wantSniper = true;
+				}
 
 				for( int i=0; i<PRIMARY_WEAPON_BUY_COUNT; ++i )
 				{
@@ -536,7 +546,7 @@ void BuyState::OnUpdate( CCSBot *me )
 					int which;
 
 					// on hard difficulty levels, bots try to buy preferred weapons on the first pass
-					if (m_retries == 0 && TheCSBots()->GetDifficultyLevel() >= BOT_HARD )
+					if (m_retries == 0 && TheCSBots()->GetDifficultyLevel() >= BOT_HARD && bot_randombuy.GetBool() == false )
 					{
 						// count up available preferred weapons
 						int prefCount = 0;
@@ -564,7 +574,9 @@ void BuyState::OnUpdate( CCSBot *me )
 
 					Q_snprintf( cmdBuffer, 256, "buy %s\n", stockPrimary[ which ]->buyAlias );
 
-					me->ClientCommand( cmdBuffer );
+					CCommand args;
+					args.Tokenize( cmdBuffer );
+					me->ClientCommand( args );
 
 					me->PrintIfWatched( "Tried to buy %s.\n", stockPrimary[ which ]->buyAlias );
 				}
@@ -578,14 +590,18 @@ void BuyState::OnUpdate( CCSBot *me )
 		if (me->HasPrimaryWeapon() || m_retries++ > 5)
 		{
 			// primary ammo
+			CCommand args;
 			if (me->HasPrimaryWeapon())
 			{
-				me->ClientCommand( "buy primammo" );
+				args.Tokenize( "buy primammo" );
+				me->ClientCommand( args );
 			}
 
 			// buy armor last, to make sure we bought a weapon first
-			me->ClientCommand( "buy vesthelm" );
-			me->ClientCommand( "buy vest" );
+			args.Tokenize( "buy vesthelm" );
+			me->ClientCommand( args );
+			args.Tokenize( "buy vest" );
+			me->ClientCommand( args );
 
 			// pistols - if we have no preferred pistol, buy at random
 			if (TheCSBots()->AllowPistols() && !me->GetProfile()->HasPistolPreference())
@@ -602,7 +618,8 @@ void BuyState::OnUpdate( CCSBot *me )
 						what = secondaryWeaponBuyInfoCT[ which ].buyAlias;
 
 					Q_snprintf( cmdBuffer, 256, "buy %s\n", what );
-					me->ClientCommand( cmdBuffer );
+					args.Tokenize( cmdBuffer );
+					me->ClientCommand( args );
 
 
 					// only buy one pistol
@@ -610,7 +627,8 @@ void BuyState::OnUpdate( CCSBot *me )
 				}
 
 				// make sure we have enough pistol ammo
-				me->ClientCommand( "buy secammo" );
+				args.Tokenize( "buy secammo" );
+				me->ClientCommand( args );
 			}
 
 			// buy a grenade if we wish, and we don't already have one
@@ -623,33 +641,39 @@ void BuyState::OnUpdate( CCSBot *me )
 
 					if (rnd < 10)
 					{
-						me->ClientCommand( "buy smokegrenade" );	// smoke grenade
+						args.Tokenize( "buy smokegrenade" );
+						me->ClientCommand( args );	// smoke grenade
 					}
 					else if (rnd < 35)
 					{
-						me->ClientCommand( "buy flashbang" );	// flashbang
+						args.Tokenize( "buy flashbang" );
+						me->ClientCommand( args );	// flashbang
 					}
 					else
 					{
-						me->ClientCommand( "buy hegrenade" );	// he grenade
+						args.Tokenize( "buy hegrenade" );
+						me->ClientCommand( args );	// he grenade
 					}
 				}
 				else
 				{
 					if (RandomFloat( 0, 100 ) < 10)
 					{
-						me->ClientCommand( "buy smokegrenade" );	// smoke grenade
+						args.Tokenize( "buy smokegrenade" );	// smoke grenade
+						me->ClientCommand( args );
 					}
 					else
 					{
-						me->ClientCommand( "buy hegrenade" );	// he grenade
+						args.Tokenize( "buy hegrenade" );	// he grenade
+						me->ClientCommand( args );
 					}
 				}
 			}
 
 			if (m_buyDefuseKit)
 			{
-				me->ClientCommand( "buy defuser" );
+				args.Tokenize( "buy defuser" );
+				me->ClientCommand( args );
 			}
 
 			m_doneBuying = true;

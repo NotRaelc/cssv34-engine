@@ -10,12 +10,9 @@
 #include "cs_gameinterface.h"
 #include "AI_ResponseSystem.h"
 
-#include "utllinkedlist.h"
-
-// memdbgon must be the last include file in a .cpp file!!!
-#include "tier0/memdbgon.h"
-
-CUtlLinkedList<CMapEntityRef, unsigned short> g_MapEntityRefs;
+// -------------------------------------------------------------------------------------------- //
+// Mod-specific CServerGameClients implementation.
+// -------------------------------------------------------------------------------------------- //
 
 void CServerGameClients::GetPlayerLimits( int& minplayers, int& maxplayers, int &defaultMaxPlayers ) const
 {
@@ -25,34 +22,10 @@ void CServerGameClients::GetPlayerLimits( int& minplayers, int& maxplayers, int 
 	defaultMaxPlayers = 32;	// Default to 32 players unless they change it.
 }
 
-class CCSMapLoadEntityFilter : public IMapEntityFilter
-{
-public:
-	virtual bool ShouldCreateEntity( const char *pClassname )
-	{
-		// During map load, create all the entities.
-		return true;
-	}
 
-	virtual CBaseEntity* CreateNextEntity( const char *pClassname )
-	{
-		CBaseEntity *pRet = CreateEntityByName( pClassname );
-
-		CMapEntityRef ref;
-		ref.m_iEdict = -1;
-		ref.m_iSerialNumber = -1;
-
-		if ( pRet )
-		{
-			ref.m_iEdict = pRet->entindex();
-			if ( pRet->edict() )
-				ref.m_iSerialNumber = pRet->edict()->m_NetworkSerialNumber;
-		}
-
-		g_MapEntityRefs.AddToTail( ref );
-		return pRet;
-	}
-};
+// -------------------------------------------------------------------------------------------- //
+// Mod-specific CServerGameDLL implementation.
+// -------------------------------------------------------------------------------------------- //
 
 void CServerGameDLL::LevelInit_ParseAllEntities( const char *pMapEntities )
 {
@@ -62,10 +35,6 @@ void CServerGameDLL::LevelInit_ParseAllEntities( const char *pMapEntities )
 		extern IResponseSystem *g_pResponseSystem;
 		g_pResponseSystem->PrecacheResponses( false );	
 	}
-	
-	g_MapEntityRefs.Purge();
-	CCSMapLoadEntityFilter filter;
-	MapEntity_ParseAllEntities( pMapEntities, &filter );
 }
 	
 

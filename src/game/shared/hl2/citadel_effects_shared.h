@@ -40,6 +40,10 @@ public:
 	void	InputStop( inputdata_t &inputdata );
 	void	SetScale( float flScale ) { m_flScale = flScale; }
 
+	void	StartCharge( float flWarmUpTime );
+	void	StartDischarge();
+	void	StopDischarge( float flCoolDownTime );
+
 	virtual int	ShouldTransmit( const CCheckTransmitInfo *pInfo );
 	virtual int UpdateTransmitState( void );
 

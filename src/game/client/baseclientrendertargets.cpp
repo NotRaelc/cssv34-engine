@@ -4,31 +4,28 @@
 //			Provides Init functions for common render textures used by the engine.
 //			Mod makers can inherit from this class, and call the Create functions for
 //			only the render textures the want for their mod.
-//
-// $NoKeywords: $
 //=============================================================================//
+
 #include "cbase.h"
 #include "baseclientrendertargets.h"						// header	
 #include "materialsystem/imaterialsystemhardwareconfig.h"	// Hardware config checks
 
-
-ITexture* CBaseClientRenderTargets::CreateWaterReflectionTexture( IMaterialSystem* pMaterialSystem )
+ITexture* CBaseClientRenderTargets::CreateWaterReflectionTexture( IMaterialSystem* pMaterialSystem, int iSize )
 {
 	return pMaterialSystem->CreateNamedRenderTargetTextureEx2(
 		"_rt_WaterReflection",
-		1024, 1024, RT_SIZE_PICMIP,
+		iSize, iSize, RT_SIZE_PICMIP,
 		pMaterialSystem->GetBackBufferFormat(), 
 		MATERIAL_RT_DEPTH_SHARED, 
 		TEXTUREFLAGS_CLAMPS | TEXTUREFLAGS_CLAMPT,
 		CREATERENDERTARGETFLAGS_HDR );
 }
 
-
-ITexture* CBaseClientRenderTargets::CreateWaterRefractionTexture( IMaterialSystem* pMaterialSystem )
+ITexture* CBaseClientRenderTargets::CreateWaterRefractionTexture( IMaterialSystem* pMaterialSystem, int iSize )
 {
 	return pMaterialSystem->CreateNamedRenderTargetTextureEx2(
 		"_rt_WaterRefraction",
-		1024, 1024, RT_SIZE_PICMIP,
+		iSize, iSize, RT_SIZE_PICMIP,
 		// This is different than reflection because it has to have alpha for fog factor.
 		IMAGE_FORMAT_RGBA8888, 
 		MATERIAL_RT_DEPTH_SHARED, 
@@ -36,12 +33,11 @@ ITexture* CBaseClientRenderTargets::CreateWaterRefractionTexture( IMaterialSyste
 		CREATERENDERTARGETFLAGS_HDR );
 }
 
-
-ITexture* CBaseClientRenderTargets::CreateCameraTexture( IMaterialSystem* pMaterialSystem )
+ITexture* CBaseClientRenderTargets::CreateCameraTexture( IMaterialSystem* pMaterialSystem, int iSize )
 {
 	return pMaterialSystem->CreateNamedRenderTargetTextureEx2(
 		"_rt_Camera",
-		256, 256, RT_SIZE_DEFAULT,
+		iSize, iSize, RT_SIZE_DEFAULT,
 		pMaterialSystem->GetBackBufferFormat(),
 		MATERIAL_RT_DEPTH_SHARED, 
 		0,
@@ -55,14 +51,14 @@ ITexture* CBaseClientRenderTargets::CreateCameraTexture( IMaterialSystem* pMater
 // Input  : pMaterialSystem - the engine's material system (our singleton is not yet inited at the time this is called)
 //			pHardwareConfig - the user hardware config, useful for conditional render target setup
 //-----------------------------------------------------------------------------
-void CBaseClientRenderTargets::InitClientRenderTargets( IMaterialSystem* pMaterialSystem, IMaterialSystemHardwareConfig* pHardwareConfig )
+void CBaseClientRenderTargets::InitClientRenderTargets( IMaterialSystem* pMaterialSystem, IMaterialSystemHardwareConfig* pHardwareConfig, int iWaterTextureSize, int iCameraTextureSize )
 {
 	// Water effects
-	m_WaterReflectionTexture.Init( CreateWaterReflectionTexture( pMaterialSystem ) );
-	m_WaterRefractionTexture.Init ( CreateWaterRefractionTexture( pMaterialSystem ) );
+	m_WaterReflectionTexture.Init( CreateWaterReflectionTexture( pMaterialSystem, iWaterTextureSize ) );
+	m_WaterRefractionTexture.Init( CreateWaterRefractionTexture( pMaterialSystem, iWaterTextureSize ) );
 
 	// Monitors
-	m_CameraTexture.Init ( CreateCameraTexture( pMaterialSystem ) );
+	m_CameraTexture.Init( CreateCameraTexture( pMaterialSystem, iCameraTextureSize ) );
 }
 
 //-----------------------------------------------------------------------------

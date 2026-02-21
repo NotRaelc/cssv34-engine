@@ -11,12 +11,6 @@
 #pragma once
 #endif
 
-#include "BaseGamesPage.h"
-
-#include "IGameList.h"
-#include "server.h"
-#include "UtlVector.h"
-
 class CLanBroadcastMsgHandler;
 
 //-----------------------------------------------------------------------------
@@ -24,63 +18,51 @@ class CLanBroadcastMsgHandler;
 //-----------------------------------------------------------------------------
 class CLanGames : public CBaseGamesPage
 {
+	DECLARE_CLASS_SIMPLE( CLanGames, CBaseGamesPage );
+
 public:
-	CLanGames(vgui::Panel *parent);
+	CLanGames(vgui::Panel *parent, bool bAutoRefresh=true, const char *pCustomResFilename=NULL);
 	~CLanGames();
 
 	// property page handlers
 	virtual void OnPageShow();
-	virtual void OnPageHide();
 
 	// IGameList handlers
 	// returns true if the game list supports the specified ui elements
 	virtual bool SupportsItem(InterfaceItem_e item);
 
-	// starts the servers refreshing
-	virtual void StartRefresh();
+	// Control which button are visible.
+	void ManualShowButtons( bool bShowConnect, bool bShowRefreshAll, bool bShowFilter );
 
-	// gets a new server list
-	virtual void GetNewServerList();
+	// If you pass NULL for pSpecificAddresses, it will broadcast on certain points.
+	// If you pass a non-null value, then it will send info queries directly to those ports.
+	void InternalGetNewServerList( CUtlVector<netadr_t> *pSpecificAddresses );
+ 
+	virtual void StartRefresh();
 
 	// stops current refresh/GetNewServerList()
 	virtual void StopRefresh();
 
-	// returns true if the list is currently refreshing servers
-	virtual bool IsRefreshing();
-
-	// adds a new server to list
-	virtual void AddNewServer(serveritem_t &server);
-
-	// marks that server list has been fully received
-	virtual void ListReceived(bool moreAvailable, int lastUnique);
-
-	// called when Connect button is pressed
-	virtual void OnBeginConnect();
-
-	// called to look at game info
-	virtual void OnViewGameInfo();
-
-	// reapplies filters (does nothing with this)
-	virtual void ApplyFilters();
 
 	// IServerRefreshResponse handlers
 	// called when a server response has timed out
-	virtual void ServerFailedToRespond(serveritem_t &server);
+	virtual void ServerFailedToRespond( int iServer );
 
 	// called when the current refresh list is complete
-	virtual void RefreshComplete();
+	virtual void RefreshComplete( EMatchMakingServerResponse response );
+
+	// Tell the game list what to put in there when there are no games found.
+	virtual void SetEmptyListText();
 
 private:
 	// vgui message handlers
-	virtual void PerformLayout();
 	virtual void OnTick();
 
 	// lan timeout checking
 	virtual void CheckRetryRequest();
 
 	// context menu message handlers
-	void OnOpenContextMenu(int row);
-	void OnRefreshServer(int serverID);
+	MESSAGE_FUNC_INT( OnOpenContextMenu, "OpenContextMenu", itemID );
 
 	// number of servers refreshed
 	int m_iServerRefreshCount;	
@@ -89,15 +71,9 @@ private:
 	bool m_bRequesting;
 
 	// time at which we last broadcasted
-	float m_fRequestTime;
+	double m_fRequestTime;
 
-	// broadcast socket
-	CSocket	*m_pBroadcastSocket;
-
-	DECLARE_PANELMAP();
-	typedef CBaseGamesPage BaseClass;
-
-	CLanBroadcastMsgHandler *m_pLanBroadcastMsgHandler;
+	bool m_bAutoRefresh;
 };
 
 

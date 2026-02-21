@@ -10,6 +10,8 @@
 #include "viewport_panel_names.h"
 #include "gameeventdefs.h"
 #include <KeyValues.h>
+#include "filesystem.h"
+#include "mp_shareddefs.h"
 
 #ifdef CLIENT_DLL
 
@@ -22,12 +24,18 @@
 	#include "game.h"
 	#include "items.h"
 	#include "entitylist.h"
-	#include "in_buttons.h"
+	#include "in_buttons.h" 
 	#include <ctype.h>
 	#include "voice_gamemgr.h"
 	#include "iscorer.h"
 	#include "hltvdirector.h"
-	
+	#include "AI_Criteria.h"
+	#include "sceneentity.h"
+	#include "basemultiplayerplayer.h"
+	#include "team.h"
+	#include "usermessages.h"
+	#include "tier0/icommandline.h"
+
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -44,26 +52,210 @@ ConVar mp_chattime(
 		true, 1,
 		true, 120 );
 
-ConVar	mp_timelimit( "mp_timelimit",
-					  "0",
-					  FCVAR_NOTIFY|FCVAR_REPLICATED,
-					  "game time per map in minutes" );
-
+ConVar mp_timelimit( "mp_timelimit", "0", FCVAR_NOTIFY|FCVAR_REPLICATED, "game time per map in minutes" );
 #ifdef GAME_DLL
 
-ConVar	tv_delaymapchange( "tv_delaymapchange",
-					 "0",
-					 0,
-					 "Delays map change until broadcast is complete" );
+ConVar tv_delaymapchange( "tv_delaymapchange", "0", 0, "Delays map change until broadcast is complete" );
+
+ConVar mp_restartgame( "mp_restartgame", "0", FCVAR_GAMEDLL, "If non-zero, game will restart in the specified number of seconds" );
+
+#ifndef TF_DLL		// TF overrides the default value of this convar
+ConVar mp_waitingforplayers_time( "mp_waitingforplayers_time", "0", FCVAR_GAMEDLL, "WaitingForPlayers time length in seconds" );
+#endif
+
+ConVar mp_waitingforplayers_restart( "mp_waitingforplayers_restart", "0", FCVAR_GAMEDLL, "Set to 1 to start or restart the WaitingForPlayers period." );
+ConVar mp_waitingforplayers_cancel( "mp_waitingforplayers_cancel", "0", FCVAR_GAMEDLL, "Set to 1 to end the WaitingForPlayers period." );
+ConVar mp_clan_readyrestart( "mp_clan_readyrestart", "0", FCVAR_GAMEDLL, "If non-zero, game will restart once someone from each team gives the ready signal" );
+ConVar mp_clan_ready_signal( "mp_clan_ready_signal", "ready", FCVAR_GAMEDLL, "Text that team leader from each team must speak for the match to begin" );
+
+ConVar nextlevel( "nextlevel", 
+				  "", 
+				  FCVAR_GAMEDLL | FCVAR_NOTIFY,
+#if defined( CSTRIKE_DLL ) || defined( TF_DLL )
+				  "If set to a valid map name, will trigger a changelevel to the specified map at the end of the round" );
+#else
+				  "If set to a valid map name, will change to this map during the next changelevel" );
+#endif // CSTRIKE_DLL || TF_DLL
 					  					  
 #endif
 
+#ifndef CLIENT_DLL
+int CMultiplayRules::m_nMapCycleTimeStamp = 0;
+int CMultiplayRules::m_nMapCycleindex = 0;
+CUtlVector<char*> CMultiplayRules::m_MapList;
+#endif
 
 //=========================================================
 //=========================================================
 bool CMultiplayRules::IsMultiplayer( void )
 {
 	return true;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CMultiplayRules::Damage_GetTimeBased( void )
+{
+	int iDamage = ( DMG_PARALYZE | DMG_NERVEGAS | DMG_POISON | DMG_RADIATION | DMG_DROWNRECOVER | DMG_ACID | DMG_SLOWBURN );
+	return iDamage;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int	CMultiplayRules::Damage_GetShouldGibCorpse( void )
+{
+	int iDamage = ( DMG_CRUSH | DMG_FALL | DMG_BLAST | DMG_SONIC | DMG_CLUB );
+	return iDamage;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int CMultiplayRules::Damage_GetShowOnHud( void )
+{
+	int iDamage = ( DMG_POISON | DMG_ACID | DMG_DROWN | DMG_BURN | DMG_SLOWBURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK );
+	return iDamage;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int	CMultiplayRules::Damage_GetNoPhysicsForce( void )
+{
+	int iTimeBasedDamage = Damage_GetTimeBased();
+	int iDamage = ( DMG_FALL | DMG_BURN | DMG_PLASMA | DMG_DROWN | iTimeBasedDamage | DMG_CRUSH | DMG_PHYSGUN | DMG_PREVENT_PHYSICS_FORCE );
+	return iDamage;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+int	CMultiplayRules::Damage_GetShouldNotBleed( void )
+{
+	int iDamage = ( DMG_POISON | DMG_ACID );
+	return iDamage;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : iDmgType - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CMultiplayRules::Damage_IsTimeBased( int iDmgType )
+{
+	// Damage types that are time-based.
+	return ( ( iDmgType & ( DMG_PARALYZE | DMG_NERVEGAS | DMG_POISON | DMG_RADIATION | DMG_DROWNRECOVER | DMG_ACID | DMG_SLOWBURN ) ) != 0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : iDmgType - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CMultiplayRules::Damage_ShouldGibCorpse( int iDmgType )
+{
+	// Damage types that gib the corpse.
+	return ( ( iDmgType & ( DMG_CRUSH | DMG_FALL | DMG_BLAST | DMG_SONIC | DMG_CLUB ) ) != 0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : iDmgType - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CMultiplayRules::Damage_ShowOnHUD( int iDmgType )
+{
+	// Damage types that have client HUD art.
+	return ( ( iDmgType & ( DMG_POISON | DMG_ACID | DMG_DROWN | DMG_BURN | DMG_SLOWBURN | DMG_NERVEGAS | DMG_RADIATION | DMG_SHOCK ) ) != 0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : iDmgType - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CMultiplayRules::Damage_NoPhysicsForce( int iDmgType )
+{
+	// Damage types that don't have to supply a physics force & position.
+	int iTimeBasedDamage = Damage_GetTimeBased();
+	return ( ( iDmgType & ( DMG_FALL | DMG_BURN | DMG_PLASMA | DMG_DROWN | iTimeBasedDamage | DMG_CRUSH | DMG_PHYSGUN | DMG_PREVENT_PHYSICS_FORCE ) ) != 0 );
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+// Input  : iDmgType - 
+// Output : Returns true on success, false on failure.
+//-----------------------------------------------------------------------------
+bool CMultiplayRules::Damage_ShouldNotBleed( int iDmgType )
+{
+	// Damage types that don't make the player bleed.
+	return ( ( iDmgType & ( DMG_POISON | DMG_ACID ) ) != 0 );
+}
+
+//*********************************************************
+// Rules for the half-life multiplayer game.
+//*********************************************************
+CMultiplayRules::CMultiplayRules()
+{
+#ifndef CLIENT_DLL
+	RefreshSkillData( true );
+
+	// 11/8/98
+	// Modified by YWB:  Server .cfg file is now a cvar, so that 
+	//  server ops can run multiple game servers, with different server .cfg files,
+	//  from a single installed directory.
+	// Mapcyclefile is already a cvar.
+
+	// 3/31/99
+	// Added lservercfg file cvar, since listen and dedicated servers should not
+	// share a single config file. (sjb)
+	if ( engine->IsDedicatedServer() )
+	{
+		// dedicated server
+		const char *cfgfile = servercfgfile.GetString();
+
+		if ( cfgfile && cfgfile[0] )
+		{
+			char szCommand[256];
+
+			Msg( "Executing dedicated server config file\n" );
+			Q_snprintf( szCommand,sizeof(szCommand), "exec %s\n", cfgfile );
+			engine->ServerCommand( szCommand );
+		}
+	}
+	else
+	{
+		// listen server
+		const char *cfgfile = lservercfgfile.GetString();
+
+		if ( cfgfile && cfgfile[0] )
+		{
+			char szCommand[256];
+
+			Msg( "Executing listen server config file\n" );
+			Q_snprintf( szCommand,sizeof(szCommand), "exec %s\n", cfgfile );
+			engine->ServerCommand( szCommand );
+		}
+	}
+
+	nextlevel.SetValue( "" );
+#endif
+
+	LoadVoiceCommandScript();
+}
+
+bool CMultiplayRules::Init()
+{
+#ifdef GAME_DLL
+
+	// Initialize the custom response rule dictionaries.
+	InitCustomResponseRulesDicts();
+
+#endif
+
+	return BaseClass::Init();
 }
 
 
@@ -78,53 +270,6 @@ bool CMultiplayRules::IsMultiplayer( void )
 	#define WEAPON_RESPAWN_TIME	20
 	#define AMMO_RESPAWN_TIME	20
 
-	//*********************************************************
-	// Rules for the half-life multiplayer game.
-	//*********************************************************
-
-	CMultiplayRules::CMultiplayRules()
-	{
-		RefreshSkillData( true );
-		
-		// 11/8/98
-		// Modified by YWB:  Server .cfg file is now a cvar, so that 
-		//  server ops can run multiple game servers, with different server .cfg files,
-		//  from a single installed directory.
-		// Mapcyclefile is already a cvar.
-
-		// 3/31/99
-		// Added lservercfg file cvar, since listen and dedicated servers should not
-		// share a single config file. (sjb)
-		if ( engine->IsDedicatedServer() )
-		{
-			// dedicated server
-			const char *cfgfile = servercfgfile.GetString();
-
-			if ( cfgfile && cfgfile[0] )
-			{
-				char szCommand[256];
-				
-				Msg( "Executing dedicated server config file\n" );
-				Q_snprintf( szCommand,sizeof(szCommand), "exec %s\n", cfgfile );
-				engine->ServerCommand( szCommand );
-			}
-		}
-		else
-		{
-			// listen server
-			const char *cfgfile = lservercfgfile.GetString();
-
-			if ( cfgfile && cfgfile[0] )
-			{
-				char szCommand[256];
-				
-				Msg( "Executing listen server config file\n" );
-				Q_snprintf( szCommand,sizeof(szCommand), "exec %s\n", cfgfile );
-				engine->ServerCommand( szCommand );
-			}
-		}
-	}
-
 	//=========================================================
 	//=========================================================
 	void CMultiplayRules::RefreshSkillData( bool forceUpdate )
@@ -135,11 +280,10 @@ bool CMultiplayRules::IsMultiplayer( void )
 	// override some values for multiplay.
 
 		// suitcharger
-		ConVar *suitcharger = ( ConVar * )cvar->FindVar( "sk_suitcharger" );
-		if ( suitcharger )
-		{
-			suitcharger->SetValue( 30 );
-		}
+#ifndef TF_DLL
+		ConVarRef suitcharger( "sk_suitcharger" );
+		suitcharger.SetValue( 30 );
+#endif
 	}
 
 
@@ -476,6 +620,15 @@ bool CMultiplayRules::IsMultiplayer( void )
 		return NULL;
 	}
 
+	//-----------------------------------------------------------------------------
+	// Purpose: Returns player who should receive credit for kill
+	//-----------------------------------------------------------------------------
+	CBasePlayer *CMultiplayRules::GetDeathScorer( CBaseEntity *pKiller, CBaseEntity *pInflictor, CBaseEntity *pVictim )
+	{
+		// if this method not overridden by subclass, just call our default implementation
+		return GetDeathScorer( pKiller, pInflictor );
+	}
+
 	//=========================================================
 	// PlayerKilled - someone/something killed this player
 	//=========================================================
@@ -486,7 +639,7 @@ bool CMultiplayRules::IsMultiplayer( void )
 		// Find the killer & the scorer
 		CBaseEntity *pInflictor = info.GetInflictor();
 		CBaseEntity *pKiller = info.GetAttacker();
-		CBasePlayer *pScorer = GetDeathScorer( pKiller, pInflictor );
+		CBasePlayer *pScorer = GetDeathScorer( pKiller, pInflictor, pVictim );
 		
 		pVictim->IncrementDeathCount( 1 );
 
@@ -497,9 +650,12 @@ bool CMultiplayRules::IsMultiplayer( void )
 
 		// Did the player kill himself?
 		if ( pVictim == pScorer )  
-		{
-			// Players lose a frag for killing themselves
-			pVictim->IncrementFragCount( -1 );
+		{			
+			if ( UseSuicidePenalty() )
+			{
+				// Players lose a frag for killing themselves
+				pVictim->IncrementFragCount( -1 );
+			}			
 		}
 		else if ( pScorer )
 		{
@@ -516,8 +672,11 @@ bool CMultiplayRules::IsMultiplayer( void )
 		}
 		else
 		{  
-			// Players lose a frag for letting the world kill them
-			pVictim->IncrementFragCount( -1 );
+			if ( UseSuicidePenalty() )
+			{
+				// Players lose a frag for letting the world kill them			
+				pVictim->IncrementFragCount( -1 );
+			}					
 		}
 	}
 
@@ -533,12 +692,12 @@ bool CMultiplayRules::IsMultiplayer( void )
 		// Find the killer & the scorer
 		CBaseEntity *pInflictor = info.GetInflictor();
 		CBaseEntity *pKiller = info.GetAttacker();
-		CBasePlayer *pScorer = GetDeathScorer( pKiller, pInflictor );
+		CBasePlayer *pScorer = GetDeathScorer( pKiller, pInflictor, pVictim );
 
-		// Custom kill type?
-		if ( info.GetCustomKill() )
+		// Custom damage type?
+		if ( info.GetDamageCustom() )
 		{
-			killer_weapon_name = GetCustomKillString( info );
+			killer_weapon_name = GetDamageCustomString( info );
 			if ( pScorer )
 			{
 				killer_ID = pScorer->GetUserID();
@@ -592,6 +751,7 @@ bool CMultiplayRules::IsMultiplayer( void )
 		{
 			event->SetInt("userid", pVictim->GetUserID() );
 			event->SetInt("attacker", killer_ID );
+			event->SetInt("customkill", info.GetDamageCustom() );
 			event->SetInt("priority", 7 );	// HLTV event priority, not transmitted
 			
 			gameeventmanager->FireEvent( event );
@@ -854,7 +1014,7 @@ bool CMultiplayRules::IsMultiplayer( void )
 				
 		m_flIntermissionEndTime = gpGlobals->curtime + flWaitTime;
 
-		for ( int i = 0; i < MAX_PLAYERS; i++ )
+		for ( int i = 1; i <= MAX_PLAYERS; i++ )
 		{
 			CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
 
@@ -864,73 +1024,121 @@ bool CMultiplayRules::IsMultiplayer( void )
 			pPlayer->ShowViewPortPanel( PANEL_SCOREBOARD );
 		}
 	}
-	
+
+	void StripChar(char *szBuffer, const char cWhiteSpace )
+	{
+
+		while ( char *pSpace = strchr( szBuffer, cWhiteSpace ) )
+		{
+			char *pNextChar = pSpace + sizeof(char);
+			V_strcpy( pSpace, pNextChar );
+		}
+	}
+
 	void CMultiplayRules::GetNextLevelName( char *pszNextMap, int bufsize )
 	{
-		char szFirstMapInList[32];
-		Q_strncpy( szFirstMapInList, "hldm1" ,sizeof(szFirstMapInList));  // the absolute default level is hldm1
-
-		// find the map to change to
-
 		const char *mapcfile = mapcyclefile.GetString();
 		Assert( mapcfile != NULL );
-		Q_strncpy( pszNextMap, STRING(gpGlobals->mapname) ,bufsize);
-		Q_strncpy( szFirstMapInList, STRING(gpGlobals->mapname) ,sizeof(szFirstMapInList));
 
-		int length;
-		char *pFileList;
-		char *aFileList = pFileList = (char*)UTIL_LoadFileForMe( mapcfile, &length );
-		if ( pFileList && length )
+		// Check the time of the mapcycle file and re-populate the list of level names if the file has been modified
+		const int nMapCycleTimeStamp = filesystem->GetPathTime( mapcfile, "GAME" );
+
+		if ( 0 == nMapCycleTimeStamp )
 		{
-			// the first map name in the file becomes the default
-			sscanf( pFileList, " %31s", pszNextMap );
-			if ( engine->IsMapValid( pszNextMap ) )
-				Q_strncpy( szFirstMapInList, pszNextMap ,sizeof(szFirstMapInList));
-
-			// keep pulling mapnames out of the list until the current mapname
-			// if the current mapname isn't found,  load the first map in the list
-			bool next_map_is_it = false;
-			while ( 1 )
+			// Map cycle file does not exist, make a list containing only the current map
+			char *szCurrentMapName = new char[32];
+			Q_strncpy( szCurrentMapName, STRING(gpGlobals->mapname), 32 );
+			m_MapList.AddToTail( szCurrentMapName );
+		}
+		else
+		{
+			// If map cycle file has changed or this is the first time through ...
+			if ( m_nMapCycleTimeStamp != nMapCycleTimeStamp )
 			{
-				while ( *pFileList && isspace( *pFileList ) ) pFileList++; // skip over any whitespace
-				if ( !(*pFileList) )
-					break;
+				// Reset map index and map cycle timestamp
+				m_nMapCycleTimeStamp = nMapCycleTimeStamp;
+				m_nMapCycleindex = 0;
 
-				char cBuf[32];
-				int ret = sscanf( pFileList, " %31s", cBuf );
-				// Check the map name is valid
-				if ( ret != 1 || *cBuf < 13 )
-					break;
-
-				if ( next_map_is_it )
+				// Clear out existing map list. Not using Purge() because I don't think that it will do a 'delete []'
+				for ( int i = 0; i < m_MapList.Count(); i++ )
 				{
-					// check that it is a valid map file
-					if ( engine->IsMapValid( cBuf ) )
+					delete [] m_MapList[i];
+				}
+
+				m_MapList.RemoveAll();
+
+				// Repopulate map list from mapcycle file
+				int nFileLength;
+				char *aFileList = (char*)UTIL_LoadFileForMe( mapcfile, &nFileLength );
+				if ( aFileList && nFileLength )
+				{
+					V_SplitString( aFileList, "\n", m_MapList );
+
+					for ( int i = 0; i < m_MapList.Count(); i++ )
 					{
-						Q_strncpy( pszNextMap, cBuf, bufsize);
-						break;
+						bool bIgnore = false;
+
+						// Strip out the spaces in the name
+						StripChar( m_MapList[i] , '\r');
+						StripChar( m_MapList[i] , ' ');
+						
+						if ( !engine->IsMapValid( m_MapList[i] ) )
+						{
+							bIgnore = true;
+
+							// If the engine doesn't consider it a valid map remove it from the lists
+							char szWarningMessage[MAX_PATH];
+							V_snprintf( szWarningMessage, MAX_PATH, "Invalid map '%s' included in map cycle file. Ignored.\n", m_MapList[i] );
+							Warning( szWarningMessage );
+						}
+						else if ( !Q_strncmp( m_MapList[i], "//", 2 ) )
+						{
+							bIgnore = true;
+						}
+
+						if ( bIgnore )
+						{
+							delete [] m_MapList[i];
+							m_MapList.Remove( i );
+							--i;
+						}
 					}
-				}
 
-				if ( FStrEq( cBuf, STRING(gpGlobals->mapname) ) )
-				{  // we've found our map;  next map is the one to change to
-					next_map_is_it = true;
+					UTIL_FreeFile( (byte *)aFileList );
 				}
-
-				pFileList += strlen( cBuf );
 			}
-
-			UTIL_FreeFile( (byte *)aFileList );
 		}
 
-		if ( !engine->IsMapValid(pszNextMap) )
-			Q_strncpy( pszNextMap, szFirstMapInList, bufsize);
+		// If somehow we have no maps in the list then add the current one
+		if ( 0 == m_MapList.Count() )
+		{
+			char *szDefaultMapName = new char[32];
+			Q_strncpy( szDefaultMapName, STRING(gpGlobals->mapname), 32 );
+			m_MapList.AddToTail( szDefaultMapName );
+		}
+
+		// Here's the return value
+		Q_strncpy( pszNextMap, m_MapList[m_nMapCycleindex], bufsize);
 	}
 
 	void CMultiplayRules::ChangeLevel( void )
 	{
 		char szNextMap[32];
-		GetNextLevelName( szNextMap, sizeof(szNextMap) );
+
+		if ( nextlevel.GetString() && *nextlevel.GetString() && engine->IsMapValid( nextlevel.GetString() ) )
+		{
+			Q_strncpy( szNextMap, nextlevel.GetString(), sizeof( szNextMap ) );
+		}
+		else
+		{
+			GetNextLevelName( szNextMap, sizeof(szNextMap) );
+
+			// Reset index if we've passed the end of the map list
+			if ( ++m_nMapCycleindex >= m_MapList.Count() )
+			{
+				m_nMapCycleindex = 0;
+			}
+		}
 
 		g_fGameOver = true;
 
@@ -938,16 +1146,249 @@ bool CMultiplayRules::IsMultiplayer( void )
 		
 		engine->ChangeLevel( szNextMap, NULL );
 	}
-	
-	void CMultiplayRules::ClientSettingsChanged( CBasePlayer *pPlayer )
-	{
-		const char *pszHH = engine->GetClientConVarValue( pPlayer->entindex(), "hap_HasDevice" );
-		if( pszHH )
-		{
-			int iHH = atoi( pszHH );
-			pPlayer->SetHaptics( iHH != 0 );
-		}
-	}
 
 #endif		
 
+
+	//-----------------------------------------------------------------------------
+	// Purpose: Shared script resource of voice menu commands and hud strings
+	//-----------------------------------------------------------------------------
+	void CMultiplayRules::LoadVoiceCommandScript( void )
+	{
+		KeyValues *pKV = new KeyValues( "VoiceCommands" );
+
+		if ( pKV->LoadFromFile( filesystem, "scripts/voicecommands.txt", "GAME" ) )
+		{
+			for ( KeyValues *menu = pKV->GetFirstSubKey(); menu != NULL; menu = menu->GetNextKey() )
+			{
+				int iMenuIndex = m_VoiceCommandMenus.AddToTail();
+
+				int iNumItems = 0;
+
+				// for each subkey of this menu, add a menu item
+				for ( KeyValues *menuitem = menu->GetFirstSubKey(); menuitem != NULL; menuitem = menuitem->GetNextKey() )
+				{
+					iNumItems++;
+
+					if ( iNumItems > 9 )
+					{
+						Warning( "Trying to load more than 9 menu items in voicecommands.txt, extras ignored" );
+						continue;
+					}
+
+					VoiceCommandMenuItem_t item;
+
+#ifndef CLIENT_DLL
+					int iConcept = GetMPConceptIndexFromString( menuitem->GetString( "concept", "" ) );
+					if ( iConcept == MP_CONCEPT_NONE )
+					{
+						Warning( "Voicecommand script attempting to use unknown concept. Need to define new concepts in code. ( %s )\n", menuitem->GetString( "concept", "" ) );
+					}
+					item.m_iConcept = iConcept;
+
+					item.m_bShowSubtitle = ( menuitem->GetInt( "show_subtitle", 0 ) > 0 );
+					item.m_bDistanceBasedSubtitle = ( menuitem->GetInt( "distance_check_subtitle", 0 ) > 0 );
+
+					Q_strncpy( item.m_szGestureActivity, menuitem->GetString( "activity", "" ), sizeof( item.m_szGestureActivity ) ); 
+#else
+					Q_strncpy( item.m_szSubtitle, menuitem->GetString( "subtitle", "" ), MAX_VOICE_COMMAND_SUBTITLE );
+					Q_strncpy( item.m_szMenuLabel, menuitem->GetString( "menu_label", "" ), MAX_VOICE_COMMAND_SUBTITLE );
+
+#endif
+					m_VoiceCommandMenus.Element( iMenuIndex ).AddToTail( item );
+				}
+			}
+		}
+
+		pKV->deleteThis();
+	}
+
+#ifndef CLIENT_DLL
+	bool CMultiplayRules::ClientCommand( CBaseEntity *pEdict, const CCommand &args )
+	{
+		CBasePlayer *pPlayer = ToBasePlayer( pEdict );
+
+		const char *pcmd = args[0];
+		if ( FStrEq( pcmd, "voicemenu" ) )
+		{
+			if ( args.ArgC() < 3 )
+				return true;
+
+			CBaseMultiplayerPlayer *pMultiPlayerPlayer = dynamic_cast< CBaseMultiplayerPlayer * >( pPlayer );
+
+			if ( pMultiPlayerPlayer )
+			{
+				int iMenu = atoi( args[1] );
+				int iItem = atoi( args[2] );
+
+				VoiceCommand( pMultiPlayerPlayer, iMenu, iItem );
+			}
+
+			return true;
+		}
+		else if ( FStrEq( pcmd, "achievement_earned" ) )
+		{
+			CBasePlayer *pPlayer = static_cast<CBasePlayer*>( pEdict );
+			if ( pPlayer && pPlayer->ShouldAnnouceAchievement() )
+			{
+				// let's check this came from the client .dll and not the console
+				unsigned short mask = UTIL_GetAchievementEventMask();
+				int iPlayerID = pPlayer->GetUserID();
+
+				int iAchievement = atoi( args[1] ) ^ mask;
+				int code = ( iPlayerID ^ iAchievement ) ^ mask;
+
+				if ( code == atoi( args[2] ) )
+				{
+					IGameEvent * event = gameeventmanager->CreateEvent( "achievement_earned" );
+					if ( event )
+					{
+						event->SetInt( "player", pEdict->entindex() );
+						event->SetInt( "achievement", iAchievement );
+						gameeventmanager->FireEvent( event );
+					}
+				}
+			}
+
+			return true;
+		}
+
+		return BaseClass::ClientCommand( pEdict, args );
+
+	}
+
+	VoiceCommandMenuItem_t *CMultiplayRules::VoiceCommand( CBaseMultiplayerPlayer *pPlayer, int iMenu, int iItem )
+	{
+		// have the player speak the concept that is in a particular menu slot
+		if ( !pPlayer )
+			return NULL;
+
+		if ( iMenu < 0 || iMenu >= m_VoiceCommandMenus.Count() )
+			return NULL;
+
+		if ( iItem < 0 || iItem >= m_VoiceCommandMenus.Element( iMenu ).Count() )
+			return NULL;
+
+		VoiceCommandMenuItem_t *pItem = &m_VoiceCommandMenus.Element( iMenu ).Element( iItem );
+
+		Assert( pItem );
+
+		char szResponse[AI_Response::MAX_RESPONSE_NAME];
+
+		if ( pPlayer->CanSpeakVoiceCommand() )
+		{
+			CMultiplayer_Expresser *pExpresser = pPlayer->GetMultiplayerExpresser();
+			Assert( pExpresser );
+			pExpresser->AllowMultipleScenes();
+
+			if ( pPlayer->SpeakConceptIfAllowed( pItem->m_iConcept, NULL, szResponse, AI_Response::MAX_RESPONSE_NAME ) )
+			{
+				// show a subtitle if we need to
+				if ( pItem->m_bShowSubtitle )
+				{
+					CRecipientFilter filter;
+
+					if ( pItem->m_bDistanceBasedSubtitle )
+					{
+						filter.AddRecipientsByPAS( pPlayer->WorldSpaceCenter() );
+
+						// further reduce the range to a certain radius
+						int i;
+						for ( i = filter.GetRecipientCount()-1; i >= 0; i-- )
+						{
+							int index = filter.GetRecipientIndex(i);
+
+							CBasePlayer *pListener = UTIL_PlayerByIndex( index );
+
+							if ( pListener && pListener != pPlayer )
+							{
+								float flDist = ( pListener->WorldSpaceCenter() - pPlayer->WorldSpaceCenter() ).Length2D();
+
+								if ( flDist > VOICE_COMMAND_MAX_SUBTITLE_DIST )
+									filter.RemoveRecipientByPlayerIndex( index );
+							}
+						}
+					}
+					else
+					{
+						filter.AddAllPlayers();
+					}
+
+					// if we aren't a disguised spy
+					if ( !pPlayer->ShouldShowVoiceSubtitleToEnemy() )
+					{
+						// remove players on other teams
+						filter.RemoveRecipientsNotOnTeam( pPlayer->GetTeam() );
+					}
+
+					// Register this event in the mod-specific usermessages .cpp file if you hit this assert
+					Assert( usermessages->LookupUserMessage( "VoiceSubtitle" ) != -1 );
+
+					// Send a subtitle to anyone in the PAS
+					UserMessageBegin( filter, "VoiceSubtitle" );
+						WRITE_BYTE( pPlayer->entindex() );
+						WRITE_BYTE( iMenu );
+						WRITE_BYTE( iItem );
+					MessageEnd();
+				}
+
+				pPlayer->NoteSpokeVoiceCommand( szResponse );
+			}
+			else
+			{
+				pItem = NULL;
+			}
+
+			pExpresser->DisallowMultipleScenes();
+			return pItem;
+		}
+
+		return NULL;
+	}
+
+	bool CMultiplayRules::IsLoadingBugBaitReport()
+	{
+		return ( !engine->IsDedicatedServer()&& CommandLine()->CheckParm( "-bugbait" ) && sv_cheats->GetBool() );
+	}
+#else
+
+	const char *CMultiplayRules::GetVoiceCommandSubtitle( int iMenu, int iItem )
+	{
+		Assert( iMenu >= 0 && iMenu < m_VoiceCommandMenus.Count() );
+		if ( iMenu < 0 || iMenu >= m_VoiceCommandMenus.Count() )
+			return "";
+
+		Assert( iItem >= 0 && iItem < m_VoiceCommandMenus.Element( iMenu ).Count() );
+		if ( iItem < 0 || iItem >= m_VoiceCommandMenus.Element( iMenu ).Count() )
+			return "";
+
+		VoiceCommandMenuItem_t *pItem = &m_VoiceCommandMenus.Element( iMenu ).Element( iItem );
+
+		Assert( pItem );
+
+		return pItem->m_szSubtitle;
+	}
+
+	// Returns false if no such menu is declared or if it's an empty menu
+	bool CMultiplayRules::GetVoiceMenuLabels( int iMenu, KeyValues *pKV )
+	{
+		Assert( iMenu >= 0 && iMenu < m_VoiceCommandMenus.Count() );
+		if ( iMenu < 0 || iMenu >= m_VoiceCommandMenus.Count() )
+			return false;
+
+		int iNumItems = m_VoiceCommandMenus.Element( iMenu ).Count();
+
+		for ( int i=0; i<iNumItems; i++ )
+		{
+			VoiceCommandMenuItem_t *pItem = &m_VoiceCommandMenus.Element( iMenu ).Element( i );
+
+			KeyValues *pLabelKV = new KeyValues( pItem->m_szMenuLabel );
+
+			pKV->AddSubKey( pLabelKV );
+		}
+
+		return iNumItems > 0;
+	}
+
+
+#endif

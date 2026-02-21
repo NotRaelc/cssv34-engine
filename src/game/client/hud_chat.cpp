@@ -9,6 +9,7 @@
 #include "hud_macros.h"
 #include "text_message.h"
 #include "vguicenterprint.h"
+#include "hud_basechat.h"
 #include <vgui/ILocalize.h>
 
 

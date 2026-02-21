@@ -8,6 +8,7 @@
 //=============================================================================//
 #include "cbase.h"
 #include "c_basetempentity.h"
+#include "tier0/vprof.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -71,6 +72,7 @@ void C_TEImpact::Precache( void )
 //-----------------------------------------------------------------------------
 void C_TEImpact::PostDataUpdate( DataUpdateType_t updateType )
 {
+	VPROF( "C_TEImpact::PostDataUpdate" );
 }
 
 //-----------------------------------------------------------------------------

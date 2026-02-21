@@ -238,6 +238,7 @@ int SelectWeightedSequence( CStudioHdr *pstudiohdr, int activity, int curSequenc
 
 	VerifySequenceIndex( pstudiohdr );
 
+#if STUDIO_SEQUENCE_ACTIVITY_LOOKUPS_ARE_SLOW
 	int weighttotal = 0;
 	int seq = ACTIVITY_NOT_AVAILABLE;
 	int weight = 0;
@@ -266,7 +267,79 @@ int SelectWeightedSequence( CStudioHdr *pstudiohdr, int activity, int curSequenc
 	}
 
 	return seq;
+#else
+	return pstudiohdr->SelectWeightedSequence( activity, curSequence );
+#endif
 }
+
+
+// Pick a sequence for the given activity. If the current sequence is appropriate for the 
+// current activity, and its stored weight is negative (whatever that means), always select
+// it. Otherwise perform a weighted selection -- imagine a large roulette wheel, with each
+// sequence having a number of spaces corresponding to its weight.
+int CStudioHdr::CActivityToSequenceMapping::SelectWeightedSequence( CStudioHdr *pstudiohdr, int activity, int curSequence )
+{
+	if (!ValidateAgainst(pstudiohdr))
+	{
+		AssertMsg1(false, "CStudioHdr %s has changed its vmodel pointer without reinitializing its activity mapping! Now performing emergency reinitialization.", pstudiohdr->pszName());
+		ExecuteOnce(DebuggerBreakIfDebugging());
+		Reinitialize(pstudiohdr);
+	}
+
+	// a null m_pSequenceTuples just means that this studio header has no activities.
+	if (!m_pSequenceTuples)
+		return ACTIVITY_NOT_AVAILABLE;
+
+	// is the current sequence appropriate?
+	if (curSequence >= 0)
+	{
+		mstudioseqdesc_t &seqdesc = pstudiohdr->pSeqdesc( curSequence );
+
+		if (seqdesc.activity == activity && seqdesc.actweight < 0)
+			return curSequence;
+	}
+
+	// get the data for the given activity
+	HashValueType dummy( activity, 0, 0, 0 );
+	UtlHashHandle_t handle = m_ActToSeqHash.Find(dummy);
+	if (!m_ActToSeqHash.IsValidHandle(handle))
+	{
+		return ACTIVITY_NOT_AVAILABLE;
+	}
+	const HashValueType * __restrict actData = &m_ActToSeqHash[handle];
+
+	int weighttotal = actData->totalWeight;
+	// generate a random number from 0 to the total weight
+	int randomValue;
+	if ( IsInPrediction() )
+	{
+		randomValue = SharedRandomInt( "SelectWeightedSequence", 0, weighttotal - 1 );
+	}
+	else
+	{
+		randomValue = RandomInt( 0, weighttotal - 1 );
+	}
+
+	// chug through the entries in the list (they are sequential therefore cache-coherent)
+	// until we run out of random juice
+	SequenceTuple * __restrict sequenceInfo = m_pSequenceTuples + actData->startingIdx;
+
+	const SequenceTuple *const stopHere = sequenceInfo + actData->count; // this is a backup 
+		// in case the weights are somehow miscalculated -- we don't read or write through
+		// it (because it aliases the restricted pointer above); it's only here for 
+		// the comparison.
+
+	while (randomValue >= sequenceInfo->weight && sequenceInfo < stopHere)
+	{
+		randomValue -= sequenceInfo->weight;
+		++sequenceInfo;
+	}
+
+	return sequenceInfo->seqnum;
+
+}
+
+
 #endif
 
 int SelectHeaviestSequence( CStudioHdr *pstudiohdr, int activity )
@@ -498,7 +571,7 @@ int GetAnimationEvent( CStudioHdr *pstudiohdr, int sequence, animevent_t *pNPCEv
 		// Don't send client-side events to the server AI
 		if ( pevent[index].type & AE_TYPE_NEWEVENTSYSTEM )
 		{
-			if ( pevent[index].type & AE_TYPE_CLIENT )
+			if ( !(pevent[index].type & AE_TYPE_SERVER) )
 				 continue;
 		}
 		else if ( pevent[index].event >= EVENT_CLIENT ) //Adrian - Support the old event system
@@ -618,6 +691,111 @@ int FindTransitionSequence( CStudioHdr *pstudiohdr, int iCurrentSequence, int iG
 	DevMsg( 2, "error in transition graph: %s to %s\n",  pstudiohdr->pszNodeName( iEndNode ), pstudiohdr->pszNodeName( pstudiohdr->EntryNode( iGoalSequence ) ));
 	// Go ahead and jump to the goal sequence
 	return iGoalSequence;
+}
+
+
+
+
+
+
+bool GotoSequence( CStudioHdr *pstudiohdr, int iCurrentSequence, float flCurrentCycle, float flCurrentRate, int iGoalSequence, int &nNextSequence, float &flNextCycle, int &iNextDir )
+{
+	if ( !pstudiohdr )
+		return false;
+
+	if ( !pstudiohdr->SequencesAvailable() )
+		return false;
+
+	if ( ( iCurrentSequence < 0 ) || ( iCurrentSequence >= pstudiohdr->GetNumSeq() ) )
+		return false;
+
+	if ( ( iGoalSequence < 0 ) || ( iGoalSequence >= pstudiohdr->GetNumSeq() ) )
+	{
+		// asking for a bogus sequence.  Punt.
+		Assert( 0 );
+		return false;
+	}
+
+	// bail if we're going to or from a node 0
+	if (pstudiohdr->EntryNode( iCurrentSequence ) == 0 || pstudiohdr->EntryNode( iGoalSequence ) == 0)
+	{
+		iNextDir = 1;
+		flNextCycle = 0.0;
+		nNextSequence = iGoalSequence;
+		return true;
+	}
+
+	int	iEndNode = pstudiohdr->ExitNode( iCurrentSequence );
+	// Msg( "from %d to %d: ", pEndNode->iEndNode, pGoalNode->iStartNode );
+
+	// if we're in a transition sequence
+	if (pstudiohdr->EntryNode( iCurrentSequence ) != pstudiohdr->ExitNode( iCurrentSequence ))
+	{
+		// are we done with it?
+		if (flCurrentRate > 0.0 && flCurrentCycle >= 0.999)
+		{
+			iEndNode = pstudiohdr->ExitNode( iCurrentSequence );
+		}
+		else if (flCurrentRate < 0.0 && flCurrentCycle <= 0.001)
+		{
+			iEndNode = pstudiohdr->EntryNode( iCurrentSequence );
+		}
+		else
+		{
+			// nope, exit
+			return false;
+		}
+	}
+
+	// if both sequences are on the same node, just go there
+	if (iEndNode == pstudiohdr->EntryNode( iGoalSequence ))
+	{
+		iNextDir = 1;
+		flNextCycle = 0.0;
+		nNextSequence = iGoalSequence;
+		return true;
+	}
+
+	int iInternNode = pstudiohdr->GetTransition( iEndNode, pstudiohdr->EntryNode( iGoalSequence ) );
+
+	// if there is no transitionial node, just go to the goal sequence
+	if (iInternNode == 0)
+	{
+		iNextDir = 1;
+		flNextCycle = 0.0;
+		nNextSequence = iGoalSequence;
+		return true;
+	}
+
+	int i;
+
+	// look for someone going from the entry node to next node it should hit
+	// this may be the goal sequences node or an intermediate node
+	for (i = 0; i < pstudiohdr->GetNumSeq(); i++)
+	{
+		mstudioseqdesc_t &seqdesc = pstudiohdr->pSeqdesc(i );
+		if (pstudiohdr->EntryNode( i ) == iEndNode && pstudiohdr->ExitNode( i ) == iInternNode)
+		{
+			iNextDir = 1;
+			flNextCycle = 0.0;
+			nNextSequence = i;
+			return true;
+		}
+		if (seqdesc.nodeflags)
+		{
+			if (pstudiohdr->ExitNode( i ) == iEndNode && pstudiohdr->EntryNode( i ) == iInternNode)
+			{
+				iNextDir = -1;
+				flNextCycle = 0.999;	
+				nNextSequence = i;
+				return true;
+			}
+		}
+	}
+
+	// this means that two parts of the node graph are not connected.
+	DevMsg( 2, "error in transition graph: %s to %s\n",  pstudiohdr->pszNodeName( iEndNode ), pstudiohdr->pszNodeName( pstudiohdr->EntryNode( iGoalSequence ) ));
+	return false;
 }
 
 void SetBodygroup( CStudioHdr *pstudiohdr, int& body, int iGroup, int iValue )

@@ -1,9 +1,9 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
 //
 // $NoKeywords: $
-//=============================================================================//
+//===========================================================================//
 
 // AI Navigation areas
 // Author: Michael S. Booth (mike@turtlerockstudios.com), January 2003
@@ -21,6 +21,13 @@
 extern ConVar nav_area_bgcolor;
 
 LINK_ENTITY_TO_CLASS( info_ladder, CInfoLadder );
+
+BEGIN_DATADESC( CInfoLadder )
+
+	DEFINE_FIELD( mins, FIELD_VECTOR ),
+	DEFINE_FIELD( maxs, FIELD_VECTOR ),
+
+END_DATADESC()
 
 unsigned int CNavLadder::m_nextID = 1;
 

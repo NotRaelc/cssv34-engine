@@ -21,8 +21,10 @@
 #pragma once
 #endif
 
-//-------------------------------------
 
+//-----------------------------------------------------------------------------
+// NOTE: these must correspond with the AI_FollowFormation_t array in AI_Behavior_Follow.cpp!!
+//-----------------------------------------------------------------------------
 enum AI_Formations_t
 {
 	AIF_SIMPLE,
@@ -32,6 +34,8 @@ enum AI_Formations_t
 	AIF_TIGHT,
 	AIF_MEDIUM,
 	AIF_SIDEKICK,
+	AIF_HUNTER,
+	AIF_VORTIGAUNT,
 };
 
 enum AI_FollowFormationFlags_t
@@ -58,12 +62,18 @@ public:
 
 	virtual void EnableGoal( CAI_BaseNPC *pAI );
 	virtual void DisableGoal( CAI_BaseNPC *pAI  );
+#ifdef HL2_EPISODIC
 	virtual void InputOutsideTransition( inputdata_t &inputdata );
+#endif
 
 	int m_iFormation;
 
 	DECLARE_DATADESC();
 };
+
+//-----------------------------------------------------------------------------
+
+int AIGetNumFollowers( CBaseEntity *pEntity, string_t iszClassname = NULL_STRING );
 
 //-----------------------------------------------------------------------------
 
@@ -97,12 +107,14 @@ struct AI_FollowManagerInfoHandle_t
 
 struct AI_FollowParams_t
 {
-	AI_FollowParams_t( AI_Formations_t formation = AIF_SIMPLE )
-	 :	formation(formation)
+	AI_FollowParams_t( AI_Formations_t formation = AIF_SIMPLE, bool bNormalMemoryDiscard = false )
+	 :	formation(formation),
+		bNormalMemoryDiscard( bNormalMemoryDiscard )
 	{
 	}
 	
 	AI_Formations_t formation;
+	bool			bNormalMemoryDiscard;
 	
 	DECLARE_SIMPLE_DATADESC();
 };
@@ -117,6 +129,7 @@ public:
 	~CAI_FollowBehavior();
 
 	virtual int		DrawDebugTextOverlays( int text_offset );
+	virtual void	DrawDebugGeometryOverlays();
 	
 	// Returns true if the NPC is actively following a target.
 	bool			IsActive( void );
@@ -157,7 +170,12 @@ public:
 	virtual void	TaskComplete( bool fIgnoreSetFailedCondition = false );
 	virtual void 	GatherConditions();
 
-private:
+protected:
+
+	const Vector	&GetGoalPosition();
+
+	virtual bool	ShouldFollow();
+
 	friend class CAI_FollowManager;
 
 	virtual void	BeginScheduleSelection();
@@ -167,6 +185,7 @@ private:
 
 	virtual void	Precache();
 	virtual int		SelectSchedule();
+	virtual int		FollowCallBaseSelectSchedule() { return BaseClass::SelectSchedule(); }
 	virtual void	OnStartSchedule( int scheduleType );
 	virtual void	RunTask( const Task_t *pTask );
 	void			BuildScheduleTestBits();
@@ -206,14 +225,12 @@ private:
 
 	//----------------------------
 	
-	virtual bool	ShouldFollow();
 	bool 			UpdateFollowPosition();
-	const Vector &	GetGoalPosition();
 	const int		GetGoalFlags();
 	float 			GetGoalTolerance();
 	bool			PlayerIsPushing();
 
-	bool			IsFollowTargetInRange();
+	bool IsFollowTargetInRange( float rangeMultiplier = 1.0 );
 
 	bool			IsFollowGoalInRange( float tolerance, float zTolerance, int flags );
 	virtual bool	IsChaseGoalInRange();
@@ -236,6 +253,7 @@ protected:
 		SCHED_FOLLOWER_GO_TO_WAIT_POINT,
 		SCHED_FOLLOWER_GO_TO_WAIT_POINT_FAIL,
 		SCHED_FOLLOWER_STAND_AT_WAIT_POINT,
+		SCHED_FOLLOWER_COMBAT_FACE,
 		NEXT_SCHEDULE,
 
 		TASK_CANT_FOLLOW = BaseClass::NEXT_TASK,
@@ -264,7 +282,7 @@ protected:
 
 	DEFINE_CUSTOM_SCHEDULE_PROVIDER;
 	
-private:
+protected:
 
 	//----------------------------
 	
@@ -276,6 +294,7 @@ private:
 	
 	CAI_MoveMonitor	   				m_TargetMonitor;
 	bool							m_bTargetUnreachable;
+	bool							m_bFollowNavFailed; // Set when pathfinding fails to limit impact of m_FollowDelay on ShouldFollow
 
 	int								m_nFailedFollowAttempts;
 	float							m_flTimeFailFollowStarted;
@@ -283,8 +302,10 @@ private:
 
 	bool							m_bMovingToCover;
 	float							m_flOriginalEnemyDiscardTime;
+	float							m_SavedDistTooFar;
 	
 	CRandStopwatch	   				m_FollowDelay;
+	CSimpleSimTimer					m_RepathOnFollowTimer;
 	
 	//---------------------------------
 

@@ -32,6 +32,10 @@
 
 #define DEATH_ANIMATION_TIME	3.0f
 
+// multiplayer only
+#define NOINTERP_PARITY_MAX			4
+#define NOINTERP_PARITY_MAX_BITS	2
+
 typedef struct 
 {
 	Vector		m_vecAutoAimDir;		// The direction autoaim wishes to point.
@@ -42,6 +46,14 @@ typedef struct
 	float		m_fScale;
 	float		m_fMaxDist;
 } autoaim_params_t;
+
+enum stepsoundtimes_t
+{
+	STEPSOUNDTIME_NORMAL = 0,
+	STEPSOUNDTIME_ON_LADDER,
+	STEPSOUNDTIME_WATER_KNEE,
+	STEPSOUNDTIME_WATER_FOOT,
+};
 
 // Shared header file for players
 #if defined( CLIENT_DLL )

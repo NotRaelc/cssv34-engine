@@ -33,6 +33,8 @@ public:
 
 	void SetInitialDelay( float delay );
 
+	bool IsMovingAndShooting( void ) const { return m_bMovingAndShooting; }
+
 private:
 
 	bool HasAvailableRangeAttack();

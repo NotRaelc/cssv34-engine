@@ -4,19 +4,16 @@
 #include "cdll_client_int.h"
 #include "view_scene.h"
 #include "viewrender.h"
-#include "vstdlib/icommandline.h"
+#include "tier0/icommandline.h"
 #include "materialsystem/IMesh.h"
 #include "materialsystem/IMaterial.h"
 #include "materialsystem/IMaterialSystemHardwareConfig.h"
 #include "materialsystem/IMaterialVar.h"
-#include "materialsystem/IColorCorrection.h"
 
 #include "ScreenSpaceEffects.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-
-static ConVar mat_colorcorrection( "mat_colorcorrection", "1" );
 
 //------------------------------------------------------------------------------
 // CScreenSpaceEffectRegistration code
@@ -67,11 +64,6 @@ IScreenSpaceEffectManager *g_pScreenSpaceEffects = &g_ScreenSpaceEffectManager;
 //---------------------------------------------------------------------------------------
 void CScreenSpaceEffectManager::InitScreenSpaceEffects( )
 {
-	if ( CommandLine()->FindParm( "-colorcorrection" ) || CommandLine()->FindParm( "-tools" ) )
-	{
-		GetScreenSpaceEffect( "colorcorrection" )->Enable( true );
-	}
-
 	if ( CommandLine()->FindParm( "-filmgrain" ) )
 	{
 		GetScreenSpaceEffect( "filmgrain" )->Enable( true );
@@ -213,15 +205,14 @@ void CScreenSpaceEffectManager::RenderEffects( int x, int y, int w, int h )
 	}
 }
 
-
 //------------------------------------------------------------------------------
-// Color correction post-processing effect
+// Example post-processing effect
 //------------------------------------------------------------------------------
-class CColorCorrectionEffect : public IScreenSpaceEffect
+class CExampleEffect : public IScreenSpaceEffect
 {
 public:
-	CColorCorrectionEffect( );
-   ~CColorCorrectionEffect( );
+	CExampleEffect( );
+   ~CExampleEffect( );
 
 	void Init( );
 	void Shutdown( );
@@ -238,217 +229,88 @@ private:
 	bool				m_bEnable;
 
 	CMaterialReference	m_Material;
-
-	bool				m_bSplitScreen;
-
 };
 
-ADD_SCREENSPACE_EFFECT( CColorCorrectionEffect, colorcorrection );
+ADD_SCREENSPACE_EFFECT( CExampleEffect, exampleeffect );
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect constructor
+// CExampleEffect constructor
 //------------------------------------------------------------------------------
-CColorCorrectionEffect::CColorCorrectionEffect( )
+CExampleEffect::CExampleEffect( )
 {
-	m_bSplitScreen = false;
+	m_bEnable = false;
 }
 
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect destructor
+// CExampleEffect destructor
 //------------------------------------------------------------------------------
-CColorCorrectionEffect::~CColorCorrectionEffect( )
+CExampleEffect::~CExampleEffect( )
 {
 }
 
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect init
+// CExampleEffect init
 //------------------------------------------------------------------------------
-void CColorCorrectionEffect::Init( )
+void CExampleEffect::Init( )
 {
-	m_Material.Init( "engine/colorcorrection", TEXTURE_GROUP_OTHER );
+	// This is just example code, init your effect material here
+	//m_Material.Init( "engine/exampleeffect", TEXTURE_GROUP_OTHER );
 
 	m_bEnable = false;
 }
 
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect shutdown
+// CExampleEffect shutdown
 //------------------------------------------------------------------------------
-void CColorCorrectionEffect::Shutdown( )
+void CExampleEffect::Shutdown( )
 {
 	m_Material.Shutdown();
 }
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect enable
+// CExampleEffect enable
 //------------------------------------------------------------------------------
-void CColorCorrectionEffect::Enable( bool bEnable )
+void CExampleEffect::Enable( bool bEnable )
 {
-	if( g_pMaterialSystemHardwareConfig->GetDXSupportLevel()<90 && bEnable )
-	{
-		Msg( "Color correction can not be enabled when not in DX9 mode.\n" );
-		bEnable = false;
-	}
-	else
-	{
-		m_bEnable = bEnable;
-	}
+	// This is just example code, don't enable it
+	// m_bEnable = bEnable;
 }
 
-bool CColorCorrectionEffect::IsEnabled( )
+bool CExampleEffect::IsEnabled( )
 {
 	return m_bEnable;
 }
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect SetParameters
+// CExampleEffect SetParameters
 //------------------------------------------------------------------------------
-void CColorCorrectionEffect::SetParameters( KeyValues *params )
+void CExampleEffect::SetParameters( KeyValues *params )
 {
-	if( params->GetDataType( "split_screen" ) == KeyValues::TYPE_STRING )
+	if( params->GetDataType( "example_param" ) == KeyValues::TYPE_STRING )
 	{
-		int ival = params->GetInt( "split_screen" );
-		m_bSplitScreen = ival?true:false;
-
+		// ...
 	}
 }
 
 //------------------------------------------------------------------------------
-// CColorCorrectionEffect render
+// CExampleEffect render
 //------------------------------------------------------------------------------
-void CColorCorrectionEffect::Render( int x, int y, int w, int h )
+void CExampleEffect::Render( int x, int y, int w, int h )
 {
-	// We're releasing the CS:S client before the engine with this interface, so we need to fail gracefully
-	if( mat_colorcorrection.GetInt()==0 || !colorcorrection )
-	{
+	if ( !IsEnabled() )
 		return;
-	}
-
-	if( g_pMaterialSystemHardwareConfig->GetDXSupportLevel()<90 )
-	{
-		mat_colorcorrection.SetValue( 0 );
-		return;
-	}
-	
-	colorcorrection->NormalizeWeights();
-
-	if( colorcorrection->GetNumLookups()==0 )
-	{
-		return;
-	}
-	
-	// Set up shader inputs (there has to be a better way to do this)
-	
-	int paramCount = m_Material->ShaderParamCount();
-	IMaterialVar **pParams = m_Material->GetShaderParams();
-	for( int i=0;i<paramCount;i++ )
-	{
-		IMaterialVar *pVar = pParams[i];
-		
-		if( !Q_stricmp( pVar->GetName(), "$weight_default" ) )
-		{
-			pVar->SetFloatValue( colorcorrection->GetLookupWeight(-1) );
-		}
-		else if( !Q_stricmp( pVar->GetName(), "$weight0" ) )
-		{
-			pVar->SetFloatValue( colorcorrection->GetLookupWeight(0) );
-		}
-		else if( !Q_stricmp( pVar->GetName(), "$weight1" ) )
-		{
-			pVar->SetFloatValue( colorcorrection->GetLookupWeight(1) );
-		}
-		else if( !Q_stricmp( pVar->GetName(), "$weight2" ) )
-		{
-			pVar->SetFloatValue( colorcorrection->GetLookupWeight(2) );
-		}
-		else if( !Q_stricmp( pVar->GetName(), "$weight3" ) )
-		{
-			pVar->SetFloatValue( colorcorrection->GetLookupWeight(3) );
-		}
-		else if( !Q_stricmp( pVar->GetName(), "$num_lookups" ) )
-		{
-			pVar->SetIntValue( colorcorrection->GetNumLookups() );
-		}
-		else if( !Q_stricmp( pVar->GetName(), "$use_fb_texture" ) )
-		{
-			pVar->SetIntValue( 1 );
-		}
-	}
-
-	colorcorrection->ResetLookupWeights();
 
 	// Render Effect
 	Rect_t actualRect;
 	UpdateScreenEffectTexture( 0, x, y, w, h, false, &actualRect );
 	ITexture *pTexture = GetFullFrameFrameBufferTexture( 0 );
 
-	if( m_bSplitScreen )
-	{
-		w /= 2;
-		x += w;
-		actualRect.x = actualRect.x + actualRect.width/2;
-		actualRect.width = actualRect.width/2;
-	}
+	CMatRenderContextPtr pRenderContext( materials );
 
-	// Tempororary hack... Color correction was crashing on the first frame 
-	// when run outside the debugger for some mods (DoD). This forces it to skip
-	// a frame, ensuring we don't get the weird texture crash we otherwise would.
-	// This will be removed when the true cause is found
-	static bool bFirstFrame = true;
-	if( !bFirstFrame )
-	{
-		materials->DrawScreenSpaceRectangle( m_Material, x, y, w, h,
-												actualRect.x, actualRect.y, actualRect.x+actualRect.width-1, actualRect.y+actualRect.height-1, 
-												pTexture->GetActualWidth(), pTexture->GetActualHeight() );
-	}
-	bFirstFrame = false;
+	pRenderContext->DrawScreenSpaceRectangle( m_Material, x, y, w, h,
+											actualRect.x, actualRect.y, actualRect.x+actualRect.width-1, actualRect.y+actualRect.height-1, 
+											pTexture->GetActualWidth(), pTexture->GetActualHeight() );
 }
-
-
-
-//------------------------------------------------------------------------------
-// Console Interface
-//------------------------------------------------------------------------------
-static void EnableColorCorrection( ConVar *var, char const *pOldString )
-{
-	if( var->GetBool() )
-	{
-		g_pScreenSpaceEffects->EnableScreenSpaceEffect( "colorcorrection" );
-	}
-	else
-	{
-		g_pScreenSpaceEffects->DisableScreenSpaceEffect( "colorcorrection" );
-	}
-}
-
-
-static void SetScreenEffectParam()
-{
-	if( engine->Cmd_Argc() >= 4 )
-	{
-		const char *effect_type = engine->Cmd_Argv(1);
-
-		int num_params = (engine->Cmd_Argc()-2)/2;
-		if( engine->Cmd_Argc() != num_params*2+2 )
-		{
-			Msg( "Missing hald of key/value pair.\n" );
-			return;
-		}
-
-		KeyValues *params = new KeyValues( "params" );
-		for( int i=0;i<num_params;i++ )
-		{
-			params->SetString( engine->Cmd_Argv( i*2 + 2 ), engine->Cmd_Argv( i*2 + 3 ) );
-		}
-
-		g_pScreenSpaceEffects->SetScreenSpaceEffectParams( effect_type, params );
-	}
-}
-
-// Console interface for setting screen space effect parameters
-// Format:
-//		set_effect_param effect_type param_name param_value
-//	eg	set_effect_param 1 $noise_scale "255 255 255 0"
-static ConCommand set_screen_effect_param( "set_screen_effect_param", SetScreenEffectParam, "Set a parameter for one of the screen space effects.", FCVAR_CHEAT );

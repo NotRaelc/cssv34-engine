@@ -22,5 +22,6 @@ struct solid_t;
 extern bool PhysicsDLLInit( CreateInterfaceFn physicsFactory );
 extern void PhysicsReset();
 extern void PhysicsSimulate();
+extern float PhysGetSyncCreateTime();
 
 #endif // PHYSICS_H

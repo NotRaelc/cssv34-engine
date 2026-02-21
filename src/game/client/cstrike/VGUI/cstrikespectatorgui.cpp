@@ -35,10 +35,11 @@ extern ConVar overview_alpha;
 extern ConVar cl_radaralpha;
 ConVar cl_radar_locked( "cl_radar_locked", "0", FCVAR_ARCHIVE, "Lock the angle of the radar display?" );
 
-void PreferredOverviewModeChanged( ConVar *var, const char *oldString )
+void PreferredOverviewModeChanged( IConVar *pConVar, const char *oldString, float flOldValue )
 {
+	ConVarRef var( pConVar );
 	char cmd[32];
-	V_snprintf( cmd, sizeof( cmd ), "overview_mode %d\n", var->GetInt() );
+	V_snprintf( cmd, sizeof( cmd ), "overview_mode %d\n", var.GetInt() );
 	engine->ClientCmd( cmd );
 }
 ConVar overview_preferred_mode( "overview_preferred_mode", "1", FCVAR_ARCHIVE, "Preferred overview mode", PreferredOverviewModeChanged );
@@ -679,10 +680,10 @@ void CCSMapOverview::Init( void )
 	BaseClass::Init();
 
 	// register for events as client listener
-	gameeventmanager->AddListener( this, "hostage_killed", false );
-	gameeventmanager->AddListener( this, "hostage_rescued", false );
-	gameeventmanager->AddListener( this, "bomb_defused", false );
-	gameeventmanager->AddListener( this, "bomb_exploded", false );
+	ListenForGameEvent( "hostage_killed" );
+	ListenForGameEvent( "hostage_rescued" );
+	ListenForGameEvent( "bomb_defused" );
+	ListenForGameEvent( "bomb_exploded" );
 }
 
 CCSMapOverview::~CCSMapOverview()
@@ -1372,7 +1373,7 @@ bool CCSMapOverview::DrawIconCS( int textureID, int offscreenTextureID, Vector p
 	{
 		wchar_t iconText[ MAX_PLAYER_NAME_LENGTH*2 ];
 
-		vgui::localize()->ConvertANSIToUnicode( text, iconText, sizeof( iconText ) );
+		g_pVGuiLocalize->ConvertANSIToUnicode( text, iconText, sizeof( iconText ) );
 
 		int wide, tall;
 		surface()->GetTextSize( m_hIconFont, iconText, wide, tall );

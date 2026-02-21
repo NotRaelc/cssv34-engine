@@ -12,15 +12,6 @@
 #include "tier0/memdbgon.h"
 
 //-----------------------------------------------------------------------------
-// Purpose: 
-//-----------------------------------------------------------------------------
-int	CBaseCombatCharacter::WeaponCount() const
-{
-	return MAX_WEAPONS;
-}
-
-
-//-----------------------------------------------------------------------------
 // Purpose: Switches to the best weapon that is also better than the given weapon.
 // Input  : pCurrent - The current weapon used by the player.
 // Output : Returns true if the weapon was switched, false if there was no better
@@ -180,17 +171,6 @@ int CBaseCombatCharacter::GetAmmoCount( int iAmmoIndex ) const
 int	CBaseCombatCharacter::GetAmmoCount( char *szName ) const
 {
 	return GetAmmoCount( GetAmmoDef()->Index(szName) );
-}
-
-
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : i - 
-//-----------------------------------------------------------------------------
-CBaseCombatWeapon*	CBaseCombatCharacter::GetWeapon( int i ) const
-{
-	Assert( (i >= 0) && (i < MAX_WEAPONS) );
-	return m_hMyWeapons[i].Get();
 }
 
 //-----------------------------------------------------------------------------

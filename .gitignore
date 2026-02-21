@@ -163,3 +163,7 @@ modeswitchsave.tga
 !/src/lib/common/vc8/cryptlib.lib
 !gameinfo.txt
 !steam.inf
+!steam_api.dll
+!steamclient.dll
+!Steam.dll
+!rev.ini

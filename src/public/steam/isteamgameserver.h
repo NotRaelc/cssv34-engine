@@ -51,10 +51,6 @@ const uint32 k_unServerFlagDedicated	= 0x04;
 const uint32 k_unServerFlagLinux		= 0x08;
 const uint32 k_unServerFlagPassworded	= 0x10;
 
-
-// callbacks
-enum {	k_iSteamGameServerCallbacks = 200 };
-
 // client has been approved to connect to this game server
 struct GSClientApprove_t
 {

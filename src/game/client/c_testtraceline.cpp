@@ -131,7 +131,8 @@ void C_TestTraceline::DrawCube( Vector& center, unsigned char* pColor )
 
 		// Draw the face.
 		CMeshBuilder meshBuilder;
-		IMesh* pMesh = materials->GetDynamicMesh();
+		CMatRenderContextPtr pRenderContext( materials );
+		IMesh* pMesh = pRenderContext->GetDynamicMesh();
 		meshBuilder.DrawQuad( pMesh, facePoints[nP1].Base(), facePoints[nP2].Base(), 
 			facePoints[nP3].Base(), facePoints[nP4].Base(), pColor, true );
 	}
@@ -146,7 +147,8 @@ int C_TestTraceline::DrawModel( int flags )
 
 	UTIL_TraceLine( GetAbsOrigin(), endpos, MASK_SOLID_BRUSHONLY, NULL, COLLISION_GROUP_NONE, &tr );
 
-	IMesh* pMesh = materials->GetDynamicMesh( true, NULL, NULL, m_pWireframe );
+	CMatRenderContextPtr pRenderContext( materials );
+	IMesh* pMesh = pRenderContext->GetDynamicMesh( true, NULL, NULL, m_pWireframe );
 
 	CMeshBuilder meshBuilder;
 	meshBuilder.Begin( pMesh, MATERIAL_LINES, 1 );

@@ -18,6 +18,7 @@
 #include "hl2_player.h"
 #include "props.h"
 #include "vehicle_choreo_generic_shared.h"
+#include "ai_utils.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -72,8 +73,6 @@ class CVehicleChoreoViewParser : public IVPhysicsKeyHandler
 public:
 	CVehicleChoreoViewParser( void );
 
-	void	ParseVehicleSounds( const char *pScriptName, vehiclesounds_t *pSounds );
-
 private:
 	virtual void ParseKeyValue( void *pData, const char *pKey, const char *pValue );
 	virtual void SetDefaults( void *pData );
@@ -88,7 +87,7 @@ class CChoreoGenericServerVehicle : public CBaseServerVehicle
 
 // IServerVehicle
 public:
-	void GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles );
+	void GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles, float *pFOV = NULL );
 	virtual void ItemPostFrame( CBasePlayer *pPlayer );
 
 protected:
@@ -100,9 +99,9 @@ protected:
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-class CPropVehicleChoreoGeneric : public CPhysicsProp, public IDrivableVehicle
+class CPropVehicleChoreoGeneric : public CDynamicProp, public IDrivableVehicle
 {
-	DECLARE_CLASS( CPropVehicleChoreoGeneric, CPhysicsProp );
+	DECLARE_CLASS( CPropVehicleChoreoGeneric, CDynamicProp );
 
 public:
 	DECLARE_DATADESC();
@@ -112,6 +111,7 @@ public:
 	{
 		m_ServerVehicle.SetVehicle( this );
 		m_bIgnoreMoveParent = false;
+		m_bForcePlayerEyePoint = false;
 	}
 
 	~CPropVehicleChoreoGeneric( void )
@@ -160,12 +160,18 @@ public:
 	void InputUnlock( inputdata_t &inputdata );
 	void InputOpen( inputdata_t &inputdata );
 	void InputClose( inputdata_t &inputdata );
+	void InputViewlock( inputdata_t &inputdata );
 
 	bool ShouldIgnoreParent( void ) { return m_bIgnoreMoveParent; }
+
+	// Tuned to match HL2s definition, but this should probably return false in all cases
+	virtual bool	PassengerShouldReceiveDamage( CTakeDamageInfo &info ) { return (info.GetDamageType() & (DMG_BLAST|DMG_RADIATION)) == 0; }
 
 	CNetworkHandle( CBasePlayer, m_hPlayer );
 
 	CNetworkVarEmbedded( vehicleview_t, m_vehicleView );
+private:
+	vehicleview_t m_savedVehicleView; // gets saved out for viewlock/unlock input
 
 // IDrivableVehicle
 public:
@@ -186,11 +192,14 @@ public:
 
 	virtual void ItemPostFrame( CBasePlayer *pPlayer ) {}
 	virtual void SetupMove( CBasePlayer *player, CUserCmd *ucmd, IMoveHelper *pHelper, CMoveData *move ) {}
+	virtual string_t GetVehicleScriptName() { return m_vehicleScript; }
 
 	// If this is a vehicle, returns the vehicle interface
 	virtual IServerVehicle *GetServerVehicle() { return &m_ServerVehicle; }
 
 	bool ShouldCollide( int collisionGroup, int contentsMask ) const;
+
+	bool				m_bForcePlayerEyePoint;			// Uses player's eyepoint instead of 'vehicle_driver_eyes' attachment
 
 protected:
 
@@ -229,6 +238,7 @@ BEGIN_DATADESC( CPropVehicleChoreoGeneric )
 	DEFINE_INPUTFUNC( FIELD_VOID, "ExitVehicle", InputExitVehicle ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Open", InputOpen ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "Close", InputClose ),
+	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "Viewlock", InputViewlock ),
 
 	// Keys
 	DEFINE_EMBEDDED( m_ServerVehicle ),
@@ -244,6 +254,7 @@ BEGIN_DATADESC( CPropVehicleChoreoGeneric )
 
 	DEFINE_KEYFIELD( m_bIgnoreMoveParent, FIELD_BOOLEAN, "ignoremoveparent" ),
 	DEFINE_KEYFIELD( m_bIgnorePlayerCollisions, FIELD_BOOLEAN, "ignoreplayer" ),
+	DEFINE_KEYFIELD( m_bForcePlayerEyePoint, FIELD_BOOLEAN, "useplayereyes" ),
 
 	DEFINE_OUTPUT( m_playerOn, "PlayerOn" ),
 	DEFINE_OUTPUT( m_playerOff, "PlayerOff" ),
@@ -251,6 +262,7 @@ BEGIN_DATADESC( CPropVehicleChoreoGeneric )
 	DEFINE_OUTPUT( m_OnClose, "OnClose" ),
 
 	DEFINE_EMBEDDED( m_vehicleView ),
+	DEFINE_EMBEDDED( m_savedVehicleView ),
 
 END_DATADESC()
 
@@ -274,6 +286,9 @@ END_SEND_TABLE();
 
 bool ShouldVehicleIgnoreEntity( CBaseEntity *pVehicle, CBaseEntity *pCollide )
 {
+	if ( pCollide->GetParent() == pVehicle )
+		return true;
+
 	CPropVehicleChoreoGeneric *pChoreoVehicle = dynamic_cast <CPropVehicleChoreoGeneric *>( pVehicle );
 
 	if ( pChoreoVehicle == NULL )
@@ -287,7 +302,7 @@ bool ShouldVehicleIgnoreEntity( CBaseEntity *pVehicle, CBaseEntity *pCollide )
 
 	if ( pChoreoVehicle->GetMoveParent() == pCollide )
 		return true;
-
+		
 	return false;
 }
 
@@ -300,6 +315,7 @@ void CPropVehicleChoreoGeneric::Precache( void )
 	BaseClass::Precache();
 
 	m_ServerVehicle.Initialize( STRING(m_vehicleScript) );
+	m_ServerVehicle.UseLegacyExitChecks( true );
 }
 
 
@@ -459,6 +475,47 @@ void CPropVehicleChoreoGeneric::InputClose( inputdata_t &inputdata )
 		SetSequence( 0 );
 	}
 }
+
+
+
+//------------------------------------------------------------------------------
+// Purpose:
+//------------------------------------------------------------------------------
+void CPropVehicleChoreoGeneric::InputViewlock( inputdata_t &inputdata )
+{
+	if (inputdata.value.Bool()) // lock
+	{
+		if (m_savedVehicleView.flFOV == 0) // not already locked
+		{
+			m_savedVehicleView = m_vehicleView;
+			m_vehicleView.flYawMax = m_vehicleView.flYawMin =  m_vehicleView.flPitchMin = m_vehicleView.flPitchMax = 0.0f;
+		}
+	}
+	else
+	{	//unlock
+		Assert(m_savedVehicleView.flFOV); // is nonzero if something is saved, is zero if nothing was saved.
+		if (m_savedVehicleView.flFOV)
+		{
+			// m_vehicleView = m_savedVehicleView;
+			m_savedVehicleView.flFOV = 0;
+
+
+			m_vehicleView.flYawMax.Set(  m_savedVehicleView.flYawMax);
+			m_vehicleView.flYawMin.Set(  m_savedVehicleView.flYawMin);
+			m_vehicleView.flPitchMin.Set(m_savedVehicleView.flPitchMin);
+			m_vehicleView.flPitchMax.Set(m_savedVehicleView.flPitchMax);
+
+			/* // note: the straight assignments, as in the lower two lines below, do not call the = overload and thus are never transmitted!
+			m_vehicleView.flYawMax = 50;  // m_savedVehicleView.flYawMax;
+			m_vehicleView.flYawMin = -50; // m_savedVehicleView.flYawMin;
+			m_vehicleView.flPitchMin = m_savedVehicleView.flPitchMin;
+			m_vehicleView.flPitchMax = m_savedVehicleView.flPitchMax;
+			*/
+		}
+	}
+}
+
+
 
 
 //-----------------------------------------------------------------------------
@@ -659,20 +716,23 @@ void CPropVehicleChoreoGeneric::InputEnterVehicle( inputdata_t &inputdata )
 		return;
 
 	// Try the activator first & use them if they are a player.
-	CBaseCombatCharacter *pPassenger = ToBaseCombatCharacter( inputdata.pActivator );
-	if ( pPassenger == NULL )
+	CBasePlayer *pPlayer = ToBasePlayer( inputdata.pActivator );
+	if ( pPlayer == NULL )
 	{
-		// Activator was not a player, just grab the singleplayer player.
-		pPassenger = UTIL_PlayerByIndex( 1 );
-		if ( pPassenger == NULL )
+		// Activator was not a player, just grab the single-player player.
+		pPlayer = AI_GetSinglePlayer();
+		if ( pPlayer == NULL )
 			return;
 	}
+
+	// Force us to drop anything we're holding
+	pPlayer->ForceDropOfCarriedPhysObjects();
 
 	// FIXME: I hate code like this. I should really add a parameter to HandlePassengerEntry
 	//		  to allow entry into locked vehicles
 	bool bWasLocked = m_bLocked;
 	m_bLocked = false;
-	GetServerVehicle()->HandlePassengerEntry( pPassenger, true );
+	GetServerVehicle()->HandlePassengerEntry( pPlayer, true );
 	m_bLocked = bWasLocked;
 }
 
@@ -686,31 +746,25 @@ void CPropVehicleChoreoGeneric::InputEnterVehicleImmediate( inputdata_t &inputda
 		return;
 
 	// Try the activator first & use them if they are a player.
-	CBaseCombatCharacter *pPassenger = ToBaseCombatCharacter( inputdata.pActivator );
-	if ( pPassenger == NULL )
+	CBasePlayer *pPlayer = ToBasePlayer( inputdata.pActivator );
+	if ( pPlayer == NULL )
 	{
 		// Activator was not a player, just grab the singleplayer player.
-		pPassenger = UTIL_PlayerByIndex( 1 );
-		if ( pPassenger == NULL )
+		pPlayer = AI_GetSinglePlayer();
+		if ( pPlayer == NULL )
 			return;
 	}
 
-	CBasePlayer *pPlayer = ToBasePlayer( pPassenger );
-	if ( pPlayer != NULL )
+	if ( pPlayer->IsInAVehicle() )
 	{
-		if ( pPlayer->IsInAVehicle() )
-		{
-			// Force the player out of whatever vehicle they are in.
-			pPlayer->LeaveVehicle();
-		}
-		
-		pPlayer->GetInVehicle( GetServerVehicle(), VEHICLE_ROLE_DRIVER );
+		// Force the player out of whatever vehicle they are in.
+		pPlayer->LeaveVehicle();
 	}
-	else
-	{
-		// NPCs not supported yet - jdw
-		Assert( 0 );
-	}
+	
+	// Force us to drop anything we're holding
+	pPlayer->ForceDropOfCarriedPhysObjects();
+
+	pPlayer->GetInVehicle( GetServerVehicle(), VEHICLE_ROLE_DRIVER );
 }
 
 //-----------------------------------------------------------------------------
@@ -789,11 +843,21 @@ void CChoreoGenericServerVehicle::ItemPostFrame( CBasePlayer *player )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CChoreoGenericServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles )
+void CChoreoGenericServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAbsOrigin, QAngle *pAbsAngles, float *pFOV /*= NULL*/ )
 {
+	// FIXME: This needs to be reconciled with the other versions of this function!
 	Assert( nRole == VEHICLE_ROLE_DRIVER );
 	CBasePlayer *pPlayer = ToBasePlayer( GetDrivableVehicle()->GetDriver() );
 	Assert( pPlayer );
+
+	// Use the player's eyes instead of the attachment point
+	if ( GetVehicle()->m_bForcePlayerEyePoint )
+	{
+		// Call to BaseClass because CBasePlayer::EyePosition calls this function.
+		*pAbsOrigin = pPlayer->BaseClass::EyePosition();
+		*pAbsAngles = pPlayer->BaseClass::EyeAngles();
+		return;
+	}
 
 	*pAbsAngles = pPlayer->EyeAngles(); // yuck. this is an in/out parameter.
 
@@ -817,6 +881,7 @@ void CChoreoGenericServerVehicle::GetVehicleViewPosition( int nRole, Vector *pAb
 	// Now perterb the attachment point
 	vehicleEyeAngles.x = RemapAngleRange( PITCH_CURVE_ZERO * flPitchFactor, PITCH_CURVE_LINEAR, vehicleEyeAngles.x );
 	vehicleEyeAngles.z = RemapAngleRange( ROLL_CURVE_ZERO * flPitchFactor, ROLL_CURVE_LINEAR, vehicleEyeAngles.z );
+
 	AngleMatrix( vehicleEyeAngles, vehicleEyeOrigin, vehicleEyePosToWorld );
 
 	// Now treat the relative eye angles as being relative to this new, perterbed view position...

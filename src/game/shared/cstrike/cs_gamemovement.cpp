@@ -24,10 +24,6 @@
 #define STAMINA_RECOVER_RATE	19.0
 #define CS_WALK_SPEED			100.0f
 
-#ifdef BUGFIXED
-static ConVar sv_enablebunnyhopping( "sv_enablebunnyhopping", "0", FCVAR_NONE, "Allow player speed to exceed maximum running speed" );
-#endif
-
 extern bool g_bMovementOptimizations;
 
 class CCSGameMovement : public CGameMovement
@@ -466,7 +462,7 @@ bool CCSGameMovement::LadderMove( void )
 	bool isOnLadder = BaseClass::LadderMove();
 	if ( isOnLadder && m_pCSPlayer )
 	{
-		m_pCSPlayer->SurpressLadderChecks( mv->m_vecAbsOrigin, m_pCSPlayer->m_vecLadderNormal );
+		m_pCSPlayer->SurpressLadderChecks( mv->GetAbsOrigin(), m_pCSPlayer->m_vecLadderNormal );
 	}
 
 	return isOnLadder;
@@ -518,10 +514,10 @@ void CCSGameMovement::CheckForLadders( bool wasOnGround )
 	{
 		// If we're higher than the last place we were on the ground, bail - obviously we're not dropping
 		// past a ladder we might want to grab.
-		if ( mv->m_vecAbsOrigin.z > m_pCSPlayer->m_lastStandingPos.z )
+		if ( mv->GetAbsOrigin().z > m_pCSPlayer->m_lastStandingPos.z )
 			return;
 
-		Vector dir = -m_pCSPlayer->m_lastStandingPos + mv->m_vecAbsOrigin;
+		Vector dir = -m_pCSPlayer->m_lastStandingPos + mv->GetAbsOrigin();
 		if ( !dir.x && !dir.y )
 		{
 			// If we're dropping straight down, we don't know which way to look for a ladder.  Oh well.
@@ -539,7 +535,7 @@ void CCSGameMovement::CheckForLadders( bool wasOnGround )
 		trace_t trace;
 
 		TracePlayerBBox(
-			mv->m_vecAbsOrigin,
+			mv->GetAbsOrigin(),
 			m_pCSPlayer->m_lastStandingPos - dir*(5+dist),
 			(PlayerSolidMask() & (~CONTENTS_PLAYERCLIP)), COLLISION_GROUP_PLAYER_MOVEMENT, trace );
 
@@ -558,17 +554,17 @@ void CCSGameMovement::CheckForLadders( bool wasOnGround )
 				// However, we have to check for playerclips before we snap to that pos, so we don't warp a
 				// player into a clipbrush.
 				TracePlayerBBox(
-					mv->m_vecAbsOrigin,
+					mv->GetAbsOrigin(),
 					m_pCSPlayer->m_lastStandingPos - dir*(5+dist),
 					PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, trace );
 
-				mv->m_vecAbsOrigin = trace.endpos;
+				mv->SetAbsOrigin( trace.endpos );
 			}
 		}
 	}
 	else
 	{
-		m_pCSPlayer->m_lastStandingPos = mv->m_vecAbsOrigin;
+		m_pCSPlayer->m_lastStandingPos = mv->GetAbsOrigin();
 	}
 }
 
@@ -644,31 +640,10 @@ bool CCSGameMovement::CheckJumpButton( void )
 	if ( mv->m_nOldButtons & IN_JUMP )
 		return false;		// don't pogo stick
 
-#ifdef BUGFIXED
-	if ( !sv_enablebunnyhopping.GetBool() )
-	{
-		float maxspd = player->MaxSpeed() * 1.1f;
-		
-		if ( maxspd != 0.0f )
-		{
-			float spd = mv->m_vecVelocity.Length();
-			
-			if ( spd > maxspd )
-			{
-				float ratio = maxspd / spd;
-				
-				mv->m_vecVelocity.x *= ratio;
-				mv->m_vecVelocity.y *= ratio;
-				mv->m_vecVelocity.z *= ratio;
-			}
-		}
-	}
-#endif
-	
 	// In the air now.
 	SetGroundEntity( NULL );
 	
-	m_pCSPlayer->PlayStepSound( (Vector &)mv->m_vecAbsOrigin, player->m_pSurfaceData, 1.0, true );
+	m_pCSPlayer->PlayStepSound( (Vector &)mv->GetAbsOrigin(), player->m_pSurfaceData, 1.0, true );
 	
 	//MoveHelper()->PlayerSetAnimation( PLAYER_JUMP );
 	m_pCSPlayer->DoAnimationEvent( PLAYERANIMEVENT_JUMP );
@@ -777,7 +752,7 @@ bool CCSGameMovement::CanUnduck()
 	trace_t trace;
 	Vector newOrigin;
 
-	VectorCopy( mv->m_vecAbsOrigin, newOrigin );
+	VectorCopy( mv->GetAbsOrigin(), newOrigin );
 
 	if ( player->GetGroundEntity() != NULL )
 	{
@@ -793,7 +768,7 @@ bool CCSGameMovement::CanUnduck()
 		newOrigin += -0.5f * ( hullSizeNormal - hullSizeCrouch );
 	}
 
-	UTIL_TraceHull( mv->m_vecAbsOrigin, newOrigin, VEC_HULL_MIN, VEC_HULL_MAX, PlayerSolidMask(), player, COLLISION_GROUP_PLAYER_MOVEMENT, &trace );
+	UTIL_TraceHull( mv->GetAbsOrigin(), newOrigin, VEC_HULL_MIN, VEC_HULL_MAX, PlayerSolidMask(), player, COLLISION_GROUP_PLAYER_MOVEMENT, &trace );
 
 	if ( trace.startsolid || ( trace.fraction != 1.0f ) )
 		return false;	
@@ -809,7 +784,7 @@ void CCSGameMovement::FinishUnDuck( void )
 	trace_t trace;
 	Vector newOrigin;
 
-	VectorCopy( mv->m_vecAbsOrigin, newOrigin );
+	VectorCopy( mv->GetAbsOrigin(), newOrigin );
 
 	if ( player->GetGroundEntity() != NULL )
 	{
@@ -833,7 +808,7 @@ void CCSGameMovement::FinishUnDuck( void )
 	player->SetViewOffset( GetPlayerViewOffset( false ) );
 	player->m_Local.m_flDucktime = 0;
 	
-	mv->m_vecAbsOrigin = newOrigin;
+	mv->SetAbsOrigin( newOrigin );
 
 	// Recategorize position since ducking can change origin
 	CategorizePosition();
@@ -857,7 +832,7 @@ void CCSGameMovement::FinishDuck( void )
 	if ( !player->m_Local.m_bDucked )
 	{
 	
-		Vector org = mv->m_vecAbsOrigin;
+		Vector org = mv->GetAbsOrigin();
 
 		if ( player->GetGroundEntity() != NULL )
 		{
@@ -867,7 +842,7 @@ void CCSGameMovement::FinishDuck( void )
 		{
 			org += viewDelta;
 		}
-		mv->m_vecAbsOrigin = org;
+		mv->SetAbsOrigin( org );
 
 		player->m_Local.m_bDucked = true;
 	}
@@ -934,7 +909,7 @@ void CCSGameMovement::Duck( void )
 			Vector newOrigin;
 			Vector groundCheck;
 
-			VectorCopy( mv->m_vecAbsOrigin, newOrigin );
+			VectorCopy( mv->GetAbsOrigin(), newOrigin );
 			Vector hullSizeNormal = VEC_HULL_MAX - VEC_HULL_MIN;
 			Vector hullSizeCrouch = VEC_DUCK_HULL_MAX - VEC_DUCK_HULL_MIN;
 			newOrigin -= ( hullSizeNormal - hullSizeCrouch );

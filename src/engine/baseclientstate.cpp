@@ -33,12 +33,14 @@
 #include "cl_steamauth.h"
 #include "server.h"
 #include "steam/steam_api.h"
+#include "SteamIDConfig.h"
 //#include "matchmaking.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 void CL_NotifyRPTOfDisconnect( );
+extern ConVar cl_name_steam;
 
 #if !defined( NO_STEAM )
 void UpdateNameFromSteamID( IConVar *pConVar, CSteamID *pSteamID )
@@ -64,7 +66,7 @@ void CL_NameCvarChanged( IConVar *pConVar, const char *pOldString, float flOldVa
 {
 #if !defined( NO_STEAM )
 	static bool bPreventRent = false;
-	if ( !bPreventRent )
+	if ( !bPreventRent && cl_name_steam.GetBool() == true)
 	{
 		bPreventRent = true;
 		SetNameToSteamIDName( pConVar );
@@ -101,7 +103,8 @@ ConCommand askconnect_accept( "askconnect_accept", askconnect_accept_f, "Accept 
 #endif
 
 ConVar	cl_resend	( "cl_resend","6", 0, "Delay in seconds before the client will resend the 'connect' attempt", true, CL_MIN_RESEND_TIME, true, CL_MAX_RESEND_TIME );
-ConVar	cl_name		( "name","unnamed", FCVAR_ARCHIVE | FCVAR_USERINFO | FCVAR_PRINTABLEONLY | FCVAR_SERVER_CAN_EXECUTE, "Current user name", CL_NameCvarChanged );
+ConVar	cl_name		( "name","unnamed", FCVAR_ARCHIVE | FCVAR_USERINFO | FCVAR_PRINTABLEONLY, "Current user name", CL_NameCvarChanged );
+ConVar	cl_name_steam("name_steam", "0", FCVAR_USERINFO | FCVAR_PRINTABLEONLY, "Make user name only changeable using Steam Account Settings.");
 ConVar	password	( "password", "", FCVAR_ARCHIVE | FCVAR_SERVER_CANNOT_QUERY | FCVAR_DONTRECORD, "Current server access password" );
 ConVar  cl_interpolate( "cl_interpolate", "1.0", FCVAR_USERINFO | FCVAR_DEVELOPMENTONLY, "Interpolate entities on the client." );
 
@@ -471,19 +474,11 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 	}
 
 #ifndef NO_STEAM
-	if ( !SteamUser() )
-	{
-		//COM_ExplainDisconnection( true, "The server requires that you be running Steam.\n" );
-		//Disconnect();
-		//return false;
-		Msg("Non-Steam connection: unGSSteamID %llu\n", unGSSteamID);
-		Msg("Client will send RevEmu ticket.\n");
-	}
 
 	// Size looks bogus
 	if ( keySize >= STEAM_KEYSIZE || keySize <= 0 )
 	{
-		Warning( "STEAM userid keysize is bogus (%i)\n", keySize);
+		Warning( "PrepareSteamConnectResponse: STEAM userid keysize is bogus (%i)\n", keySize);
 		Disconnect();
 		return false;
 	}
@@ -496,10 +491,13 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 	}
 
 #ifndef SWDS
+
+	SteamIDConfig cfg;
+
 	// now append the steam3 cookie
 	char steam3Cookie[ STEAM_KEYSIZE ];
-	int steam3CookieLen = Steam3Client().InitiateConnection( steam3Cookie, sizeof(steam3Cookie), checkAdr.GetIP(), checkAdr.GetPort(), unGSSteamID, bGSSecure, (void *)encryptionKey, keySize );
-	//int steam3CookieLen = STEAM_KEYSIZE - 512;
+	int steam3CookieLen = cfg.CreateTicket(steam3Cookie);
+
 	msg.WriteShort( steam3CookieLen );
 	if ( steam3CookieLen > 0 )
 		msg.WriteBytes( steam3Cookie, steam3CookieLen );

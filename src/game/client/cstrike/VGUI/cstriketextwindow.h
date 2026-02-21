@@ -32,7 +32,7 @@ public:
 	virtual void OnKeyCodePressed(vgui::KeyCode code);
 
 protected:
-	int m_iScoreBoardKey;
+	ButtonCode_t m_iScoreBoardKey;
 
 	// Background panel -------------------------------------------------------
 
