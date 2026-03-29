@@ -102,6 +102,8 @@ ConVar tf_strict_mouse_up_events( "tf_strict_mouse_up_events", "0", FCVAR_ARCHIV
 
 // Temporary convar to help debug why the MvMVictoryMannUpPanel TabContainer is sometimes way off to the left.
 ConVar tf_debug_tabcontainer( "tf_debug_tabcontainer", "0", FCVAR_HIDDEN, "Spew TabContainer dimensions." );
+ConVar _vgui_nav_lock("vgui_nav_lock", "0", FCVAR_DEVELOPMENTONLY, "");
+ConVar _vgui_nav_lock_default_button("vgui_nav_lock_default_button", "0", FCVAR_DEVELOPMENTONLY, "");
 
 #if defined( VGUI_USEDRAGDROP )
 //-----------------------------------------------------------------------------

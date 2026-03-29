@@ -71,7 +71,7 @@ $Project "engine"
 			$File	"steam\HTTP.h"
 			$File	"steam\RevSpoofer.cpp"
 			$File	"steam\RevSpoofer.h"
-			$File	"steam\SC2009.h"			
+			$File	"steam\RevEmu.h"			
 			$File	"steam\SteamIDConfig.cpp"
 			$File	"steam\SteamIDConfig.h"
 		}
@@ -205,12 +205,15 @@ $Project "engine"
 			}
 		}
 
+		$File	"baseserver.cpp"
 		$File	"sv_ipratelimit.cpp"
 		$File	"sv_rcon.cpp"
 		$File	"sv_steamauth.cpp"
 		$File	"sv_uploaddata.cpp"
 		$File	"sv_uploadgamestats.cpp"
-
+		$File	"masterserver.cpp"
+		$File	"masterserver_lan.cpp"
+		$File	"master_nethandler.cpp"
 		$File	"sv_main.cpp"					\
 				"sv_client.cpp"					\
 				"sv_ents_write.cpp"				\
@@ -240,7 +243,6 @@ $Project "engine"
 	$Folder	"Source Files"
 	{
 		$File	"baseautocompletefilelist.cpp"
-		$File	"baseserver.cpp"
 		$File	"bitbuf_errorhandler.cpp"
 		$File	"$SRCDIR\public\blockingudpsocket.cpp"
 		$File	"$SRCDIR\public\BSPTreeData.cpp"
@@ -303,6 +305,7 @@ $Project "engine"
 		$File	"host_phonehome.cpp"
 		$File	"host_state.cpp"
 		$File	"initmathlib.cpp"
+		$File	"$SRCDIR\common\info_key.cpp"
 		$File	"$SRCDIR\common\language.cpp"
 		$File	"LocalNetworkBackdoor.cpp"
 		$File	"LoadScreenUpdate.cpp"
@@ -341,7 +344,6 @@ $Project "engine"
 		$File	"spatialpartition.cpp"
 		$File	"StaticPropMgr.cpp"
 		$File	"$SRCDIR\public\studio.cpp"
-		$File	"sv_master_legacy.cpp"
 		$File	"sys_dll.cpp"
 		$File	"sys_dll2.cpp"
 		{

@@ -68,7 +68,6 @@ struct CFileHeaderFixedData
 		nRet += sizeof( PackFileIndex_t );					// count terminator
 		return nRet;
 	}
-
 };
 #pragma pack()
 

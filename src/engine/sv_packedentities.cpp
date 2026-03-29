@@ -77,7 +77,6 @@ void SV_EnsureInstanceBaseline( ServerClass *pServerClass, int iEdict, const voi
 
 			// Ok, make a new instance baseline so they can reference it.
 			pClass->m_InstanceBaselineIndex = sv.GetInstanceBaselineTable()->AddString( 
-				true,
 				idString,	// Note we're sending a string with the ID number, not the class name.
 				nBytes,
 				pData );

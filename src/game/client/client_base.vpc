@@ -5,7 +5,7 @@
 //-----------------------------------------------------------------------------
 
 $Macro OUTBINNAME	"Client"
-$Macro OUTBINDIR	"$SRCDIR\..\game\mod_$GAMENAME\bin"
+$Macro OUTBINDIR	"$SRCDIR\..\game\$GAMENAME\bin"
 
 $Macro DEVKITBINDIR	"$GAMENAME\bin"							[$X360]
 

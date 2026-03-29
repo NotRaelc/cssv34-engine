@@ -143,9 +143,9 @@ modeswitchsave.tga
 /src/lib/public/vstdlib.lib
 
 # game
-/game/mod_cstrike/bin/*.dll
-/game/mod_hl2/bin/*.dll
-/game/cstrike
+/game/cstrike/bin/*.dll
+/game/sourcetest/bin/*.dll
+/game/cstrike_content
 /game/hl2
 /game/episodic
 

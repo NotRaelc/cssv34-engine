@@ -572,7 +572,7 @@ const char *GetMaterialNameFromIndex( int nIndex )
 //-----------------------------------------------------------------------------
 void PrecacheParticleSystem( const char *pParticleSystemName )
 {
-	g_pStringTableParticleEffectNames->AddString( false, pParticleSystemName );
+	g_pStringTableParticleEffectNames->AddString( pParticleSystemName );
 	g_pParticleSystemMgr->PrecacheParticleSystem( pParticleSystemName );
 }
 
@@ -1430,7 +1430,7 @@ void CHLClient::InstallStringTableCallback( const char *tableName )
 	else if ( !Q_strcasecmp( tableName, "ParticleEffectNames" ) )
 	{
 		g_pStringTableParticleEffectNames = networkstringtable->FindTable( tableName );
-		networkstringtable->SetAllowClientSideAddString( g_pStringTableParticleEffectNames, true );
+		//networkstringtable->SetAllowClientSideAddString( g_pStringTableParticleEffectNames, true );
 		// When the particle system list changes, we need to know immediately
 		g_pStringTableParticleEffectNames->SetStringChangedCallback( NULL, OnParticleSystemStringTableChanged );
 	}

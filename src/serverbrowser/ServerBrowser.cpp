@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -19,7 +19,18 @@ CServerBrowser &ServerBrowser()
 }
 
 IRunGameEngine *g_pRunGameEngine = NULL;
-IAppInformation *g_pAppInformation = NULL;
+IServersInfo *g_pServersInfo = NULL;
+
+ConVar sb_firstopentime( "sb_firstopentime", "0", FCVAR_DEVELOPMENTONLY, "Indicates the time the server browser was first opened." );
+ConVar sb_numtimesopened( "sb_numtimesopened", "0", FCVAR_DEVELOPMENTONLY, "Indicates the number of times the server browser was opened this session." );
+
+// the original author of this code felt strdup was not acceptible.
+inline char *CloneString( const char *str )
+{
+	char *cloneStr = new char [ strlen(str)+1 ];
+	strcpy( cloneStr, str );
+	return cloneStr;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Constructor
@@ -60,20 +71,21 @@ bool CServerBrowser::Initialize(CreateInterfaceFn *factorylist, int factoryCount
 	ConnectTier2Libraries( factorylist, factoryCount );
 	ConnectTier3Libraries( factorylist, factoryCount );
 	g_pRunGameEngine = NULL;
-	g_pAppInformation = NULL;
-#ifndef NO_STEAM
+
+	for ( int i = 0; i < factoryCount; ++i )
+	{
+		if( !g_pServersInfo )
+			g_pServersInfo = ( IServersInfo * )factorylist[ i ]( SERVERLIST_INTERFACE_VERSION, NULL );
+	}
+	
+
 	SteamAPI_Init();
-#endif
 
 	for (int i = 0; i < factoryCount; i++)
 	{
 		if (!g_pRunGameEngine)
 		{
 			g_pRunGameEngine = (IRunGameEngine *)(factorylist[i])(RUNGAMEENGINE_INTERFACE_VERSION, NULL);
-		}
-		if (!g_pAppInformation)
-		{
-			g_pAppInformation = (IAppInformation *)(factorylist[i])(APPINFORMATION_INTERFACE_VERSION, NULL);
 		}
 	}
 
@@ -103,18 +115,11 @@ bool CServerBrowser::PostInitialize(CreateInterfaceFn *modules, int factoryCount
 		{
 			g_pRunGameEngine = (IRunGameEngine *)(modules[i])(RUNGAMEENGINE_INTERFACE_VERSION, NULL);
 		}
-
-		if (!g_pAppInformation)
-		{
-			g_pAppInformation = (IAppInformation *)(modules[i])(APPINFORMATION_INTERFACE_VERSION, NULL);
-		}
-
 	}
 
 	CreateDialog();
 	m_hInternetDlg->SetVisible(false);
 
-	// g_pAppInformation ISN'T required
 	return g_pRunGameEngine;
 }
 
@@ -126,7 +131,6 @@ bool CServerBrowser::IsVACBannedFromGame( int nAppID )
 {
 	return false;
 }
-
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -148,6 +152,15 @@ bool CServerBrowser::Activate()
 		m_hInternetDlg->LoadUserData(); // reload the user data the first time the dialog is made visible, helps with the lag between module load and
 										// steamui getting Deactivate() call
 		firstTimeOpening = false;
+	}
+
+	int numTimesOpened = sb_numtimesopened.GetInt() + 1;
+	sb_numtimesopened.SetValue( numTimesOpened );
+	if ( numTimesOpened == 1 )
+	{
+		time_t aclock;
+		time( &aclock );
+		sb_firstopentime.SetValue( (int) aclock );
 	}
 
 	Open();
@@ -232,9 +245,6 @@ void CServerBrowser::Shutdown()
 	DisconnectTier2Libraries();
 	ConVar_Unregister();
 	DisconnectTier1Libraries();
-#ifndef NO_STEAM
-	SteamAPI_Shutdown();
-#endif
 }
 
 
@@ -243,7 +253,7 @@ void CServerBrowser::Shutdown()
 //-----------------------------------------------------------------------------
 bool CServerBrowser::OpenGameInfoDialog( uint64 ulSteamIDFriend )
 {
-#if !defined( _X360 ) // X360TBD: SteamFriends()
+#if 0
 	if ( m_hInternetDlg.Get() )
 	{
 		// activate an already-existing dialog
@@ -255,21 +265,16 @@ bool CServerBrowser::OpenGameInfoDialog( uint64 ulSteamIDFriend )
 		}
 
 		// none yet, create a new dialog
-		int32 nGameID;
-		uint32 unGameIP;
-		uint16 usGamePort;
-		uint16 usQueryPort;
-#ifndef NO_STEAM
-		if ( SteamFriends()->GetFriendGamePlayed( ulSteamIDFriend, &nGameID, &unGameIP, &usGamePort ) )
+		FriendGameInfo_t friendGameInfo;
+		if ( steamapicontext->SteamFriends()->GetFriendGamePlayed( ulSteamIDFriend, &friendGameInfo ) )
 		{
-			uint16 usConnPort = usGamePort;
-			if ( usQueryPort < QUERY_PORT_ERROR )
-				usConnPort = usGamePort;
-			CDialogGameInfo *pDialogGameInfo = m_hInternetDlg->OpenGameInfoDialog( unGameIP, usGamePort, usConnPort );
+			uint16 usConnPort = friendGameInfo.m_usGamePort;
+			if ( friendGameInfo.m_usQueryPort < QUERY_PORT_ERROR )
+				usConnPort = friendGameInfo.m_usQueryPort;
+			CDialogGameInfo *pDialogGameInfo = m_hInternetDlg->OpenGameInfoDialog( friendGameInfo.m_unGameIP, friendGameInfo.m_usGamePort, usConnPort, pszConnectCode );
 			pDialogGameInfo->SetFriend( ulSteamIDFriend );
 			return true;
 		}
-#endif
 	}
 #endif
 	return false;
@@ -281,11 +286,11 @@ bool CServerBrowser::OpenGameInfoDialog( uint64 ulSteamIDFriend )
 //-----------------------------------------------------------------------------
 bool CServerBrowser::JoinGame( uint64 ulSteamIDFriend )
 {
-	if ( OpenGameInfoDialog( ulSteamIDFriend ) )
+/*	if ( OpenGameInfoDialog( ulSteamIDFriend, pszConnectCode ) )
 	{
 		CDialogGameInfo *pDialogGameInfo = m_hInternetDlg->GetDialogGameInfoForFriend( ulSteamIDFriend );
 		pDialogGameInfo->Connect();
-	}
+	}*/
 
 	return false;
 }
@@ -296,7 +301,7 @@ bool CServerBrowser::JoinGame( uint64 ulSteamIDFriend )
 //-----------------------------------------------------------------------------
 bool CServerBrowser::JoinGame( uint32 unGameIP, uint16 usGamePort )
 {
-    m_hInternetDlg->JoinGame( unGameIP, usGamePort );
+	m_hInternetDlg->JoinGame(unGameIP, usGamePort, "");
 	return true;
 }
 
@@ -306,11 +311,13 @@ bool CServerBrowser::JoinGame( uint32 unGameIP, uint16 usGamePort )
 //-----------------------------------------------------------------------------
 void CServerBrowser::CloseGameInfoDialog( uint64 ulSteamIDFriend )
 {
+#if 0
 	CDialogGameInfo *pDialogGameInfo = m_hInternetDlg->GetDialogGameInfoForFriend( ulSteamIDFriend );
 	if ( pDialogGameInfo )
 	{
 		pDialogGameInfo->Close();
 	}
+#endif
 }
 
 
@@ -323,4 +330,110 @@ void CServerBrowser::CloseAllGameInfoDialogs()
 	{
 		m_hInternetDlg->CloseAllGameInfoDialogs();
 	}
+}
+
+CUtlVector< gametypes_t > g_GameTypes;
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void LoadGameTypes(void)
+{
+	if (g_GameTypes.Count() > 0)
+		return;
+
+#define GAMETYPES_FILE				"servers/ServerBrowserGameTypes.txt"
+
+	KeyValues* kv = new KeyValues(GAMETYPES_FILE);
+
+	if (!kv->LoadFromFile(g_pFullFileSystem, GAMETYPES_FILE, "MOD"))
+	{
+		kv->deleteThis();
+		return;
+	}
+
+	g_GameTypes.RemoveAll();
+
+	for (KeyValues* pData = kv->GetFirstSubKey(); pData != NULL; pData = pData->GetNextKey())
+	{
+		gametypes_t gametype;
+
+		gametype.pPrefix = CloneString(pData->GetString("prefix", ""));
+		gametype.pGametypeName = CloneString(pData->GetString("name", ""));
+		g_GameTypes.AddToTail(gametype);
+	}
+
+
+	kv->deleteThis();
+}
+
+const char* GetGameTypeName(const char* pMapName)
+{
+	LoadGameTypes();
+	for (int i = 0; i < g_GameTypes.Count(); i++)
+	{
+		int iLength = strlen(g_GameTypes[i].pPrefix);
+
+		if (!Q_strncmp(pMapName, g_GameTypes[i].pPrefix, iLength))
+		{
+			return g_GameTypes[i].pGametypeName;
+		}
+	}
+
+	return "";
+}
+
+//-----------------------------------------------------------------------------
+// Purpose of comments like these: none
+//-----------------------------------------------------------------------------
+const char* CServerBrowser::GetMapFriendlyNameAndGameType(const char* pszMapName, char* szFriendlyMapName, int cchFriendlyName)
+{
+	// Make sure game types are loaded
+	LoadGameTypes();
+
+	// Scan list
+	const char* pszFriendlyGameTypeName = "";
+	for (int i = 0; i < g_GameTypes.Count(); i++)
+	{
+		int iLength = strlen(g_GameTypes[i].pPrefix);
+
+		if (!Q_strnicmp(pszMapName, g_GameTypes[i].pPrefix, iLength))
+		{
+			pszMapName += iLength;
+			pszFriendlyGameTypeName = g_GameTypes[i].pGametypeName;
+			break;
+		}
+	}
+
+	// See how many characters from the name to copy.
+	// Start by assuming we'll copy the whole thing.
+	// (After any prefix we just skipped)
+	int l = V_strlen(pszMapName);
+	const char* pszFinal = Q_stristr(pszMapName, "_final");
+	if (pszFinal)
+	{
+		// truncate the _final (or _final1) part of the filename if it's at the end of the name
+		const char* pszNextChar = pszFinal + Q_strlen("_final");
+		if ((*pszNextChar == '\0') ||
+			((*pszNextChar == '1') && (*(pszNextChar + 1) == '\0')))
+		{
+			l = pszFinal - pszMapName;
+		}
+	}
+
+	// Safety check against buffer size
+	if (l >= cchFriendlyName)
+	{
+		Assert(!"Map name too long for buffer!");
+		l = cchFriendlyName - 1;
+	}
+
+	// Copy friendly portion of name only
+	V_memcpy(szFriendlyMapName, pszMapName, l);
+
+	// It's like the Alamo.  We never forget.
+	szFriendlyMapName[l] = '\0';
+
+	// Result should be the friendly game type name
+	return pszFriendlyGameTypeName;
 }

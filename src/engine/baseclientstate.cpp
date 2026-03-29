@@ -34,6 +34,7 @@
 #include "server.h"
 #include "steam/steam_api.h"
 #include "SteamIDConfig.h"
+#include "master.h"
 //#include "matchmaking.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -496,7 +497,7 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 
 	// now append the steam3 cookie
 	char steam3Cookie[ STEAM_KEYSIZE ];
-	int steam3CookieLen = cfg.CreateTicket(steam3Cookie);
+	int steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIP(), checkAdr.GetPort(), bGSSecure );
 
 	msg.WriteShort( steam3CookieLen );
 	if ( steam3CookieLen > 0 )

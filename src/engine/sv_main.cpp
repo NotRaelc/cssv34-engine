@@ -432,14 +432,14 @@ void CGameServer::CreateEngineStringTables( void )
 	for ( i = 0; i<MAX_LIGHTSTYLES; i++ )
 	{
 		char name[8]; Q_snprintf( name, 8, "%i", i );
-		j = m_pLightStyleTable->AddString( true, name );
+		j = m_pLightStyleTable->AddString( name );
 		Assert( j==i ); // indices must match 
 	}
 
 	for ( i = 0; i<ABSOLUTE_PLAYER_LIMIT; i++ )
 	{
 		char name[8]; Q_snprintf( name, 8, "%i", i );
-		j = m_pUserInfoTable->AddString( true, name );
+		j = m_pUserInfoTable->AddString( name );
 		Assert( j==i ); // indices must match 
 	}
 
@@ -453,7 +453,7 @@ void CGameServer::SetQueryPortFromSteamServer()
 		return;
 		
 	int queryPort = Steam3Server().GetQueryPort();
-	m_pServerStartupTable->AddString( true, "QueryPort", sizeof( queryPort ), &queryPort );
+	m_pServerStartupTable->AddString( "QueryPort", sizeof( queryPort ), &queryPort );
 }
 
 void CGameServer::CopyPureServerWhitelistToStringTable()
@@ -463,7 +463,7 @@ void CGameServer::CopyPureServerWhitelistToStringTable()
 	
 	CUtlBuffer buf;
 	m_pPureServerWhitelist->Encode( buf );
-	m_pServerStartupTable->AddString( true, "PureServerWhitelist", buf.TellPut(), buf.Base() );
+	m_pServerStartupTable->AddString( "PureServerWhitelist", buf.TellPut(), buf.Base() );
 }
 
 
@@ -1791,8 +1791,7 @@ bool SV_ActivateServer()
 
 	// Heartbeat the master server in case we turned SrcTV on or off.
 	Steam3Server().SendUpdatedServerDetails();
-	if ( IsUsingMasterLegacyMode() )
-		master->Heartbeat_Legacy_f();
+		master->Heartbeat_f();
 
 	COM_TimestampedLog( "SV_ActivateServer(finished)" );
 

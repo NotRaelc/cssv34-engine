@@ -80,6 +80,10 @@
 			"Secure"		"0"
 			"gametype"		"notags"
 			"location"		"0"
+			"MaxPlayerCount"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
 		}
 	}
 }

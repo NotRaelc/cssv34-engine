@@ -1878,7 +1878,7 @@ void CSaveRestore::RestoreClientState( char const *fileName, bool adjacent )
 		while ( iCount < sv.GetModelPrecacheTable()->GetNumStrings() )
 		{
 			string_t szString = MAKE_STRING( sv.GetModelPrecacheTable()->GetString( iCount ) );
-			cl.m_pModelPrecacheTable->AddString( true, STRING( szString ) );
+			cl.m_pModelPrecacheTable->AddString( STRING( szString ) );
 			iCount++;
 		}
 	}

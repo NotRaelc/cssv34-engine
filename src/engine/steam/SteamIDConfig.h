@@ -9,13 +9,10 @@ public:
 	SteamIDConfig();
 	~SteamIDConfig();
 
-	int			CreateTicket(void* pData);
+	int			CreateTicket(void* pData, CSteamID sid = 0ull, uint32 ip = 0u, uint16 port = 0u, bool secure = false);
 	const char* GetEmulatorName();
 
-	CSteamID	GetStoredSteamID();
-
 private:
-	CSteamID steamID;
-	uint32 rawID;
+	int steamID;
 	int Ticket;
 };

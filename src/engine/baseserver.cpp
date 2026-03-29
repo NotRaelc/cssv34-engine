@@ -70,7 +70,13 @@
 
 static void SvTagsChangeCallback(IConVar* pConVar, const char* pOldValue, float flOldValue)
 {
-
+	ConVarRef var(pConVar);
+#ifndef NO_STEAM
+	if (SteamGameServer())
+	{
+		SteamGameServer()->GSSetGameType(var.GetString());
+	}
+#endif
 }
 
 ConVar			sv_region( "sv_region","-1", FCVAR_NONE, "The region of the world to report this server in." );
@@ -105,10 +111,42 @@ bool AllowDebugDedicatedServerOutsideSteam()
 }
 
 
-static void ServerNotifyVarChangeCallback( IConVar *pConVar, const char *pOldValue, float flOldValue )
+static void SetMasterServerKeyValue(ISteamMasterServerUpdater* pUpdater, IConVar* pConVar)
 {
+	ConVarRef var(pConVar);
+#ifndef NO_STEAM
+	// For protected cvars, don't send the string
+	if (var.IsFlagSet(FCVAR_PROTECTED))
+	{
+		// If it has a value string and the string is not "none"
+		if ((strlen(var.GetString()) > 0) &&
+			stricmp(var.GetString(), "none"))
+		{
+			pUpdater->SetKeyValue(var.GetName(), "1");
+		}
+		else
+		{
+			pUpdater->SetKeyValue(var.GetName(), "0");
+		}
+	}
+	else
+	{
+		pUpdater->SetKeyValue(var.GetName(), var.GetString());
+	}
 
-	
+	if (SteamGameServer())
+	{
+		sv.RecalculateTags();
+	}
+#endif
+}
+
+
+static void ServerNotifyVarChangeCallback(IConVar* pConVar, const char* pOldValue, float flOldValue)
+{
+	if (!pConVar->IsFlagSet(FCVAR_NOTIFY))
+		return;
+	// WIP (probably)
 }
 
 
@@ -501,6 +539,7 @@ bool CBaseServer::ValidInfoChallenge( netadr_t & adr, const char *nugget )
 
 bool CBaseServer::ProcessConnectionlessPacket(netpacket_t * packet)
 {
+
 	bf_read msg = packet->message;	// handy shortcut 
 
 	char c = msg.ReadChar();
@@ -571,12 +610,6 @@ bool CBaseServer::ProcessConnectionlessPacket(netpacket_t * packet)
 							
 		default:
 		{
-			if ( IsUsingMasterLegacyMode() )
-			{
-				CGameServer *pThis = NULL;
-				if ( !IsHLTV() )
-					pThis = (CGameServer*)this;
-			}
 		}
 		break;
 	}
@@ -1671,7 +1704,7 @@ void CBaseServer::UpdateMasterServer()
 	if ( !bUpdateMasterServers )
 		return;
 
-	bool bActive = IsActive() && IsMultiplayer() && g_bEnableMasterServerUpdater;
+	bool bActive = IsActive() && IsMultiplayer();
 	if ( serverGameDLL && serverGameDLL->ShouldHideServer() )
 		bActive = false;
 	

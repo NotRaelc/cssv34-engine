@@ -162,7 +162,7 @@ void CClientState::SendClientInfo( void )
 	info.m_nServerCount = m_nServerCount;
 	info.m_bIsHLTV = false;
 #if !defined( NO_STEAM )
-	info.m_nFriendsID = 0;
+	info.m_nFriendsID = SteamUser() ? SteamUser()->GetSteamID().GetAccountID() : 0;
 #else
 	info.m_nFriendsID = 0;
 #endif

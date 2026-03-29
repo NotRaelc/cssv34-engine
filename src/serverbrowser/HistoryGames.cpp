@@ -1,4 +1,4 @@
-//====== Copyright © 1996-2003, Valve Corporation, All rights reserved. =======
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -15,19 +15,9 @@ CHistoryGames::CHistoryGames(vgui::Panel *parent) :
 	CBaseGamesPage(parent, "HistoryGames", eHistoryServer )
 {
 	m_bRefreshOnListReload = false;
-	m_pGameList->AddColumnHeader(9, "LastPlayed", "#ServerBrowser_LastPlayed", 100);
-	m_pGameList->SetSortFunc(9, LastPlayedCompare);
-	m_pGameList->SetSortColumn(9);
-
-	if ( !IsSteamGameServerBrowsingEnabled() )
-	{
-		m_pGameList->SetEmptyListText("#ServerBrowser_OfflineMode");
-		m_pConnect->SetEnabled( false );
-		m_pRefreshAll->SetEnabled( false );
-		m_pRefreshQuick->SetEnabled( false );
-		m_pAddServer->SetEnabled( false );
-		m_pFilter->SetEnabled( false );
-	}
+	m_pGameList->AddColumnHeader(10, "LastPlayed", "#ServerBrowser_LastPlayed", 100);
+	m_pGameList->SetSortFunc(10, LastPlayedCompare);
+	m_pGameList->SetSortColumn(10);
 }
 
 //-----------------------------------------------------------------------------
@@ -42,12 +32,6 @@ CHistoryGames::~CHistoryGames()
 //-----------------------------------------------------------------------------
 void CHistoryGames::LoadHistoryList()
 {
-	if ( IsSteamGameServerBrowsingEnabled() )
-	{
-		// set empty message
-		m_pGameList->SetEmptyListText("#ServerBrowser_NoServersPlayed");
-	}
-
 	if ( m_bRefreshOnListReload )
 	{
 		m_bRefreshOnListReload = false;
@@ -77,11 +61,13 @@ bool CHistoryGames::SupportsItem(InterfaceItem_e item)
 //-----------------------------------------------------------------------------
 // Purpose: called when the current refresh list is complete
 //-----------------------------------------------------------------------------
-void CHistoryGames::RefreshComplete( EMatchMakingServerResponse response )
+void CHistoryGames::RefreshComplete( NServerResponse response )
 {
 	SetRefreshing(false);
 	m_pGameList->SetEmptyListText("#ServerBrowser_NoServersPlayed");
 	m_pGameList->SortList();
+
+	BaseClass::RefreshComplete( response );
 }
 
 //-----------------------------------------------------------------------------
@@ -89,12 +75,13 @@ void CHistoryGames::RefreshComplete( EMatchMakingServerResponse response )
 //-----------------------------------------------------------------------------
 void CHistoryGames::OnOpenContextMenu(int itemID)
 {
-	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(m_pGameList);
-	if (m_pGameList->GetSelectedItemsCount())
+	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(GetActiveList());
+
+	// get the server
+	int serverID = GetSelectedServerID();
+
+	if(  serverID != -1 )
 	{
-		// get the server
-		int serverID = m_pGameList->GetItemUserData(m_pGameList->GetSelectedItem(0));
-		
 		// Activate context menu
 		menu->ShowMenu(this, serverID, true, true, true, true);
 		menu->AddMenuItem("RemoveServer", "#ServerBrowser_RemoveServerFromHistory", new KeyValues("RemoveFromHistory"), this);
@@ -112,7 +99,6 @@ void CHistoryGames::OnOpenContextMenu(int itemID)
 //-----------------------------------------------------------------------------
 void CHistoryGames::OnRemoveFromHistory()
 {
-#ifndef NO_STEAM
 	if ( !SteamMatchmakingServers() || !SteamMatchmaking() )
 		return;
 
@@ -122,11 +108,11 @@ void CHistoryGames::OnRemoveFromHistory()
 		int itemID = m_pGameList->GetSelectedItem( i );
 		int serverID = m_pGameList->GetItemData(itemID)->userData;
 		
-		gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( eHistoryServer, serverID );
+		gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( (EMatchMakingType)m_eMatchMakingType, serverID );
 		if ( pServer )
-			SteamMatchmaking()->RemoveFavoriteGame2( pServer->m_nAppID, pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetConnectionPort(), pServer->m_NetAdr.GetQueryPort(), k_unFavoriteFlagHistory );
+			SteamMatchmaking()->RemoveFavoriteGame( pServer->m_nAppID, pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetConnectionPort(), k_unFavoriteFlagHistory );
 	}
-#endif
+
 	UpdateStatus();	
 	InvalidateLayout();
 	Repaint();

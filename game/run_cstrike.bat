@@ -1,0 +1,8 @@
+@echo off
+
+set cmd_line=-game cstrike %*
+
+start "" hl2.exe %cmd_line%
+echo hl2.exe %cmd_line%
+
+timeout 5

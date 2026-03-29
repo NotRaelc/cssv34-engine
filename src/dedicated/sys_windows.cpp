@@ -361,7 +361,7 @@ static char *GetBaseDir( const char *pszBuffer )
 
 void MiniDumpFunction( unsigned int nExceptionCode, EXCEPTION_POINTERS *pException )
 {
-	SteamAPI_WriteMiniDump( nExceptionCode, pException, 0 );
+	
 }
 
 extern "C" __declspec(dllexport) int DedicatedMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow )

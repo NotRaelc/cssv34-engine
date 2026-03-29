@@ -339,7 +339,7 @@ int CVGuiScreen::ShouldTransmit( const CCheckTransmitInfo *pInfo )
 //-----------------------------------------------------------------------------
 void CVGuiScreen::SetPanelName( const char *pPanelName )
 {
-	m_nPanelName = g_pStringTableVguiScreen->AddString( CBaseEntity::IsServer(), pPanelName );
+	m_nPanelName = g_pStringTableVguiScreen->AddString( pPanelName );
 }
 
 const char *CVGuiScreen::GetPanelName() const
@@ -390,7 +390,7 @@ void CVGuiScreen::SetPlayerOwner( CBasePlayer *pPlayer, bool bOwnerOnlyInput /* 
 //-----------------------------------------------------------------------------
 void PrecacheVGuiScreen( const char *pScreenType )
 {
-	g_pStringTableVguiScreen->AddString( CBaseEntity::IsServer(), pScreenType );
+	g_pStringTableVguiScreen->AddString( pScreenType );
 }
 
 

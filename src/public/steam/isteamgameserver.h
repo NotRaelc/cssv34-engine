@@ -24,21 +24,54 @@ public:
 
 	// user authentication functions
 	virtual void GSSetSpawnCount( uint32 ucSpawn ) = 0;
+	
 	virtual bool GSGetSteam2GetEncryptionKeyToSendToNewClient( void *pvEncryptionKey, uint32 *pcbEncryptionKey, uint32 cbMaxEncryptionKey ) = 0;
+	
 	// the IP address and port should be in host order, i.e 127.0.0.1 == 0x7f000001
 	virtual bool GSSendSteam2UserConnect(  uint32 unUserID, const void *pvRawKey, uint32 unKeyLen, uint32 unIPPublic, uint16 usPort, const void *pvCookie, uint32 cubCookie ) = 0; // Both Steam2 and Steam3 authentication
+	
 	// the IP address should be in host order, i.e 127.0.0.1 == 0x7f000001
 	virtual bool GSSendSteam3UserConnect( CSteamID steamID, uint32 unIPPublic, const void *pvCookie, uint32 cubCookie ) = 0; // Steam3 only user auth
+
 	virtual bool GSRemoveUserConnect( uint32 unUserID ) = 0;
+
 	virtual bool GSSendUserDisconnect( CSteamID steamID, uint32 unUserID ) = 0;
+
 	virtual bool GSSendUserStatusResponse( CSteamID steamID, int nSecondsConnected, int nSecondsSinceLast ) = 0;
+
 	virtual bool Obsolete_GSSetStatus( int32 nAppIdServed, uint32 unServerFlags, int cPlayers, int cPlayersMax, int cBotPlayers, int unGamePort, 
 		const char *pchServerName, const char *pchGameDir, const char *pchMapName, const char *pchVersion ) = 0;
+
 	// Note that unGameIP is in host order
 	virtual bool GSUpdateStatus( int cPlayers, int cPlayersMax, int cBotPlayers, const char *pchServerName, const char *pchMapName ) = 0;
+	
 	virtual bool BSecure() = 0; 
+	
 	virtual CSteamID GetSteamID() = 0;
+	
 	virtual bool GSSetServerType( int32 nGameAppId, uint32 unServerFlags, uint32 unGameIP, uint32 unGamePort, const char *pchGameDir, const char *pchVersion ) = 0;
+
+	// voided: these functions seem to have been added sometime after this interface was created, probably to keep it viable against the newer interfaces
+	//
+
+	virtual bool GSSetServerType2(int32 nGameAppId, uint32 unServerFlags, uint32 unGameIP, uint16 unGamePort, uint16 usSpectatorPort, uint16 usQueryPort, const char* pchGameDir, const char* pchVersion, bool bLANMode) = 0;
+
+	// Updates server status values which shows up in the server browser and matchmaking APIs
+	virtual bool GSUpdateStatus2(int cPlayers, int cPlayersMax, int cBotPlayers, const char* pchServerName, const char* pSpectatorServerName, const char* pchMapName) = 0;
+
+	// Creates a fake user (ie, a bot) which will be listed as playing on the server, but skips validation.  
+	virtual bool GSCreateUnauthenticatedUser(CSteamID* pSteamID) = 0;
+
+	// Update the data to be displayed in the server browser and matchmaking interfaces for a user
+	// currently connected to the server.
+	virtual bool GSSetUserData(CSteamID steamIDUser, const char* pchPlayerName, uint32 uScore) = 0;
+
+	// This can be called if spectator goes away or comes back (passing 0 means there is no spectator server now).
+	virtual void GSUpdateSpectatorPort(uint16 unSpectatorPort) = 0;
+
+	// Sets a string defining the "gametype" for this server, this is optional, but if it is set
+	// it allows users to filter in the matchmaking/server-browser interfaces based on the value
+	virtual void GSSetGameType(const char* pchGameType) = 0;
 };
 
 #define STEAMGAMESERVER_INTERFACE_VERSION "SteamGameServer002"

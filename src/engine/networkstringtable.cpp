@@ -199,8 +199,7 @@ private:
 //			maxentries - 
 //-----------------------------------------------------------------------------
 CNetworkStringTable::CNetworkStringTable( TABLEID id, const char *tableName, int maxentries, int userdatafixedsize, int userdatanetworkbits, bool bIsFilenames ) :
-	m_bAllowClientSideAddString( false ),
-	m_pItemsClientSide( NULL )
+	m_bAllowClientSideAddString( false )
 {
 	m_id = id;
 	int len = strlen( tableName ) + 1;
@@ -256,26 +255,6 @@ CNetworkStringTable::CNetworkStringTable( TABLEID id, const char *tableName, int
 	}
 }
 
-void CNetworkStringTable::SetAllowClientSideAddString( bool state )
-{
-	if ( state == m_bAllowClientSideAddString )
-		return;
-
-	m_bAllowClientSideAddString = state;
-	if ( m_pItemsClientSide )
-	{
-		delete m_pItemsClientSide; 
-		m_pItemsClientSide = NULL;
-	}
-
-	if ( m_bAllowClientSideAddString )
-	{
-		m_pItemsClientSide = new CNetworkStringDict;
-		m_pItemsClientSide->Insert( "___clientsideitemsplaceholder0___" ); // 0 slot can't be used
-		m_pItemsClientSide->Insert( "___clientsideitemsplaceholder1___" ); // -1 can't be used since it looks like the "invalid" index from other string lookups
-	}
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Output : Returns true on success, false on failure.
@@ -318,7 +297,6 @@ CNetworkStringTable::~CNetworkStringTable( void )
 {
 	delete[] m_pszTableName;
 	delete m_pItems;
-	delete m_pItemsClientSide;
 }
 
 //-----------------------------------------------------------------------------
@@ -327,10 +305,6 @@ CNetworkStringTable::~CNetworkStringTable( void )
 void CNetworkStringTable::DeleteAllStrings( void )
 {
 	m_pItems->Purge();
-	if ( m_pItemsClientSide )
-	{
-		m_pItemsClientSide->Purge();
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -346,7 +320,6 @@ CNetworkStringTableItem *CNetworkStringTable::GetItem( int i )
 	}
 
 	Assert( m_pItemsClientSide );
-	return &m_pItemsClientSide->Element( -i );
 }
 
 //-----------------------------------------------------------------------------
@@ -478,7 +451,7 @@ void CNetworkStringTable::UpdateMirrorTable( int tick_ack  )
 			// Grow the table (entryindex must be the next empty slot)
 			Assert( i == m_pMirrorTable->GetNumStrings() );
 			char const *pName = m_pItems->String( i );
-			m_pMirrorTable->AddString( true, pName, nBytes, pUserData );
+			m_pMirrorTable->AddString( pName, nBytes, pUserData );
 		}
 	}
 }
@@ -686,11 +659,11 @@ void CNetworkStringTable::ParseUpdate( bf_read &buf, int entries )
 				
 			if ( pEntry == NULL )
 			{
-				Msg("CNetworkStringTable::ParseUpdate: NULL pEntry, table %s, index %i\n", GetTableName(), entryIndex );
+				Msg(" CNetworkStringTable::ParseUpdate: NULL pEntry, table %s, index %i\n", GetTableName(), entryIndex );
 				pEntry = "";// avoid crash because of NULL strings
 			}
 
-			AddString( true, pEntry, nBytes, pUserData );
+			AddString( pEntry, nBytes, pUserData );
 		}
 
 		if ( history.Count() > 31 )
@@ -714,7 +687,7 @@ void CNetworkStringTable::CopyStringTable(CNetworkStringTable * table)
 
 		m_nTickCount = item->m_nTickChanged;
 
-		AddString( true, table->GetString( i ), item->m_nUserDataLength, item->m_pUserData );
+		AddString( table->GetString( i ), item->m_nUserDataLength, item->m_pUserData );
 	}
 }
 
@@ -772,7 +745,7 @@ bool CNetworkStringTable::ChangedSinceTick( int tick ) const
 // Input  : *value - 
 // Output : int
 //-----------------------------------------------------------------------------
-int CNetworkStringTable::AddString( bool bIsServer, const char *string, int length /*= -1*/, const void *userdata /*= NULL*/ )
+int CNetworkStringTable::AddString( const char *string, int length /*= -1*/, const void *userdata /*= NULL*/ )
 {
 	bool bHasChanged;
 	CNetworkStringTableItem *item;
@@ -791,132 +764,60 @@ int CNetworkStringTable::AddString( bool bIsServer, const char *string, int leng
 	}
 #endif
 
-	int i = m_pItems->Find( string );
-	if ( !bIsServer )
+	// See if it's already there
+	int i = m_pItems->Find(string);
+
+	if (!m_pItems->IsValidIndex(i))
 	{
-		if ( m_pItems->IsValidIndex( i ) && !m_pItemsClientSide )
+		// not in list yet, create it now
+		if (m_pItems->Count() >= (unsigned int)GetMaxStrings())
 		{
-			bIsServer = true;
+			// Too many strings, FIXME: Print warning message
+			ConMsg("Warning:  Table %s is full, can't add %s\n", GetTableName(), string);
+			return INVALID_STRING_INDEX;
 		}
-	}
 
-	if ( !bIsServer && m_pItemsClientSide )
-	{
-		i = m_pItemsClientSide->Find( string );
-
-		if ( !m_pItemsClientSide->IsValidIndex( i ) )
+		// create new item
 		{
-			// not in list yet, create it now
-			if ( m_pItemsClientSide->Count() >= (unsigned int)GetMaxStrings() )
-			{
-				// Too many strings, FIXME: Print warning message
-				ConMsg( "Warning:  Table %s is full, can't add %s\n", GetTableName(), string );
-				return INVALID_STRING_INDEX;
-			}
-
-			// create new item
-			{
 			MEM_ALLOC_CREDIT();
-			i = m_pItemsClientSide->Insert( string );
-			}
-
-			item = &m_pItemsClientSide->Element( i );
-
-			// set changed ticks
-
-			item->m_nTickChanged = m_nTickCount;
-
-	#ifndef	SHARED_NET_STRING_TABLES
-			item->m_nTickCreated = m_nTickCount;
-
-			if ( m_bChangeHistoryEnabled )
-			{
-				item->EnableChangeHistory();
-			}
-	#endif
-
-			bHasChanged = true;
+			i = m_pItems->Insert(string);
 		}
-		else
+
+		item = &m_pItems->Element(i);
+
+		// set changed ticks
+
+		item->m_nTickChanged = m_nTickCount;
+
+#ifndef	SHARED_NET_STRING_TABLES
+		item->m_nTickCreated = m_nTickCount;
+
+		if (m_bChangeHistoryEnabled)
 		{
-			item = &m_pItemsClientSide->Element( i ); // item already exists
-			bHasChanged = false;  // not changed yet
+			item->EnableChangeHistory();
 		}
+#endif
 
-		if ( length > -1 )
-		{
-			if ( item->SetUserData( m_nTickCount, length, userdata ) )
-			{
-				bHasChanged = true;
-			}
-		}
-
-		if ( bHasChanged && !m_bChangeHistoryEnabled )
-		{
-			DataChanged( -i, item );
-		}
-
-		// Negate i for returning to client
-		i = -i;
+		bHasChanged = true;
 	}
 	else
 	{
-		// See if it's already there
-		i = m_pItems->Find( string );
+		item = &m_pItems->Element(i); // item already exists
+		bHasChanged = false;  // not changed yet
+	}
 
-		if ( !m_pItems->IsValidIndex( i ) )
+	if (length > -1)
+	{
+		if (item->SetUserData(m_nTickCount, length, userdata))
 		{
-			// not in list yet, create it now
-			if ( m_pItems->Count() >= (unsigned int)GetMaxStrings() )
-			{
-				// Too many strings, FIXME: Print warning message
-				ConMsg( "Warning:  Table %s is full, can't add %s\n", GetTableName(), string );
-				return INVALID_STRING_INDEX;
-			}
-
-			// create new item
-			{
-			MEM_ALLOC_CREDIT();
-			i = m_pItems->Insert( string );
-			}
-
-			item = &m_pItems->Element( i );
-
-			// set changed ticks
-
-			item->m_nTickChanged = m_nTickCount;
-
-	#ifndef	SHARED_NET_STRING_TABLES
-			item->m_nTickCreated = m_nTickCount;
-
-			if ( m_bChangeHistoryEnabled )
-			{
-				item->EnableChangeHistory();
-			}
-	#endif
-
 			bHasChanged = true;
-		}
-		else
-		{
-			item = &m_pItems->Element( i ); // item already exists
-			bHasChanged = false;  // not changed yet
-		}
-
-		if ( length > -1 )
-		{
-			if ( item->SetUserData( m_nTickCount, length, userdata ) )
-			{
-				bHasChanged = true;
-			}
-		}
-
-		if ( bHasChanged && !m_bChangeHistoryEnabled )
-		{
-			DataChanged( i, item );
 		}
 	}
 
+	if (bHasChanged && !m_bChangeHistoryEnabled)
+	{
+		DataChanged(i, item);
+	}
 	return i;
 }
 
@@ -929,11 +830,6 @@ int CNetworkStringTable::AddString( bool bIsServer, const char *string, int leng
 const char *CNetworkStringTable::GetString( int stringNumber )
 {
 	INetworkStringDict *dict = m_pItems;
-	if ( m_pItemsClientSide && stringNumber < -1 )
-	{
-		dict = m_pItemsClientSide;
-		stringNumber = -stringNumber;
-	}
 
 	Assert( stringNumber >= 0 && stringNumber < (int)dict->Count() );
 
@@ -961,11 +857,6 @@ void CNetworkStringTable::SetStringUserData( int stringNumber, int length /*=0*/
 
 	INetworkStringDict *dict = m_pItems;
 	int saveStringNumber = stringNumber;
-	if ( m_pItemsClientSide && stringNumber < -1 )
-	{
-		dict = m_pItemsClientSide;
-		stringNumber = -stringNumber;
-	}
 
 	assert( (length == 0 && userdata == NULL) || ( length > 0 && userdata != NULL) );
 	assert( stringNumber >= 0 && stringNumber < (int)dict->Count() );
@@ -1052,14 +943,14 @@ bool CNetworkStringTable::ReadStringTable( CUtlBuffer& buf )
 
 			buf.Get( data, userDataSize );
 
-			AddString( true, stringname, userDataSize, data );
+			AddString( stringname, userDataSize, data );
 
 			delete[] data;
 			
 		}
 		else
 		{
-			AddString( true, stringname );
+			AddString( stringname );
 		}
 	}
 
@@ -1077,11 +968,6 @@ bool CNetworkStringTable::ReadStringTable( CUtlBuffer& buf )
 const void *CNetworkStringTable::GetStringUserData( int stringNumber, int *length )
 {
 	INetworkStringDict *dict = m_pItems;
-	if ( m_pItemsClientSide && stringNumber < -1 )
-	{
-		dict = m_pItemsClientSide;
-		stringNumber = -stringNumber;
-	}
 
 	CNetworkStringTableItem *p;
 
@@ -1124,13 +1010,6 @@ void CNetworkStringTable::Dump( void )
 	for ( int i = 0; i < GetNumStrings() ; i++ )
 	{
 		ConMsg( "  %i : %s\n", i, GetString( i ) );
-	}
-	if ( m_pItemsClientSide )
-	{
-		for ( int i = 0; i < (int)m_pItemsClientSide->Count() ; i++ )
-		{
-			ConMsg( "  %i : %s\n", i, m_pItemsClientSide->String( i ) );
-		}
 	}
 	ConMsg( "\n" );
 }
@@ -1199,19 +1078,6 @@ bool  CNetworkStringTableContainer::Lock( bool bLock )
 		table->Lock( bLock );
 	}
 	return oldLock;
-}
-
-void CNetworkStringTableContainer::SetAllowClientSideAddString( INetworkStringTable *table, bool bAllowClientSideAddString )
-{
-	for ( int i = 0; i < m_Tables.Count(); i++ )
-	{
-		CNetworkStringTable *t = (CNetworkStringTable*) GetTable( i );
-		if ( t == table )
-		{
-			t->SetAllowClientSideAddString( bAllowClientSideAddString );
-			return;
-		}
-	}
 }
 
 //-----------------------------------------------------------------------------

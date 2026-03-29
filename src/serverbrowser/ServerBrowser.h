@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -54,13 +54,16 @@ public:
 	// true if the user can't play a game
 	bool IsVACBannedFromGame( int nAppID );
 
+	const char* GetMapFriendlyNameAndGameType(const char* pszMapName, char* szFriendlyMapName, int cchFriendlyName);
 
 private:
 	vgui::DHANDLE<CServerBrowserDialog> m_hInternetDlg;
+
+	bool m_bWorkshopEnabled;
+	CUtlVector< CUtlString > m_vecWorkshopSubscribedMaps;
 };
 
 // singleton accessor
 CServerBrowser &ServerBrowser();
-
 
 #endif // SERVERBROWSER_H

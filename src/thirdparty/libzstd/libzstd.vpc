@@ -1,0 +1,101 @@
+$macro SRCDIR		"..\.."
+$macro OUTLIBDIR	"$SRCDIR\lib\public"
+
+$include "$SRCDIR\vpc_scripts\source_lib_base.vpc"
+
+$Configuration
+{
+	$Compiler
+	{
+		$AdditionalIncludeDirectories		"common;compress;decompress;dictBuilder;.\"
+		$PreprocessorDefinitions		"$BASE;ZSTD_STATIC_LIB;ZSTD_STATIC_LINKING_ONLY"
+	}
+}
+
+$Project "libzstd"
+{
+	$Folder "common"
+	{
+		$File	"common\allocations.h"
+		$File	"common\bits.h"
+		$File	"common\bitstream.h"
+		$File	"common\compiler.h"
+		$File	"common\cpu.h"
+		$File	"common\debug.c"
+		$File	"common\debug.h"
+		$File	"common\entropy_common.c"
+		$File	"common\error_private.c"
+		$File	"common\error_private.h"
+		$File	"common\fse.h"
+		$File	"common\fse_decompress.c"
+		$File	"common\huf.h"
+		$File	"common\mem.h"
+		$File	"common\pool.c"
+		$File	"common\pool.h"
+		$File	"common\portability_macros.h"
+		$File	"common\threading.c"
+		$File	"common\threading.h"
+		$File	"common\xxhash.c"
+		$File	"common\xxhash.h"
+		$File	"common\zstd_common.c"
+		$File	"common\zstd_deps.h"
+		$File	"common\zstd_internal.h"
+		$File	"common\zstd_trace.h"
+	}
+	$Folder "compress"
+	{
+		$File	"compress\clevels.h"
+		$File	"compress\fse_compress.c"
+		$File	"compress\hist.c"
+		$File	"compress\hist.h"
+		$File	"compress\huf_compress.c"
+		$File	"compress\zstdmt_compress.c"
+		$File	"compress\zstdmt_compress.h"
+		$File	"compress\zstd_compress.c"
+		$File	"compress\zstd_compress_internal.h"
+		$File	"compress\zstd_compress_literals.c"
+		$File	"compress\zstd_compress_literals.h"
+		$File	"compress\zstd_compress_sequences.c"
+		$File	"compress\zstd_compress_sequences.h"
+		$File	"compress\zstd_compress_superblock.c"
+		$File	"compress\zstd_compress_superblock.h"
+		$File	"compress\zstd_cwksp.h"
+		$File	"compress\zstd_double_fast.c"
+		$File	"compress\zstd_double_fast.h"
+		$File	"compress\zstd_fast.c"
+		$File	"compress\zstd_fast.h"
+		$File	"compress\zstd_lazy.c"
+		$File	"compress\zstd_lazy.h"
+		$File	"compress\zstd_ldm.c"
+		$File	"compress\zstd_ldm.h"
+		$File	"compress\zstd_ldm_geartab.h"
+		$File	"compress\zstd_opt.c"
+		$File	"compress\zstd_opt.h"
+		$File	"compress\zstd_preSplit.c"
+		$File	"compress\zstd_preSplit.h"
+	}
+	$Folder "decompress"
+	{
+		$File	"decompress\huf_decompress.c"
+		$File	"decompress\huf_decompress_amd64.S"
+		$File	"decompress\zstd_ddict.c"
+		$File	"decompress\zstd_ddict.h"
+		$File	"decompress\zstd_decompress.c"
+		$File	"decompress\zstd_decompress_block.c"
+		$File	"decompress\zstd_decompress_block.h"
+		$File	"decompress\zstd_decompress_internal.h"
+	}	
+	$Folder "dictbuilder"
+	{
+		$File	"dictBuilder\cover.c"
+		$File	"dictBuilder\cover.h"
+		$File	"dictBuilder\divsufsort.c"
+		$File	"dictBuilder\divsufsort.h"
+		$File	"dictBuilder\fastcover.c"
+		$File	"dictBuilder\zdict.c"
+	}
+	
+	$File "zdict.h"
+	$File "zstd.h"
+	$File "zstd_errors.h"
+}

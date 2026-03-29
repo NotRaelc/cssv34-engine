@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -30,7 +30,6 @@ CFavoriteGames::~CFavoriteGames()
 //-----------------------------------------------------------------------------
 void CFavoriteGames::LoadFavoritesList()
 {
-#ifndef NO_STEAM
 	if ( SteamMatchmaking() && SteamMatchmaking()->GetFavoriteGameCount() == 0 )
 	{
 		// set empty message
@@ -47,7 +46,6 @@ void CFavoriteGames::LoadFavoritesList()
 		m_bRefreshOnListReload = false;
 		StartRefresh();
 	}
-#endif
 }
 
 
@@ -63,7 +61,7 @@ bool CFavoriteGames::SupportsItem(InterfaceItem_e item)
 		return true;
 
 	case ADDCURRENTSERVER:
-		return !IsSteam();
+		return !IsSteam() && BFiltersVisible();
 	
 	case GETNEWLIST:
 	default:
@@ -75,9 +73,8 @@ bool CFavoriteGames::SupportsItem(InterfaceItem_e item)
 //-----------------------------------------------------------------------------
 // Purpose: called when the current refresh list is complete
 //-----------------------------------------------------------------------------
-void CFavoriteGames::RefreshComplete( EMatchMakingServerResponse response )
+void CFavoriteGames::RefreshComplete( NServerResponse response )
 {
-#ifndef NO_STEAM
 	SetRefreshing(false);
 	if ( SteamMatchmaking() && SteamMatchmaking()->GetFavoriteGameCount() == 0 )
 	{
@@ -90,7 +87,8 @@ void CFavoriteGames::RefreshComplete( EMatchMakingServerResponse response )
 
 	}
 	m_pGameList->SortList();
-#endif
+
+	BaseClass::RefreshComplete( response );
 }
 
 //-----------------------------------------------------------------------------
@@ -98,12 +96,13 @@ void CFavoriteGames::RefreshComplete( EMatchMakingServerResponse response )
 //-----------------------------------------------------------------------------
 void CFavoriteGames::OnOpenContextMenu(int itemID)
 {
-	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(m_pGameList);
-	if (m_pGameList->GetSelectedItemsCount())
+	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(GetActiveList());
+
+	// get the server
+	int serverID = GetSelectedServerID();
+
+	if ( serverID != -1 )
 	{
-		// get the server
-		int serverID = m_pGameList->GetItemUserData(m_pGameList->GetSelectedItem(0));
-		
 		// Activate context menu
 		menu->ShowMenu(this, serverID, true, true, true, false);
 		menu->AddMenuItem("RemoveServer", "#ServerBrowser_RemoveServerFromFavorites", new KeyValues("RemoveFromFavorites"), this);
@@ -123,7 +122,6 @@ void CFavoriteGames::OnOpenContextMenu(int itemID)
 //-----------------------------------------------------------------------------
 void CFavoriteGames::OnRemoveFromFavorites()
 {
-#ifndef NO_STEAM
 	if ( !SteamMatchmakingServers() || !SteamMatchmaking() )
 		return;
 
@@ -133,14 +131,14 @@ void CFavoriteGames::OnRemoveFromFavorites()
 		int itemID = m_pGameList->GetSelectedItem( iGame );
 		int serverID = m_pGameList->GetItemData(itemID)->userData;
 		
-		gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( eFavoritesServer, serverID );
+		gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( (EMatchMakingType)m_eMatchMakingType, serverID );
 		
 		if ( pServer )
 		{
-			SteamMatchmaking()->RemoveFavoriteGame2( pServer->m_nAppID, pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetConnectionPort(), pServer->m_NetAdr.GetQueryPort(), k_unFavoriteFlagFavorite );
+			SteamMatchmaking()->RemoveFavoriteGame( pServer->m_nAppID, pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetConnectionPort(), k_unFavoriteFlagFavorite );
 		}
 	}
-#endif
+
 	UpdateStatus();	
 	InvalidateLayout();
 	Repaint();
@@ -163,13 +161,20 @@ void CFavoriteGames::OnAddServerByName()
 void CFavoriteGames::OnAddCurrentServer()
 {
 	gameserveritem_t *pConnected = ServerBrowserDialog().GetCurrentConnectedServer();
-#ifndef NO_STEAM
+
 	if ( pConnected && SteamMatchmaking() )
 	{
-		SteamMatchmaking()->AddFavoriteGame2( pConnected->m_nAppID, pConnected->m_NetAdr.GetIP(), pConnected->m_NetAdr.GetConnectionPort(), pConnected->m_NetAdr.GetQueryPort(), k_unFavoriteFlagFavorite, time( NULL ) );
+		SteamMatchmaking()->AddFavoriteGame( pConnected->m_nAppID, pConnected->m_NetAdr.GetIP(), pConnected->m_NetAdr.GetConnectionPort(), k_unFavoriteFlagFavorite, time( NULL ) );
 		m_bRefreshOnListReload = true;
+
+		if ( false )
+		{
+			// send command to propagate to the client so the client can send it on to the GC
+			char command[ 256 ];
+			Q_snprintf( command, Q_ARRAYSIZE( command ), "rfgc %s\n", pConnected->m_NetAdr.GetConnectionAddressString() );
+			g_pRunGameEngine->AddTextCommand( command );
+		}
 	}
-#endif
 }
 
 //-----------------------------------------------------------------------------

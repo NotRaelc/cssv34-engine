@@ -7,9 +7,9 @@
 #define VPKFILENUMBER_EMBEDDED_IN_DIR_FILE  0x7fff		// if a chunk refers to this file number, it is data embedded in the same file as the directory block.
 
 #define VPK_HEADER_MARKER 0x55aa1234						// significes that this is a new vpk header format
+#define VPK_NEWEST_VERSION 54
 #define VPK_CURRENT_VERSION 2
 #define VPK_PREVIOUS_VERSION 1
-
 
 struct VPKDirHeader_t
 {

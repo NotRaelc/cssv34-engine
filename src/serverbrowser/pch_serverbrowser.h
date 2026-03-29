@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -7,8 +7,10 @@
 
 #include <winlite.h>
 #undef CreateDialog
+#ifdef WIN32
 #include <direct.h>
 #include <io.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -24,7 +26,6 @@
 #include "tier3/tier3.h"
 
 // steam3 API
-#include "steam/isteammasterserverupdater.h"
 //#include "steam/steam_querypackets.h"
 #include "steam/steam_api.h"
 #include "steam/isteamuser.h"
@@ -32,26 +33,25 @@
 #include "steam/isteamfriends.h"
 
 #include "ServerBrowser/IServerBrowser.h"
-#include "IVGuiModule.h"
+#include "IVguiModule.h"
 #include "vgui_controls/Controls.h"
 
 #include "netadr.h"
-#include "FileSystem.h"
-#include "iappinformation.h"
+#include "filesystem.h"
 #include "proto_oob.h"
-#include "modlist.h"
+#include "ModList.h"
 #include "IRunGameEngine.h"
 
-#include "offlinemode.h"
+#include "OfflineMode.h"
 
 // serverbrowser files
 
-#include "IGameList.h"
+#include "igamelist.h"
 #include "ServerListCompare.h"
 #include "ServerBrowser.h"
-#include "vacbannedconnrefuseddialog.h"
+#include "VACBannedConnRefusedDialog.h"
 #include "DialogGameInfo.h"
-#include "servercontextmenu.h"
+#include "ServerContextMenu.h"
 #include "DialogServerPassword.h"
 #include "DialogAddServer.h"
 
@@ -59,12 +59,13 @@
 #include "BaseGamesPage.h"
 #include "InternetGames.h"
 #include "FavoriteGames.h"
-#include "SpectateGames.h"
+//#include "SpectateGames.h"
 #include "LanGames.h"
-#include "FriendsGames.h"
 #include "HistoryGames.h"
-#include "SpectateGames.h"
 #include "ServerBrowserDialog.h"
+#include "QuickListPanel.h"
+#include "vgui_controls/PanelListPanel.h"
+
 
 #pragma warning( disable: 4355 )  //  warning C4355: 'this' : used in base member initializer list
 

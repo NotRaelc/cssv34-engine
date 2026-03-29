@@ -60,5 +60,6 @@ char *GetExternalIPString()
 long GetExternalIPLong()
 {
 	auto pszIP = GetExternalIPString();
+
 	return inet_addr(pszIP);
 }

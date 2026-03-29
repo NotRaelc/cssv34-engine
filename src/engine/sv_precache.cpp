@@ -194,7 +194,7 @@ int CGameServer::PrecacheModel( char const *name, int flags, model_t *model /*=N
 	if ( !m_pModelPrecacheTable )
 		return -1;
 
-	int idx = m_pModelPrecacheTable->AddString( true, name );
+	int idx = m_pModelPrecacheTable->AddString( name );
 	if ( idx == INVALID_STRING_INDEX )
 	{
 		return -1;
@@ -325,7 +325,7 @@ int CGameServer::PrecacheSound( char const *name, int flags )
 	if ( !m_pSoundPrecacheTable )
 		return -1;
 
-	int idx = m_pSoundPrecacheTable->AddString( true, name );
+	int idx = m_pSoundPrecacheTable->AddString( name );
 	if ( idx == INVALID_STRING_INDEX )
 	{
 		return -1;
@@ -414,7 +414,7 @@ int CGameServer::PrecacheGeneric( char const *name, int flags )
 	if ( !m_pGenericPrecacheTable )
 		return -1;
 
-	int idx = m_pGenericPrecacheTable->AddString( true, name );
+	int idx = m_pGenericPrecacheTable->AddString( name );
 
 	if ( idx == INVALID_STRING_INDEX )
 	{
@@ -502,7 +502,7 @@ int CGameServer::PrecacheDecal( char const *name, int flags )
 	if ( !m_pDecalPrecacheTable )
 		return -1;
 
-	int idx = m_pDecalPrecacheTable->AddString( true, name );
+	int idx = m_pDecalPrecacheTable->AddString( name );
 	if ( idx == INVALID_STRING_INDEX )
 	{
 		return -1;

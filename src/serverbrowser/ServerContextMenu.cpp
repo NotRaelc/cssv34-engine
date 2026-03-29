@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -32,7 +32,7 @@ void CServerContextMenu::ShowMenu(
 	bool showConnect, 
 	bool showViewGameInfo,
 	bool showRefresh, 
-	bool showAddToFavorites)
+	bool showAddToFavorites )
 {
 	if (showConnect)
 	{
@@ -52,6 +52,7 @@ void CServerContextMenu::ShowMenu(
 	if (showAddToFavorites)
 	{
 		AddMenuItem("AddToFavorites", "#ServerBrowser_AddServerToFavorites", new KeyValues("AddToFavorites", "serverID", serverID), target);
+		AddMenuItem("AddToBlacklist", "#ServerBrowser_AddServerToBlacklist", new KeyValues("AddToBlacklist", "serverID", serverID), target);
 	}
 
 	int x, y, gx, gy;

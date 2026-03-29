@@ -14,7 +14,6 @@
 #include "host.h"
 #include "sys.h"
 #include "tier1/utlbuffer.h"
-#include "tier1/lzss.h"
 #include "tier1/convar.h"
 #include "ixboxsystem.h"
 
@@ -182,88 +181,7 @@ private:
 //----------------------------------------------------------------------------
 void CSaveRestoreFileSystem::Compress( SaveFile_t *pFile )
 {
-	pFile->pCompressedBuffer->Purge();
 
-#ifdef TEST_LZSS_WINDOW_SIZES
-	// Compress the data here
-	CLZSS compressor_test;
-	CLZSS newcompressor_test( 2048 );
-	pFile->nCompressedSize = 0;
-	float start = Plat_FloatTime();
-	for(int i=0;i<10;i++)
-	{
-		uint32 sz;
-		unsigned char *pCompressedBuffer = compressor_test.Compress(
-			(unsigned char *) pFile->pBuffer->Base(), pFile->nSize, &sz );
-		delete[] pCompressedBuffer;
-	}
-	Warning(" old compressor_test %f", Plat_FloatTime() - start );
-	start = Plat_FloatTime();
-	for(int i=0;i<10;i++)
-	{
-		uint32 sz;
-		unsigned char *pCompressedBuffer = newcompressor_test.Compress( 
-			(unsigned char *) pFile->pBuffer->Base(), pFile->nSize, &sz );
-		delete[] pCompressedBuffer;
-	}
-	Warning(" new compressor_test %f", Plat_FloatTime() - start );
-    if ( 1)
-	{
-		uint32 sz;
-		uint32 sz1;
-		unsigned char *pNewCompressedBuffer = newcompressor_test.Compress(
-			(unsigned char *) pFile->pBuffer->Base(), pFile->nSize, &sz );
-		unsigned char *pOldCompressedBuffer = compressor_test.Compress( 
-			(unsigned char *) pFile->pBuffer->Base(), pFile->nSize, &sz1 );
-		if ( ! pNewCompressedBuffer )
-			Warning("new no comp");
-		if ( ! pOldCompressedBuffer )
-			Warning("old no comp");
-		if ( pNewCompressedBuffer && pOldCompressedBuffer )
-		{
-			if ( sz != sz1 )
-				Warning(" new size = %d old = %d", sz, sz1 );
-			if ( memcmp( pNewCompressedBuffer, pOldCompressedBuffer, sz ) )
-				Warning("data mismatch");
-		}
-		delete[] pOldCompressedBuffer;
-		delete[] pNewCompressedBuffer;
-	}
-#endif
-
-	CLZSS compressor( 2048 );
-	
-	unsigned char *pCompressedBuffer = compressor.Compress( (unsigned char *) pFile->pBuffer->Base(), pFile->nSize, &pFile->nCompressedSize );
-	if ( pCompressedBuffer == NULL )
-	{
-		// Just copy the buffer uncompressed
-		pFile->pCompressedBuffer->Put( pFile->pBuffer->Base(), pFile->nSize );
-		pFile->nCompressedSize = pFile->nSize;
-	}
-	else
-	{
-		// Take the compressed buffer as our own
-		pFile->pCompressedBuffer->AssumeMemory( pCompressedBuffer, pFile->nCompressedSize, pFile->nCompressedSize ); // ?
-	}
-	// end compression
-
-	pFile->pCompressedBuffer->SeekGet( CUtlBuffer::SEEK_HEAD, 0 );
-	pFile->pCompressedBuffer->SeekPut( CUtlBuffer::SEEK_HEAD, pFile->nCompressedSize );
-
-	// Don't want the uncompressed memory hanging around
-	pFile->pBuffer->Purge();
-
-	unsigned int srcBytes = pFile->nSize;
-
-	pFile->nSize = 0;
-
-	unsigned int destBytes = pFile->nCompressedSize;
-
-	float percent = 0.f;
-	if ( srcBytes )
-		percent = 100.0f * (1.0f - (float)destBytes/(float)srcBytes);
-	
-	SaveMsg( "SIM: SaveDir: (%s) Compressed %d bytes to %d bytes. (%.0f%%)\n", GetString( pFile->name ), srcBytes, destBytes, percent );
 }
 
 //----------------------------------------------------------------------------
@@ -271,32 +189,7 @@ void CSaveRestoreFileSystem::Compress( SaveFile_t *pFile )
 //----------------------------------------------------------------------------
 void CSaveRestoreFileSystem::Uncompress( SaveFile_t *pFile )
 {
-	pFile->pBuffer->Purge();
 
-	// Uncompress the data here
-	CLZSS compressor;
-	unsigned int nUncompressedSize = compressor.GetActualSize( (unsigned char *) pFile->pCompressedBuffer->Base() );
-	if ( nUncompressedSize != 0 )
-	{
-		unsigned char *pUncompressBuffer = (unsigned char *) malloc( nUncompressedSize );
-		nUncompressedSize = compressor.SafeUncompress( (unsigned char *) pFile->pCompressedBuffer->Base(), pUncompressBuffer, 0 );
-		pFile->pBuffer->AssumeMemory( pUncompressBuffer, nUncompressedSize, nUncompressedSize ); // ?
-	}
-	else
-	{
-		// Put it directly into our target
-		pFile->pBuffer->Put( (unsigned char *) pFile->pCompressedBuffer->Base(), pFile->nCompressedSize );
-	}
-	// end decompression
-
-	pFile->nSize = pFile->pBuffer->TellMaxPut();
-	pFile->pBuffer->SeekGet( CUtlBuffer::SEEK_HEAD, 0 );
-	pFile->pBuffer->SeekPut( CUtlBuffer::SEEK_HEAD, pFile->nSize );
-
-	unsigned int srcBytes = pFile->nCompressedSize;
-	unsigned int destBytes = pFile->nSize;
-	
-	SaveMsg( "SIM: SaveDir: (%s) Uncompressed %d bytes to %d bytes.\n", GetString( pFile->name ), srcBytes, destBytes );
 }
 
 //----------------------------------------------------------------------------

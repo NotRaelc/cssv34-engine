@@ -37,7 +37,7 @@
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"683"
+						"lastBarWidth"		"982"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"1"
@@ -45,7 +45,7 @@
 						"2_hidden"		"0"
 						"2_width"		"16"
 						"3_hidden"		"0"
-						"3_width"		"339"
+						"3_width"		"638"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
@@ -62,7 +62,7 @@
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"683"
+						"lastBarWidth"		"982"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"1"
@@ -70,7 +70,7 @@
 						"2_hidden"		"0"
 						"2_width"		"16"
 						"3_hidden"		"0"
-						"3_width"		"235"
+						"3_width"		"527"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
@@ -82,14 +82,14 @@
 						"8_hidden"		"0"
 						"8_width"		"55"
 						"9_hidden"		"0"
-						"9_width"		"105"
+						"9_width"		"112"
 					}
 				}
 				"SpectateGames"
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"683"
+						"lastBarWidth"		"1076"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"1"
@@ -97,7 +97,7 @@
 						"2_hidden"		"0"
 						"2_width"		"16"
 						"3_hidden"		"0"
-						"3_width"		"339"
+						"3_width"		"732"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
@@ -114,7 +114,7 @@
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"683"
+						"lastBarWidth"		"982"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"1"
@@ -122,7 +122,7 @@
 						"2_hidden"		"0"
 						"2_width"		"16"
 						"3_hidden"		"0"
-						"3_width"		"339"
+						"3_width"		"638"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
@@ -139,7 +139,7 @@
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"683"
+						"lastBarWidth"		"1076"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"1"
@@ -147,7 +147,7 @@
 						"2_hidden"		"0"
 						"2_width"		"16"
 						"3_hidden"		"0"
-						"3_width"		"339"
+						"3_width"		"732"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
@@ -164,25 +164,28 @@
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"683"
+						"lastBarWidth"		"984"
 						"0_hidden"		"0"
 						"0_width"		"16"
-						"1_hidden"		"1"
+						"1_hidden"		"0"
 						"1_width"		"16"
 						"2_hidden"		"0"
-						"2_width"		"16"
+						"2_width"		"0"
 						"3_hidden"		"0"
-						"3_width"		"339"
+						"3_width"		"400"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
 						"5_width"		"112"
 						"6_hidden"		"0"
-						"6_width"		"55"
+						"6_width"		"80"
 						"7_hidden"		"0"
-						"7_width"		"90"
+						"7_width"		"60"
 						"8_hidden"		"0"
-						"8_width"		"55"
+						"8_width"		"90"
+						"configVersion"		"2"
+						"9_hidden"		"0"
+						"9_width"		"211"
 					}
 					"QuickList"
 					{
@@ -190,10 +193,10 @@
 					}
 				}
 			}
-			"xpos"		"783"
-			"ypos"		"417"
-			"wide"		"718"
-			"tall"		"495"
+			"xpos"		"450"
+			"ypos"		"176"
+			"wide"		"1019"
+			"tall"		"728"
 		}
 	}
 }

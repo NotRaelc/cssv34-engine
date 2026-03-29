@@ -31,7 +31,6 @@
 #include "filesystem_init.h"
 #include "tier0/icommandline.h"
 #include "steam/steam_gameserver.h"
-#include "sv_master_legacy.h"
 #include "hltvserver.h"
 
 extern ConVar sv_lan;
@@ -678,7 +677,7 @@ bool CSteam3::NotifyClientConnect( CBaseClient *client, uint32 unUserID, netadr_
 		return false;
 #ifndef NO_STEAM
 	// Msg("S3: Sending client logon request for %x\n", steamIDClient.ConvertToUint64( ) );
-	bool bRet = SteamGameServer()->GSSendSteam2UserConnect( unUserID, 0, 0, htonl( adr.GetIP() ), htons( adr.GetPort() ), pvCookie, ucbCookie );
+	bool bRet = SteamGameServer()->GSSendSteam2UserConnect( unUserID, 0, 0, ntohl( adr.GetIP() ), ntohs( adr.GetPort() ), pvCookie, ucbCookie );
 #else
 	bool bRet = false;
 #endif
@@ -691,10 +690,9 @@ bool CSteam3::NotifyLocalClientConnect( CBaseClient *client )
 #ifndef NO_STEAM
 	CSteamID steamID;
 
-	/*
 	if ( SteamGameServer() && !SteamGameServer()->GSCreateUnauthenticatedUser( &steamID ) )
 		return false;
-	*/
+
 
 	client->SetSteamID( steamID );
 #endif
@@ -728,7 +726,8 @@ void CSteam3::NotifyClientDisconnect( CBaseClient *client )
 #ifndef NO_STEAM
 		CSteamID steamIDClient;
 		steamIDClient.SetFromSteam2( &id.uid.steamid, SteamGameServerUtils()->GetConnectedUniverse() );
-		// Msg("S3: Sending client disconnect for %x\n", steamIDClient.ConvertToUint64( ) );
+		Msg("S3: Sending client disconnect for %llu\n", steamIDClient.ConvertToUint64( ) );
+
 		SteamGameServer()->GSSendUserDisconnect( steamIDClient, client->GetUserID() );
 #endif
 	}

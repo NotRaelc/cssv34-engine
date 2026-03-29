@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -49,7 +49,7 @@ public:
 	virtual void ServerFailedToRespond( int iServer );
 
 	// called when the current refresh list is complete
-	virtual void RefreshComplete( EMatchMakingServerResponse response );
+	virtual void RefreshComplete( NServerResponse response );
 
 	// Tell the game list what to put in there when there are no games found.
 	virtual void SetEmptyListText();

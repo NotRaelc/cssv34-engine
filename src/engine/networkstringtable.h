@@ -58,7 +58,7 @@ public:
 	void			SetTick( int tick );
 	bool			ChangedSinceTick( int tick ) const;
 
-	int				AddString( bool bIsServer, const char *value, int length = -1, const void *userdata = NULL ); 
+	int				AddString( const char *value, int length = -1, const void *userdata = NULL ); 
 	const char		*GetString( int stringNumber );
 
 	void			SetStringUserData( int stringNumber, int length, const void *userdata );
@@ -101,7 +101,6 @@ public:
 	virtual void	Dump( void );
 	virtual void	Lock( bool bLock );
 	
-	void SetAllowClientSideAddString( bool state );
 	pfnStringChanged	GetCallback();
 
 protected:
@@ -138,7 +137,7 @@ protected:
 	INetworkStringTable		*m_pMirrorTable;
 
 	INetworkStringDict		*m_pItems;
-	INetworkStringDict		*m_pItemsClientSide;	 // For m_bAllowClientSideAddString, these items are non-networked and are referenced by a negative string index!!!
+	//INetworkStringDict		*m_pItemsClientSide;	 // For m_bAllowClientSideAddString, these items are non-networked and are referenced by a negative string index!!!
 };
 
 //-----------------------------------------------------------------------------
@@ -162,8 +161,6 @@ public:
 	INetworkStringTable	*FindTable( const char *tableName ) const ;
 	INetworkStringTable	*GetTable( TABLEID stringTable ) const;
 	int					GetNumTables( void ) const;
-
-	virtual void				SetAllowClientSideAddString( INetworkStringTable *table, bool bAllowClientSideAddString );
 
 public:
 
@@ -197,8 +194,6 @@ public:
 	void		Dump( void );
 	// Sets the lock and returns the previous lock state
 	bool		Lock( bool bLock );
-
-	void		SetAllowClientSideAddString( bool state );
 
 private:
 	bool		m_bAllowCreation;	// creat guard Guard

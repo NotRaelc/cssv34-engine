@@ -235,10 +235,6 @@ bool CDedicatedAppSystemGroup::Create( )
 		// input system). Dedicated server should skip controller initialization to avoid initializing Steam, because we don't want the user to be
 		// flagged as "playing" the game.
 		auto inputsystem = ( IInputSystem* )FindSystem( INPUTSYSTEM_INTERFACE_VERSION );
-		if ( inputsystem )
-		{
-			inputsystem->SetSkipControllerInitialization( true );
-		}
 
 		return true;
 	}

@@ -1081,7 +1081,7 @@ void CSceneEntity::OnRestore()
 		
 		if ( ShouldNetwork() )
 		{
-			m_nSceneStringIndex = g_pStringTableClientSideChoreoScenes->AddString( CBaseEntity::IsServer(), STRING( m_iszSceneFile ) );
+			m_nSceneStringIndex = g_pStringTableClientSideChoreoScenes->AddString( STRING( m_iszSceneFile ) );
 		}
 
 		UpdateTransmitState();
@@ -2493,7 +2493,7 @@ void CSceneEntity::StartPlayback( void )
 
 		if ( ShouldNetwork() )
 		{
-			m_nSceneStringIndex = g_pStringTableClientSideChoreoScenes->AddString( CBaseEntity::IsServer(), STRING( m_iszSceneFile ) );
+			m_nSceneStringIndex = g_pStringTableClientSideChoreoScenes->AddString( STRING( m_iszSceneFile ) );
 		}
 
 		UpdateTransmitState();
@@ -4641,7 +4641,7 @@ void PrecacheInstancedScene( char const *pszScene )
 		}
 	}
 
-	g_pStringTableClientSideChoreoScenes->AddString( CBaseEntity::IsServer(), pszScene );
+	g_pStringTableClientSideChoreoScenes->AddString( pszScene );
 }
 
 //-----------------------------------------------------------------------------

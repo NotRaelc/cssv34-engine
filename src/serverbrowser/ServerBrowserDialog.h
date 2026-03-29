@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2002, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -12,7 +12,6 @@
 #endif
 
 extern class IRunGameEngine *g_pRunGameEngine;
-extern class IAppInformation *g_pAppInformation; // can be NULL
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -32,12 +31,12 @@ public:
 	void		Open( void );
 
 	// gets server info
-	gameserveritem_t *GetServer(unsigned int serverID);
+	newgameserver_t *GetServer(unsigned int serverID);
 	// called every frame
 	virtual void OnTick();
 
 	// updates status text at bottom of window
-	void UpdateStatusText(const char *format, ...);
+	void UpdateStatusText(PRINTF_FORMAT_STRING const char *format, ...);
 	
 	// updates status text at bottom of window
 	void UpdateStatusText(wchar_t *unicode);
@@ -50,31 +49,30 @@ public:
 	static CServerBrowserDialog *GetInstance();
 
 	// Adds a server to the list of favorites
-	void AddServerToFavorites(gameserveritem_t &server);
+	void AddServerToFavorites(newgameserver_t &server);
 
 	// begins the process of joining a server from a game list
 	// the game info dialog it opens will also update the game list
-	CDialogGameInfo *JoinGame(IGameList *gameList, unsigned int serverIndex);
+	CDialogGameInfo *JoinGame(IGameList *gameList, newgameserver_t *pServer);
 
 	// joins a game by a specified IP, not attached to any game list
-	CDialogGameInfo *JoinGame(int serverIP, int serverPort);
+	CDialogGameInfo *JoinGame(int serverIP, int serverPort, const char *pszConnectCode);
 
 	// opens a game info dialog from a game list
-	CDialogGameInfo *OpenGameInfoDialog(IGameList *gameList, unsigned int serverIndex);
+	CDialogGameInfo *OpenGameInfoDialog(IGameList *gameList, newgameserver_t *pServer);
 
 	// opens a game info dialog by a specified IP, not attached to any game list
-	CDialogGameInfo *OpenGameInfoDialog( int serverIP, uint16 connPort, uint16 queryPort );
+	CDialogGameInfo *OpenGameInfoDialog( int serverIP, uint16 connPort, uint16 queryPort, const char *pszConnectCode );
 
 	// closes all the game info dialogs
 	void CloseAllGameInfoDialogs();
-	CDialogGameInfo *GetDialogGameInfoForFriend( uint64 ulSteamIDFriend );
 
 	// accessor to the filter save data
 	KeyValues *GetFilterSaveData(const char *filterSet);
 
 	// gets the name of the mod directory we're restricted to accessing, NULL if none
 	const char *GetActiveModName();
-	int GetActiveAppID();
+	CGameID &GetActiveAppID();
 	const char *GetActiveGameName();
 
 	// load/saves filter & favorites settings from disk
@@ -101,9 +99,12 @@ private:
 	// notification that we connected / disconnected
 	MESSAGE_FUNC_PARAMS( OnConnectToGame, "ConnectedToGame", kv );
 	MESSAGE_FUNC( OnDisconnectFromGame, "DisconnectedFromGame" );
+	MESSAGE_FUNC( OnLoadingStarted, "LoadingStarted" );
 
 	virtual bool GetDefaultScreenPosition(int &x, int &y, int &wide, int &tall);
 	virtual void ActivateBuildMode();
+
+	void OnKeyCodePressed( vgui::KeyCode code );
 
 private:
 	// list of all open game info dialogs
@@ -117,12 +118,12 @@ private:
 
 	// property sheet
 	vgui::PropertySheet *m_pTabPanel;
+
+	CInternetGames *m_pInternetGames;
+	//CSpectateGames *m_pSpectateGames;
+	CLanGames *m_pLanGames;
 	CFavoriteGames *m_pFavorites;
 	CHistoryGames *m_pHistory;
-	CInternetGames *m_pInternetGames;
-	CSpectateGames *m_pSpectateGames;
-	CLanGames *m_pLanGames;
-	CFriendsGames *m_pFriendsGames;
 
 	KeyValues *m_pSavedData;
 	KeyValues *m_pFilterData;
@@ -133,7 +134,7 @@ private:
 	// active game
 	char m_szGameName[128];
 	char m_szModDir[128];
-	int m_iLimitAppID;
+	CGameID m_iLimitAppID;
 
 	// currently connected game
 	bool m_bCurrentlyConnected;

@@ -1,7 +1,8 @@
 # CSSv34 Engine
 
 Source Engine 2007 but with CSSv34 server-connection support.
-<br>Warning: this project is WIP, some of the features may not work properly!
+<br>Warning: this project is WIP, some of the features may not work properly!<br>
+`Now work is going mostly on connection support, some big progress have been done already`
 
 Sources:
 * [quiver-engine](https://github.com/quiverteam/engine)
@@ -14,7 +15,7 @@ Sources:
 Features:<br>
 * Recompiled VPC, src from TF2 leak
 * Updated headers from CSGO and TF2 leak
-* Steam_API stub included
+* PreInstalled RevEmu 9.85
 * VPK support
 * Removed Scaleform.
 * Filesystem from TF2 leak (less hardcoded stuff, allows for 'custom' folder, etc)
@@ -28,6 +29,6 @@ Features:<br>
 # Troubleshooting compiling
 Having problems building the project? Make sure you have the following:<br>
 - Windows 10 SDK: https://developer.microsoft.com/en-us/windows/downloads<br>
-- MFC for v143 or v145 build tools: Available under the "Individual Components" section of the Visual Studio Installer.<br>
-VS 2022-2026 should work with no additional changes necessary.<br>
+- MFC for v145 build tools: Available under the "Individual Components" section of the Visual Studio Installer.<br>
+VS 2026 should work with no additional changes necessary.<br>
 

@@ -25,11 +25,9 @@
 #define MAX_PATH PATH_MAX
 #endif
 #include "basetypes.h"
+#include "steam/steam_api.h"
 
-#ifdef _WIN32
-typedef int (*DedicatedMain_t)( HINSTANCE hInstance, HINSTANCE hPrevInstance, 
-							  LPSTR lpCmdLine, int nCmdShow );
-#elif POSIX
+#ifdef POSIX
 typedef int (*DedicatedMain_t)( int argc, char *argv[] );
 
 #endif
@@ -110,8 +108,20 @@ int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 		return 0;
 	}
 
-	DedicatedMain_t main = (DedicatedMain_t)GetProcAddress( launcher, "DedicatedMain" );
-	return main( hInstance, hPrevInstance, lpCmdLine, nCmdShow );
+	// Load RevEmu
+	// Note: if you see C++ Access Violation exceptions with steamclient.dll or some random *.dat, that is absolutely normal.
+	// It will not crash your game, dont cry :).
+	HMODULE hRevEmuDLL = LoadLibrary("steam.dll");
+	if (hRevEmuDLL) {
+		// Also, initialze SteamAPI to make everything work from start, not just after connecting to server.
+		decltype(SteamAPI_Init)* SteamAPIInit = (decltype(SteamAPI_Init)*)GetProcAddress(LoadLibrary("steam_api.dll"), "SteamAPI_Init");
+		if (!SteamAPIInit()) {
+			MessageBox(0, "SteamAPI_Init failed or could not be executed.", "Launcher Error", MB_OK);
+		}
+	}
+
+	decltype(WinMain)* DedicatedMain = (decltype(WinMain)*)GetProcAddress(launcher, "DedicatedMain");
+	return DedicatedMain(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
 }
 
 #elif POSIX

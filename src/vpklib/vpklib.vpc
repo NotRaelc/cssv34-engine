@@ -35,4 +35,9 @@ $Project "vpklib"
 			$File	"$SRCDIR\common\simplebitstring.h"
 		}
 	}
+	
+	$Folder "Link Libraries"
+	{
+		$Lib libzstd
+	}
 }

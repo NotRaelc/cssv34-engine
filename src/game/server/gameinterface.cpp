@@ -1708,7 +1708,7 @@ void CServerGameDLL::LoadMessageOfTheDay()
 
 	data[length] = 0;
 
-	g_pStringTableInfoPanel->AddString( CBaseEntity::IsServer(), "motd", length+1, data );
+	g_pStringTableInfoPanel->AddString( "motd", length+1, data );
 #endif
 }
 
@@ -1911,7 +1911,7 @@ void UpdateRichPresence ( void )
 void PrecacheMaterial( const char *pMaterialName )
 {
 	Assert( pMaterialName && pMaterialName[0] );
-	g_pStringTableMaterials->AddString( CBaseEntity::IsServer(), pMaterialName );
+	g_pStringTableMaterials->AddString( pMaterialName );
 }
 
 
@@ -1954,7 +1954,7 @@ const char *GetMaterialNameFromIndex( int nMaterialIndex )
 void PrecacheParticleSystem( const char *pParticleSystemName )
 {
 	Assert( pParticleSystemName && pParticleSystemName[0] );
-	g_pStringTableParticleEffectNames->AddString( CBaseEntity::IsServer(), pParticleSystemName );
+	g_pStringTableParticleEffectNames->AddString( pParticleSystemName );
 }
 
 

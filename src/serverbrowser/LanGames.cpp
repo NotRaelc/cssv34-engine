@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -127,13 +127,15 @@ void CLanGames::ServerFailedToRespond( int iServer )
 //-----------------------------------------------------------------------------
 // Purpose: called when the current refresh list is complete
 //-----------------------------------------------------------------------------
-void CLanGames::RefreshComplete( EMatchMakingServerResponse response )
+void CLanGames::RefreshComplete( NServerResponse response )
 {
 	SetRefreshing( false );
 	m_pGameList->SortList();
 	m_iServerRefreshCount = 0;
 	m_pGameList->SetEmptyListText("#ServerBrowser_NoLanServers");
 	SetEmptyListText();
+
+	BaseClass::RefreshComplete( response );
 }
 
 void CLanGames::SetEmptyListText()
@@ -146,13 +148,13 @@ void CLanGames::SetEmptyListText()
 //-----------------------------------------------------------------------------
 void CLanGames::OnOpenContextMenu(int row)
 {
-	if (!m_pGameList->GetSelectedItemsCount())
+	int serverID = GetSelectedServerID();
+
+	if ( serverID == -1 )
 		return;
 
-	// get the server
-	int serverID = m_pGameList->GetItemUserData(m_pGameList->GetSelectedItem(0));
 	// Activate context menu
-	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(m_pGameList);
+	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(GetActiveList());
 	menu->ShowMenu(this, serverID, true, true, true, false);
 }
 

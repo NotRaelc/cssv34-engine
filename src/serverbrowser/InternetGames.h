@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -22,7 +22,7 @@ class CInternetGames : public CBaseGamesPage
 	DECLARE_CLASS_SIMPLE( CInternetGames, CBaseGamesPage );
 
 public:
-	CInternetGames( vgui::Panel *parent, const char *panelName = "InternetGames", EMatchMakingType eType = eInternetServer );
+	CInternetGames( vgui::Panel *parent, const char *panelName = "InternetGames", EPageType eType = eInternetServer );
 	~CInternetGames();
 
 	// property page handlers
@@ -35,9 +35,9 @@ public:
 	MESSAGE_FUNC( GetNewServerList, "GetNewServerList" );
 
 	// serverlist refresh responses
-	virtual void ServerResponded( int iServer );
-	virtual void ServerFailedToRespond( int iServer );
-	virtual void RefreshComplete( EMatchMakingServerResponse response );
+	virtual void ServerResponded( newgameserver_t &server );
+	//virtual void ServerFailedToRespond( HServerListRequest hReq, int iServer );
+	virtual void RefreshComplete( NServerResponse response );
 	MESSAGE_FUNC_INT( OnRefreshServer, "RefreshServer", serverID );
 
 	virtual int GetRegionCodeToFilter();

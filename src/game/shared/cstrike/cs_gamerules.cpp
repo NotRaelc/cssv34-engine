@@ -637,7 +637,7 @@ ConVar cl_autohelp(
 
 		if ( iIndex == INVALID_STRING_INDEX )
 		{
-			m_StringTableBlackMarket->AddString( CBaseEntity::IsServer(), "blackmarket_prices", sizeof( weeklyprice_t), &prices );
+			m_StringTableBlackMarket->AddString( "blackmarket_prices", sizeof( weeklyprice_t), &prices );
 		}
 		else
 		{

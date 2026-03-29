@@ -1303,6 +1303,8 @@ void Host_ShutdownServer( void )
 	if ( !sv.IsActive() )
 		return;
 
+	master->ShutdownConnection();
+
 	// clear structures
 #if !defined( SWDS )
 	g_pShadowMgr->LevelShutdown();
@@ -3721,13 +3723,6 @@ void Host_Changelevel( bool loadfromsavedgame, const char *mapname, const char *
 #if !defined(SWDS)
 	saverestore->FinishAsyncSave();
 #endif
-
-	if ( IsUsingMasterLegacyMode() && master && master->RestartOnLevelChange() )
-	{
-		Cbuf_Clear();
-		Cbuf_AddText( "quit\n" );
-		return;
-	}
 
 	if ( sv.RestartOnLevelChange() )
 	{

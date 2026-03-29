@@ -1336,6 +1336,11 @@ $Project "vpk"
 	"utils\vpk\vpk.vpc"		[$WIN32]
 }
 
+$Project "libzstd"
+{
+	"thirdparty\libzstd\libzstd.vpc"		[$WIN32]
+}
+
 $Project "vstutils_maya7"
 {
 	"sdktools\maya\vstutils\vstutils_maya7.vpc"	[$WIN32]

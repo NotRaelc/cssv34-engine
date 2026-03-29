@@ -15,6 +15,7 @@
 #include "isteamfriends.h"
 #include "isteamutils.h"
 #include "isteammatchmaking.h"
+#include "isteammasterserverupdater.h"
 #include "isteamuserstats.h"
 #include "isteamapps.h"
 
@@ -57,6 +58,8 @@ S_API ISteamUserStats *SteamUserStats();
 S_API ISteamApps *SteamApps();
 
 S_API ISteamMatchmakingServers *SteamMatchmakingServers();
+
+//S_API ISteamMasterServerUpdater* SteamMasterServerUpdater();
 
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------------//

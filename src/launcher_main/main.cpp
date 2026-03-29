@@ -96,7 +96,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 #ifdef _DEBUG
 	int len =
 #endif
-	_snprintf(szBuffer, sizeof(szBuffer), "PATH=%s\\bin\\;%s\\Steam\\;%s", pRootDir, pRootDir, pPath);
+	_snprintf(szBuffer, sizeof(szBuffer), "PATH=%s\\bin\\;%s", pRootDir, pRootDir, pPath);
 	szBuffer[sizeof(szBuffer) - 1] = '\0';
 	assert(len < sizeof(szBuffer));
 	_putenv(szBuffer);

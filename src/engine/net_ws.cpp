@@ -10,7 +10,7 @@
 
 #include "net_ws_headers.h"
 #include "net_ws_queued_packet_sender.h"
-#include "tier1/lzss.h"
+#include "..\utils\bzip2\bzlib.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -1360,28 +1360,9 @@ bool NET_ReceiveDatagram ( const int sock, netpacket_t * packet )
 				nVoiceBits = (unsigned int)LittleShort( *( unsigned short *)pVoice );
 				unsigned int nExpectedVoiceBytes = Bits2Bytes( nVoiceBits );
 				pVoice += sizeof( unsigned short );
-				
-				CLZSS lzss;
-				if ( lzss.IsCompressed( pVoice ) )
-				{
-					unsigned int unDecompressedVoice = lzss.GetActualSize( pVoice );
-					if ( unDecompressedVoice != nExpectedVoiceBytes )
-					{
-						return false;
-					}
 
-					bufVoice.EnsureCapacity( unDecompressedVoice );
-
-					// Decompress it
-					lzss.SafeUncompress( pVoice, (byte *)bufVoice.Base(), 0 );
-
-					nVoiceBytes = unDecompressedVoice;
-				}
-				else
-				{
 					bufVoice.EnsureCapacity( nVoiceBytes );
 					Q_memcpy( bufVoice.Base(), pVoice, nVoiceBytes );
-				}
 			}
 
 			Q_memmove( packet->data, &packet->data[2], nDataBytes );
@@ -1400,29 +1381,6 @@ bool NET_ReceiveDatagram ( const int sock, netpacket_t * packet )
 			{
 				if ( !NET_GetLong( sock, packet ) )
 					return false;
-			}
-			
-			// Next check for compressed message
-			if ( LittleLong( *(int *)packet->data) == NET_HEADER_FLAG_COMPRESSEDPACKET )
-			{
-				byte *pCompressedData = packet->data + sizeof( unsigned int );
-
-				CLZSS lzss;
-				// Decompress
-				int actualSize = lzss.GetActualSize( pCompressedData );
-				if ( actualSize <= 0 )
-					return false;
-
-				MEM_ALLOC_CREDIT();
-				CUtlMemoryFixedGrowable< byte, NET_COMPRESSION_STACKBUF_SIZE > memDecompressed( NET_COMPRESSION_STACKBUF_SIZE );
-				memDecompressed.EnsureCapacity( actualSize );
-
-				unsigned int uDecompressedSize = lzss.SafeUncompress( pCompressedData, memDecompressed.Base() , 0);
-
-				// packet->wiresize is already set
-				Q_memcpy( packet->data, memDecompressed.Base(), uDecompressedSize );
-
-				packet->size = uDecompressedSize;
 			}
 
 			if ( nVoiceBits > 0 )
@@ -1500,7 +1458,7 @@ netpacket_t *NET_GetPacket (int sock, byte *scratch )
 	// Check loopback first
 	if ( !NET_GetLoopPacket( &inpacket ) )
 	{
-		if ( !NET_IsMultiplayer() )
+		if (!NET_IsMultiplayer())
 		{
 			return NULL;
 		}
@@ -2239,11 +2197,6 @@ int NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const uns
 		
 		unsigned int nCompressedLength = pVoicePayload->GetNumBytesWritten();
 		byte *pOutput = NULL;
-		if ( net_compressvoice.GetBool() )
-		{
-			CLZSS lzss;
-			pOutput = lzss.CompressNoAlloc( pVoicePayload->GetData(), pVoicePayload->GetNumBytesWritten(), (byte *)pVoice, &nCompressedLength );
-		}
 		if ( !pOutput )
 		{
 			Q_memcpy( pVoice, pVoicePayload->GetData(), pVoicePayload->GetNumBytesWritten() );
@@ -2252,6 +2205,7 @@ int NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const uns
 		nVoiceBytes = nCompressedLength + sizeof( unsigned short );
 	}
 
+#if 0
 	if ( bUseCompression )
 	{
 		CLZSS lzss;
@@ -2280,7 +2234,8 @@ int NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const uns
 			bWroteVoice = true;
 		}
 	}
-	
+#endif
+
 	if ( !bWroteVoice && pVoicePayload && pVoicePayload->GetNumBitsWritten() > 0 )
 	{
 		memCompressed.EnsureCapacity( length + nVoiceBytes );
@@ -2861,7 +2816,7 @@ void NET_ListenSocket( int sock, bool bListen )
 		NET_CloseSocket( netsock->hTCP, sock );
 	}
 
-	if ( !NET_IsMultiplayer() || net_notcp )
+	if (!NET_IsMultiplayer() || net_notcp)
 		return;
 
 	if ( bListen )
@@ -3206,71 +3161,80 @@ CON_COMMAND( net_status, "Shows current network status" )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Generic buffer compression from source into dest
-// Input  : *dest - 
+// Purpose: Generic buffer compression from source into dest (BZip2)
+// Input  :	
+//			*dest - 
 //			*destLen - 
 //			*source - 
 //			sourceLen - 
+// 
 // Output : int
 //-----------------------------------------------------------------------------
-bool NET_BufferToBufferCompress( char *dest, unsigned int *destLen, char *source, unsigned int sourceLen )
+bool NET_BufferToBufferCompress(char* dest, unsigned int* destLen, char* source, unsigned int sourceLen)
 {
-	Assert( dest );
-	Assert( destLen );
-	Assert( source );
+	Assert(dest);
+	Assert(destLen);
+	Assert(source);
 
-	Q_memcpy( dest, source, sourceLen );
-	CLZSS s;
-	unsigned int uCompressedLen = 0;
-	byte *pbOut = s.Compress( (byte *)source, sourceLen, &uCompressedLen );
-	if ( pbOut && uCompressedLen > 0 && uCompressedLen <= *destLen )
+	unsigned int outLen = *destLen;
+
+	int ret = BZ2_bzBuffToBuffCompress(
+		dest,              // output buffer
+		&outLen,           // in: max size, out: actual size
+		source,            // input buffer
+		sourceLen,         // input size
+		9,                 // blockSize100k (1–9, 9 = max compression)
+		0,                 // verbosity
+		30                 // workFactor
+	);
+
+	if (ret != BZ_OK)
 	{
-		Q_memcpy( dest, pbOut, uCompressedLen );
-		*destLen = uCompressedLen;
-		free( pbOut );
-	}
-	else
-	{
-		if ( pbOut )
+		// fallback — sending non compressed
+		if (*destLen >= sourceLen)
 		{
-			free( pbOut );
+			Q_memcpy(dest, source, sourceLen);
+			*destLen = sourceLen;
 		}
-		Q_memcpy( dest, source, sourceLen );
-		*destLen = sourceLen;
 		return false;
 	}
+
+	*destLen = outLen;
 	return true;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: Generic buffer decompression from source into dest
-// Input  : *dest - 
+// Purpose: Generic buffer decompression from source into dest (BZip2)
+// Input  : 
+//			*dest - 
 //			*destLen - 
 //			*source - 
 //			sourceLen - 
+// 
 // Output : int
 //-----------------------------------------------------------------------------
-bool NET_BufferToBufferDecompress( char *dest, unsigned int *destLen, char *source, unsigned int sourceLen )
+bool NET_BufferToBufferDecompress(char* dest, unsigned int* destLen, char* source, unsigned int sourceLen)
 {
-	CLZSS s;
-	if ( s.IsCompressed( (byte *)source ) )
+	Assert(dest);
+	Assert(destLen);
+	Assert(source);
+
+	unsigned int outLen = *destLen;
+
+	int ret = BZ2_bzBuffToBuffDecompress(
+		dest,              // output buffer
+		&outLen,           // in: max size, out: actual size
+		source,            // compressed data (BZh...)
+		sourceLen,         // compressed size
+		0,                 // small (0 = normal mode)
+		0                  // verbosity
+	);
+
+	if (ret != BZ_OK)
 	{
-		unsigned int uDecompressedLen = s.GetActualSize( (byte *)source );
-		if ( uDecompressedLen > *destLen )
-		{
-			Sys_Error( "NET_BufferToBufferDecompress with improperly sized dest buffer (%u in, %u needed)\n", *destLen, uDecompressedLen );
-			return false;
-		}
-		else
-		{
-			*destLen = s.SafeUncompress( (byte *)source, (byte *)dest, 0 );
-		}
-	}
-	else
-	{
-		Q_memcpy( dest, source, sourceLen );
-		*destLen = sourceLen;
+		return false;
 	}
 
+	*destLen = outLen;
 	return true;
 }

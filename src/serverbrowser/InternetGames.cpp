@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -17,13 +17,13 @@ const float MINIMUM_SORT_TIME = 1.5f;
 //			NOTE:	m_Servers can not use more than 96 sockets, else it will
 //					cause internet explorer to Stop working under win98 SE!
 //-----------------------------------------------------------------------------
-CInternetGames::CInternetGames(vgui::Panel *parent, const char *panelName, EMatchMakingType eType ) : 
+CInternetGames::CInternetGames(vgui::Panel *parent, const char *panelName, EPageType eType ) : 
 	CBaseGamesPage(parent, panelName, eType )
 {
 	m_fLastSort = 0.0f;
 	m_bDirty = false;
 	m_bRequireUpdate = true;
-	m_bOfflineMode = !IsSteamGameServerBrowsingEnabled();
+	m_bOfflineMode = false;
 
 	m_bAnyServersRetrievedFromMaster = false;
 	m_bNoServersListedOnMaster = false;
@@ -53,6 +53,8 @@ CInternetGames::CInternetGames(vgui::Panel *parent, const char *panelName, EMatc
 	kv->deleteThis();
 
 	LoadFilterSettings();
+
+	ivgui()->AddTickSignal( GetVPanel(), 250 );
 }
 
 
@@ -93,6 +95,11 @@ void CInternetGames::PerformLayout()
 //-----------------------------------------------------------------------------
 void CInternetGames::OnPageShow()
 {
+	if ( m_pGameList->GetItemCount() == 0 && ServerBrowserDialog().IsVisible() )
+		BaseClass::OnPageShow();
+	// the "internet games" tab (unlike the other browser tabs)
+	// does not automatically start a query when the user
+	// navigates to this tab unless they have no servers listed.
 }
 
 
@@ -117,29 +124,28 @@ void CInternetGames::OnTick()
 // Purpose: Handles incoming server refresh data
 //			updates the server browser with the refreshed information from the server itself
 //-----------------------------------------------------------------------------
-void CInternetGames::ServerResponded( int iServer )
+void CInternetGames::ServerResponded( newgameserver_t &server )
 {
 	m_bDirty = true;
-	BaseClass::ServerResponded( iServer );
+
+	BaseClass::ServerResponded( server );
 	m_bAnyServersRespondedToQuery = true;
 	m_bAnyServersRetrievedFromMaster = true;
 }
 
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CInternetGames::ServerFailedToRespond( int iServer )
+/*void CInternetGames::ServerFailedToRespond( HServerListRequest hReq, int iServer )
 {
-#ifndef NO_STEAM
 	m_bDirty = true;
-	gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( m_eMatchMakingType, iServer );
+	gameserveritem_t *pServer = steamapicontext->SteamMatchmakingServers()->GetServerDetails( hReq, iServer );
 	Assert( pServer );
 
 	if ( pServer->m_bHadSuccessfulResponse )
 	{
 		// if it's had a successful response in the past, leave it on
-		ServerResponded( iServer );
+		//ServerResponded( hReq, iServer );
 	}
 	else
 	{
@@ -149,25 +155,24 @@ void CInternetGames::ServerFailedToRespond( int iServer )
 		// we've never had a good response from this server, remove it from the list
 		m_iServerRefreshCount++;
 	}
-#endif
-}
+}*/
 
 
 //-----------------------------------------------------------------------------
 // Purpose: Called when server refresh has been completed
 //-----------------------------------------------------------------------------
-void CInternetGames::RefreshComplete( EMatchMakingServerResponse response )
+void CInternetGames::RefreshComplete( NServerResponse response )
 {
 	SetRefreshing(false);
 	UpdateFilterSettings();
 
-	if ( response != eServerFailedToRespond )
+	if ( response != nServerFailedToRespond )
 	{
 		if ( m_bAnyServersRespondedToQuery )
 		{
 			m_pGameList->SetEmptyListText( GetStringNoUnfilteredServers() );
 		}
-		else if ( response == eNoServersListedOnMasterServer )
+		else if ( response == nNoServersListedOnMasterServer )
 		{
 			m_pGameList->SetEmptyListText( GetStringNoUnfilteredServersOnMaster() );
 		}
@@ -190,6 +195,8 @@ void CInternetGames::RefreshComplete( EMatchMakingServerResponse response )
 	}
 
 	UpdateStatus();
+
+	BaseClass::RefreshComplete( response );
 }
 
 
@@ -263,14 +270,14 @@ void CInternetGames::CheckRedoSort( void )
 //-----------------------------------------------------------------------------
 void CInternetGames::OnOpenContextMenu(int itemID)
 {
-	if (!m_pGameList->GetSelectedItemsCount())
+	// get the server
+	int serverID = GetSelectedServerID();
+
+	if ( serverID == -1 )
 		return;
 
-	// get the server
-	int serverID = m_pGameList->GetItemData(m_pGameList->GetSelectedItem(0))->userData;
-
 	// Activate context menu
-	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(m_pGameList);
+	CServerContextMenu *menu = ServerBrowserDialog().GetContextMenu(GetActiveList());
 	menu->ShowMenu(this, serverID, true, true, true, true);
 }
 
@@ -304,7 +311,7 @@ int CInternetGames::GetRegionCodeToFilter()
 bool CInternetGames::CheckTagFilter( gameserveritem_t &server )
 {
 	// Servers without tags go in the official games, servers with tags go in custom games
-	bool bOfficialServer = !( server.m_szGameTags && server.m_szGameTags[0] );
+	bool bOfficialServer = !server.m_szGameTags[0];
 	if ( !bOfficialServer )
 		return false;
 

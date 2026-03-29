@@ -326,7 +326,7 @@ void CDownloadListGenerator::ForceExactFile( const char *relativePathFileName, C
 		}
 		else
 		{
-			m_pStringTable->AddString( true, relativeFileName, sizeof( ExactFileUserData ), &userData );
+			m_pStringTable->AddString( relativeFileName, sizeof( ExactFileUserData ), &userData );
 		}
 	}
 }
@@ -370,7 +370,7 @@ void CDownloadListGenerator::ForceModelBounds( const char *relativePathFileName,
 	}
 	else
 	{
-		m_pStringTable->AddString( true, relativeFileName, sizeof( ModelBoundsUserData ), &userData );
+		m_pStringTable->AddString( relativeFileName, sizeof( ModelBoundsUserData ), &userData );
 	}
 }
 
@@ -459,7 +459,7 @@ void CDownloadListGenerator::OnResourcePrecachedFullPath( char *fullPathFileName
 	}
 	if ( m_pStringTable )
 	{
-		m_pStringTable->AddString( true, relativeFileName );
+		m_pStringTable->AddString( relativeFileName );
 	}
 }
 

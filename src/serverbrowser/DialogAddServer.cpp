@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -31,29 +31,50 @@ CDialogAddServer::CDialogAddServer(vgui::Panel *parent, IGameList *gameList) : F
 	m_pDiscoveredGames->AddColumnHeader(0, "Password", "#ServerBrowser_Password", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
 	m_pDiscoveredGames->AddColumnHeader(1, "Bots", "#ServerBrowser_Bots", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE | ListPanel::COLUMN_HIDDEN);
 	m_pDiscoveredGames->AddColumnHeader(2, "Secure", "#ServerBrowser_Secure", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
-	m_pDiscoveredGames->AddColumnHeader(3, "Name", "#ServerBrowser_Servers", 20, ListPanel::COLUMN_RESIZEWITHWINDOW | ListPanel::COLUMN_UNHIDABLE);
-	m_pDiscoveredGames->AddColumnHeader(4, "IPAddr", "#ServerBrowser_IPAddress", 60, ListPanel::COLUMN_HIDDEN);
-	m_pDiscoveredGames->AddColumnHeader(5, "GameDesc", "#ServerBrowser_Game", 150);
-	m_pDiscoveredGames->AddColumnHeader(6, "Players", "#ServerBrowser_Players", 60);
-	m_pDiscoveredGames->AddColumnHeader(7, "Map", "#ServerBrowser_Map", 80);
-	m_pDiscoveredGames->AddColumnHeader(8, "Ping", "#ServerBrowser_Latency", 60);
+
+	bool bGameSupportsReplay = false;
+
+	int nReplayWidth = 16;
+	if ( !bGameSupportsReplay )
+	{
+		nReplayWidth = 0;
+	}
+
+	m_pDiscoveredGames->AddColumnHeader(3, "Replay", "#ServerBrowser_Replay", nReplayWidth, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
+	m_pDiscoveredGames->AddColumnHeader(4, "Name", "#ServerBrowser_Servers", 20, ListPanel::COLUMN_RESIZEWITHWINDOW | ListPanel::COLUMN_UNHIDABLE);
+	m_pDiscoveredGames->AddColumnHeader(5, "IPAddr", "#ServerBrowser_IPAddress", 60, ListPanel::COLUMN_HIDDEN);
+	m_pDiscoveredGames->AddColumnHeader(6, "GameDesc", "#ServerBrowser_Game", 150);
+	m_pDiscoveredGames->AddColumnHeader(7, "Players", "#ServerBrowser_Players", 60);
+	m_pDiscoveredGames->AddColumnHeader(8, "Map", "#ServerBrowser_Map", 80);
+	m_pDiscoveredGames->AddColumnHeader(9, "Ping", "#ServerBrowser_Latency", 60);
 
 	m_pDiscoveredGames->SetColumnHeaderTooltip(0, "#ServerBrowser_PasswordColumn_Tooltip");
 	m_pDiscoveredGames->SetColumnHeaderTooltip(1, "#ServerBrowser_BotColumn_Tooltip");
 	m_pDiscoveredGames->SetColumnHeaderTooltip(2, "#ServerBrowser_SecureColumn_Tooltip");
 
+	if ( bGameSupportsReplay )
+	{
+		m_pDiscoveredGames->SetColumnHeaderTooltip(3, "#ServerBrowser_ReplayColumn_Tooltip");
+	}
+
 	// setup fast sort functions
 	m_pDiscoveredGames->SetSortFunc(0, PasswordCompare);
 	m_pDiscoveredGames->SetSortFunc(1, BotsCompare);
 	m_pDiscoveredGames->SetSortFunc(2, SecureCompare);
-	m_pDiscoveredGames->SetSortFunc(3, ServerNameCompare);
-	m_pDiscoveredGames->SetSortFunc(4, IPAddressCompare);
-	m_pDiscoveredGames->SetSortFunc(5, GameCompare);
-	m_pDiscoveredGames->SetSortFunc(6, PlayersCompare);
-	m_pDiscoveredGames->SetSortFunc(7, MapCompare);
-	m_pDiscoveredGames->SetSortFunc(8, PingCompare);
 
-	m_pDiscoveredGames->SetSortColumn(8); // sort on ping
+	if ( bGameSupportsReplay )
+	{
+		m_pDiscoveredGames->SetSortFunc(3, ReplayCompare);
+	}
+
+	m_pDiscoveredGames->SetSortFunc(4, ServerNameCompare);
+	m_pDiscoveredGames->SetSortFunc(5, IPAddressCompare);
+	m_pDiscoveredGames->SetSortFunc(6, GameCompare);
+	m_pDiscoveredGames->SetSortFunc(7, PlayersCompare);
+	m_pDiscoveredGames->SetSortFunc(8, MapCompare);
+	m_pDiscoveredGames->SetSortFunc(9, PingCompare);
+
+	m_pDiscoveredGames->SetSortColumn(9); // sort on ping
 
 	m_pTextEntry = new vgui::TextEntry( this, "ServerNameText" );
 	m_pTextEntry->AddActionSignalTarget( this );
@@ -87,13 +108,11 @@ CDialogAddServer::CDialogAddServer(vgui::Panel *parent, IGameList *gameList) : F
 //-----------------------------------------------------------------------------
 CDialogAddServer::~CDialogAddServer()
 {
-#ifndef NO_STEAM
 	FOR_EACH_VEC( m_Queries, i )
 	{
 		if ( SteamMatchmakingServers() )
 			SteamMatchmakingServers()->CancelServerQuery( m_Queries[ i ] );
 	}
-#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -129,7 +148,7 @@ void CDialogAddServer::OnCommand(const char *command)
 		{
 			// get the server
 			int serverID = m_pDiscoveredGames->GetItemUserData( m_pDiscoveredGames->GetSelectedItem(0) );
-			ServerBrowserDialog().AddServerToFavorites( m_Servers[ serverID ] );
+			FinishAddServer( m_Servers[ serverID ] );
 			m_pDiscoveredGames->RemoveItem( m_pDiscoveredGames->GetSelectedItem(0) ); // as we add to favs remove from the list
 			m_pDiscoveredGames->SetEmptyListText( "" );
 		}
@@ -150,24 +169,22 @@ void CDialogAddServer::OnOK()
 	const char *address = GetControlString("ServerNameText", "");
 	netadr_t netaddr;
 	netaddr.SetFromString( address, true );
-	if ( !netaddr.GetPort() )
+	if ( !netaddr.GetPort() && !AllowInvalidIPs() )
 	{
 		// use the default port since it was not entered
 		netaddr.SetPort( 27015 );
 	}
 
-	if ( netaddr.IsValid() )
+	if ( AllowInvalidIPs() || netaddr.IsValid() )
 	{
-		gameserveritem_t server;
+		newgameserver_t server;
 		memset(&server, 0, sizeof(server));
-		server.SetName( address );
+		strncpy( server.m_szServerName, address, sizeof(server.m_szServerName) );
 
 		// We assume here that the query and connection ports are the same. This is why it's much
 		// better if they click "Servers" and choose a server in there.
-		server.m_NetAdr.Init( netaddr.addr_ntohl(), netaddr.GetPort(), netaddr.GetPort() );
-
-		server.m_nAppID = 0;
-		ServerBrowserDialog().AddServerToFavorites( server );
+		server.m_NetAdr = netaddr;
+		FinishAddServer( server );
 	}
 	else
 	{
@@ -186,11 +203,11 @@ void CDialogAddServer::OnOK()
 //-----------------------------------------------------------------------------
 void CDialogAddServer::TestServers()
 {
-#ifndef NO_STEAM
 	if ( !SteamMatchmakingServers() )
 		return;
 
 	m_pDiscoveredGames->SetEmptyListText( "" );
+	m_pDiscoveredGames->RemoveAll();
 
 	// If they specified a port, then send a query to that port.
 	const char *address = GetControlString("ServerNameText", "");
@@ -238,42 +255,31 @@ void CDialogAddServer::TestServers()
 	m_pTabPanel->AddPage( m_pDiscoveredGames, str );
 	m_pTabPanel->InvalidateLayout();
 	
-	FOR_EACH_VEC( vecAdress, iAddress )
+/*	FOR_EACH_VEC( vecAdress, iAddress )
 	{
-		m_Queries.AddToTail( SteamMatchmakingServers()->PingServer( vecAdress[ iAddress ].addr_htonl(), vecAdress[ iAddress ].GetPort(), this ) );
-	}
-#endif
+		m_Queries.AddToTail( steamapicontext->SteamMatchmakingServers()->PingServer( vecAdress[ iAddress ].GetIPHostByteOrder(), vecAdress[ iAddress ].GetPort(), this ) );
+	}*/
 }
 
 
 //-----------------------------------------------------------------------------
 // Purpose: A server answered our ping
 //-----------------------------------------------------------------------------
-void CDialogAddServer::ServerResponded( gameserveritem_t &server )
+void CDialogAddServer::ServerResponded( newgameserver_t &server )
 {
 	KeyValues *kv = new KeyValues( "Server" );
 
-	kv->SetString("name", server.GetName());
-	kv->SetString("map", server.m_szMap);
-	kv->SetString("GameDir", server.m_szGameDir);
-	kv->SetString("GameDesc", server.m_szGameDescription);
-	kv->SetInt("password", server.m_bPassword ? 1 : 0);
-	kv->SetInt("bots", server.m_nBotPlayers ? 2 : 0);
+	kv->SetString( "name", server.m_szServerName );
+	kv->SetString( "map", server.m_szMap );
+	kv->SetString( "GameDir", server.m_szGameDir );
+	kv->SetString( "GameDesc", server.m_szGameDescription );
+	kv->SetString( "GameTags", server.m_szGameTags );
+	kv->SetInt( "password", server.m_bPassword ? 1 : 0);
+	kv->SetInt( "bots", server.m_nBotPlayers ? 2 : 0);
+	kv->SetInt( "Replay", 0 );
+	kv->SetInt("secure", 0);
 
-	if ( server.m_bSecure )
-	{
-		// show the denied icon if banned from secure servers, the secure icon otherwise
-		kv->SetInt("secure", ServerBrowser().IsVACBannedFromGame( server.m_nAppID ) ?  4 : 3);
-	}
-	else
-	{
-		kv->SetInt("secure", 0);
-	}
-
-	netadr_t reportedIPAddr;
-	reportedIPAddr.SetIP( server.m_NetAdr.GetIP() );
-	reportedIPAddr.SetPort( server.m_NetAdr.GetConnectionPort() );
-	kv->SetString("IPAddr", reportedIPAddr.ToString() );
+	kv->SetString("IPAddr", server.m_NetAdr.ToString() );
 
 	char buf[32];
 	Q_snprintf(buf, sizeof(buf), "%d / %d", server.m_nPlayers, server.m_nMaxPlayers);
@@ -301,15 +307,18 @@ void CDialogAddServer::ServerFailedToRespond()
 void CDialogAddServer::ApplySchemeSettings( IScheme *pScheme )
 {
 	BaseClass::ApplySchemeSettings( pScheme );
+
 	ImageList *imageList = new ImageList(false);
 	imageList->AddImage(scheme()->GetImage("servers/icon_password", false));
 	imageList->AddImage(scheme()->GetImage("servers/icon_bots", false));
 	imageList->AddImage(scheme()->GetImage("servers/icon_robotron", false));
 	imageList->AddImage(scheme()->GetImage("servers/icon_secure_deny", false));
+	imageList->AddImage(scheme()->GetImage("servers/icon_replay", false));
 
 	int passwordColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_password_column", false));
 	int botColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_bots_column", false));
 	int secureColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_robotron_column", false));
+	int replayColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_replay_column", false));
 
 	m_pDiscoveredGames->SetImageList(imageList, true);
 	vgui::HFont hFont = pScheme->GetFont( "ListSmall", IsProportional() );
@@ -320,6 +329,7 @@ void CDialogAddServer::ApplySchemeSettings( IScheme *pScheme )
 	m_pDiscoveredGames->SetColumnHeaderImage(0, passwordColumnImage);
 	m_pDiscoveredGames->SetColumnHeaderImage(1, botColumnImage);
 	m_pDiscoveredGames->SetColumnHeaderImage(2, secureColumnImage);
+	m_pDiscoveredGames->SetColumnHeaderImage(3, replayColumnImage);
 }
 
 
@@ -337,4 +347,12 @@ void CDialogAddServer::OnItemSelected()
 	{
 		m_pAddSelectedServerButton->SetEnabled( false );
 	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
+void CDialogAddServer::FinishAddServer( newgameserver_t &pServer )
+{
+	ServerBrowserDialog().AddServerToFavorites( pServer );
 }

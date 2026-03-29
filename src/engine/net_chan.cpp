@@ -24,22 +24,29 @@
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
+#define NET_SHOW_PACKETS "1" // default value for any of net_show*
 
-ConVar net_showudp( "net_showudp", "0", 0, "Dump UDP packets summary to console" );
-ConVar net_showtcp( "net_showtcp", "0", 0, "Dump TCP stream summary to console" );
-ConVar net_blocksize( "net_maxfragments", "1260", 0, "Max fragment bytes per packet", true, FRAGMENT_SIZE, true, MAX_ROUTABLE_PAYLOAD );
+ConVar net_showudp( "net_showudp", NET_SHOW_PACKETS, 0, "Dump UDP packets summary to console" );
+ConVar net_showtcp( "net_showtcp", NET_SHOW_PACKETS, 0, "Dump TCP stream summary to console" );
 
-static ConVar net_showmsg( "net_showmsg", "0", 0, "Show incoming message: <0|1|name>" );
-static ConVar net_showfragments( "net_showfragments", "0", 0, "Show netchannel fragments" );
-static ConVar net_showpeaks( "net_showpeaks", "0", 0, "Show messages for large packets only: <size>" );
-static ConVar net_blockmsg( "net_blockmsg", "none", FCVAR_CHEAT, "Discards incoming message: <0|1|name>" );
-static ConVar net_showdrop( "net_showdrop", "0", 0, "Show dropped packets in console" );
+static ConVar net_showmsg( "net_showmsg", NET_SHOW_PACKETS, 0, "Show incoming message: <0|1|name>" );
+static ConVar net_showfragments( "net_showfragments", NET_SHOW_PACKETS, 0, "Show netchannel fragments" );
+static ConVar net_showpeaks( "net_showpeaks", NET_SHOW_PACKETS, 0, "Show messages for large packets only: <size>" );
+static ConVar net_blockmsg( "net_blockmsg", "none", 0, "Discards incoming message: <0|1|name>" );
+static ConVar net_showdrop( "net_showdrop", NET_SHOW_PACKETS, 0, "Show dropped packets in console" );
+static ConVar net_showdownloads( "net_showdownloads", NET_SHOW_PACKETS, 0, "Show downloaded files in console <0|1>" );
+
 static ConVar net_drawslider( "net_drawslider", "0", 0, "Draw completion slider during signon" );
 static ConVar net_chokeloopback( "net_chokeloop", "0", 0, "Apply bandwidth choke to loopback packets" );
+
 static ConVar net_maxfilesize( "net_maxfilesize", "16", 0, "Maximum allowed file size for uploading in MB", true, 0, true, 64 );
-static ConVar net_compresspackets( "net_compresspackets", "1", 0, "Use lz compression on game packets." );
-static ConVar net_compresspackets_minsize( "net_compresspackets_minsize", "128", 0, "Don't bother compressing packets below this size." );
-static ConVar net_maxcleartime( "net_maxcleartime", "4.0", 0, "Max # of seconds we can wait for next packets to be sent based on rate setting (0 == no limit)." );
+       ConVar net_blocksize("net_maxfragments", "1260", 0, "Max fragment bytes per packet", true, FRAGMENT_SIZE, true, MAX_ROUTABLE_PAYLOAD);
+
+static ConVar net_compresssplits("net_compresssplits", "1", 0, "Compress splitpacket parts before sending"); 
+static ConVar net_compresspackets( "net_compresspackets", "0", 0, "[DontUse] Use lz compression on game packets." );
+static ConVar net_compresspackets_minsize( "net_compresspackets_minsize", "128", 0, "[DontUse] Don't bother compressing packets below this size." );
+
+static ConVar net_maxcleartime( "net_maxcleartime", "0", 0, "Max # of seconds we can wait for next packets to be sent based on rate setting (0 == no limit)." );
 
 extern ConVar net_maxroutable;
 
@@ -58,10 +65,15 @@ extern int  NET_ReceiveStream( int nSock, char * buf, int len, int flags );
 // We only need to checksum packets on the PC and only when we're actually sending them over the network.
 static bool ShouldChecksumPackets()
 {
-	if ( !IsPC() )
+	// temporary solution for testing
+	return false;
+
+#if 0
+	if (!IsPC())
 		return false;
 
 	return NET_IsMultiplayer();
+#endif
 }
 
 // Tells if it's ok for us to send this file to someone.
@@ -93,8 +105,14 @@ static bool IsSafeFileToDownload( const char *pFilename )
 		|| V_stricmp(pExt, ".ini") == 0
 		|| V_stricmp(pExt, ".log") == 0)
 	{
+		if (net_showdownloads.GetBool())
+			Msg("-X- Download denied: %s\n", pFilename);
+
 		return false;
 	}
+
+	if (net_showdownloads.GetBool())
+		Msg("-Y- Downloading: %s\n", pFilename);
 
 	// Word.
 	return true;
@@ -295,9 +313,16 @@ void CNetChan::UncompressFragments( dataFragments_t *data )
 	unsigned int uncompressedSize = data->nUncompressedSize;
 
 	// uncompress data
-	NET_BufferToBufferDecompress( newbuffer, &uncompressedSize, data->buffer, data->bytes );
+	if (NET_BufferToBufferDecompress(newbuffer, &uncompressedSize, data->buffer, data->bytes)) {
+		ConMsg("Uncompressing fragments (%d -> %d bytes)\n", data->bytes, uncompressedSize);
+	}
+	else {
+		ConMsg("Uncompressing fragments failed\n");
+	}
 
-	Assert( uncompressedSize == data->nUncompressedSize );
+	if ( uncompressedSize != data->nUncompressedSize ){
+		ConMsg("UncompressFragments: uncompressedSize(%d) not equal to: data->nUncompressedSize(%d)\n", uncompressedSize, data->nUncompressedSize);
+	}
 
 	// free old buffer and set new buffer
 	delete [] data->buffer;
@@ -325,7 +350,7 @@ unsigned int CNetChan::RequestFile(const char *filename	)
 
 void CNetChan::RequestFile_OLD(const char *filename, unsigned int transferID)
 {
-	Error( "Called RequestFile_OLD" );
+	RequestFile(filename);
 }
 
 void CNetChan::DenyFile(const char *filename, unsigned int transferID)
@@ -1869,13 +1894,14 @@ bool CNetChan::ProcessMessages( bf_read &buf  )
 		{
 			// let message parse itself from buffe
 			const char *msgname = netmsg->GetName();
+			int msgtype = netmsg->GetType();
 			
 			int startbit = buf.GetNumBitsRead();
 
-			if ( !netmsg->ReadFromBuffer( buf ) )
+			if (!netmsg->ReadFromBuffer(buf))
 			{
-				ConMsg( "Netchannel: failed reading message %s from %s.\n", msgname, remote_address.ToString() );
-				Assert ( 0 );
+				ConMsg("Netchannel: failed reading message %s from %s.\n", msgname, remote_address.ToString());
+				Assert(0);
 				return false;
 			}
 
@@ -1924,6 +1950,7 @@ bool CNetChan::ProcessMessages( bf_read &buf  )
 		else
 		{
 			ConMsg( "Netchannel: unknown net message (%i) from %s.\n", cmd, remote_address.ToString() );
+			ConMsg("NetMsg: signed:%i, unsigned:%u, x:%x\n", cmd, cmd, cmd);
 			Assert ( 0 );
 			return false;
 		}
@@ -2024,6 +2051,7 @@ bool CNetChan::CheckReceivingList(int nList)
 	if ( net_showfragments.GetBool() )
 		ConMsg("Receiving complete: %i fragments, %i bytes\n", data->numFragments, data->bytes );
 
+	DevMsg("Received data compressed: %d\n", data->isCompressed);
 	if ( data->isCompressed )
 	{
 		UncompressFragments( data );
@@ -2101,8 +2129,9 @@ int CNetChan::ProcessPacketHeader( netpacket_t * packet )
 		int nCheckSumBytes = packet->message.m_nDataBytes - nOffset;
 	
 		const void *pvData = packet->message.GetBasePointer() + nOffset;
-		unsigned short usDataCheckSum = BufferToShortChecksum( pvData, nCheckSumBytes );
-	
+		unsigned short usDataCheckSum = 
+			BufferToShortChecksum( pvData, nCheckSumBytes );
+
 		if ( usDataCheckSum != usCheckSum )
 		{
 			ConMsg ("%s:corrupted packet %i at %i\n"

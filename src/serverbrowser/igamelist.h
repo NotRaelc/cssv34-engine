@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2001, Valve LLC, All rights reserved. ============
+//========= Copyright Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -20,7 +20,7 @@ class gameserveritem_t;
 #include "FindSteamServers.h"
 #endif
 #include "netadr.h"
-
+#include "engine/iserversinfo.h"
 
 typedef enum
 {
@@ -75,13 +75,16 @@ public:
 	virtual bool IsRefreshing() = 0;
 
 	// gets information about specified server
-	virtual gameserveritem_t *GetServer(unsigned int serverID) = 0;
+	virtual newgameserver_t *GetServer(unsigned int serverID) = 0;
 
 	// called when Connect button is pressed
 	virtual void OnBeginConnect() = 0;
 
 	// invalid server index
 	virtual int GetInvalidServerListID() = 0;
+
+	// Get code to use for tracking how people are connecting to servers
+	virtual const char *GetConnectCode() = 0;
 };
 
 
