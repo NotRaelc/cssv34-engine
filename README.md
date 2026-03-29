@@ -2,7 +2,8 @@
 
 Source Engine 2007 but with CSSv34 server-connection support.
 <br>Warning: this project is WIP, some of the features may not work properly!<br>
-`Now work is going mostly on connection support, some big progress have been done already`
+
+`Now work is going mostly on connection support and serverbrowser, some big progress have been done already`
 
 Sources:
 * [quiver-engine](https://github.com/quiverteam/engine)
@@ -25,6 +26,7 @@ Features:<br>
 * DirectX SDK from Summer 2004 (doesn't require d3dx9_**.dll)
 * vaudio_minimp3 from TF2 leak
 * Deleted bink video
+* Rewrited serverbrowser (no longer depends on steam)
 
 # Troubleshooting compiling
 Having problems building the project? Make sure you have the following:<br>
