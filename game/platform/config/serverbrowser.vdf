@@ -72,7 +72,7 @@
 		}
 		"InternetGames"
 		{
-			"appid"		"0"
+			"appid"		"0x0000000000000000"
 			"ping"		"0"
 			"NoFull"		"0"
 			"NoEmpty"		"0"

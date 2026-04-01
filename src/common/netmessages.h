@@ -190,8 +190,8 @@ class CLC_ClientInfo : public CNetMessage
 	DECLARE_CLC_MESSAGE( ClientInfo );
 
 public:
-	int				m_nServerCount;
 	CRC32_t			m_nSendTableCRC;
+	int				m_nServerCount;
 	bool			m_bIsHLTV;
 	uint32			m_nFriendsID;
 	char			m_FriendsName[MAX_PLAYER_NAME_LENGTH];

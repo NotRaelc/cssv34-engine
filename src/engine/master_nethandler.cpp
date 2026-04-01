@@ -3,6 +3,24 @@
 #include "master.h"
 #include "quakedef.h"
 
+bool IsLANIP(uint32 ip)
+{
+	ip = ntohl(ip);
+
+	// 10.0.0.0/8
+	if ((ip & 0xFF000000) == 0x0A000000)
+		return true;
+
+	// 172.16.0.0 - 172.31.255.255
+	if ((ip & 0xFFF00000) == 0xAC100000)
+		return true;
+
+	// 192.168.0.0/16
+	if ((ip & 0xFFFF0000) == 0xC0A80000)
+		return true;
+
+	return false;
+}
 
 class CMasterNETHandler : public IMasterNETHandler {
 public:
@@ -34,6 +52,10 @@ CMasterNETHandler::CMasterNETHandler() : m_nClientSocket(INVALID_SOCKET), m_nSer
 	Msg("MasterNETHandler: startup\n");
 	m_nClientSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	m_nServerSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	// Client Socket can be used for broadcasting
+	BOOL broadcast = TRUE;
+	setsockopt(m_nClientSocket, SOL_SOCKET, SO_BROADCAST, (char*)&broadcast, sizeof(broadcast));
 
 	u_long mode = 1;
 
@@ -155,7 +177,7 @@ void CMasterNETHandler::PacketReceived(sockaddr_in& from, byte* data, int length
 	//Msg("CMasterNETHandler: packet received from %s, data %s, length %i\n", packet.from.ToString(), data, length);
 
 	// Check if this packet came from LAN
-	//if (strstr(packet.from.ToString(), "127.0.0.1") || strstr(packet.from.ToString(), "192.168"))
+	//if (IsLANIP(packet.from.GetIP()))
 	//	lanservers->ProcessConnectionlessPacket(&packet);
 	//else
 		master->ProcessConnectionlessPacket(&packet);

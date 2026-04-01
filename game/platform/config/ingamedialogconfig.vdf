@@ -164,7 +164,7 @@
 				{
 					"gamelist"
 					{
-						"lastBarWidth"		"984"
+						"lastBarWidth"		"605"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"0"
@@ -172,7 +172,7 @@
 						"2_hidden"		"0"
 						"2_width"		"0"
 						"3_hidden"		"0"
-						"3_width"		"400"
+						"3_width"		"211"
 						"4_hidden"		"1"
 						"4_width"		"64"
 						"5_hidden"		"0"
@@ -185,7 +185,7 @@
 						"8_width"		"90"
 						"configVersion"		"2"
 						"9_hidden"		"0"
-						"9_width"		"211"
+						"9_width"		"21"
 					}
 					"QuickList"
 					{
@@ -193,8 +193,8 @@
 					}
 				}
 			}
-			"xpos"		"450"
-			"ypos"		"176"
+			"xpos"		"37"
+			"ypos"		"319"
 			"wide"		"1019"
 			"tall"		"728"
 		}

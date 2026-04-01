@@ -55,28 +55,28 @@ CGameRulesRegister* CGameRulesRegister::FindByName( const char *pName )
 
 	INetworkStringTable *g_StringTableGameRules = NULL;
 
-	void OnGameRulesCreationStringChanged( 
-		void *object, 
-		INetworkStringTable *stringTable, 
-		int stringNumber, 
-		const char *newString, 
-		void const *newData )
+	void OnGameRulesCreationStringChanged(
+		void* object,
+		INetworkStringTable* stringTable,
+		int stringNumber,
+		const char* newString,
+		void const* newData)
 	{
 		// The server has created a new CGameRules object.
 		delete g_pGameRules;
 		g_pGameRules = NULL;
 
-		const char *pClassName = (const char*)newData;
-		CGameRulesRegister *pReg = CGameRulesRegister::FindByName( pClassName );
-		if ( !pReg )
-			Error( "OnGameRulesCreationStringChanged: missing gamerules class '%s' on the client", pClassName );
-
-		// Create the new game rules object.
-		pReg->CreateGameRules();
+		const char* pClassName = (const char*)newData;
+		CGameRulesRegister* pReg = CGameRulesRegister::FindByName(pClassName);
+		if (!pReg)
+			Warning("OnGameRulesCreationStringChanged: missing gamerules class '%s' on the client", pClassName);
+		else
+			// Create the new game rules object.
+			pReg->CreateGameRules();
 
 		if ( !g_pGameRules )
 		{
-			Error( "OnGameRulesCreationStringChanged: game rules entity (%s) not created", pClassName );
+			Warning( "OnGameRulesCreationStringChanged: game rules entity (%s) not created", pClassName );
 		}
 	}
 

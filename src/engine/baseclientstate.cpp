@@ -1142,6 +1142,7 @@ bool CBaseClientState::ProcessCreateStringTable( SVC_CreateStringTable *msg )
 
     int startbit = msg->m_DataIn.GetNumBitsRead();
 
+
 #ifndef SHARED_NET_STRING_TABLES
 
 	CNetworkStringTable *table = (CNetworkStringTable*)
@@ -1159,9 +1160,23 @@ bool CBaseClientState::ProcessCreateStringTable( SVC_CreateStringTable *msg )
 
 	m_StringTableContainer->AllowCreation( false );
 
-	int endbit = msg->m_DataIn.GetNumBitsRead();
-
 	COM_TimestampedLog( " CBaseClient::ProcessCreateStringTable(%s)-done", msg->m_szTableName );
+	Msg("Done processing svc_CreateStringTable: %s\n", msg->m_szTableName);
+
+	// some of entries in these string tables are null
+	const char* badStringTables[]
+	{ 
+		"downloadables",
+		"instancebaseline",
+	};
+	// so we skip to the last bit, in order to process other string tables
+	for (int i = 0; i < (sizeof(badStringTables) / 4); i++)
+	{
+		if (!strcmp(msg->m_szTableName, badStringTables[i]))
+			msg->m_DataIn.Seek(startbit + msg->m_nLength); // aka SeekToBit(obsolete)
+	}
+
+	int endbit = msg->m_DataIn.GetNumBitsRead();
 
 	return ( endbit - startbit ) == msg->m_nLength;	
 }

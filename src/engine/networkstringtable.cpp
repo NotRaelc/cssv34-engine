@@ -319,7 +319,7 @@ CNetworkStringTableItem *CNetworkStringTable::GetItem( int i )
 		return &m_pItems->Element( i );		
 	}
 
-	Assert( m_pItemsClientSide );
+	//Assert( m_pItemsClientSide );
 }
 
 //-----------------------------------------------------------------------------

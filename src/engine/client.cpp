@@ -191,7 +191,7 @@ bool CClientState::SetSignonState ( int state, int count )
 	}
 
 	// ConDMsg ("Signon state: %i\n", state );
-	Warning("CClientState::SetSignonState: state = %i, count = %i\n", state, count);
+	Msg("Signon state: %i (count %i)\n", state, count);
 	COM_TimestampedLog( "CClientState::SetSignonState: start %i", state );
 
 	switch ( m_nSignonState )
