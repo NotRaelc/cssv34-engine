@@ -309,7 +309,7 @@ public:
 	int				m_MsgStats[INetChannelInfo::TOTAL];	// total bytes for each message group
 
 
-	//int				m_PacketDrop;	// packets lost before getting last update (was global net_drop). FIXME: Didnt exist in source 2006!
+	int				m_PacketDrop;	// packets lost before getting last update (was global net_drop). Exist in source 2006!
 
 	char			m_Name[32];		// channel name
 	

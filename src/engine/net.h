@@ -102,8 +102,8 @@ typedef struct netpacket_s
 	double			received;	// received time
 	unsigned char	*data;		// pointer to raw packet data
 	bf_read			message;	// easy bitbuf data access
-	int				size;		// size in bytes. 
-	//int				wiresize;   // size in bytes before decompression. FIXME: Previously named size because there was no compression back then. So I'll comment it.
+	//int				size;		// size in bytes. 
+	int				wiresize;   // size in bytes before decompression. FIXME: Previously named size because there was no compression back then. So I'll comment it.
 	bool			stream;		// was send as stream
 	struct netpacket_s *pNext;	// for internal use, should be NULL in public
 } netpacket_t;

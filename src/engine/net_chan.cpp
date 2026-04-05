@@ -445,7 +445,7 @@ void CNetChan::Shutdown(const char *pReason)
 
 CNetChan::CNetChan()
 {
-	m_nSplitPacketSequence = 1;
+	//m_nSplitPacketSequence = 1;
 	m_nMaxRoutablePayloadSize = MAX_ROUTABLE_PAYLOAD;
 	m_bProcessingMessages = false;
 	m_bShouldDelete = false;
@@ -557,7 +557,7 @@ void CNetChan::Setup(int sock, netadr_t *adr, const char * name, INetChannelHand
 	m_nChokedPackets = 0;
 	m_fClearTime = 0.0;
 	
-	m_ChallengeNr = 0;y
+	m_ChallengeNr = 0;
 
 	m_StreamSocket = 0;
 	m_StreamActive = false;
@@ -755,10 +755,10 @@ const char * CNetChan::GetAddress() const
 }
 
 
-int CNetChan::GetDropNumber() const
-{
-	return m_PacketDrop;
-}
+//int CNetChan::GetDropNumber() const
+//{
+//	return m_PacketDrop;
+//}
 
 /*
 ===============
@@ -818,10 +818,10 @@ void CNetChan::FlowNewPacket(int flow, int seqnr, int acknr, int nChoked, int nD
 			pframe->valid = false;
 			pframe->size = 0;
 			pframe->latency = -1.0f; // not acknowledged yet
-			pframe->avg_latency = GetAvgLatency( FLOW_OUTGOING );
+			//pframe->avg_latency = GetAvgLatency( FLOW_OUTGOING );
 			pframe->choked = 0; // not acknowledged yet
-			pframe->dropped = 0;
-			pframe->m_flInterpolationAmount = 0.0f;
+			//pframe->dropped = 0;
+			//pframe->m_flInterpolationAmount = 0.0f;
 			Q_memset( &pframe->msggroups, 0, sizeof(pframe->msggroups) );
 
 			if ( nBackTrack < ( nChoked + nDropped ) )
@@ -830,19 +830,19 @@ void CNetChan::FlowNewPacket(int flow, int seqnr, int acknr, int nChoked, int nD
 				{
 					pframe->choked = 1;
 				}
-				else
-				{
-					pframe->dropped = 1;
-				}
+				//else
+				//{
+				//	pframe->dropped = 1;
+				//}
 			}
 		}
 
-		pframe->dropped = nDropped;
+		//pframe->dropped = nDropped;
 		pframe->choked = nChoked;
 		pframe->size = nSize;
 		pframe->valid = true;
-		pframe->avg_latency = GetAvgLatency( FLOW_OUTGOING );
-		pframe->m_flInterpolationAmount = 0.0f;
+		//pframe->avg_latency = GetAvgLatency( FLOW_OUTGOING );
+		//pframe->m_flInterpolationAmount = 0.0f;
 	}
 	else
 	{
@@ -1658,12 +1658,12 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	m_StreamUnreliable.Reset();	// clear unreliable data buffer
 
 	// On the PC the voice data is in the main packet
-	if ( !IsX360() && 
-		m_StreamVoice.GetNumBitsWritten() > 0 && m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() )
-	{
-		send.WriteBits(m_StreamVoice.GetData(), m_StreamVoice.GetNumBitsWritten() );
-		m_StreamVoice.Reset();
-	}
+	//if ( !IsX360() && 
+	//	m_StreamVoice.GetNumBitsWritten() > 0 && m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() )
+	//{
+	//	send.WriteBits(m_StreamVoice.GetData(), m_StreamVoice.GetNumBitsWritten() );
+	//	m_StreamVoice.Reset();
+	//}
 
 	int nMinRoutablePayload = MIN_ROUTABLE_PAYLOAD;
 
@@ -1688,37 +1688,37 @@ int CNetChan::SendDatagram(bf_write *datagram)
 		send.WriteUBitLong( net_NOP, NETMSG_TYPE_BITS );
 	}
 
-	// if ( IsX360() )
-	{
-		// Now round up to byte boundary
-		nRemainingBits = send.GetNumBitsWritten() % 8;
-		if ( nRemainingBits > 0 )
-		{
-			int nPadBits = 8 - nRemainingBits;
+	//if ( IsX360() )
+	//{
+	//	// Now round up to byte boundary
+	//	nRemainingBits = send.GetNumBitsWritten() % 8;
+	//	if ( nRemainingBits > 0 )
+	//	{
+	//		int nPadBits = 8 - nRemainingBits;
 
-			flags |= ENCODE_PAD_BITS( nPadBits );
-	
-			// Pad with ones
-			if ( nPadBits > 0 )
-			{
-				unsigned int unOnes = GetBitForBitnum( nPadBits ) - 1;
-				send.WriteUBitLong( unOnes, nPadBits );
-			}
-		}
-	}
+	//		flags |= ENCODE_PAD_BITS( nPadBits );
+	//
+	//		// Pad with ones
+	//		if ( nPadBits > 0 )
+	//		{
+	//			unsigned int unOnes = GetBitForBitnum( nPadBits ) - 1;
+	//			send.WriteUBitLong( unOnes, nPadBits );
+	//		}
+	//	}
+	//}
 
 
 	// FIXME:  This isn't actually correct since compression might make the main payload usage a bit smaller
-	bool bSendVoice = IsX360() && ( m_StreamVoice.GetNumBitsWritten() > 0 &&  m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() );
-		
-	bool bCompress = false;
-	if ( net_compresspackets.GetBool() )
-	{
-		if ( send.GetNumBytesWritten() >= net_compresspackets_minsize.GetInt() )
-		{
-			bCompress = true;
-		}
-	}
+	//bool bSendVoice = IsX360() && ( m_StreamVoice.GetNumBitsWritten() > 0 &&  m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() );
+	//	
+	//bool bCompress = false;
+	//if ( net_compresspackets.GetBool() )
+	//{
+	//	if ( send.GetNumBytesWritten() >= net_compresspackets_minsize.GetInt() )
+	//	{
+	//		bCompress = true;
+	//	}
+	//}
 
 	// write correct flags value and the checksum
 	flagsPos.WriteByte( flags ); 
@@ -1734,32 +1734,43 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	}
 
 	// Send the datagram
-	int	bytesSent = NET_SendPacket ( this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), bSendVoice ? &m_StreamVoice : 0, bCompress );
+	//int	bytesSent = NET_SendPacket ( this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), bSendVoice ? &m_StreamVoice : 0, bCompress );
 
-	if ( bSendVoice || !IsX360() )
-	{
-		m_StreamVoice.Reset();
-	}
+	int	bytesSent = NET_SendPacket(this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), NULL, false);
+
+
+	//if ( bSendVoice || !IsX360() )
+	//{
+	//	m_StreamVoice.Reset();
+	//}
 
 	if ( net_showudp.GetInt() && net_showudp.GetInt() != 2 )
 	{
-		int mask = 63;
-		char comp[ 64 ] = { 0 };
-		if ( net_compresspackets.GetBool() && 
-			bytesSent && 
-			( bytesSent < send.GetNumBytesWritten() ) )
-		{
-			Q_snprintf( comp, sizeof( comp ), " compression=%5u [%5.2f %%]", bytesSent, 100.0f * float( bytesSent ) / float( send.GetNumBytesWritten() ) );
-		}
+		//int mask = 63;
+		//char comp[ 64 ] = { 0 };
+		//if ( net_compresspackets.GetBool() && 
+		//	bytesSent && 
+		//	( bytesSent < send.GetNumBytesWritten() ) )
+		//{
+		//	Q_snprintf( comp, sizeof( comp ), " compression=%5u [%5.2f %%]", bytesSent, 100.0f * float( bytesSent ) / float( send.GetNumBytesWritten() ) );
+		//}
 	
-		ConMsg ("UDP -> %12.12s: sz=%5i seq=%5i ack=%5i rel=%1i tm=%8.3f%s\n"
-			, GetName()
-			, send.GetNumBytesWritten()
-			, ( m_nOutSequenceNr ) & mask
-			, m_nInSequenceNr & mask
-			, (flags & PACKET_FLAG_RELIABLE) ? 1 : 0
-			, (float)net_time
-			, comp );
+		//ConMsg ("UDP -> %12.12s: sz=%5i seq=%5i ack=%5i rel=%1i tm=%8.3f%s\n"
+		//	, GetName()
+		//	, send.GetNumBytesWritten()
+		//	, ( m_nOutSequenceNr ) & mask
+		//	, m_nInSequenceNr & mask
+		//	, (flags & PACKET_FLAG_RELIABLE) ? 1 : 0
+		//	, (float)net_time
+		//	, comp );
+
+		ConMsg("UDP -> %s: sz=%i seq=%i ack=%i rel=%i tm=%f\n",
+			GetName(),
+			send.GetNumBytesWritten(),
+			m_nOutSequenceNr & 0x3F,
+			m_nInSequenceNr & 0x3F,
+			(flags & PACKET_FLAG_RELIABLE) ? 1 : 0,
+			net_time);
 	}
 
 	// update stats
@@ -1781,14 +1792,14 @@ int CNetChan::SendDatagram(bf_write *datagram)
 
 	m_fClearTime += fAddTime;
 
-	if ( net_maxcleartime.GetFloat() > 0.0f )
-	{
-		double m_flLatestClearTime = net_time + net_maxcleartime.GetFloat();
-		if ( m_fClearTime > m_flLatestClearTime )
-		{
-			m_fClearTime = m_flLatestClearTime;
-		}
-	}
+	//if ( net_maxcleartime.GetFloat() > 0.0f )
+	//{
+	//	double m_flLatestClearTime = net_time + net_maxcleartime.GetFloat();
+	//	if ( m_fClearTime > m_flLatestClearTime )
+	//	{
+	//		m_fClearTime = m_flLatestClearTime;
+	//	}
+	//}
 	
 	m_nChokedPackets = 0;
 	m_nOutSequenceNr++;
@@ -2309,7 +2320,7 @@ void CNetChan::ProcessPacket( netpacket_t * packet, bool bHasHeader )
 	{
 		ConMsg ("UDP <- %s: sz=%i seq=%i ack=%i rel=%i tm=%f wire=%i\n"
 			, GetName()
-			, packet->size
+			, packet->wiresize
 			, m_nInSequenceNr & 63
 			, m_nOutSequenceNrAck & 63 
 			, flags & PACKET_FLAG_RELIABLE ? 1 : 0
@@ -2732,7 +2743,7 @@ void CNetChan::Reset()
 	m_fClearTime = 0.0;			 // ready to send
 	m_nChokedPackets = 0;
 
-	m_nSplitPacketSequence = 1;
+	//m_nSplitPacketSequence = 1;
 }
 
 int CNetChan::GetSocket() const
@@ -2791,17 +2802,17 @@ float CNetChan::GetPacketTime( int flow, int frame_number ) const
 void CNetChan::GetPacketResponseLatency( int flow, int frame_number, int *pnLatencyMsecs, int *pnChoke ) const
 {
 	const netframe_t &nf = m_DataFlow[flow].frames[ frame_number & NET_FRAMES_MASK ];
-	if ( pnLatencyMsecs )
-	{
-		if ( nf.dropped )
-		{
-			*pnLatencyMsecs = 9999;
-		}
-		else 
-		{
-			*pnLatencyMsecs = (int)( 1000.0f * nf.avg_latency );
-		}
-	}
+	//if ( pnLatencyMsecs )
+	//{
+	//	if ( nf.dropped )
+	//	{
+	//		*pnLatencyMsecs = 9999;
+	//	}
+	//	else 
+	//	{
+	//		*pnLatencyMsecs = (int)( 1000.0f * nf.avg_latency );
+	//	}
+	//}
 	if ( pnChoke )
 	{
 		*pnChoke = nf.choked;
@@ -2869,10 +2880,10 @@ bool CNetChan::GetStreamProgress( int flow, int *received, int *total ) const
 	return false; // TODO TCP progress
 }
 
-float CNetChan::GetCommandInterpolationAmount( int flow, int frame_number ) const
-{
-	return m_DataFlow[ flow ].frames[ frame_number & NET_FRAMES_MASK ].m_flInterpolationAmount;
-}
+//float CNetChan::GetCommandInterpolationAmount( int flow, int frame_number ) const
+//{
+//	return m_DataFlow[ flow ].frames[ frame_number & NET_FRAMES_MASK ].m_flInterpolationAmount;
+//}
 
 int	CNetChan::GetPacketBytes( int flow, int frame_number, int group ) const
 {
@@ -2918,7 +2929,7 @@ bool CNetChan::HasQueuedPackets() const
 	return m_nQueuedPackets > 0;
 }
 
-int CNetChan::IncrementSplitPacketSequence()
-{
-	return ++m_nSplitPacketSequence;
-}
+//int CNetChan::IncrementSplitPacketSequence()
+//{
+//	return ++m_nSplitPacketSequence;
+//}
