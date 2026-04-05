@@ -557,7 +557,7 @@ void CNetChan::Setup(int sock, netadr_t *adr, const char * name, INetChannelHand
 	m_nChokedPackets = 0;
 	m_fClearTime = 0.0;
 	
-	m_ChallengeNr = 0;
+	m_ChallengeNr = 0;y
 
 	m_StreamSocket = 0;
 	m_StreamActive = false;
