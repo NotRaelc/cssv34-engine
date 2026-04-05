@@ -350,6 +350,7 @@ unsigned int CNetChan::RequestFile(const char *filename	)
 
 void CNetChan::RequestFile_OLD(const char *filename, unsigned int transferID)
 {
+	// Actually there was Error, but I just leave it like this.
 	RequestFile(filename);
 }
 

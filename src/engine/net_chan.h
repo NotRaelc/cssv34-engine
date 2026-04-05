@@ -38,7 +38,7 @@
 #define SUBCHANNEL_DIRTY	3	// subchannel is marked as dirty during changelevel
 
 
-class CNetChan : public INetChannel
+class CNetChan : public INetChannel // SIZE = 7688 according to IDA. FIXME!
 {
 
 private: // netchan structurs
