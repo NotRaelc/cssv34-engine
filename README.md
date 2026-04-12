@@ -27,7 +27,6 @@ This project is aimed to improve the leaked Source 2007 code, to make it more st
 
 #### Currently known problems:
 * sv_pure is broken
-* FCVAR_NOTIFY is broken
 * some netmessages is fully incompatible with v34 version
 * some network string tables is also incompatible with v34 version
 * game constantly lags every second, idk why
@@ -38,3 +37,7 @@ Having problems building the project? Make sure you have the following:<br>
 - MFC for v145 build tools: Available under the "Individual Components" section of the Visual Studio Installer.<br>
 VS 2026 should work with no additional changes necessary.<br>
 
+## Last step
+You need to use original CSS v34 content:
+- open `create_game_junctions.bat` and type paths to `<CSSv34 Content Path>\hl2` and `<CSSv34 Content Path>\cstrike` folders
+- done
