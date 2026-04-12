@@ -38,7 +38,7 @@
 #define SUBCHANNEL_DIRTY	3	// subchannel is marked as dirty during changelevel
 
 
-class CNetChan : public INetChannel
+class CNetChan : public INetChannel // SIZE = 7688 according to IDA. FIXME! I think its even 7684 without vtable. Or maybe I missed some padding bytes at the end!
 {
 
 private: // netchan structurs
@@ -81,21 +81,21 @@ private: // netchan structurs
 
 	// Client's now store the command they sent to the server and the entire results set of
 	//  that command. 
-	typedef struct netframe_s
+	typedef struct netframe_s // SIZE = 48 byte according to IDA
 	{
 		// Data received from server
 		float			time;			// net_time received/send
 		int				size;			// total size in bytes
 		float			latency;		// raw ping for this packet, not cleaned. set when acknowledged otherwise -1.
-		float			avg_latency;	// averaged ping for this packet
+		//float			avg_latency;	// averaged ping for this packet
 		bool			valid;			// false if dropped, lost, flushed
 		int				choked;			// number of previously chocked packets
-		int				dropped;
-		float			m_flInterpolationAmount; // FIXME: i dont sure that cssv34 actually needs this
+		//int				dropped;
+		//float			m_flInterpolationAmount; // FIXME: i dont sure that cssv34 actually needs this
 		unsigned short	msggroups[INetChannelInfo::TOTAL];	// received bytes for each message group
 	} netframe_t;
 
-	typedef struct
+	typedef struct // SIZE = 3116 bye according to IDA
 	{
 		float		nextcompute;	// Time when we should recompute k/sec data
 		float		avgbytespersec;	// average bytes/sec
@@ -263,8 +263,8 @@ public:
 	bf_write	m_StreamUnreliable;
 	CUtlMemory<byte> m_UnreliableDataBuffer;
 
-	bf_write	m_StreamVoice;
-	CUtlMemory<byte> m_VoiceDataBuffer;
+	//bf_write	m_StreamVoice;			// FIXME: Didnt exist in source 2006
+	//CUtlMemory<byte> m_VoiceDataBuffer; // FIXME: Didnt exist in source 2006
 
 // don't use any vars below this (only in net_ws.cpp)
 
@@ -309,7 +309,7 @@ public:
 	int				m_MsgStats[INetChannelInfo::TOTAL];	// total bytes for each message group
 
 
-	int				m_PacketDrop;	// packets lost before getting last update (was global net_drop)
+	int				m_PacketDrop;	// packets lost before getting last update (was global net_drop). Exist in source 2006!
 
 	char			m_Name[32];		// channel name
 	
@@ -327,7 +327,7 @@ public:
 	//float						m_flRemoteFrameTimeStdDeviation;
 	int							m_nMaxRoutablePayloadSize;
 
-	int							m_nSplitPacketSequence;
+	//int							m_nSplitPacketSequence; // FIXME: didnt exist in source 2006!!!
 };
 
 

@@ -77,7 +77,8 @@
 // Pad this to next higher 16 byte boundary
 // This is the largest packet that can come in/out over the wire, before processing the header
 //  bytes will be stripped by the networking channel layer
-#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 16 )
+//#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 16 ) // 8 insted of 16 in source 2006!!!
+#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 8 )
 
 #define NET_HEADER_FLAG_SPLITPACKET				-2
 #define NET_HEADER_FLAG_COMPRESSEDPACKET		-3
@@ -101,8 +102,8 @@ typedef struct netpacket_s
 	double			received;	// received time
 	unsigned char	*data;		// pointer to raw packet data
 	bf_read			message;	// easy bitbuf data access
-	int				size;		// size in bytes
-	int				wiresize;   // size in bytes before decompression
+	//int				size;		// size in bytes. 
+	int				wiresize;   // size in bytes before decompression. FIXME: Previously named size because there was no compression back then. So I'll comment it.
 	bool			stream;		// was send as stream
 	struct netpacket_s *pNext;	// for internal use, should be NULL in public
 } netpacket_t;

@@ -145,6 +145,7 @@ modeswitchsave.tga
 # game
 /game/cstrike/bin/*.dll
 /game/sourcetest/bin/*.dll
+/game/cstrie/gameinfo.txt
 /game/cstrike_content
 /game/hl2
 /game/episodic
@@ -167,3 +168,4 @@ modeswitchsave.tga
 !steamclient.dll
 !Steam.dll
 !rev.ini
+
