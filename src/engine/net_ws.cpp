@@ -1344,32 +1344,6 @@ bool NET_ReceiveDatagram ( const int sock, netpacket_t * packet )
 
 		unsigned int nVoiceBits = 0u;
 
-		if ( X360SecureNetwork() )
-		{
-			// X360TBD: Check for voice data and forward it to XAudio
-			// For now, just pull off the 2-byte VDP header and shift the data
-			unsigned short nDataBytes = ( *( unsigned short * )packet->data );
-
-			Assert( nDataBytes > 0 && nDataBytes <= ret );
-
-			int nVoiceBytes = ret - nDataBytes - 2;
-			if ( nVoiceBytes > 0 )
-			{
-				byte *pVoice = (byte *)packet->data + 2 + nDataBytes;
-
-				nVoiceBits = (unsigned int)LittleShort( *( unsigned short *)pVoice );
-				unsigned int nExpectedVoiceBytes = Bits2Bytes( nVoiceBits );
-				pVoice += sizeof( unsigned short );
-
-					bufVoice.EnsureCapacity( nVoiceBytes );
-					Q_memcpy( bufVoice.Base(), pVoice, nVoiceBytes );
-			}
-
-			Q_memmove( packet->data, &packet->data[2], nDataBytes );
-
-			ret = nDataBytes;
-		}
-
 		packet->from.SetFromSockadr( &from );
 		packet->size = ret;
 		
@@ -1672,7 +1646,7 @@ void NET_ProcessSocket( int sock, IConnectionlessPacketHandler *handler )
 
 			if ( net_showudp.GetInt() )
 			{
-				Msg("UDP <- %s: sz=%i OOB '%c' wire=%i\n", packet->from.ToString(), packet->size, packet->data[4], packet->wiresize );
+				Msg("UDP <- %s: sz=%i OOB '%c'\n", packet->from.ToString(), packet->size, packet->data[4]);
 			}
 
 			handler->ProcessConnectionlessPacket( packet );
@@ -1732,34 +1706,7 @@ void NET_LogBadPacket(netpacket_t * packet)
 int NET_SendToImpl( SOCKET s, const char FAR * buf, int len, const struct sockaddr FAR * to, int tolen, int iGameDataLength )
 {
 	int nSend = 0;
-#if defined( _X360 )
-	if ( X360SecureNetwork() )
-	{
-		// 360 uses VDP protocol to piggyback voice data across the network.
-		// Two-byte VDP Header contains the number of game data bytes
-
-		// NOTE: The header bytes *should* be swapped to network endian, however when communicating 
-		// with XLSP servers (the only cross-platform communication possible with a secure network)
-		// the server's network stack swaps the header at the receiving end.
-		const int nVDPHeaderBytes = 2;
-		Assert( len < (unsigned short)-1 );
-
-		const unsigned short nDataBytes = iGameDataLength == -1 ? len : iGameDataLength;
-
-		WSABUF buffers[2];
-		buffers[0].len = nVDPHeaderBytes;
-		buffers[0].buf = (char*)&nDataBytes;
-
-		buffers[1].len = len;
-		buffers[1].buf = const_cast<char*>( buf );
-
-		WSASendTo( s, buffers, 2, (DWORD*)&nSend, 0, to, tolen, NULL, NULL );
-	}
-	else
-#endif //defined( _X360 )
-	{
-		nSend = sendto( s, buf, len, 0, to, tolen );
-	}
+	nSend = sendto( s, buf, len, 0, to, tolen );
 
 	return nSend;
 }
@@ -2001,14 +1948,14 @@ int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char FAR * buf, i
 	int nSplitSizeMinusHeader = nMaxRoutableSize - sizeof( SPLITPACKET );
 
 	int nSequenceNumber = -1;
-	if ( netchan )
-	{
-		nSequenceNumber = netchan->IncrementSplitPacketSequence();
-	}
-	else
-	{
+	//if (netchan)
+	//{
+	//	nSequenceNumber = netchan->IncrementSplitPacketSequence();
+	//}
+	//else
+	//{
 		nSequenceNumber = ThreadInterlockedIncrement( &s_SplitPacketSequenceNumber[ sock ] );
-	}
+	//}
 
 	const char *sendbuf = buf;
 	int sendlen = len;

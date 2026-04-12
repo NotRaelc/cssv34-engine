@@ -142,7 +142,7 @@ public:	// INetChannelInfo interface
 	float		GetPacketTime( int flow, int frame_number ) const ;
 	int			GetPacketBytes( int flow, int frame_number, int group ) const ; 
 	bool		GetStreamProgress( int flow, int *received, int *total ) const;
-	float		GetCommandInterpolationAmount( int flow, int frame_number ) const;
+	//float		GetCommandInterpolationAmount( int flow, int frame_number ) const;
 	void		GetPacketResponseLatency( int flow, int frame_number, int *pnLatencyMsecs, int *pnChoke ) const;
 	//void		GetRemoteFramerate( float *pflFrameTime, float *pflFrameTimeStdDeviation ) const;
 	float		GetTimeoutSeconds() const;
@@ -192,7 +192,7 @@ public:	// INetChannel interface
 	bool		HasPendingReliableData( void );
 	void		SetMaxBufferSize(bool bReliable, int nBytes);
 
-	int			IncrementSplitPacketSequence();
+	//int			IncrementSplitPacketSequence();
 public:
 
 	void		Setup(int sock, netadr_t *adr, const char * name, INetChannelHandler * handler);

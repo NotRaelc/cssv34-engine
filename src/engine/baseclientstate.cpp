@@ -351,7 +351,7 @@ void CBaseClientState::ConnectionStart(INetChannel *chan)
 
 void CBaseClientState::ConnectionClosing( const char *reason )
 {
-	ConMsg( "Disconnect: %s.\n", reason?reason:"unknown reason" );
+	ConMsg("Disconnect: %s.\n", reason ? reason : "unknown reason");
 	Disconnect();
 }
 
@@ -497,7 +497,15 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 
 	// now append the steam3 cookie
 	char steam3Cookie[ STEAM_KEYSIZE ];
-	int steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIP(), checkAdr.GetPort(), bGSSecure );
+	int steam3CookieLen = 0;
+	int generation = 0;
+
+	if (esteamation == true)
+		generation = 3;
+	else
+		generation = 4;
+	Msg("Generation = %i\n", generation);
+	steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIP(), checkAdr.GetPort(), bGSSecure, generation);
 
 	msg.WriteShort( steam3CookieLen );
 	if ( steam3CookieLen > 0 )

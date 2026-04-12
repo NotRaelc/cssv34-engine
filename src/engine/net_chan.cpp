@@ -343,7 +343,7 @@ unsigned int CNetChan::RequestFile(const char *filename	)
 	m_StreamReliable.WriteUBitLong( net_File, NETMSG_TYPE_BITS );
 	m_StreamReliable.WriteUBitLong( m_FileRequestCounter, 32 );
 	m_StreamReliable.WriteString( filename );
-	m_StreamReliable.WriteOneBit( 1 ); // reqest this file
+	m_StreamReliable.WriteOneBit( 1 ); // request this file
 
 	return m_FileRequestCounter;
 }
@@ -756,10 +756,10 @@ const char * CNetChan::GetAddress() const
 }
 
 
-//int CNetChan::GetDropNumber() const
-//{
-//	return m_PacketDrop;
-//}
+int CNetChan::GetDropNumber() const
+{
+	return m_PacketDrop;
+}
 
 /*
 ===============

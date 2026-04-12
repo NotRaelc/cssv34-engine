@@ -76,7 +76,7 @@ int GenerateRevEmu(void* pDest, int nSteamID, int Gen = 4)
 	}
 
 	if (Gen == 3)
-		return 152;
+		return 164;
 
 	// stubs for Gen 2 and 1 (they both based on SteamEmu)
 	if (Gen == 2)

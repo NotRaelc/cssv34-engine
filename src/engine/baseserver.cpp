@@ -146,7 +146,8 @@ static void ServerNotifyVarChangeCallback(IConVar* pConVar, const char* pOldValu
 {
 	if (!pConVar->IsFlagSet(FCVAR_NOTIFY))
 		return;
-	// WIP (probably)
+
+	sv.BroadcastPrintf("NOTIFY: Server cvar %s changed its value. (previous %s) \n", pConVar->GetName(), pOldValue);
 }
 
 

@@ -685,222 +685,77 @@ bool PlayerNameNotSetYet( const char *pszName )
 
 	return false;
 }
-
-void ClientModeShared::FireGameEvent( IGameEvent *event )
+void ClientModeShared::FireGameEvent(IGameEvent* event)
 {
-	CBaseHudChat *hudChat = (CBaseHudChat *)GET_HUDELEMENT( CHudChat );
+	CBaseHudChat* hudChat = (CBaseHudChat*)GET_HUDELEMENT(CHudChat);
 
-	const char *eventname = event->GetName();
+	const char* eventname = event->GetName();
 
-	if ( Q_strcmp( "player_connect", eventname ) == 0 )
+	if (Q_strcmp("player_connect", eventname) == 0)
 	{
-		if ( !hudChat )
-			return;
-		if ( PlayerNameNotSetYet(event->GetString("name")) )
+		if (!hudChat)
 			return;
 
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszLocalized[100];
-			wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("name"), wszPlayerName, sizeof(wszPlayerName) );
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_joined_game" ), 1, wszPlayerName );
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s", szLocalized );
-		}
+		hudChat->Printf(CHAT_FILTER_JOINLEAVE, "%s has joined the game\n", event->GetString("name"));
 	}
-	else if ( Q_strcmp( "player_disconnect", eventname ) == 0 )
+	else if (Q_strcmp("player_disconnect", eventname) == 0)
 	{
-		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
+		C_BasePlayer* pPlayer = USERID2PLAYER(event->GetInt("userid"));
 
-		if ( !hudChat || !pPlayer )
-			return;
-		if ( PlayerNameNotSetYet(event->GetString("name")) )
+		if (!hudChat || !pPlayer)
 			return;
 
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
-			g_pVGuiLocalize->ConvertANSIToUnicode( pPlayer->GetPlayerName(), wszPlayerName, sizeof(wszPlayerName) );
-
-			wchar_t wszReason[64];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("reason"), wszReason, sizeof(wszReason) );
-
-			wchar_t wszLocalized[100];
-			if (IsPC())
-			{
-				g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_left_game" ), 2, wszPlayerName, wszReason );
-			}
-			else
-			{
-				g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_left_game" ), 1, wszPlayerName );
-			}
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_JOINLEAVE, "%s", szLocalized );
-		}
+		hudChat->Printf(CHAT_FILTER_JOINLEAVE, "%s left the game (%s)\n", pPlayer->GetPlayerName(), event->GetString("reason"));
 	}
-	else if ( Q_strcmp( "player_team", eventname ) == 0 )
+	else if (Q_strcmp("player_team", eventname) == 0)
 	{
-		C_BasePlayer *pPlayer = USERID2PLAYER( event->GetInt("userid") );
-		if ( !hudChat )
+		C_BasePlayer* pPlayer = USERID2PLAYER(event->GetInt("userid"));
+		if (!hudChat)
 			return;
-		if ( !pPlayer )
+		if (!pPlayer)
 			return;
 
 		bool bDisconnected = event->GetBool("disconnect");
 
-		if ( bDisconnected )
+		if (bDisconnected)
 			return;
 
-		int team = event->GetInt( "team" );
+		int team = event->GetInt("team");
 
-		const char *pszName = pPlayer->GetPlayerName();
-		if ( PlayerNameNotSetYet(pszName) )
-			return;
-
-		wchar_t wszPlayerName[MAX_PLAYER_NAME_LENGTH];
-		g_pVGuiLocalize->ConvertANSIToUnicode( pszName, wszPlayerName, sizeof(wszPlayerName) );
-
-		wchar_t wszTeam[64];
-		C_Team *pTeam = GetGlobalTeam( team );
-		if ( pTeam )
+		C_Team* pTeam = GetGlobalTeam(team);
+		if (pTeam)
 		{
-			g_pVGuiLocalize->ConvertANSIToUnicode( pTeam->Get_Name(), wszTeam, sizeof(wszTeam) );
+			hudChat->Printf(CHAT_FILTER_TEAMCHANGE, "Player %s joined team %s\n", pPlayer->GetPlayerName(), pTeam->Get_Name());
 		}
 		else
 		{
-			_snwprintf ( wszTeam, sizeof( wszTeam ) / sizeof( wchar_t ), L"%d", team );
+			hudChat->Printf(CHAT_FILTER_TEAMCHANGE, "Player %s joined team %i\n", pPlayer->GetPlayerName(), team);
 		}
 
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszLocalized[100];
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_joined_team" ), 2, wszPlayerName, wszTeam );
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_TEAMCHANGE, "%s", szLocalized );
-		}
-
-		if ( pPlayer->IsLocalPlayer() )
+		if (pPlayer->IsLocalPlayer())
 		{
 			// that's me
-			pPlayer->TeamChange( team );
+			pPlayer->TeamChange(team);
 		}
 	}
-	else if ( Q_strcmp( "player_changename", eventname ) == 0 )
+	else if (Q_strcmp("player_changename", eventname) == 0)
 	{
-		if ( !hudChat )
+		if (!hudChat)
 			return;
 
-		const char *pszOldName = event->GetString("oldname");
-		if ( PlayerNameNotSetYet(pszOldName) )
-			return;
-
-		wchar_t wszOldName[MAX_PLAYER_NAME_LENGTH];
-		g_pVGuiLocalize->ConvertANSIToUnicode( pszOldName, wszOldName, sizeof(wszOldName) );
-
-		wchar_t wszNewName[MAX_PLAYER_NAME_LENGTH];
-		g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString( "newname" ), wszNewName, sizeof(wszNewName) );
-
-		wchar_t wszLocalized[100];
-		g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_player_changed_name" ), 2, wszOldName, wszNewName );
-
-		char szLocalized[100];
-		g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-		hudChat->Printf( CHAT_FILTER_NAMECHANGE, "%s", szLocalized );
+		hudChat->Printf(CHAT_FILTER_NAMECHANGE, "%s changed name to %s\n", event->GetString("oldname"), event->GetString("newname"));
 	}
-	else if ( Q_strcmp( "teamplay_broadcast_audio", eventname ) == 0 )
+
+	else if (Q_strcmp("server_cvar", eventname) == 0)
 	{
-		int team = event->GetInt( "team" );
-
-		bool bValidTeam = false;
-
-		if ( (GetLocalTeam() && GetLocalTeam()->GetTeamNumber() == team) )
-		{
-			bValidTeam = true;
-		}
-
-		//If we're in the spectator team then we should be getting whatever messages the person I'm spectating gets.
-		if ( bValidTeam == false )
-		{
-			CBasePlayer *pSpectatorTarget = UTIL_PlayerByIndex( GetSpectatorTarget() );
-
-			if ( pSpectatorTarget && (GetSpectatorMode() == OBS_MODE_IN_EYE || GetSpectatorMode() == OBS_MODE_CHASE) )
-			{
-				if ( pSpectatorTarget->GetTeamNumber() == team )
-				{
-					bValidTeam = true;
-				}
-			}
-		}
-
-		if ( team == 0 && GetLocalTeam() > 0 )
-		{
-			bValidTeam = false;
-		}
-
-		if ( bValidTeam == true )
-		{
-			CLocalPlayerFilter filter;
-			const char *pszSoundName = event->GetString("sound");
-			C_BaseEntity::EmitSound( filter, SOUND_FROM_LOCAL_PLAYER, pszSoundName );
-		}
+		hudChat->Printf(CHAT_FILTER_SERVERMSG, "Server cvar \"%s\" changed to %s\n", event->GetString("cvarname"), event->GetString("cvarvalue"));
 	}
-	else if ( Q_strcmp( "teamplay_broadcast_audio", eventname ) == 0 )
-	{
-		int team = event->GetInt( "team" );
-		if ( !team || (GetLocalTeam() && GetLocalTeam()->GetTeamNumber() == team) )
-		{
-			CLocalPlayerFilter filter;
-			const char *pszSoundName = event->GetString("sound");
-			C_BaseEntity::EmitSound( filter, SOUND_FROM_LOCAL_PLAYER, pszSoundName );
-		}
-	}
-	else if ( Q_strcmp( "server_cvar", eventname ) == 0 )
-	{
-		if ( !IsInCommentaryMode() )
-		{
-			wchar_t wszCvarName[64];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("cvarname"), wszCvarName, sizeof(wszCvarName) );
 
-			wchar_t wszCvarValue[16];
-			g_pVGuiLocalize->ConvertANSIToUnicode( event->GetString("cvarvalue"), wszCvarValue, sizeof(wszCvarValue) );
-
-			wchar_t wszLocalized[100];
-			g_pVGuiLocalize->ConstructString( wszLocalized, sizeof( wszLocalized ), g_pVGuiLocalize->Find( "#game_server_cvar_changed" ), 2, wszCvarName, wszCvarValue );
-
-			char szLocalized[100];
-			g_pVGuiLocalize->ConvertUnicodeToANSI( wszLocalized, szLocalized, sizeof(szLocalized) );
-
-			hudChat->Printf( CHAT_FILTER_SERVERMSG, "%s", szLocalized );
-		}
-	}
-	else if ( Q_strcmp( "achievement_earned", eventname ) == 0 )
-	{
-		int iPlayerIndex = event->GetInt( "player" );
-		C_BasePlayer *pPlayer = UTIL_PlayerByIndex( iPlayerIndex );
-		int iAchievement = event->GetInt( "achievement" );
-
-		if ( !hudChat || !pPlayer )
-			return;
-	}
 	else
 	{
-		DevMsg( 2, "Unhandled GameEvent in ClientModeShared::FireGameEvent - %s\n", event->GetName()  );
+		DevMsg(2, "Unhandled GameEvent in ClientModeShared::FireGameEvent - %s\n", event->GetName());
 	}
 }
-
-
-	
 
 
 //-----------------------------------------------------------------------------

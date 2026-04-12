@@ -12,6 +12,7 @@
 
 static bool g_bSidCfg_FirstStart = true;
 extern int g_iSteamAppID;
+bool esteamation = false;
 
 /*
 * Generate account id using an external ip
@@ -53,6 +54,7 @@ int get_accountid()
 }
 
 SteamIDConfig::SteamIDConfig() : steamID(0) {
+
 	if (g_bSidCfg_FirstStart) {
 		srand((unsigned)_time64(0));
 		
@@ -75,13 +77,15 @@ SteamIDConfig::~SteamIDConfig() {
 	steamID = 0;
 }
 
-int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 port, bool secure) {
+int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 port, bool secure, int gen) {
 	char Gen[16];
 
-	if (SteamUser())
-		Ticket = SteamUser()->InitiateGameConnection(pData, 2048, sid, CGameID(g_iSteamAppID), ntohl(ip), ntohs(port), secure);
-	else
-		Ticket = GenerateRevEmu(pData, steamID, 4); // spoof the ticket if SteamUser doesn't exist
+	Ticket = GenerateRevEmu(pData, steamID, gen); // spoof the ticket if SteamUser doesn't exist
+
+	if (gen == 4) {
+		if (SteamUser())
+			Ticket = SteamUser()->InitiateGameConnection(pData, 2048, sid, CGameID(g_iSteamAppID), ntohl(ip), ntohs(port), secure);
+	}
 
 	ConColorMsg(Color(100, 255, 100, 255), "[SteamIDConfig] ");
 	Msg("Created ticked for %s ", GetEmulatorName());
@@ -89,7 +93,8 @@ int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 por
 	auto pTicket = (int*)pData;
 	auto pbTicket = (uint8*)pData;
 
-	strcpy(Gen, "RevEmu 3 Gen"); // mostly popular on v34 so set this as default
+	if (pTicket[0] == 'J')
+		strcpy(Gen, "RevEmu 3 Gen");
 
 	if (pTicket[0] == 'S')
 		strcpy(Gen, "RevEmu 4 Gen");
@@ -107,7 +112,7 @@ const char* SteamIDConfig::GetEmulatorName() {
 	result[0] = 0;
 	strcpy(result, "None");
 
-	if (Ticket == 152)
+	if (Ticket == 164)
 		strcpy(result, "RevEmu 9.83+");
 
 	if (Ticket == 178)

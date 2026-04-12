@@ -40,6 +40,7 @@
 #include "ivideomode.h"
 #include "download.h"
 #include "GameUI/IGameUI.h"
+#include "SteamIDConfig.h"
 
 #include "audio_pch.h"
 
@@ -89,6 +90,16 @@ void CClientState::ConnectionClosing( const char * reason )
 		SCR_EndLoadingPlaque();
 		Host_Disconnect(true);
 	}
+
+	if (strstr("Client dropped by server", reason)) {
+		Msg("Server uses eSTEAMATION, commencing connection retry...\n");
+		esteamation = true;
+		Sleep(2000);
+		CL_Retry();
+	}
+	else
+		esteamation = false;
+
 }
 
 
