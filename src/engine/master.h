@@ -56,22 +56,49 @@ public:
 	virtual void AddMaster_f( const CCommand &args ) = 0;
 	// Force a heartbeat to be issued right away
 	virtual void Heartbeat_f( void ) = 0;
-
+	// Processes connectionless packet
 	virtual void ProcessConnectionlessPacket(netpacket_t* packet) = 0;
-
+	// Runs every frame
 	virtual void RunFrame( void ) = 0;
 };
 
+// Helper class for server queries
+class IServerQueriesMaster
+{
+public:
+	virtual void RunFrame(void) = 0;
+	virtual void ProcessConnectionlessPacket(netpacket_t* packet) = 0;
+
+	virtual void PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) = 0;
+	virtual void PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) = 0;
+	virtual bool CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort) = 0;
+};
+
+/*
+class IMasterNetwork
+{
+	// runs every frame, for some basic operations such as finding servers
+	virtual void RunFrame(void) = 0;
+
+	// returns array of the servers
+	virtual void GetAllServers(newgameserver_t** servers) = 0;
+};
+*/
+
 //-----------------------------------------------------------------------------
-// Purpose: Implements LAN server list.
+// Purpose: Implements server list.
 //-----------------------------------------------------------------------------
-class ILanServers
+class IServerList
 {
 public:
 	virtual void RunFrame(void) = 0;
 	virtual void ProcessConnectionlessPacket(netpacket_t* packet) = 0;
 	virtual void RequestServerList(const char* gamedir, IServerListResponse* response) = 0;
+
+	virtual void AddServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed = 0ull) = 0;
+	virtual void RemoveServer(uint32 unIP, uint16 usPort) = 0;
 };
+
 
 //-----------------------------------------------------------------------------
 // Purpose: Implements network functions for master server interfacs.
@@ -82,7 +109,10 @@ public:
 };
 
 extern IMaster* master;
-extern ILanServers* lanservers;
+extern IServerQueriesMaster* serverqueries;
+extern IServerList* lanservers;
+extern IServerList* favoriteservers;
+extern IServerList* historyservers;
 extern IMasterNETHandler* MasterNetHandler();
 extern IServersInfo* g_pServersInfo;
 

@@ -111,9 +111,9 @@
 	{
 		"ControlName"		"Button"
 		"fieldName"		"SelectedOKButton"
-		"xpos"		"336"
+		"xpos"		"316"
 		"ypos"		"340"
-		"wide"		"210"
+		"wide"		"230"
 		"tall"		"24"
 		"AutoResize"		"0"
 		"PinCorner"		"3"

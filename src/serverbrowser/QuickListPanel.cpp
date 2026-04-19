@@ -140,6 +140,11 @@ void CQuickListPanel::SetRefreshing( void )
 		m_pReplayImage->SetVisible( false );
 	}
 
+	if (m_pMapImage)
+	{
+		m_pReplayImage->SetVisible(false);
+	}
+
 	if ( m_pLatencyLabel )
 	{
 		m_pLatencyLabel->SetVisible( false );
@@ -255,8 +260,10 @@ void CQuickListPanel::SetServerInfo ( KeyValues *pKV, int iListID, int iTotalSer
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+
 void CQuickListPanel::SetImage( const char *pMapName )
 {
+	/*
 	char path[ 512 ];
 	Q_snprintf( path, sizeof( path ), "materials/vgui/maps/menu_thumb_%s.vmt", pMapName );
 
@@ -283,6 +290,7 @@ void CQuickListPanel::SetImage( const char *pMapName )
 		m_pMapImage->SetImage ( imagename );
 		m_pMapImage->SetMouseInputEnabled( false );
 	}							
+	*/
 }
 
 void CQuickListPanel::OnMousePressed( vgui::MouseCode code )

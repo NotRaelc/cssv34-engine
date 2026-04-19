@@ -26,11 +26,12 @@ CFavoriteGames::~CFavoriteGames()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: loads favorites list from disk
+// Purpose: 
 //-----------------------------------------------------------------------------
 void CFavoriteGames::LoadFavoritesList()
 {
-	if ( SteamMatchmaking() && SteamMatchmaking()->GetFavoriteGameCount() == 0 )
+	/*
+	if ()
 	{
 		// set empty message
 		m_pGameList->SetEmptyListText("#ServerBrowser_NoFavoriteServers");
@@ -40,19 +41,18 @@ void CFavoriteGames::LoadFavoritesList()
 		m_pGameList->SetEmptyListText("#ServerBrowser_NoInternetGamesResponded");
 
 	}
-
-	if ( m_bRefreshOnListReload )
+	*/
+	if (m_bRefreshOnListReload)
 	{
 		m_bRefreshOnListReload = false;
 		StartRefresh();
 	}
 }
 
-
 //-----------------------------------------------------------------------------
 // Purpose: returns true if the game list supports the specified ui elements
 //-----------------------------------------------------------------------------
-bool CFavoriteGames::SupportsItem(InterfaceItem_e item)
+bool CFavoriteGames::SupportsItem(IGameList::InterfaceItem_e item)
 {
 	switch (item)
 	{
@@ -61,7 +61,7 @@ bool CFavoriteGames::SupportsItem(InterfaceItem_e item)
 		return true;
 
 	case ADDCURRENTSERVER:
-		return !IsSteam() && BFiltersVisible();
+		return true;
 	
 	case GETNEWLIST:
 	default:
@@ -76,7 +76,7 @@ bool CFavoriteGames::SupportsItem(InterfaceItem_e item)
 void CFavoriteGames::RefreshComplete( NServerResponse response )
 {
 	SetRefreshing(false);
-	if ( SteamMatchmaking() && SteamMatchmaking()->GetFavoriteGameCount() == 0 )
+	if ( response == nNoServersListedOnMasterServer )
 	{
 		// set empty message
 		m_pGameList->SetEmptyListText("#ServerBrowser_NoFavoriteServers");
@@ -122,24 +122,26 @@ void CFavoriteGames::OnOpenContextMenu(int itemID)
 //-----------------------------------------------------------------------------
 void CFavoriteGames::OnRemoveFromFavorites()
 {
-	if ( !SteamMatchmakingServers() || !SteamMatchmaking() )
+
+	if (!SteamMatchmakingServers() || !SteamMatchmaking())
 		return;
 
 	// iterate the selection
-	for ( int iGame = 0; iGame < m_pGameList->GetSelectedItemsCount(); iGame++ )
+	for (int iGame = 0; iGame < m_pGameList->GetSelectedItemsCount(); iGame++)
 	{
-		int itemID = m_pGameList->GetSelectedItem( iGame );
+		int itemID = m_pGameList->GetSelectedItem(iGame);
 		int serverID = m_pGameList->GetItemData(itemID)->userData;
-		
-		gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( (EMatchMakingType)m_eMatchMakingType, serverID );
-		
-		if ( pServer )
+
+		newgameserver_t* pServer = GetServer(serverID);
+
+		if (pServer)
 		{
-			SteamMatchmaking()->RemoveFavoriteGame( pServer->m_nAppID, pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetConnectionPort(), k_unFavoriteFlagFavorite );
+			m_pGameList->RemoveItem(itemID);
+			g_pServersInfo->RemoveFavoriteServer(pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetPort());
 		}
 	}
 
-	UpdateStatus();	
+	UpdateStatus();
 	InvalidateLayout();
 	Repaint();
 }
@@ -160,20 +162,12 @@ void CFavoriteGames::OnAddServerByName()
 //-----------------------------------------------------------------------------
 void CFavoriteGames::OnAddCurrentServer()
 {
-	gameserveritem_t *pConnected = ServerBrowserDialog().GetCurrentConnectedServer();
+	newgameserver_t *pConnected = ServerBrowserDialog().GetCurrentConnectedServer();
 
-	if ( pConnected && SteamMatchmaking() )
+	if ( pConnected )
 	{
-		SteamMatchmaking()->AddFavoriteGame( pConnected->m_nAppID, pConnected->m_NetAdr.GetIP(), pConnected->m_NetAdr.GetConnectionPort(), k_unFavoriteFlagFavorite, time( NULL ) );
+		g_pServersInfo->AddFavoriteServer(pConnected->m_NetAdr.GetIP(), pConnected->m_NetAdr.GetPort());
 		m_bRefreshOnListReload = true;
-
-		if ( false )
-		{
-			// send command to propagate to the client so the client can send it on to the GC
-			char command[ 256 ];
-			Q_snprintf( command, Q_ARRAYSIZE( command ), "rfgc %s\n", pConnected->m_NetAdr.GetConnectionAddressString() );
-			g_pRunGameEngine->AddTextCommand( command );
-		}
 	}
 }
 

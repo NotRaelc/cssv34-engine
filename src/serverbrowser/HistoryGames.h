@@ -27,7 +27,7 @@ public:
 
 	// IGameList handlers
 	// returns true if the game list supports the specified ui elements
-	virtual bool SupportsItem(InterfaceItem_e item);
+	virtual bool SupportsItem(IGameList::InterfaceItem_e item);
 
 	// called when the current refresh list is complete
 	virtual void RefreshComplete( NServerResponse response );

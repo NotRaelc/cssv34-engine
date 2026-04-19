@@ -101,14 +101,13 @@ public:
 	{
 		k_nColumn_Password = 0,
 		k_nColumn_Secure = 1,
-		k_nColumn_Replay = 2,
-		k_nColumn_Name = 3,
-		k_nColumn_IPAddr = 4,
-		k_nColumn_GameDesc = 5,
-		k_nColumn_Players = 6,
-		k_nColumn_Bots = 7,
-		k_nColumn_Map = 8,
-		k_nColumn_Ping = 9,
+		k_nColumn_Name = 2,
+		k_nColumn_IPAddr = 3,
+		k_nColumn_GameDesc = 4,
+		k_nColumn_Players = 5,
+		k_nColumn_Bots = 6,
+		k_nColumn_Map = 7,
+		k_nColumn_Ping = 8,
 	};
 
 	CBaseGamesPage( vgui::Panel *parent, const char *name, EPageType eType, const char *pCustomResFilename=NULL);

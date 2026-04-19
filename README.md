@@ -31,6 +31,9 @@ This project is aimed to improve the leaked Source 2007 code, to make it more st
 * some network string tables is also incompatible with v34 version
 * game constantly lags every second, idk why
 
+### Problems with creating solutions
+If you are having problems with `MkSln**.bat` scripts, run `src\VCReg_Fix.bat` script.
+
 ## Troubleshooting compiling
 Having problems building the project? Make sure you have the following:<br>
 - Windows 10 SDK: https://developer.microsoft.com/en-us/windows/downloads<br>

@@ -173,71 +173,54 @@ CBaseGamesPage::CBaseGamesPage( vgui::Panel *parent, const char *name, EPageType
 	m_pGameList->m_nUserConfigFileVersion = 2;
 
 	// Add the column headers
-	m_pGameList->AddColumnHeader( k_nColumn_Password, "Password", "#ServerBrowser_Password", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
-	m_pGameList->AddColumnHeader( k_nColumn_Secure, "Secure", "#ServerBrowser_Secure", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
+	m_pGameList->AddColumnHeader(k_nColumn_Password, "Password", "#ServerBrowser_Password", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
+	m_pGameList->AddColumnHeader(k_nColumn_Secure, "Secure", "#ServerBrowser_Secure", 16, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
 
 	int nReplayWidth = 16;
-	if ( !bRunningTF2 )
+	if (!bRunningTF2)
 	{
 		nReplayWidth = 0;
 	}
 
-	m_pGameList->AddColumnHeader( k_nColumn_Replay, "Replay", "#ServerBrowser_Replay", nReplayWidth, ListPanel::COLUMN_FIXEDSIZE | ListPanel::COLUMN_IMAGE);
-	m_pGameList->AddColumnHeader( k_nColumn_Name, "Name", "#ServerBrowser_Servers", 50, ListPanel::COLUMN_RESIZEWITHWINDOW | ListPanel::COLUMN_UNHIDABLE);
-	m_pGameList->AddColumnHeader( k_nColumn_IPAddr, "IPAddr", "#ServerBrowser_IPAddress", 64, ListPanel::COLUMN_HIDDEN);
-	m_pGameList->AddColumnHeader( k_nColumn_GameDesc, "GameDesc", "#ServerBrowser_Game", 112,
+	m_pGameList->AddColumnHeader(k_nColumn_Name, "Name", "#ServerBrowser_Servers", 100, ListPanel::COLUMN_RESIZEWITHWINDOW | ListPanel::COLUMN_UNHIDABLE);
+	m_pGameList->AddColumnHeader(k_nColumn_IPAddr, "IPAddr", "#ServerBrowser_IPAddress", 64, ListPanel::COLUMN_HIDDEN);
+	m_pGameList->AddColumnHeader(k_nColumn_GameDesc, "GameDesc", "#ServerBrowser_Game", 200,
 		112,	// minwidth
 		300,	// maxwidth
 		0		// flags
-		);
-	m_pGameList->AddColumnHeader( k_nColumn_Players, "Players", "#ServerBrowser_Players", 80, ListPanel::COLUMN_FIXEDSIZE);
-	m_pGameList->AddColumnHeader( k_nColumn_Bots, "Bots", "#ServerBrowser_Bots", 60, ListPanel::COLUMN_FIXEDSIZE);
-	m_pGameList->AddColumnHeader( k_nColumn_Map, "Map", "#ServerBrowser_Map", 90, 
+	);
+	m_pGameList->AddColumnHeader(k_nColumn_Players, "Players", "#ServerBrowser_Players", 80, ListPanel::COLUMN_FIXEDSIZE);
+	m_pGameList->AddColumnHeader(k_nColumn_Bots, "Bots", "#ServerBrowser_Bots", 16, ListPanel::COLUMN_FIXEDSIZE);
+	m_pGameList->AddColumnHeader(k_nColumn_Map, "Map", "#ServerBrowser_Map", 130,
 		90,		// minwidth
 		300,	// maxwidth
 		0		// flags
-		);
-	m_pGameList->AddColumnHeader( k_nColumn_Ping, "Ping", "#ServerBrowser_Latency", 55, ListPanel::COLUMN_RESIZEWITHWINDOW);
+	);
+	m_pGameList->AddColumnHeader(k_nColumn_Ping, "Ping", "#ServerBrowser_Latency", 55, ListPanel::COLUMN_RESIZEWITHWINDOW);
 
-	m_pGameList->SetColumnHeaderTooltip( k_nColumn_Password, "#ServerBrowser_PasswordColumn_Tooltip");
-	m_pGameList->SetColumnHeaderTooltip( k_nColumn_Bots, "#ServerBrowser_BotColumn_Tooltip");
-	m_pGameList->SetColumnHeaderTooltip( k_nColumn_Secure, "#ServerBrowser_SecureColumn_Tooltip");
-
-	if ( bRunningTF2 )
-	{
-		m_pGameList->SetColumnHeaderTooltip( k_nColumn_Replay, "#ServerBrowser_ReplayColumn_Tooltip");
-	}
+	m_pGameList->SetColumnHeaderTooltip(k_nColumn_Password, "#ServerBrowser_PasswordColumn_Tooltip");
+	m_pGameList->SetColumnHeaderTooltip(k_nColumn_Bots, "#ServerBrowser_BotColumn_Tooltip");
+	m_pGameList->SetColumnHeaderTooltip(k_nColumn_Secure, "#ServerBrowser_SecureColumn_Tooltip");
 
 	// setup fast sort functions
-	m_pGameList->SetSortFunc( k_nColumn_Password, PasswordCompare);
-	m_pGameList->SetSortFunc( k_nColumn_Bots, BotsCompare);
-	m_pGameList->SetSortFunc( k_nColumn_Secure, SecureCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Password, PasswordCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Bots, BotsCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Secure, SecureCompare);
 
-	if ( bRunningTF2 )
-	{
-		m_pGameList->SetSortFunc( k_nColumn_Replay, ReplayCompare);
-	}
-
-	m_pGameList->SetSortFunc( k_nColumn_Name, ServerNameCompare);
-	m_pGameList->SetSortFunc( k_nColumn_IPAddr, IPAddressCompare);
-	m_pGameList->SetSortFunc( k_nColumn_GameDesc, GameCompare);
-	m_pGameList->SetSortFunc( k_nColumn_Players, PlayersCompare);
-	m_pGameList->SetSortFunc( k_nColumn_Map, MapCompare);
-	m_pGameList->SetSortFunc( k_nColumn_Ping, PingCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Name, ServerNameCompare);
+	m_pGameList->SetSortFunc(k_nColumn_IPAddr, IPAddressCompare);
+	m_pGameList->SetSortFunc(k_nColumn_GameDesc, GameCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Players, PlayersCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Map, MapCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Ping, PingCompare);
 
 	// Sort by ping time by default
-	m_pGameList->SetSortColumn( k_nColumn_Ping );
+	m_pGameList->SetSortColumn(k_nColumn_Ping);
 
  	CreateFilters();
 	LoadFilterSettings();
 
 	m_bAutoSelectFirstItemInGameList = false;
-
-	// In TF2, fill out the max player count so that we sort all >24 player servers below the rest.
-	if ( bRunningTF2 )
-	{
-		sb_mod_suggested_maxplayers.SetValue( 24 );
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -288,7 +271,7 @@ void CBaseGamesPage::PerformLayout()
 
 	if ( SupportsItem(IGameList::ADDSERVER) )
 	{
-// 		m_pFilterString->SetWide( 90 ); // shrink the filter label to fix the add current server button
+ 		m_pFilterString->SetWide( 90 ); // shrink the filter label to fix the add current server button
 		m_pAddServer->SetVisible(true);
 	}
 	else
@@ -311,7 +294,7 @@ void CBaseGamesPage::PerformLayout()
 	}
 
 	m_pRefreshQuick->SetVisible( false );
-	m_pFilter->SetVisible(false);
+	//m_pFilter->SetVisible(false);
 
 	Repaint();
 }
@@ -327,12 +310,12 @@ void CBaseGamesPage::ApplySchemeSettings(IScheme *pScheme)
 	// load the password icon
 	ImageList *imageList = new ImageList(false);
 	m_nImageIndexPassword = imageList->AddImage(scheme()->GetImage("servers/icon_password", false));
-	//imageList->AddImage(scheme()->GetImage("servers/icon_bots", false));
+	//m_nImageIndexBots = imageList->AddImage(scheme()->GetImage("servers/icon_bots", false));
 	m_nImageIndexSecure = imageList->AddImage(scheme()->GetImage("servers/icon_robotron", false));
 	m_nImageIndexSecureVacBanned = imageList->AddImage(scheme()->GetImage("servers/icon_secure_deny", false));
 	m_nImageIndexReplay = imageList->AddImage(scheme()->GetImage("servers/icon_replay", false));
 	int passwordColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_password_column", false));
-	//int botColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_bots_column", false));
+	int botColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_bots_column", false));
 	int secureColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_robotron_column", false));
 	int replayColumnImage = imageList->AddImage(scheme()->GetImage("servers/icon_replay_column", false));
 
@@ -343,9 +326,8 @@ void CBaseGamesPage::ApplySchemeSettings(IScheme *pScheme)
 
 	m_pGameList->SetFont( m_hFont );
 	m_pGameList->SetColumnHeaderImage( k_nColumn_Password, passwordColumnImage);
-	//m_pGameList->SetColumnHeaderImage( k_nColumn_Bots, botColumnImage);
+	m_pGameList->SetColumnHeaderImage( k_nColumn_Bots, botColumnImage);
 	m_pGameList->SetColumnHeaderImage( k_nColumn_Secure, secureColumnImage);
-	m_pGameList->SetColumnHeaderImage( k_nColumn_Replay, replayColumnImage);
 }
 
 struct serverqualitysort_t
@@ -406,7 +388,7 @@ void CBaseGamesPage::PrepareQuickListMap( newgameserver_t *server, int iListID )
 			pQuickListPanel->InvalidateLayout();
 			pQuickListPanel->SetName( pOriginalName );
 			pQuickListPanel->SetMapName( pFriendlyName );
-			pQuickListPanel->SetImage( pOriginalName );
+			pQuickListPanel->SetImage(pOriginalName);
 			pQuickListPanel->SetGameType( pszFriendlyGameTypeName );
 			pQuickListPanel->SetVisible( true );
 			pQuickListPanel->SetRefreshing();
@@ -1614,21 +1596,18 @@ int CBaseGamesPage::GetSelectedItemsCount()
 //-----------------------------------------------------------------------------
 void CBaseGamesPage::OnAddToFavorites()
 {
-/*	if ( !steamapicontext->SteamMatchmakingServers() )
-		return;
-
 	// loop through all the selected favorites
 	for (int i = 0; i < m_pGameList->GetSelectedItemsCount(); i++)
 	{
 		int serverID = m_pGameList->GetItemUserData(m_pGameList->GetSelectedItem(i));
 
-		gameserveritem_t *pServer = steamapicontext->SteamMatchmakingServers()->GetServerDetails( m_hRequest, serverID );
+		newgameserver_t* pServer = GetServer(serverID);
 		if ( pServer )
 		{
 			// add to favorites list
 			ServerBrowserDialog().AddServerToFavorites(*pServer);
 		}
-	}*/
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1699,25 +1678,25 @@ void CBaseGamesPage::StartRefresh()
 	}*/
 	switch ( m_eMatchMakingType )
 	{
-/*	case eFavoritesServer:
-		m_hRequest = steamapicontext->SteamMatchmakingServers()->RequestFavoritesServerList( GetFilterAppID().AppID(), &pFilters, nFilters, this );
+	case eFavoritesServer:
+		g_pServersInfo->RequestFavoritesServerList(COM_GetModDirectory(), this);
 		break;
 	case eHistoryServer:
-		m_hRequest = steamapicontext->SteamMatchmakingServers()->RequestHistoryServerList( GetFilterAppID().AppID(), &pFilters, nFilters, this );
-		break;*/
+		g_pServersInfo->RequestHistoryServerList(COM_GetModDirectory(), this);
+		break;
 	case eInternetServer:
 		g_pServersInfo->RequestInternetServerList(COM_GetModDirectory(), this);
 		//m_hRequest = steamapicontext->SteamMatchmakingServers()->RequestInternetServerList( GetFilterAppID().AppID(), &pFilters, nFilters, this );
 		break;
-/*	case eSpectatorServer:
-		m_hRequest = steamapicontext->SteamMatchmakingServers()->RequestSpectatorServerList( GetFilterAppID().AppID(), &pFilters, nFilters, this );
-		break;
+	//case eSpectatorServer:
+	//	m_hRequest = steamapicontext->SteamMatchmakingServers()->RequestSpectatorServerList( GetFilterAppID().AppID(), &pFilters, nFilters, this );
+	//	break;
 	case eLANServer:
-		m_hRequest = steamapicontext->SteamMatchmakingServers()->RequestLANServerList( GetFilterAppID().AppID(), this );
+		g_pServersInfo->RequestLANServerList(COM_GetModDirectory(), this);
 		break;
 	default:
 		Assert( !"Unknown server type" );
-		break;*/
+		break;
 	}
 
 	SetRefreshing( true );

@@ -43,6 +43,35 @@ public:
 
 	/// Game server name
 	char m_szServerName[256];
+
+	/// Simple ToString function
+	char* toString() noexcept {
+		static char buffer[1024];
+		memset(&buffer, 0, sizeof(buffer));
+
+		sprintf(buffer, "%s, %i, %i, %d, %d, %s, %s, %s, %s, %i, %i, %i, %i, %d, %d, %s, %i, %s",
+			m_NetAdr.ToString(),
+			m_nPing,					
+			m_nProtocolVersion,
+			m_bHadSuccessfulResponse,		
+			m_bDoNotRefresh,					
+			m_szGameDir,					
+			m_szMap,						
+			m_szGameTags,
+			m_szGameDescription,		
+			m_nAppID,
+			m_nPlayers,
+			m_nMaxPlayers,						
+			m_nBotPlayers,						
+			m_bPassword,						
+			m_bSecure,							
+			m_szGameVersion,
+			m_iFlags,
+			m_szServerName);
+
+		return buffer;
+	}
+
 };
 
 struct FilterPair_t
@@ -56,6 +85,7 @@ struct FilterPair_t
 	char m_szKey[256];
 	char m_szValue[256];
 };
+
 
 class IServerListResponse
 {
@@ -92,8 +122,12 @@ public:
 	virtual void PlayersRefreshComplete() = 0;
 };
 
-// Unique identificator for all server queries
-typedef uint64 ServerQuery;
+enum EServerQuery
+{
+	k_ePingServer = 1,
+	k_ePlayerDetails,
+//	k_eServerRules
+};
 
 //-----------------------------------------------------------------------------
 // Purpose: Functions for match making services for clients to get to game lists and details
@@ -103,18 +137,23 @@ class IServersInfo
 public:
 	virtual void RequestInternetServerList(const char* gamedir, IServerListResponse* response) = 0;
 	virtual void RequestLANServerList(const char* gamedir, IServerListResponse* response) = 0;
+	virtual void RequestFavoritesServerList(const char* gamedir, IServerListResponse* response) = 0;
+	virtual void RequestHistoryServerList(const char* gamedir, IServerListResponse* response) = 0;
 	virtual void StopRefresh() = 0;
 
-	virtual ServerQuery PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) = 0;
-	virtual ServerQuery PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) = 0;
-	virtual void		CancelServerQuery(ServerQuery ServerQuery) = 0;
+	virtual void AddFavoriteServer(uint32 unIP, uint16 usPort) = 0;
+	virtual void AddHistoryServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed) = 0;
+
+	virtual void RemoveFavoriteServer(uint32 unIP, uint16 usPort) = 0;
+	virtual void RemoveHistoryServer(uint32 unIP, uint16 usPort) = 0;
+
+	virtual void PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) = 0;
+	virtual void PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) = 0;
+	virtual bool CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort) = 0;
 };
 
-// First interface version
-#define SERVERLIST_INTERFACE_VERSION_PREVIOUS "ServerList001"
-
 // Current interface version
-#define SERVERLIST_INTERFACE_VERSION "ServerList002"
+#define SERVERLIST_INTERFACE_VERSION "ServerList004"
 
 extern IServersInfo* g_pServersInfo;
 

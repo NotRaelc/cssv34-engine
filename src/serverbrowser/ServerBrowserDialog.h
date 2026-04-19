@@ -82,7 +82,7 @@ public:
 	// forces the currently active page to refresh
 	void		RefreshCurrentPage();
 
-	virtual gameserveritem_t *GetCurrentConnectedServer()
+	virtual newgameserver_t *GetCurrentConnectedServer()
 	{
 		return &m_CurrentConnection;
 	}
@@ -138,7 +138,7 @@ private:
 
 	// currently connected game
 	bool m_bCurrentlyConnected;
-	gameserveritem_t m_CurrentConnection;
+	newgameserver_t m_CurrentConnection;
 };
 
 // singleton accessor

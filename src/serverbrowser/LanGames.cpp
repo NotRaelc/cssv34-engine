@@ -52,14 +52,14 @@ void CLanGames::OnTick()
 //-----------------------------------------------------------------------------
 // Purpose: returns true if the game list supports the specified ui elements
 //-----------------------------------------------------------------------------
-bool CLanGames::SupportsItem(InterfaceItem_e item)
+bool CLanGames::SupportsItem(IGameList::InterfaceItem_e item)
 {
 	switch (item)
 	{
 	case FILTERS:
+	case GETNEWLIST:
 		return true;
 
-	case GETNEWLIST:
 	default:
 		return false;
 	}

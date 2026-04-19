@@ -15,9 +15,9 @@ CHistoryGames::CHistoryGames(vgui::Panel *parent) :
 	CBaseGamesPage(parent, "HistoryGames", eHistoryServer )
 {
 	m_bRefreshOnListReload = false;
-	m_pGameList->AddColumnHeader(10, "LastPlayed", "#ServerBrowser_LastPlayed", 100);
-	m_pGameList->SetSortFunc(10, LastPlayedCompare);
-	m_pGameList->SetSortColumn(10);
+	m_pGameList->AddColumnHeader(9, "LastPlayed", "#ServerBrowser_LastPlayed", 100);
+	m_pGameList->SetSortFunc(9, LastPlayedCompare);
+	m_pGameList->SetSortColumn(9);
 }
 
 //-----------------------------------------------------------------------------
@@ -43,19 +43,19 @@ void CHistoryGames::LoadHistoryList()
 //-----------------------------------------------------------------------------
 // Purpose: returns true if the game list supports the specified ui elements
 //-----------------------------------------------------------------------------
-bool CHistoryGames::SupportsItem(InterfaceItem_e item)
+bool CHistoryGames::SupportsItem(IGameList::InterfaceItem_e item)
 {
 	switch (item)
 	{
 	case FILTERS:
-		return true;
-	
-	case ADDSERVER:
 	case GETNEWLIST:
+		return true;
+
 	default:
 		return false;
 	}
 }
+
 
 
 //-----------------------------------------------------------------------------

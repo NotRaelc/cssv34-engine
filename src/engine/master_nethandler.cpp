@@ -115,7 +115,9 @@ void CMasterNETHandler::RunFrame(CMasterNETHandler* This) {
 		int senderSize = sizeof(sender);
 
 		master->RunFrame();
-		//lanservers->RunFrame();
+		lanservers->RunFrame();
+		favoriteservers->RunFrame();
+		//historyservers->RunFrame();
 
 		int bytesClient = recvfrom(This->m_nClientSocket, buffer, sizeof(buffer), 0,
 			(sockaddr*)&sender, &senderSize);
@@ -176,10 +178,12 @@ void CMasterNETHandler::PacketReceived(sockaddr_in& from, byte* data, int length
 
 	//Msg("CMasterNETHandler: packet received from %s, data %s, length %i\n", packet.from.ToString(), data, length);
 
+	serverqueries->ProcessConnectionlessPacket(&packet);
+
 	// Check if this packet came from LAN
-	//if (IsLANIP(packet.from.GetIP()))
-	//	lanservers->ProcessConnectionlessPacket(&packet);
-	//else
+	if (IsLANIP(packet.from.GetIP()))
+		lanservers->ProcessConnectionlessPacket(&packet);
+	else
 		master->ProcessConnectionlessPacket(&packet);
 
 }

@@ -42,11 +42,12 @@ extern ConVar sv_region;
 #define MASTER_RESPONSE_TIMEOUT 1.5 // seconds
 #define INFO_REQUEST_TIMEOUT 5.0 // seconds
 
+const int g_iMasterServersVDF_Maximum = 4;
+
 static char g_MasterServers[][64] =
 {
 	"194.87.101.97:27011",
-	"80.78.244.170:27011",
-	"208.64.200.52:27011"
+	"80.78.244.170:27011"
 };
 
 #ifdef DEDICATED
@@ -73,24 +74,6 @@ typedef struct adrlist_s
 	// Master server address
 	netadr_t			adr;
 } adrlist_t;
-
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-typedef struct a2s_player_s
-{
-	struct player {
-		int		m_nId;
-		char	m_szName[32];
-		long	m_nScore;
-		float	m_flTime;
-	};
-
-	// Number of players
-	long	m_nCount;
-	player* players;
-
-} a2s_player_t;
 
 //-----------------------------------------------------------------------------
 // Purpose: Implements the master server interface
@@ -129,22 +112,29 @@ public:
 	void ReplyChallenge(const netadr_t& adr);
 
 	void ReplyPlayers(const netadr_t& adr);
-	a2s_player_t &ProcessPlayers(bf_read& buf);
+	//a2s_player_t &ProcessPlayers(bf_read& buf);
 
 	// ServersInfo
-	void RequestInternetServerList( const char *gamedir, IServerListResponse *response );
-	void RequestLANServerList( const char *gamedir, IServerListResponse *response );
+	void RequestInternetServerList(const char* gamedir, IServerListResponse* response);
+	void RequestLANServerList(const char* gamedir, IServerListResponse* response);
+	void RequestFavoritesServerList(const char* gamedir, IServerListResponse* response);
+	void RequestHistoryServerList(const char* gamedir, IServerListResponse* response);
+
+	void AddFavoriteServer(uint32 unIP, uint16 usPort);
+	void AddHistoryServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed);
+
+	void RemoveFavoriteServer(uint32 unIP, uint16 usPort);
+	void RemoveHistoryServer(uint32 unIP, uint16 usPort);
+
 	void AddServerAddresses( netadr_t **adr, int count );
 	void RequestServerInfo( const netadr_t &adr );
 	void StopRefresh();
 
-	ServerQuery PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response);
-	ServerQuery PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response);
+	void PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response);
+	void PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response);
+	bool CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort);
 
-	void		ParseServerQueries();
-	ServerQuery FindQuery(byte type, uint32 unIP, uint16 usPort);
-	ServerQuery CreateQuery(byte type, uint32 unIP, uint16 usPort);
-	void		CancelServerQuery(ServerQuery query);
+	static DWORD WINAPI MasterServersVDFLoading_Thread(LPVOID thisptr);
 
 private:
 	// List of known master servers
@@ -169,13 +159,10 @@ private:
 
 	CUtlMap<netadr_t, bool> m_serverAddresses;
 	CUtlMap<netadr_t, double> m_serversRequestTime;
-	CUtlVector<ServerQuery> m_pendingQueries;
 
 	netadr_t m_lastServerAdr;
 
 	IServerListResponse *m_serverListResponse;
-	IServerPingResponse *m_serverPingResponse;
-	IServerPlayersResponse *m_serverPlayersResponse;
 };
 
 static CMaster s_MasterServer;
@@ -200,8 +187,6 @@ CMaster::CMaster( void )
 	m_iS2C_ServerChallengeNum = -1;
 
 	m_serverListResponse = NULL;
-	m_serverPingResponse = 0;
-	m_serverPlayersResponse = 0;
 	SetDefLessFunc( m_serverAddresses );
 	SetDefLessFunc( m_serversRequestTime );
 
@@ -217,14 +202,13 @@ CMaster::~CMaster( void )
 
 void CMaster::RunFrame()
 {
-	ParseServerQueries();
 	CheckHeartbeat();
 
 	if( !m_bRefreshing )
 		return;
 
 	if( m_serverListResponse &&
-		m_flStartRequestTime < Plat_FloatTime()-INFO_REQUEST_TIMEOUT )
+		m_flStartRequestTime < Plat_FloatTime() - INFO_REQUEST_TIMEOUT )
 	{
 		StopRefresh();
 		m_serverListResponse->RefreshComplete( NServerResponse::nServerFailedToRespond );
@@ -395,32 +379,6 @@ void CMaster::ReplyPlayers(const netadr_t& adr) {
 	MasterNetHandler()->NET_SendPacket(NS_SERVER, adr, msg.GetData(), msg.GetNumBytesWritten());
 }
 
-a2s_player_t& CMaster::ProcessPlayers(bf_read& buf) {
-	static a2s_player_t playerQuery;
-	memset(&playerQuery, 0, sizeof(playerQuery));
-
-	int numClients = buf.ReadByte();
-	if (numClients <= 0)
-	{
-		//m_serverPlayersResponse->PlayersFailedToRespond();
-		return playerQuery;
-	}
-
-	playerQuery.m_nCount = numClients;
-	playerQuery.players = new a2s_player_t::player[numClients];
-
-	// chunks starting
-	for (int i = 0; i < numClients; i++) {
-		playerQuery.players[i].m_nId = buf.ReadByte();
-		buf.ReadString(playerQuery.players[i].m_szName, sizeof(playerQuery.players[i].m_szName));
-		playerQuery.players[i].m_nScore = buf.ReadLong();
-		playerQuery.players[i].m_flTime = buf.ReadFloat();
-	}
-
-	//m_serverPlayersResponse->PlayersRefreshComplete();
-	return playerQuery;
-}
-
 void CMaster::ProcessConnectionlessPacket( netpacket_t *packet )
 {
 	static ALIGN4 char string[2048] ALIGN4_POST;    // Buffer for sending heartbeat
@@ -534,64 +492,28 @@ void CMaster::ProcessConnectionless_GameClient(netpacket_t* packet) {
 				break;
 
 			newgameserver_t& s = ProcessInfo(msg);
-			ServerQuery query = FindQuery(1, packet->from.GetIP(), packet->from.GetPort());
 
 			unsigned short index = m_serverAddresses.Find(packet->from);
 			unsigned short rindex = m_serversRequestTime.Find(packet->from);
 
-			if (!query && index == m_serverAddresses.InvalidIndex())
+			if (index == m_serverAddresses.InvalidIndex())
 				break;
 
-			if (!query && rindex == m_serversRequestTime.InvalidIndex())
+			if (rindex == m_serversRequestTime.InvalidIndex())
 				break;
 
 			double requestTime = m_serversRequestTime[rindex];
 
-			if (!query && m_serverAddresses[index]) // shit happens
+			if (m_serverAddresses[index]) // shit happens
 				return;
 
 			m_serverAddresses[index] = true;
-			if (!query)
-				s.m_nPing = (Plat_FloatTime() - requestTime) * 1000.0; // calculate ping here
+			s.m_nPing = (Plat_FloatTime() - requestTime) * 1000.0; // calculate ping here
 
 			s.m_NetAdr = packet->from;
-			if (query) {
-				m_serverPingResponse->ServerResponded(s);
-				CancelServerQuery(query);
-			}
-			else {
-				m_serverListResponse->ServerResponded(s);
-				m_iServersResponded++;
-			}
 
-			break;
-		}
-		case S2C_CHALLENGE:
-		{
-			int challenge = msg.ReadLong();
-			if (challenge == -1 || challenge == 0)
-				break;
-
-			// Save our challenge
-			m_iC2S_ServerChallengeNum = challenge;
-
-			break;
-		}
-
-		case S2A_PLAYER_REPLY:
-		{
-			a2s_player_t result = ProcessPlayers(msg);
-			if (result.m_nCount == 0)
-			{
-				m_serverPlayersResponse->PlayersFailedToRespond();
-				break;
-			}
-
-			for (int i = 0; i < result.m_nCount; i++) {
-				m_serverPlayersResponse->AddPlayerToList(result.players[i].m_szName, result.players[i].m_nScore, result.players[i].m_flTime);
-			}
-
-			m_serverPlayersResponse->PlayersRefreshComplete();
+			m_serverListResponse->ServerResponded(s);
+			m_iServersResponded++;
 
 			break;
 		}
@@ -833,6 +755,8 @@ void CMaster::AddServer( netadr_t *adr )
 	// Link it in.
 	n->next = m_pMasterAddresses;
 	m_pMasterAddresses = n;
+
+	Msg("CMaster: Added master server %s\n", n->adr.ToString());
 }
 
 //-----------------------------------------------------------------------------
@@ -841,6 +765,8 @@ void CMaster::AddServer( netadr_t *adr )
 void CMaster::UseDefault ( void )
 {
 	netadr_t adr;
+
+	Msg("Using default master addresses\n");
 
 	for( int i = 0; i < ARRAYSIZE(g_MasterServers);i++ )
 	{
@@ -943,22 +869,156 @@ static ConCommand setmaster("addmaster", AddMaster_f );
 static ConCommand heartbeat("heartbeat", Heartbeat1_f, "Force heartbeat of master servers" ); 
 
 //-----------------------------------------------------------------------------
-// Purpose: Adds master server console commands
+// Purpose:
 //-----------------------------------------------------------------------------
-void CMaster::Init( void )
+KeyValues* LoadMasterServersConfig()
 {
-	// Already able to initialize at least once?
-	if ( m_bInitialized )
-		return;
+	KeyValues* kv = new KeyValues("");
 
-	// So we don't do this a send time.sv_mas
-	m_bInitialized = true;
-	Msg("%f: CMaster Init\n", Plat_FloatTime());
-	UseDefault();
+	if (!kv->LoadFromFile(g_pFullFileSystem, "masterservers.vdf", "CONFIG"))
+	{
+		kv->deleteThis();
+		return nullptr;
+	}
+
+	return kv;
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: Creates default MasterServers config
+//-----------------------------------------------------------------------------
+void CreateDefaultMasterServersConfig()
+{
+	KeyValues* kv = new KeyValues("MasterServers");
+
+	KeyValues* entry = kv->FindKey("0", true);
+	entry->SetString("addr", "default");
+
+	kv->SaveToFile(g_pFullFileSystem, "masterservers.vdf", "CONFIG");
+	kv->deleteThis();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: extracts master addresses from masterservers.vdf config
+//-----------------------------------------------------------------------------
+CUtlVector<netadr_t>* MasterServersConfig_GetAddresses(KeyValues* kv)
+{
+	CUtlVector<netadr_t>* addresses = new CUtlVector<netadr_t>();
+
+	if (!kv)
+		return addresses;
+
+	for (int i = 0; i < g_iMasterServersVDF_Maximum; i++)
+	{
+		char keyName[16];
+		Q_snprintf(keyName, sizeof(keyName), "%d", i);
+
+		KeyValues* numberKey = kv->FindKey(keyName);
+		if (!numberKey)
+			continue;
+
+		KeyValues* addrKey = numberKey->FindKey("addr");
+		if (!addrKey)
+			continue;
+
+		const char* addrStr = addrKey->GetString();
+		if (!addrStr || !addrStr[0])
+			continue;
+
+		netadr_t adr;
+
+		if (!Q_stricmp(addrStr, "default"))
+		{
+			adr.SetType(NA_LOOPBACK);
+		}
+		else if (!Q_strstr(addrStr, ":"))
+		{
+			adr.SetType(NA_NULL);
+		}
+		else
+		{
+			adr.SetFromString(addrStr);
+		}
+
+		addresses->AddToTail(adr);
+	}
+
+	return addresses;
+}
+
+DWORD WINAPI CMaster::MasterServersVDFLoading_Thread(LPVOID param)
+{
+	CMaster* pThis = (CMaster*)param;
+
+	// ∆дЄм filesystem
+	while (!g_pFullFileSystem)
+	{
+		Sleep(100);
+	}
+
+	g_pFullFileSystem->AddSearchPath("platform\\config", "CONFIG");
+
+	KeyValues* kv = LoadMasterServersConfig();
+	if (!kv)
+	{
+		CreateDefaultMasterServersConfig();
+		Warning("MasterServers.vdf not found, creating default\n");
+
+		pThis->UseDefault();
+		return 0;
+	}
+
+	CUtlVector<netadr_t>* addresses = MasterServersConfig_GetAddresses(kv);
+
+	for (int i = 0; i < addresses->Count(); i++)
+	{
+		netadr_t& adr = (*addresses)[i];
+
+		if (adr.GetType() == NA_NULL)
+			continue;
+
+		if (adr.GetType() == NA_LOOPBACK)
+		{
+			pThis->UseDefault();
+			continue;
+		}
+
+		pThis->AddServer(&adr);
+	}
+
+	delete addresses;
+	kv->deleteThis();
+
+	return 0;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Initialization
+//-----------------------------------------------------------------------------
+void CMaster::Init(void)
+{
+	if (m_bInitialized)
+		return;
+
+	m_bInitialized = true;
+
+	Msg("%f: CMaster Init\n", Plat_FloatTime());
+
+	HANDLE hThread = CreateThread(
+		nullptr,
+		0,
+		MasterServersVDFLoading_Thread,
+		this,
+		0,
+		nullptr
+	);
+
+	if (hThread)
+		CloseHandle(hThread);
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Shutting down
 //-----------------------------------------------------------------------------
 void CMaster::Shutdown(void)
 {
@@ -1023,133 +1083,47 @@ void CMaster::RequestLANServerList(const char *gamedir, IServerListResponse *res
 	lanservers->RequestServerList(gamedir, response);
 }
 
+void CMaster::RequestFavoritesServerList(const char* gamedir, IServerListResponse* response)
+{
+	favoriteservers->RequestServerList(gamedir, response);
+}
+
+void CMaster::RequestHistoryServerList(const char* gamedir, IServerListResponse* response)
+{
+	//historyservers->RequestServerList(gamedir, response);
+}
+
+void CMaster::AddFavoriteServer(uint32 unIP, uint16 usPort) 
+{
+	favoriteservers->AddServer(unIP, usPort);
+}
+
+void CMaster::AddHistoryServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed) 
+{
+	//historyservers->AddServer(unIP, usPort, timeLastPlayed);
+}
+
+void CMaster::RemoveFavoriteServer(uint32 unIP, uint16 usPort)
+{
+	favoriteservers->RemoveServer(unIP, usPort);
+}
+
+void CMaster::RemoveHistoryServer(uint32 unIP, uint16 usPort)
+{
+	//historyservers->RemoveServer(unIP, usPort);
+}
+
 void CMaster::AddServerAddresses( netadr_t **adr, int count )
 {
 
 }
 
-void ServerQueryUnpack(ServerQuery q, uint8& type, uint32& ip, uint16& port)
-{
-	type = (q >> 48) & 0xFF;
-	ip = (q >> 16) & 0xFFFFFFFF;
-	port = q & 0xFFFF;
-
-	// Prevent spammage
-	static double lastPrintTime = 0.0;
-
-	double currentTime = Plat_FloatTime();
-
-	if (currentTime - lastPrintTime >= 1.0)
-	{
-		Msg("Query unpacked: type=%d ip=%u port=%u\n", type, ip, port);
-		lastPrintTime = currentTime;
-	}
+void CMaster::PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) {
+	serverqueries->PingServer(unIP, usPort, response);
 }
-
-ServerQuery CMaster::CreateQuery(uint8 type, uint32 ip, uint16 port)
-{
-	ServerQuery result = 0;
-
-	result |= (uint64)type << 48;   // 1 байт
-	result |= (uint64)ip << 16;   // 4 байта
-	result |= (uint64)port;         // 2 байта
-
-	// No need to prevent spammage cuz this runs only one time
-	Msg("Query created: type=%d ip=%u port=%u\n", type, ip, port);
-
-	return result;
+void CMaster::PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) {
+	serverqueries->PlayerDetails(unIP, usPort, response);
 }
-
-ServerQuery CMaster::FindQuery(byte type, uint32 unIP, uint16 usPort) {
-	FOR_EACH_VEC(m_pendingQueries, idx) {
-		uint8 _type;
-		uint32 ip;
-		uint16 port;
-
-		ServerQueryUnpack(m_pendingQueries[idx], _type, ip, port);
-
-		if (type == _type && unIP == ip && usPort == port)
-			return m_pendingQueries[idx];
-	}
-	return 0;
-}
-
-void CMaster::ParseServerQueries() {
-	FOR_EACH_VEC(m_pendingQueries, i) {
-		char buf[256];
-		bf_write msg(buf, sizeof(buf));
-		uint8 type;
-		uint32 ip;
-		uint16 port;
-
-		ServerQueryUnpack(m_pendingQueries[i], type, ip, port);
-
-		netadr_t adr(htonl(ip), htons(port));
-
-		// Already sent?
-		if (m_serversRequestTime.Find(adr) != m_serversRequestTime.InvalidIndex())
-			continue;
-
-		if (type == 1) {
-			RequestServerInfo(adr);
-		}
-		else if (type == 2) {
-			
-			if (m_iC2S_ServerChallengeNum == -1) {
-				msg.WriteLong(CONNECTIONLESS_HEADER);
-				msg.WriteByte(A2S_PLAYER_REQUEST);
-				msg.WriteLong(m_iC2S_ServerChallengeNum);
-				MasterNetHandler()->NET_SendPacket(NS_CLIENT, adr, msg.GetData(), msg.GetNumBytesWritten());
-			}
-
-			// wait for reply
-			while (m_iC2S_ServerChallengeNum == -1) {
-			}
-
-			memset(buf, 0, sizeof(buf));
-			msg.Reset();
-			msg.WriteLong(CONNECTIONLESS_HEADER);
-			msg.WriteByte(A2S_PLAYER_REQUEST);
-			msg.WriteLong(m_iC2S_ServerChallengeNum);
-			MasterNetHandler()->NET_SendPacket(NS_CLIENT, adr, msg.GetData(), msg.GetNumBytesWritten());
-		}
-		else if (type == 3) {
-			//
-		}
-		else {
-			// unknown
-			continue;
-		}
-	}
-}
-
-void CMaster::CancelServerQuery(ServerQuery query) {
-	bool ret = m_pendingQueries.FindAndRemove(query);
-	if (ret)
-		Msg("Canceled server query %ull\n", query);
-}
-
-ServerQuery CMaster::PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) {
-	ServerQuery existing = FindQuery(1, unIP, usPort);
-	if (existing) {
-		return existing; // We already have query like that
-	}
-	m_serverPingResponse = response;
-	ServerQuery newQuery = CreateQuery(1, unIP, usPort);
-
-	m_pendingQueries.AddToTail(newQuery);
-
-	return newQuery;
-}
-
-ServerQuery CMaster::PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) {
-	ServerQuery existing = FindQuery(2, unIP, usPort);
-	if (existing) {
-		return existing; // We already have query like that
-	}
-	m_serverPlayersResponse = response;
-	ServerQuery newQuery = CreateQuery(2, unIP, usPort);
-
-	m_pendingQueries.AddToTail(newQuery);
-	return newQuery;
+bool CMaster::CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort) {
+	return serverqueries->CancelServerQuery(type, unIP, usPort);
 }

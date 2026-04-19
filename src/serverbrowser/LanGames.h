@@ -29,7 +29,7 @@ public:
 
 	// IGameList handlers
 	// returns true if the game list supports the specified ui elements
-	virtual bool SupportsItem(InterfaceItem_e item);
+	virtual bool SupportsItem(IGameList::InterfaceItem_e item);
 
 	// Control which button are visible.
 	void ManualShowButtons( bool bShowConnect, bool bShowRefreshAll, bool bShowFilter );
