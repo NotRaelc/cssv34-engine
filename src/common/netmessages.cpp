@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -652,7 +652,8 @@ bool SVC_VoiceData::WriteToBuffer( bf_write &buffer )
 {
 	buffer.WriteUBitLong( GetType(), NETMSG_TYPE_BITS );
 	buffer.WriteByte( m_nFromClient );
-	buffer.WriteByte( m_bProximity );
+	// CS:S v34 has no m_bProximity
+	//buffer.WriteByte( m_bProximity );
 	buffer.WriteWord( m_nLength );
 	
 	return buffer.WriteBits( m_DataOut, m_nLength );
@@ -663,7 +664,7 @@ bool SVC_VoiceData::ReadFromBuffer( bf_read &buffer )
 	VPROF( "SVC_VoiceData::ReadFromBuffer" );
 
 	m_nFromClient = buffer.ReadByte();
-	m_bProximity = !!buffer.ReadByte();
+	//m_bProximity = !!buffer.ReadByte();
 	m_nLength = buffer.ReadWord();
 
 	m_DataIn = buffer;
