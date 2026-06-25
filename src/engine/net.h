@@ -18,11 +18,11 @@
 #include "netadr.h"
 
 // Flow control bytes per second limits
-#define MAX_RATE		(1024*1024)				
-#define MIN_RATE		1000
-#define DEFAULT_RATE	10000
+#define MAX_RATE		(1024*1024)		// 1024*1024 in src2006	
+#define MIN_RATE		1000			// 1000 in src2006
+#define DEFAULT_RATE	10000			// 10000 in src2006
 
-#define SIGNON_TIME_OUT				300.0f  // signon disconnect timeout
+#define SIGNON_TIME_OUT				300.0f  // signon disconnect timeout; 300 in src2006
 
 #define FRAGMENT_BITS		8
 #define FRAGMENT_SIZE		(1<<FRAGMENT_BITS)
@@ -32,7 +32,7 @@
 // 0 == regular, 1 == file stream
 #define MAX_STREAMS			2    
 
-#define	FRAG_NORMAL_STREAM	0
+#define	FRAG_NORMAL_STREAM	0			// 0 in src2006
 #define FRAG_FILE_STREAM	1
 
 #define TCP_CONNECT_TIMEOUT		4.0f

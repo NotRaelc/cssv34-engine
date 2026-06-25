@@ -63,6 +63,7 @@ extern int  NET_ReceiveStream( int nSock, char * buf, int len, int flags );
 #define FLIPBIT(v,b) if (v&b) v &= ~b; else v |= b;
 
 // We only need to checksum packets on the PC and only when we're actually sending them over the network.
+#if 0
 static bool ShouldChecksumPackets()
 {
 	// temporary solution for testing
@@ -75,7 +76,7 @@ static bool ShouldChecksumPackets()
 	return NET_IsMultiplayer();
 #endif
 }
-
+#endif
 // Tells if it's ok for us to send this file to someone.
 static bool IsSafeFileToDownload( const char *pFilename )
 {
@@ -447,7 +448,7 @@ void CNetChan::Shutdown(const char *pReason)
 CNetChan::CNetChan()
 {
 	//m_nSplitPacketSequence = 1;
-	m_nMaxRoutablePayloadSize = MAX_ROUTABLE_PAYLOAD;
+	//m_nMaxRoutablePayloadSize = MAX_ROUTABLE_PAYLOAD;
 	m_bProcessingMessages = false;
 	m_bShouldDelete = false;
 	m_Socket = -1; // invalid
@@ -1607,12 +1608,13 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	bf_write flagsPos = send; // remember flags byte position
 
 	send.WriteByte ( 0 ); // write correct flags value later
+#if 0
 	if ( ShouldChecksumPackets() )
 	{
 		send.WriteShort( 0 );  // write correct checksum later
 		Assert( !(send.GetNumBitsWritten() % 8 ) );
 	}
-
+#endif
 	// Note, this only matters on the PC
 	int nCheckSumStart = send.GetNumBytesWritten();
 
@@ -1657,15 +1659,15 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	}
 
 	m_StreamUnreliable.Reset();	// clear unreliable data buffer
-
+#if 0
 	// On the PC the voice data is in the main packet
-	//if ( !IsX360() && 
-	//	m_StreamVoice.GetNumBitsWritten() > 0 && m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() )
-	//{
-	//	send.WriteBits(m_StreamVoice.GetData(), m_StreamVoice.GetNumBitsWritten() );
-	//	m_StreamVoice.Reset();
-	//}
-
+	if ( !IsX360() && 
+		m_StreamVoice.GetNumBitsWritten() > 0 && m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() )
+	{
+		send.WriteBits(m_StreamVoice.GetData(), m_StreamVoice.GetNumBitsWritten() );
+		m_StreamVoice.Reset();
+	}
+#endif
 	int nMinRoutablePayload = MIN_ROUTABLE_PAYLOAD;
 
 #if defined( _DEBUG ) || defined( MIN_ROUTABLE_TESTING )
@@ -1688,43 +1690,44 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	{
 		send.WriteUBitLong( net_NOP, NETMSG_TYPE_BITS );
 	}
+#if 0
+	if ( IsX360() )
+	{
+	// Now round up to byte boundary
+		nRemainingBits = send.GetNumBitsWritten() % 8;
+		if ( nRemainingBits > 0 )
+		{
+			int nPadBits = 8 - nRemainingBits;
 
-	//if ( IsX360() )
-	//{
-	//	// Now round up to byte boundary
-	//	nRemainingBits = send.GetNumBitsWritten() % 8;
-	//	if ( nRemainingBits > 0 )
-	//	{
-	//		int nPadBits = 8 - nRemainingBits;
+			flags |= ENCODE_PAD_BITS( nPadBits );
 
-	//		flags |= ENCODE_PAD_BITS( nPadBits );
-	//
-	//		// Pad with ones
-	//		if ( nPadBits > 0 )
-	//		{
-	//			unsigned int unOnes = GetBitForBitnum( nPadBits ) - 1;
-	//			send.WriteUBitLong( unOnes, nPadBits );
-	//		}
-	//	}
-	//}
+	// Pad with ones
+			if ( nPadBits > 0 )
+			{
+				unsigned int unOnes = GetBitForBitnum( nPadBits ) - 1;
+				send.WriteUBitLong( unOnes, nPadBits );
+			}
+		}
+	}
 
 
 	// FIXME:  This isn't actually correct since compression might make the main payload usage a bit smaller
-	//bool bSendVoice = IsX360() && ( m_StreamVoice.GetNumBitsWritten() > 0 &&  m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() );
-	//	
-	//bool bCompress = false;
-	//if ( net_compresspackets.GetBool() )
-	//{
-	//	if ( send.GetNumBytesWritten() >= net_compresspackets_minsize.GetInt() )
-	//	{
-	//		bCompress = true;
-	//	}
-	//}
-
+	bool bSendVoice = IsX360() && ( m_StreamVoice.GetNumBitsWritten() > 0 &&  m_StreamVoice.GetNumBitsWritten() < send.GetNumBitsLeft() );
+		
+	bool bCompress = false;
+	if ( net_compresspackets.GetBool() )
+	{
+		if ( send.GetNumBytesWritten() >= net_compresspackets_minsize.GetInt() )
+		{
+			bCompress = true;
+		}
+	}
+#endif
 	// write correct flags value and the checksum
 	flagsPos.WriteByte( flags ); 
 
 	// Compute checksum (must be aligned to a byte boundary!!)
+#if 0
 	if ( ShouldChecksumPackets() )
 	{
 		const void *pvData = send.GetData() + nCheckSumStart;
@@ -1735,36 +1738,37 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	}
 
 	// Send the datagram
-	//int	bytesSent = NET_SendPacket ( this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), bSendVoice ? &m_StreamVoice : 0, bCompress );
-
+	int	bytesSent = NET_SendPacket ( this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), bSendVoice ? &m_StreamVoice : 0, bCompress );
+#endif
 	int	bytesSent = NET_SendPacket(this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), NULL, false);
 
-
-	//if ( bSendVoice || !IsX360() )
-	//{
-	//	m_StreamVoice.Reset();
-	//}
-
+#if 0
+	if ( bSendVoice || !IsX360() )
+	{
+		m_StreamVoice.Reset();
+	}
+#endif
 	if ( net_showudp.GetInt() && net_showudp.GetInt() != 2 )
 	{
-		//int mask = 63;
-		//char comp[ 64 ] = { 0 };
-		//if ( net_compresspackets.GetBool() && 
-		//	bytesSent && 
-		//	( bytesSent < send.GetNumBytesWritten() ) )
-		//{
-		//	Q_snprintf( comp, sizeof( comp ), " compression=%5u [%5.2f %%]", bytesSent, 100.0f * float( bytesSent ) / float( send.GetNumBytesWritten() ) );
-		//}
+#if 0
+		int mask = 63;
+		char comp[ 64 ] = { 0 };
+		if ( net_compresspackets.GetBool() && 
+			bytesSent && 
+			( bytesSent < send.GetNumBytesWritten() ) )
+		{
+			Q_snprintf( comp, sizeof( comp ), " compression=%5u [%5.2f %%]", bytesSent, 100.0f * float( bytesSent ) / float( send.GetNumBytesWritten() ) );
+		}
 	
-		//ConMsg ("UDP -> %12.12s: sz=%5i seq=%5i ack=%5i rel=%1i tm=%8.3f%s\n"
-		//	, GetName()
-		//	, send.GetNumBytesWritten()
-		//	, ( m_nOutSequenceNr ) & mask
-		//	, m_nInSequenceNr & mask
-		//	, (flags & PACKET_FLAG_RELIABLE) ? 1 : 0
-		//	, (float)net_time
-		//	, comp );
-
+		ConMsg ("UDP -> %12.12s: sz=%5i seq=%5i ack=%5i rel=%1i tm=%8.3f%s\n"
+			, GetName()
+			, send.GetNumBytesWritten()
+			, ( m_nOutSequenceNr ) & mask
+			, m_nInSequenceNr & mask
+			, (flags & PACKET_FLAG_RELIABLE) ? 1 : 0
+			, (float)net_time
+			, comp );
+#endif 
 		ConMsg("UDP -> %s: sz=%i seq=%i ack=%i rel=%i tm=%f\n",
 			GetName(),
 			send.GetNumBytesWritten(),
@@ -1792,16 +1796,16 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	double fAddTime = (float)nTotalSize / (float)m_Rate;
 
 	m_fClearTime += fAddTime;
-
-	//if ( net_maxcleartime.GetFloat() > 0.0f )
-	//{
-	//	double m_flLatestClearTime = net_time + net_maxcleartime.GetFloat();
-	//	if ( m_fClearTime > m_flLatestClearTime )
-	//	{
-	//		m_fClearTime = m_flLatestClearTime;
-	//	}
-	//}
-	
+#if 0
+	if ( net_maxcleartime.GetFloat() > 0.0f )
+	{
+		double m_flLatestClearTime = net_time + net_maxcleartime.GetFloat();
+		if ( m_fClearTime > m_flLatestClearTime )
+		{
+			m_fClearTime = m_flLatestClearTime;
+		}
+	}
+#endif
 	m_nChokedPackets = 0;
 	m_nOutSequenceNr++;
 
@@ -2130,7 +2134,7 @@ int CNetChan::ProcessPacketHeader( netpacket_t * packet )
 	int sequence	= packet->message.ReadLong();
 	int sequence_ack= packet->message.ReadLong();
 	int flags		= packet->message.ReadByte();
-
+#if 0
 	if ( ShouldChecksumPackets() )
 	{
 		unsigned short usCheckSum = (unsigned short)packet->message.ReadUBitLong( 16 );
@@ -2153,7 +2157,7 @@ int CNetChan::ProcessPacketHeader( netpacket_t * packet )
 			return -1;
 		}
 	}
-
+#endif
 	int relState	= packet->message.ReadByte();	// reliable state of 8 subchannels
 	int nChoked		= 0;	// read later if choked flag is set
 	int i,j;
