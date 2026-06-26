@@ -6,9 +6,9 @@
 		{
 			"name"		"[v34] MILLENNIUM © MIGCSS [Public] 18+"
 			"gamedir"		"cstrike"
-			"Players"		"12"
+			"Players"		"1"
 			"maxplayers"		"32"
-			"map"		"de_dust2"
+			"map"		"awp_lego_2"
 			"address"		"176.114.92.210:27077"
 		}
 	}

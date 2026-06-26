@@ -288,7 +288,7 @@ public:
 	double		m_fClearTime;
 
  	CUtlVector<dataFragments_t*>	m_WaitingList[MAX_STREAMS];	// waiting list for reliable data and file transfer
-	dataFragments_t					m_ReceiveList[MAX_STREAMS]; // receive buffers for streams // FIXED :)
+	dataFragments_t					m_ReceiveList[MAX_STREAMS]; // receive buffers for streams // FIXED :) and EXIST IN SRC2006
 	subChannel_s					m_SubChannels[MAX_SUBCHANNELS]; 
 
 	unsigned int	m_FileRequestCounter;	// increasing counter with each file request

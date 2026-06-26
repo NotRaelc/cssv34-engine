@@ -24,9 +24,9 @@
 
 #define SIGNON_TIME_OUT				300.0f  // signon disconnect timeout; 300 in src2006
 
-#define FRAGMENT_BITS		8
+#define FRAGMENT_BITS		8							// 8 in src2006
 #define FRAGMENT_SIZE		(1<<FRAGMENT_BITS)
-#define MAX_FILE_SIZE_BITS	26
+#define MAX_FILE_SIZE_BITS	26							// 26 in src2006
 #define MAX_FILE_SIZE		((1<<MAX_FILE_SIZE_BITS)-1)	// maximum transferable size is	64MB
 
 // 0 == regular, 1 == file stream
@@ -52,23 +52,23 @@
 
 // This is the packet payload without any header bytes (which are attached for actual sending)
 #define	NET_MAX_PAYLOAD			96000	// largest message we can send in bytes
-#define NET_MAX_PALYLOAD_BITS	17		// 2^NET_MAX_PALYLOAD_BITS > NET_MAX_PAYLOAD
+#define NET_MAX_PALYLOAD_BITS	17		// 2^NET_MAX_PALYLOAD_BITS > NET_MAX_PAYLOAD	17 in src2006
 // This is just the client_t->netchan.datagram buffer size (shouldn't ever need to be huge)
 #define NET_MAX_DATAGRAM_PAYLOAD 4000	// = maximum unreliable playload size
 
 // UDP has 28 byte headers
-#define UDP_HEADER_SIZE				(20+8)	// IP = 20, UDP = 8
+#define UDP_HEADER_SIZE				(20+8)	// IP = 20, UDP = 8			28 in src2006
 
 
-#define MAX_ROUTABLE_PAYLOAD		1260	
+#define MAX_ROUTABLE_PAYLOAD		1280	// 1280 in src2006
 
 #if (MAX_ROUTABLE_PAYLOAD & 3) != 0
 #error Bit buffers must be a multiple of 4 bytes
 #endif
 
-#define MIN_ROUTABLE_PAYLOAD		16		// minimum playload size
+#define MIN_ROUTABLE_PAYLOAD		128		// minimum playload size. 128 in src2006
 
-#define NETMSG_TYPE_BITS	5	// must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG
+#define NETMSG_TYPE_BITS	5	// must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG. Correct!
 
 // This is the payload plus any header info (excluding UDP header)
 
@@ -78,10 +78,11 @@
 // This is the largest packet that can come in/out over the wire, before processing the header
 //  bytes will be stripped by the networking channel layer
 //#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 16 ) // 8 insted of 16 in source 2006!!!
-#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 8 )
+#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 8 )		// ((((96000 + 9)) + ((8) - 1)) / (8))* (8) = 96016
 
-#define NET_HEADER_FLAG_SPLITPACKET				-2
-#define NET_HEADER_FLAG_COMPRESSEDPACKET		-3
+#define NET_HEADER_FLAG_SPLITPACKET				-2		// -2 in src2006!
+// didnt exist in src2006
+//#define NET_HEADER_FLAG_COMPRESSEDPACKET		-3
 
 class INetChannel;
 

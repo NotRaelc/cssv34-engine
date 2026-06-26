@@ -1083,7 +1083,6 @@ bool SendTable_Init( SendTable **pTables, int nTables )
 	{
 		SendTable_PrintStats();
 	}
-
 	return true;	
 }
 void SendTable_Term()

@@ -40,7 +40,7 @@ static ConVar net_drawslider( "net_drawslider", "0", 0, "Draw completion slider 
 static ConVar net_chokeloopback( "net_chokeloop", "0", 0, "Apply bandwidth choke to loopback packets" );
 
 static ConVar net_maxfilesize( "net_maxfilesize", "16", 0, "Maximum allowed file size for uploading in MB", true, 0, true, 64 );
-       ConVar net_blocksize("net_maxfragments", "1260", 0, "Max fragment bytes per packet", true, FRAGMENT_SIZE, true, MAX_ROUTABLE_PAYLOAD);
+       ConVar net_blocksize("net_maxfragments", "1280", 0, "Max fragment bytes per packet", true, FRAGMENT_SIZE, true, MAX_ROUTABLE_PAYLOAD);
 
 static ConVar net_compresssplits("net_compresssplits", "1", 0, "Compress splitpacket parts before sending"); 
 static ConVar net_compresspackets( "net_compresspackets", "0", 0, "[DontUse] Use lz compression on game packets." );
@@ -1408,7 +1408,7 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 		{
 			// This can occur if the packet containing the "header" (offset == 0) is dropped.  Since we need the header to arrive we'll just wait
 			//  for a retry
-			// ConDMsg("Received fragment out of order: %i/%i\n", startFragment, numFragments );
+			ConDMsg("Received fragment out of order: %i/%i\n", startFragment, numFragments );
 			return false;
 		}
 	}
@@ -1421,16 +1421,28 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 			length -= rest;
 	}
 
-	Assert ( (offset + length) <= data->bytes );
+	// Disassembler recovery 
+	if (length && (offset + length) <= data->bytes)
+	{
+		buf.ReadBytes(data->buffer + offset, length);
+		data->ackedFragments += numFragments;
 
-	buf.ReadBytes( data->buffer + offset, length ); // read data
+		if (net_showfragments.GetBool())
+			ConMsg("Received fragments: start %i, num %i\n",
+				startFragment, numFragments);
 
-	data->ackedFragments+= numFragments;
-
-	if ( net_showfragments.GetBool() )
-		ConMsg("Received fragments: start %i, num %i\n", startFragment, numFragments );
-
-	return true;
+		return true;
+	}
+	else
+	{
+		delete[] data->buffer;
+		data->buffer = NULL;
+		ConDMsg("Malformed fragment ofs %i len %d, buffer size %d from %s\n",
+			offset, length,
+			PAD_NUMBER(data->bytes, 4),
+			remote_address.ToString());
+		return false;
+	}
 }
 
 void CNetChan::UpdateSubChannels()
