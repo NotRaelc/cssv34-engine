@@ -1550,7 +1550,7 @@ void SV_BroadcastVoiceData(IClient * cl, int nBytes, char * data, int64 xuid )
 		// Does the game code want cl sending to this client?
 
 		bool bHearsPlayer = pDestClient->IsHearingClient( voiceData.m_nFromClient );
-		voiceData.m_bProximity = pDestClient->IsProximityHearingClient( voiceData.m_nFromClient );
+		// voiceData.m_bProximity = pDestClient->IsProximityHearingClient( voiceData.m_nFromClient );
 
 		if ( IsX360() && bSelf == true )			
 			continue;

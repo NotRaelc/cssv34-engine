@@ -6,10 +6,67 @@
 		{
 			"name"		"[v34] MILLENNIUM © MIGCSS [Public] 18+"
 			"gamedir"		"cstrike"
-			"Players"		"15"
+			"Players"		"12"
 			"maxplayers"		"32"
-			"map"		"de_cache_csgo"
+			"map"		"de_dust2"
 			"address"		"176.114.92.210:27077"
+		}
+	}
+	"gamelist"		"internet"
+	"FilterList"
+	{
+		"InternetGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+			"location"		"0"
+		}
+		"FavoriteGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+		}
+		"HistoryGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+		}
+		"LanGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
 		}
 	}
 }

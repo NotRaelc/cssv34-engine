@@ -922,7 +922,7 @@ int Voice_GetCompressedData(char *pchDest, int nCount, bool bFinal)
 // Input  : nEntity - entity number to assign to a channel.
 // Output : A channel index to which the entity has been assigned.
 //------------------------------------------------------------------------------
-int Voice_AssignChannel(int nEntity, bool bProximity)
+int Voice_AssignChannel(int nEntity)
 {
 	if(g_bInTweakMode)
 		return VOICE_CHANNEL_IN_TWEAK_MODE;
@@ -953,7 +953,7 @@ int Voice_AssignChannel(int nEntity, bool bProximity)
 
 	CVoiceChannel *pChannel = &g_VoiceChannels[iFree];
 	pChannel->Init(nEntity);
-	pChannel->m_bProximity = bProximity;
+//	pChannel->m_bProximity = bProximity;
 	VoiceSE_StartOverdrive();
 
 	return iFree;
@@ -1133,7 +1133,8 @@ int VoiceTweak_StartVoiceTweakMode()
 
 	Voice_EndAllChannels();
 	Voice_RecordStart(NULL, NULL, NULL);
-	Voice_AssignChannel(TWEAKMODE_ENTITYINDEX, false );
+// m_bProximity = false
+	Voice_AssignChannel(TWEAKMODE_ENTITYINDEX);
 	g_bInTweakMode = true;
 	g_pMixerControls = GetMixerControls();
 
