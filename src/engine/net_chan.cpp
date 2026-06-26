@@ -24,7 +24,7 @@
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
-#define NET_SHOW_PACKETS "1" // default value for any of net_show*
+#define NET_SHOW_PACKETS "0" // default value for any of net_show*
 
 ConVar net_showudp( "net_showudp", NET_SHOW_PACKETS, 0, "Dump UDP packets summary to console" );
 ConVar net_showtcp( "net_showtcp", NET_SHOW_PACKETS, 0, "Dump TCP stream summary to console" );
