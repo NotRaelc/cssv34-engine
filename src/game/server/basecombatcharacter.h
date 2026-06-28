@@ -444,7 +444,7 @@ private:
 	CNetworkArrayForDerived( int, m_iAmmo, MAX_AMMO_SLOTS );
 
 	// Usable character items 
-	CBaseCombatWeaponHandle m_hMyWeapons[MAX_WEAPONS];
+	CNetworkArray( CBaseCombatWeaponHandle, m_hMyWeapons, MAX_WEAPONS );
 
 	CNetworkHandle( CBaseCombatWeapon, m_hActiveWeapon );
 

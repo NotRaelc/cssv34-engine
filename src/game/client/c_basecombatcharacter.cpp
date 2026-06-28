@@ -65,24 +65,21 @@ void C_BaseCombatCharacter::DoMuzzleFlash()
 }
 IMPLEMENT_CLIENTCLASS(C_BaseCombatCharacter, DT_BaseCombatCharacter, CBaseCombatCharacter);
 
-
-// New table with m_hMyWeapons (only m_hActiveWeapon)
-BEGIN_RECV_TABLE_NOBASE( C_BaseCombatCharacter, DT_BCCWeaponSlot )
-    RecvPropEHandle( RECVINFO( m_hActiveWeapon ) ),
-END_RECV_TABLE()
-
-// base bcc_localdata – now with m_hMyWeapons
+// Only send active weapon index to local player
 BEGIN_RECV_TABLE_NOBASE( C_BaseCombatCharacter, DT_BCCLocalPlayerExclusive )
-    RecvPropTime( RECVINFO( m_flNextAttack ) ),
-    RecvPropDataTable( "m_hMyWeapons", 0, 0, &REFERENCE_RECV_TABLE( DT_BCCWeaponSlot ) ),
+	RecvPropTime( RECVINFO( m_flNextAttack ) ),
 END_RECV_TABLE();
 
-// Pointer to bcc_localdata
-BEGIN_RECV_TABLE( C_BaseCombatCharacter, DT_BaseCombatCharacter )
-    RecvPropDataTable( "bcc_localdata", 0, 0, &REFERENCE_RECV_TABLE( DT_BCCLocalPlayerExclusive ) ),
+
+BEGIN_RECV_TABLE(C_BaseCombatCharacter, DT_BaseCombatCharacter)
+	RecvPropDataTable( "bcc_localdata", 0, 0, &REFERENCE_RECV_TABLE(DT_BCCLocalPlayerExclusive) ),
+	RecvPropEHandle( RECVINFO( m_hActiveWeapon ) ),
+	RecvPropArray3( RECVINFO_ARRAY(m_hMyWeapons), RecvPropEHandle( RECVINFO( m_hMyWeapons[0] ) ) ),
+
 #ifdef INVASION_CLIENT_DLL
-    RecvPropInt( RECVINFO( m_iPowerups ) ),
+	RecvPropInt( RECVINFO( m_iPowerups ) ),
 #endif
+
 END_RECV_TABLE()
 
 

@@ -174,13 +174,9 @@ void *SendProxy_SendBaseCombatCharacterLocalDataTable( const SendProp *pProp, co
 }
 REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendBaseCombatCharacterLocalDataTable );
 
-BEGIN_SEND_TABLE_NOBASE( CBaseCombatCharacter, DT_BCCWeaponSlot )
-    SendPropEHandle( SENDINFO( m_hActiveWeapon ) ),
-END_SEND_TABLE()
-
+// Only send active weapon index to local player
 BEGIN_SEND_TABLE_NOBASE( CBaseCombatCharacter, DT_BCCLocalPlayerExclusive )
-    SendPropTime( SENDINFO( m_flNextAttack ) ),
-    SendPropDataTable( "m_hMyWeapons", 0, &REFERENCE_SEND_TABLE( DT_BCCWeaponSlot ) ),
+	SendPropTime( SENDINFO( m_flNextAttack ) ),
 END_SEND_TABLE();
 
 //-----------------------------------------------------------------------------
@@ -189,6 +185,9 @@ END_SEND_TABLE();
 IMPLEMENT_SERVERCLASS_ST(CBaseCombatCharacter, DT_BaseCombatCharacter)
 	// Data that only gets sent to the local player.
 	SendPropDataTable( "bcc_localdata", 0, &REFERENCE_SEND_TABLE(DT_BCCLocalPlayerExclusive), SendProxy_SendBaseCombatCharacterLocalDataTable ),
+
+	SendPropEHandle( SENDINFO( m_hActiveWeapon ) ),
+	SendPropArray3( SENDINFO_ARRAY3(m_hMyWeapons), SendPropEHandle( SENDINFO_ARRAY(m_hMyWeapons) ) ),
 
 #ifdef INVASION_DLL
 	SendPropInt( SENDINFO(m_iPowerups), MAX_POWERUPS, SPROP_UNSIGNED ), 
@@ -714,7 +713,7 @@ CBaseCombatCharacter::CBaseCombatCharacter( void )
 
 	for (int i = 0; i < MAX_WEAPONS; i++)
 	{
-		m_hMyWeapons[i] = NULL;
+		m_hMyWeapons.Set( i, NULL );
 	}
 
 	// Default so that spawned entities have this set
@@ -1618,7 +1617,7 @@ bool CBaseCombatCharacter::Weapon_Detach( CBaseCombatWeapon *pWeapon )
 	{
 		if ( pWeapon == m_hMyWeapons[i] )
 		{
-			m_hMyWeapons[i] = NULL;
+			m_hMyWeapons.Set( i, NULL );
 			pWeapon->SetOwner( NULL );
 
 			if ( pWeapon == m_hActiveWeapon )
@@ -1986,7 +1985,7 @@ void CBaseCombatCharacter::Weapon_Equip( CBaseCombatWeapon *pWeapon )
 	{
 		if (!m_hMyWeapons[i]) 
 		{
-			m_hMyWeapons[i] = pWeapon;
+			m_hMyWeapons.Set( i, pWeapon );
 			break;
 		}
 	}
@@ -2252,7 +2251,7 @@ void CBaseCombatCharacter::RemoveAllWeapons()
 		if ( m_hMyWeapons[i] )
 		{
 			m_hMyWeapons[i]->Delete( );
-			m_hMyWeapons[i] = NULL;
+			m_hMyWeapons.Set( i, NULL );
 		}
 	}
 }
