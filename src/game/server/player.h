@@ -852,8 +852,8 @@ protected:
 	void					UpdateButtonState( int nUserCmdButtonMask );
 
 	bool	m_bPauseBonusProgress;
-	CNetworkVar( int, m_iBonusProgress );
-	CNetworkVar( int, m_iBonusChallenge );
+	int		m_iBonusProgress;
+	int		m_iBonusChallenge;
 
 	int						m_lastDamageAmount;		// Last damage taken
 
@@ -869,8 +869,8 @@ protected:
 	CNetworkVar( int, m_iObserverMode );	// if in spectator mode != 0
 	CNetworkVar( int,	m_iFOV );			// field of view
 	CNetworkVar( int,	m_iDefaultFOV );	// default field of view
-	CNetworkVar( int,	m_iFOVStart );		// What our FOV started at
-	CNetworkVar( float,	m_flFOVTime );		// Time our FOV change started
+	int					m_iFOVStart;		// What our FOV started at
+	float				m_flFOVTime;		// Time our FOV change started
 	
 	int						m_iObserverLastMode; // last used observer mode
 	CNetworkHandle( CBaseEntity, m_hObserverTarget );	// entity handle to m_iObserverTarget
@@ -1095,7 +1095,7 @@ protected:
 
 	bool			m_bSinglePlayerGameEnding;
 
-	CNetworkVar( int, m_ubEFNoInterpParity );
+	int				m_ubEFNoInterpParity;
 
 public:
 

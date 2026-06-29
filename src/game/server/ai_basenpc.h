@@ -2110,7 +2110,7 @@ public:
 	CNetworkVar( bool,  m_bSpeedModActive );
 	CNetworkVar( int,   m_iSpeedModRadius );
 	CNetworkVar( int,   m_iSpeedModSpeed );
-	CNetworkVar( float, m_flTimePingEffect );			// Display the pinged effect until this time
+	float				m_flTimePingEffect;			// Display the pinged effect until this time
 
 	void				InputActivateSpeedModifier( inputdata_t &inputdata ) { m_bSpeedModActive = true; }
 	void				InputDisableSpeedModifier( inputdata_t &inputdata ) { m_bSpeedModActive = false; }
