@@ -18,7 +18,7 @@
 #define CAPHUD_PARITY_MASK		((1<<CAPHUD_PARITY_BITS)-1)
 
 #define LAZY_UPDATE_TIME		3
-
+#if 0
 // Datatable
 IMPLEMENT_SERVERCLASS_ST_NOBASE(CBaseTeamObjectiveResource, DT_BaseTeamObjectiveResource)
 
@@ -84,7 +84,7 @@ BEGIN_DATADESC( CBaseTeamObjectiveResource )
 	DEFINE_ARRAY( m_flCapPercentages, FIELD_FLOAT,  MAX_CONTROL_POINTS  ),
 	DEFINE_THINKFUNC( ObjectiveThink ),
 END_DATADESC()
-
+#endif
 CBaseTeamObjectiveResource *g_pObjectiveResource = NULL;
 
 //-----------------------------------------------------------------------------
@@ -120,39 +120,39 @@ void CBaseTeamObjectiveResource::Spawn( void )
 	for ( int i=0; i < MAX_CONTROL_POINTS; i++ )
 	{
 		// data variables
-		m_vCPPositions.Set( i, vec3_origin );
-		m_bCPIsVisible.Set( i, true );
-		m_bBlocked.Set( i, false );
+		m_vCPPositions[i] = vec3_origin ;
+		m_bCPIsVisible[i] = true ;
+		m_bBlocked[i] = false ;
 
 		// state variables
-		m_iOwner.Set( i, TEAM_UNASSIGNED );
-		m_iCappingTeam.Set( i, TEAM_UNASSIGNED );
-		m_iTeamInZone.Set( i, TEAM_UNASSIGNED );
-		m_bInMiniRound.Set( i, true );
-		m_bWarnOnCap.Set( i, false );
-		m_flLazyCapPerc.Set( i, 0.0 );
+		m_iOwner[i] = TEAM_UNASSIGNED ;
+		m_iCappingTeam[i] = TEAM_UNASSIGNED ;
+		m_iTeamInZone[i] = TEAM_UNASSIGNED ;
+		m_bInMiniRound[i] = true ;
+		m_bWarnOnCap[i] = false ;
+		m_flLazyCapPerc[i] = 0.0 ;
 
 		for ( int team = 0; team < MAX_CONTROL_POINT_TEAMS; team++ )
 		{
 			int iTeamIndex = TEAM_ARRAY( i, team );
 
-			m_iTeamIcons.Set( iTeamIndex, 0 );
-			m_iTeamOverlays.Set( iTeamIndex, 0 );
-			m_iTeamReqCappers.Set( iTeamIndex, 0 );
-			m_flTeamCapTime.Set( iTeamIndex, 0.0f );
-			m_iNumTeamMembers.Set( TEAM_ARRAY( i, team ), 0 );
+			m_iTeamIcons[iTeamIndex] = 0 ;
+			m_iTeamOverlays[iTeamIndex] = 0 ;
+			m_iTeamReqCappers[iTeamIndex] = 0 ;
+			m_flTeamCapTime[iTeamIndex] = 0.0f ;
+			m_iNumTeamMembers[TEAM_ARRAY(i , team)] = 0;
 			for ( int ipoint = 0; ipoint < MAX_PREVIOUS_POINTS; ipoint++ )
 			{
 				int iIntIndex = ipoint + (i * MAX_PREVIOUS_POINTS) + (team * MAX_CONTROL_POINTS * MAX_PREVIOUS_POINTS);
-				m_iPreviousPoints.Set( iIntIndex, -1 );
+				m_iPreviousPoints[iIntIndex] = -1 ;
 			}
-			m_bTeamCanCap.Set( iTeamIndex, false );
+			m_bTeamCanCap[iTeamIndex] = false ;
 		}
 	}
 
 	for ( int i = 0; i < MAX_TEAMS; i++ )
 	{
-		m_iBaseControlPoints.Set( i, -1 );
+		m_iBaseControlPoints[i] = -1 ;
 	}
 
 	SetThink( &CBaseTeamObjectiveResource::ObjectiveThink );
@@ -170,7 +170,7 @@ void CBaseTeamObjectiveResource::ObjectiveThink( void )
 	{
 		if ( m_iCappingTeam[i] )
 		{
-			m_flLazyCapPerc.Set( i, m_flCapPercentages[i] );
+			m_flLazyCapPerc[i] = m_flCapPercentages[i] ;
 		}
 	}
 }
@@ -191,13 +191,13 @@ void CBaseTeamObjectiveResource::ResetControlPoints( void )
 {
 	for ( int i=0; i < MAX_CONTROL_POINTS; i++ )
 	{
-		m_iCappingTeam.Set( i, TEAM_UNASSIGNED );
-		m_iTeamInZone.Set( i, TEAM_UNASSIGNED );
-		m_bInMiniRound.Set( i, true );
+		m_iCappingTeam[i] = TEAM_UNASSIGNED ;
+		m_iTeamInZone[i] = TEAM_UNASSIGNED ;
+		m_bInMiniRound[i] = true ;
 
 		for ( int team = 0; team < MAX_CONTROL_POINT_TEAMS; team++ )
 		{
-			m_iNumTeamMembers.Set( TEAM_ARRAY( i, team ), 0.0f );
+			m_iNumTeamMembers[TEAM_ARRAY(i , team)] = 0.0f;
 		}
 	}
 
@@ -220,7 +220,7 @@ void CBaseTeamObjectiveResource::SetNumControlPoints( int num )
 void CBaseTeamObjectiveResource::SetCPIcons( int index, int iTeam, int iIcon )
 {
 	AssertValidIndex(index);
-	m_iTeamIcons.Set( TEAM_ARRAY( index, iTeam ), iIcon );
+	m_iTeamIcons[TEAM_ARRAY( index, iTeam)] = iIcon;
 }
 
 //-----------------------------------------------------------------------------
@@ -229,7 +229,7 @@ void CBaseTeamObjectiveResource::SetCPIcons( int index, int iTeam, int iIcon )
 void CBaseTeamObjectiveResource::SetCPOverlays( int index, int iTeam, int iIcon )
 {
 	AssertValidIndex(index);
-	m_iTeamOverlays.Set( TEAM_ARRAY( index, iTeam ), iIcon );
+	m_iTeamOverlays[TEAM_ARRAY( index, iTeam)] = iIcon;
 }
 
 //-----------------------------------------------------------------------------
@@ -238,7 +238,7 @@ void CBaseTeamObjectiveResource::SetCPOverlays( int index, int iTeam, int iIcon 
 void CBaseTeamObjectiveResource::SetTeamBaseIcons( int iTeam, int iBaseIcon )
 {
 	Assert( iTeam >= 0 && iTeam < MAX_TEAMS );
-	m_iTeamBaseIcons.Set( iTeam, iBaseIcon );
+	m_iTeamBaseIcons[iTeam] = iBaseIcon ;
 }
 
 //-----------------------------------------------------------------------------
@@ -247,7 +247,7 @@ void CBaseTeamObjectiveResource::SetTeamBaseIcons( int iTeam, int iBaseIcon )
 void CBaseTeamObjectiveResource::SetCPPosition( int index, const Vector& vPosition )
 {
 	AssertValidIndex(index);
-	m_vCPPositions.Set( index, vPosition );
+	m_vCPPositions[index] = vPosition ;
 }
 
 //-----------------------------------------------------------------------------
@@ -256,7 +256,7 @@ void CBaseTeamObjectiveResource::SetCPPosition( int index, const Vector& vPositi
 void CBaseTeamObjectiveResource::SetCPVisible( int index, bool bVisible )
 {
 	AssertValidIndex(index);
-	m_bCPIsVisible.Set( index, bVisible );
+	m_bCPIsVisible[index] = bVisible ;
 }
 
 //-----------------------------------------------------------------------------
@@ -265,7 +265,7 @@ void CBaseTeamObjectiveResource::SetCPVisible( int index, bool bVisible )
 void CBaseTeamObjectiveResource::SetWarnOnCap( int index, bool bWarn )
 {
 	AssertValidIndex(index);
-	m_bWarnOnCap.Set( index, bWarn );
+	m_bWarnOnCap[index] = bWarn ;
 }
 
 //-----------------------------------------------------------------------------
@@ -274,7 +274,7 @@ void CBaseTeamObjectiveResource::SetWarnOnCap( int index, bool bWarn )
 void CBaseTeamObjectiveResource::SetWarnSound( int index, string_t iszSound )
 {
 	AssertValidIndex(index);
-	m_iszWarnSound.Set( index, iszSound );
+	m_iszWarnSound[index] = iszSound ;
 }
 
 //-----------------------------------------------------------------------------
@@ -283,7 +283,7 @@ void CBaseTeamObjectiveResource::SetWarnSound( int index, string_t iszSound )
 void CBaseTeamObjectiveResource::SetCPRequiredCappers( int index, int iTeam, int iReqPlayers )
 {
 	AssertValidIndex(index);
-	m_iTeamReqCappers.Set( TEAM_ARRAY( index, iTeam ), iReqPlayers );
+	m_iTeamReqCappers[TEAM_ARRAY(index, iTeam)] = iReqPlayers;
 }
 
 //-----------------------------------------------------------------------------
@@ -292,7 +292,7 @@ void CBaseTeamObjectiveResource::SetCPRequiredCappers( int index, int iTeam, int
 void CBaseTeamObjectiveResource::SetCPCapTime( int index, int iTeam, float flTime )
 {
 	AssertValidIndex(index);
-	m_flTeamCapTime.Set( TEAM_ARRAY( index, iTeam ), flTime );
+	m_flTeamCapTime[TEAM_ARRAY(index, iTeam)] = flTime;
 }
 
 //-----------------------------------------------------------------------------
@@ -319,7 +319,7 @@ float CBaseTeamObjectiveResource::GetCPCapPercentage( int index )
 void CBaseTeamObjectiveResource::SetTeamCanCap( int index, int iTeam, bool bCanCap )
 {
 	AssertValidIndex(index);
-	m_bTeamCanCap.Set( TEAM_ARRAY( index, iTeam ), bCanCap );
+	m_bTeamCanCap[TEAM_ARRAY(index, iTeam)] = bCanCap;
 	UpdateCapHudElement();
 }
 
@@ -329,7 +329,7 @@ void CBaseTeamObjectiveResource::SetTeamCanCap( int index, int iTeam, bool bCanC
 void CBaseTeamObjectiveResource::SetBaseCP( int index, int iTeam )
 {
 	Assert( iTeam < MAX_TEAMS );
-	m_iBaseControlPoints.Set( iTeam, index );
+	m_iBaseControlPoints[iTeam] = index ;
 }
 
 //-----------------------------------------------------------------------------
@@ -340,7 +340,7 @@ void CBaseTeamObjectiveResource::SetPreviousPoint( int index, int iTeam, int iPr
 	AssertValidIndex(index);
 	Assert( iPrevIndex >= 0 && iPrevIndex < MAX_PREVIOUS_POINTS );
 	int iIntIndex = iPrevIndex + (index * MAX_PREVIOUS_POINTS) + (iTeam * MAX_CONTROL_POINTS * MAX_PREVIOUS_POINTS);
-	m_iPreviousPoints.Set( iIntIndex, iPrevPoint );
+	m_iPreviousPoints[iIntIndex] = iPrevPoint ;
 }
 
 //-----------------------------------------------------------------------------
@@ -369,7 +369,7 @@ bool CBaseTeamObjectiveResource::TeamCanCapPoint( int index, int team )
 void CBaseTeamObjectiveResource::SetNumPlayers( int index, int team, int iNumPlayers )
 {
 	AssertValidIndex(index);
-	m_iNumTeamMembers.Set( TEAM_ARRAY( index, team ), iNumPlayers );
+	m_iNumTeamMembers[TEAM_ARRAY(index, team)] = iNumPlayers;
 	UpdateCapHudElement();
 }
 
@@ -379,9 +379,9 @@ void CBaseTeamObjectiveResource::SetNumPlayers( int index, int team, int iNumPla
 void CBaseTeamObjectiveResource::StartCap( int index, int team )
 {
 	AssertValidIndex(index);
-	if ( m_iCappingTeam.Get( index ) != team )
+	if (m_iCappingTeam[index] != team)
 	{
-		m_iCappingTeam.Set( index, team );
+		m_iCappingTeam[index] = team ;
 		UpdateCapHudElement();
 	}
 }
@@ -392,10 +392,10 @@ void CBaseTeamObjectiveResource::StartCap( int index, int team )
 void CBaseTeamObjectiveResource::SetOwningTeam( int index, int team )
 {
 	AssertValidIndex(index);
-	m_iOwner.Set( index, team );
+	m_iOwner[index] = team ;
 
 	// clear the capper
-	m_iCappingTeam.Set( index, TEAM_UNASSIGNED );
+	m_iCappingTeam[index] = TEAM_UNASSIGNED ;
 	UpdateCapHudElement();
 }
 
@@ -405,9 +405,9 @@ void CBaseTeamObjectiveResource::SetOwningTeam( int index, int team )
 void CBaseTeamObjectiveResource::SetCappingTeam( int index, int team )
 {
 	AssertValidIndex(index);
-	if ( m_iCappingTeam.Get( index ) != team )
+	if ( m_iCappingTeam[index] != team )
 	{
-		m_iCappingTeam.Set( index, team );
+		m_iCappingTeam[index] = team ;
 		UpdateCapHudElement();
 	}
 }
@@ -418,9 +418,9 @@ void CBaseTeamObjectiveResource::SetCappingTeam( int index, int team )
 void CBaseTeamObjectiveResource::SetTeamInZone( int index, int team )
 {
 	AssertValidIndex(index);
-	if ( m_iTeamInZone.Get( index ) != team )
+	if (m_iTeamInZone[index] != team)
 	{
-		m_iTeamInZone.Set( index, team );
+		m_iTeamInZone[index] = team ;
 		UpdateCapHudElement();
 	}
 }
@@ -431,9 +431,9 @@ void CBaseTeamObjectiveResource::SetTeamInZone( int index, int team )
 void CBaseTeamObjectiveResource::SetCapBlocked( int index, bool bBlocked )
 {
 	AssertValidIndex(index);
-	if ( m_bBlocked.Get( index ) != bBlocked )
+	if ( m_bBlocked[index] != bBlocked )
 	{
-		m_bBlocked.Set( index, bBlocked );
+		m_bBlocked[index] = bBlocked ;
 		UpdateCapHudElement();
 	}
 }

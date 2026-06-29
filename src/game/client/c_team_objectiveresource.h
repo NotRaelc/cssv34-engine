@@ -26,7 +26,7 @@ class C_BaseTeamObjectiveResource : public C_BaseEntity
 {
 	DECLARE_CLASS( C_BaseTeamObjectiveResource, C_BaseEntity );
 public:
-	DECLARE_CLIENTCLASS();
+	//DECLARE_CLIENTCLASS();
 
 					C_BaseTeamObjectiveResource();
 	virtual			~C_BaseTeamObjectiveResource();
