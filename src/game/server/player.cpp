@@ -393,7 +393,7 @@ BEGIN_DATADESC( CBasePlayer )
 	DEFINE_FIELD( m_flConstraintRadius, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flConstraintWidth, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flConstraintSpeedFactor, FIELD_FLOAT ),
-	DEFINE_FIELD( m_hZoomOwner, FIELD_EHANDLE ),
+	//DEFINE_FIELD( m_hZoomOwner, FIELD_EHANDLE ),
 	
 	DEFINE_FIELD( m_flLaggedMovementValue, FIELD_FLOAT ),
 
@@ -7745,7 +7745,7 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 		//SendPropInt		(SENDINFO(m_iFOVStart), 8, SPROP_UNSIGNED ),
 		//SendPropFloat	(SENDINFO(m_flFOVTime) ),
 		SendPropInt		(SENDINFO(m_iDefaultFOV), 8, SPROP_UNSIGNED ),
-		SendPropEHandle	(SENDINFO(m_hZoomOwner) ),
+		//SendPropEHandle	(SENDINFO(m_hZoomOwner) ),
 		SendPropArray	( SendPropEHandle( SENDINFO_ARRAY( m_hViewModel ) ), m_hViewModel ),
 		SendPropString	(SENDINFO(m_szLastPlaceName) ),
 		//SendPropInt		( SENDINFO( m_ubEFNoInterpParity ), NOINTERP_PARITY_MAX_BITS, SPROP_UNSIGNED ),

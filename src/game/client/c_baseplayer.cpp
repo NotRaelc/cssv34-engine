@@ -226,7 +226,7 @@ END_RECV_TABLE()
 		//RecvPropInt		(RECVINFO(m_iFOVStart)),
 		//RecvPropFloat	(RECVINFO(m_flFOVTime)),
 		RecvPropInt		(RECVINFO(m_iDefaultFOV)),
-		RecvPropEHandle (RECVINFO(m_hZoomOwner)),
+		//RecvPropEHandle (RECVINFO(m_hZoomOwner)),
 
 		RecvPropEHandle( RECVINFO(m_hVehicle) ),
 		RecvPropEHandle( RECVINFO(m_hUseEntity) ),

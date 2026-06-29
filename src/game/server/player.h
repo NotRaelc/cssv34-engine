@@ -876,7 +876,7 @@ protected:
 	CNetworkHandle( CBaseEntity, m_hObserverTarget );	// entity handle to m_iObserverTarget
 	bool					m_bForcedObserverMode; // true, player was forced by invalid targets to switch mode
 	
-	CNetworkHandle( CBaseEntity, m_hZoomOwner );	//This is a pointer to the entity currently controlling the player's zoom
+	EHANDLE					m_hZoomOwner;			//This is a pointer to the entity currently controlling the player's zoom
 													//Only this entity can change the zoom state once it has ownership
 
 	float					m_tbdPrev;				// Time-based damage timer
