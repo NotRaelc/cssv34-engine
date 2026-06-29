@@ -177,6 +177,7 @@ REGISTER_SEND_PROXY_NON_MODIFIED_POINTER( SendProxy_SendBaseCombatCharacterLocal
 // Only send active weapon index to local player
 BEGIN_SEND_TABLE_NOBASE( CBaseCombatCharacter, DT_BCCLocalPlayerExclusive )
 	SendPropTime( SENDINFO( m_flNextAttack ) ),
+	SendPropArray3(SENDINFO_ARRAY3(m_hMyWeapons), SendPropEHandle(SENDINFO_ARRAY(m_hMyWeapons))),
 END_SEND_TABLE();
 
 //-----------------------------------------------------------------------------
@@ -187,7 +188,7 @@ IMPLEMENT_SERVERCLASS_ST(CBaseCombatCharacter, DT_BaseCombatCharacter)
 	SendPropDataTable( "bcc_localdata", 0, &REFERENCE_SEND_TABLE(DT_BCCLocalPlayerExclusive), SendProxy_SendBaseCombatCharacterLocalDataTable ),
 
 	SendPropEHandle( SENDINFO( m_hActiveWeapon ) ),
-	SendPropArray3( SENDINFO_ARRAY3(m_hMyWeapons), SendPropEHandle( SENDINFO_ARRAY(m_hMyWeapons) ) ),
+	//SendPropArray3( SENDINFO_ARRAY3(m_hMyWeapons), SendPropEHandle( SENDINFO_ARRAY(m_hMyWeapons) ) ),
 
 #ifdef INVASION_DLL
 	SendPropInt( SENDINFO(m_iPowerups), MAX_POWERUPS, SPROP_UNSIGNED ), 
