@@ -40,7 +40,7 @@ int SendProxyArrayLength_PlayerArray( const void *pStruct, int objectID )
 IMPLEMENT_SERVERCLASS_ST_NOBASE(CTeam, DT_Team)
 	SendPropInt( SENDINFO(m_iTeamNum), 5 ),
 	SendPropInt( SENDINFO(m_iScore), 0 ),
-	SendPropInt( SENDINFO(m_iRoundsWon), 8 ),
+	//SendPropInt( SENDINFO(m_iRoundsWon), 8 ),
 	SendPropString( SENDINFO( m_szTeamname ) ),
 
 	SendPropArray2( 

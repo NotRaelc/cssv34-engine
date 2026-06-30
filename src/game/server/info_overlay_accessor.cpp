@@ -22,20 +22,20 @@ public:
 
 	int  	UpdateTransmitState();
 
-	DECLARE_SERVERCLASS();
+	//DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 
 private:
 
-	CNetworkVar( int, m_iOverlayID );
+	int		m_iOverlayID = 0;
 };
 							  
 
 // This table encodes the CBaseEntity data.
-IMPLEMENT_SERVERCLASS_ST_NOBASE(CInfoOverlayAccessor, DT_InfoOverlayAccessor)
-	SendPropInt	(	SENDINFO(m_iTextureFrameIndex),		8,	SPROP_UNSIGNED ),
-	SendPropInt	(	SENDINFO(m_iOverlayID),				32,	SPROP_UNSIGNED ),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST_NOBASE(CInfoOverlayAccessor, DT_InfoOverlayAccessor)
+//	SendPropInt	(	SENDINFO(m_iTextureFrameIndex),		8,	SPROP_UNSIGNED ),
+//	SendPropInt	(	SENDINFO(m_iOverlayID),				32,	SPROP_UNSIGNED ),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( info_overlay_accessor, CInfoOverlayAccessor );
 
@@ -46,5 +46,5 @@ END_DATADESC()
 
 int CInfoOverlayAccessor::UpdateTransmitState()
 {
-	return SetTransmitState( FL_EDICT_ALWAYS );
+	return SetTransmitState( FL_EDICT_DONTSEND );
 }
