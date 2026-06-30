@@ -70,6 +70,7 @@ public:
 	sky3dparams_t			m_skybox3d;
 	// fog params
 	fogplayerparams_t		m_PlayerFog;
+	fogparams_t				m_fog;
 	// audio environment
 	audioparams_t			m_audio;
 

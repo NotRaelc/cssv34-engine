@@ -768,7 +768,7 @@ public:
 	//  the player and not to other players.
 	CNetworkVarEmbedded( CPlayerLocalData, m_Local );
 	void InitFogController( void );
-	void InputSetFogController( inputdata_t &inputdata );
+	//void InputSetFogController( inputdata_t &inputdata );
 
 	// Used by env_soundscape_triggerable to manage when the player is touching multiple
 	// soundscape triggers simultaneously.

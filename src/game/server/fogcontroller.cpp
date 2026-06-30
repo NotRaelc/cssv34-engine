@@ -72,7 +72,7 @@ BEGIN_DATADESC( CFogController )
 	DEFINE_FIELD( m_fog.endLerpTo, FIELD_FLOAT ),
 
 END_DATADESC()
-
+#if 0
 IMPLEMENT_SERVERCLASS_ST_NOBASE( CFogController, DT_FogController )
 // fog data
 	SendPropInt( SENDINFO_STRUCTELEM( m_fog.enable ), 1, SPROP_UNSIGNED ),
@@ -92,7 +92,7 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE( CFogController, DT_FogController )
 	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.lerptime ), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.duration ), 0, SPROP_NOSCALE ),
 END_SEND_TABLE()
-
+#endif
 CFogController::CFogController()
 {
 	// Make sure that old maps without fog fields don't get wacked out fog values.
@@ -111,6 +111,18 @@ void CFogController::Spawn( void )
 
 	m_fog.colorPrimaryLerpTo = m_fog.colorPrimary;
 	m_fog.colorSecondaryLerpTo = m_fog.colorSecondary;
+}
+
+void CFogController::UpdateAllPlayers()
+{
+	for (int i = 1; i <= gpGlobals->maxClients; i++)
+	{
+		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
+		if (pPlayer)
+		{
+			pPlayer->m_Local.m_fog = m_fog;
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -138,10 +150,10 @@ int CFogController::UpdateTransmitState()
 //------------------------------------------------------------------------------
 // Purpose: Input handler for setting the fog start distance.
 //------------------------------------------------------------------------------
-void CFogController::InputSetStartDist(inputdata_t &inputdata)
+void CFogController::InputSetStartDist(inputdata_t& inputdata)
 {
-	// Get the world entity.
 	m_fog.start = inputdata.value.Float();
+	UpdateAllPlayers();
 }
 
 //------------------------------------------------------------------------------
@@ -151,6 +163,7 @@ void CFogController::InputSetEndDist(inputdata_t &inputdata)
 {
 	// Get the world entity.
 	m_fog.end = inputdata.value.Float();
+	UpdateAllPlayers();
 }
 
 //------------------------------------------------------------------------------
@@ -160,6 +173,7 @@ void CFogController::InputSetEndDist(inputdata_t &inputdata)
 void CFogController::InputSetMaxDensity( inputdata_t &inputdata )
 {
 	m_fog.maxdensity = inputdata.value.Float();
+	UpdateAllPlayers();
 }
 
 //------------------------------------------------------------------------------
@@ -169,6 +183,7 @@ void CFogController::InputTurnOn(inputdata_t &inputdata)
 {
 	// Get the world entity.
 	m_fog.enable = true;
+	UpdateAllPlayers();
 }
 
 //------------------------------------------------------------------------------
@@ -178,6 +193,7 @@ void CFogController::InputTurnOff(inputdata_t &inputdata)
 {
 	// Get the world entity.
 	m_fog.enable = false;
+	UpdateAllPlayers();
 }
 
 //------------------------------------------------------------------------------
@@ -187,6 +203,7 @@ void CFogController::InputSetColor(inputdata_t &inputdata)
 {
 	// Get the world entity.
 	m_fog.colorPrimary = inputdata.value.Color32();
+	UpdateAllPlayers();
 }
 
 
@@ -197,11 +214,13 @@ void CFogController::InputSetColorSecondary(inputdata_t &inputdata)
 {
 	// Get the world entity.
 	m_fog.colorSecondary = inputdata.value.Color32();
+	UpdateAllPlayers();
 }
 
 void CFogController::InputSetFarZ(inputdata_t &inputdata)
 {
 	m_fog.farz = inputdata.value.Int();
+	UpdateAllPlayers();
 }
 
 
@@ -221,6 +240,7 @@ void CFogController::InputSetAngles( inputdata_t &inputdata )
 
 	AngleVectors( GetAbsAngles(), &m_fog.dirPrimary.GetForModify() );
 	m_fog.dirPrimary.GetForModify() *= -1.0f;
+	UpdateAllPlayers();
 }
 
 
@@ -286,24 +306,28 @@ void CFogController::InputSetColorLerpTo(inputdata_t &data)
 {
 	m_iChangedVariables |= FOG_CONTROLLER_COLORPRIMARY_LERP;
 	m_fog.colorPrimaryLerpTo = data.value.Color32();
+	UpdateAllPlayers();
 }
 
 void CFogController::InputSetColorSecondaryLerpTo(inputdata_t &data)
 {
 	m_iChangedVariables |= FOG_CONTROLLER_COLORSECONDARY_LERP;
 	m_fog.colorSecondaryLerpTo = data.value.Color32();
+	UpdateAllPlayers();
 }
 
 void CFogController::InputSetStartDistLerpTo(inputdata_t &data)
 {
 	m_iChangedVariables |= FOG_CONTROLLER_START_LERP;
 	m_fog.startLerpTo = data.value.Float();
+	UpdateAllPlayers();
 }
 
 void CFogController::InputSetEndDistLerpTo(inputdata_t &data)
 {
 	m_iChangedVariables |= FOG_CONTROLLER_END_LERP;
 	m_fog.endLerpTo = data.value.Float();
+	UpdateAllPlayers();
 }
 
 void CFogController::InputStartFogTransition(inputdata_t &data)
@@ -312,6 +336,7 @@ void CFogController::InputStartFogTransition(inputdata_t &data)
 
 	m_fog.lerptime = gpGlobals->curtime + m_fog.duration + 0.1;
     SetNextThink( gpGlobals->curtime + m_fog.duration );
+	UpdateAllPlayers();
 }
 
 void CFogController::SetLerpValues( void )

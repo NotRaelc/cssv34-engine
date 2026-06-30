@@ -153,7 +153,23 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.maxdensity ) ),
 
 	// fog data
-	RecvPropEHandle( RECVINFO( m_PlayerFog.m_hCtrl ) ),
+	//RecvPropEHandle( RECVINFO( m_PlayerFog.m_hCtrl ) ),
+	RecvPropInt(RECVINFO(m_fog.enable)),
+	RecvPropInt(RECVINFO(m_fog.blend)),
+	RecvPropVector(RECVINFO(m_fog.dirPrimary)),
+	RecvPropInt(RECVINFO(m_fog.colorPrimary)),
+	RecvPropInt(RECVINFO(m_fog.colorSecondary)),
+	RecvPropFloat(RECVINFO(m_fog.start)),
+	RecvPropFloat(RECVINFO(m_fog.end)),
+	RecvPropFloat(RECVINFO(m_fog.farz)),
+	RecvPropFloat(RECVINFO(m_fog.maxdensity)),
+	
+	RecvPropInt(RECVINFO(m_fog.colorPrimaryLerpTo)),
+	RecvPropInt(RECVINFO(m_fog.colorSecondaryLerpTo)),
+	RecvPropFloat(RECVINFO(m_fog.startLerpTo)),
+	RecvPropFloat(RECVINFO(m_fog.endLerpTo)),
+	RecvPropFloat(RECVINFO(m_fog.lerptime)),
+	RecvPropFloat(RECVINFO(m_fog.duration)),
 
 	// audio data
 	RecvPropVector( RECVINFO( m_audio.localSound[0] ) ),
@@ -603,7 +619,7 @@ void C_BasePlayer::OnPreDataChanged( DataUpdateType_t updateType )
 	}
 
 	m_bWasFreezeFraming = (GetObserverMode() == OBS_MODE_FREEZECAM);
-	m_hOldFogController = m_Local.m_PlayerFog.m_hCtrl;
+	m_OldFog = m_Local.m_fog;
 
 	BaseClass::OnPreDataChanged( updateType );
 }
@@ -810,10 +826,10 @@ void C_BasePlayer::OnDataChanged( DataUpdateType_t updateType )
 
 		Soundscape_Update( m_Local.m_audio );
 
-		if ( m_hOldFogController != m_Local.m_PlayerFog.m_hCtrl )
-		{
-			FogControllerChanged( updateType == DATA_UPDATE_CREATED );
-		}
+		//if ( m_hOldFogController != m_Local.m_PlayerFog.m_hCtrl )
+		//{
+		//	FogControllerChanged( updateType == DATA_UPDATE_CREATED );
+		//}
 	}
 }
 
@@ -2296,74 +2312,63 @@ bool IsInFreezeCam( void )
 // Purpose: Set the fog controller data per player.
 // Input  : &inputdata -
 //-----------------------------------------------------------------------------
-void C_BasePlayer::FogControllerChanged( bool bSnap )
-{
-	if ( m_Local.m_PlayerFog.m_hCtrl )
-	{
-		fogparams_t	*pFogParams = &(m_Local.m_PlayerFog.m_hCtrl->m_fog);
-
-		/*
-		Msg("Updating Fog Target: (%d,%d,%d) %.0f,%.0f -> (%d,%d,%d) %.0f,%.0f (%.2f seconds)\n", 
-					m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
-					m_CurrentFog.start.Get(), m_CurrentFog.end.Get(), 
-					pFogParams->colorPrimary.GetR(), pFogParams->colorPrimary.GetB(), pFogParams->colorPrimary.GetG(), 
-					pFogParams->start.Get(), pFogParams->end.Get(), pFogParams->duration.Get() );*/
-		
-
-		// Setup the fog color transition.
-		m_Local.m_PlayerFog.m_OldColor = m_CurrentFog.colorPrimary;
-		m_Local.m_PlayerFog.m_flOldStart = m_CurrentFog.start;
-		m_Local.m_PlayerFog.m_flOldEnd = m_CurrentFog.end;
-
-		m_Local.m_PlayerFog.m_NewColor = pFogParams->colorPrimary;
-		m_Local.m_PlayerFog.m_flNewStart = pFogParams->start;
-		m_Local.m_PlayerFog.m_flNewEnd = pFogParams->end;
-
-		m_Local.m_PlayerFog.m_flTransitionTime = bSnap ? -1 : gpGlobals->curtime;
-
-		m_CurrentFog = *pFogParams;
-
-		// Update the fog player's local fog data with the fog controller's data if need be.
-		UpdateFogController();
-	}
-}
+//void C_BasePlayer::FogControllerChanged( bool bSnap )
+//{
+//	if ( m_Local.m_PlayerFog.m_hCtrl )
+//	{
+//		fogparams_t	*pFogParams = &(m_Local.m_PlayerFog.m_hCtrl->m_fog);
+//
+//		/*
+//		Msg("Updating Fog Target: (%d,%d,%d) %.0f,%.0f -> (%d,%d,%d) %.0f,%.0f (%.2f seconds)\n", 
+//					m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
+//					m_CurrentFog.start.Get(), m_CurrentFog.end.Get(), 
+//					pFogParams->colorPrimary.GetR(), pFogParams->colorPrimary.GetB(), pFogParams->colorPrimary.GetG(), 
+//					pFogParams->start.Get(), pFogParams->end.Get(), pFogParams->duration.Get() );*/
+//		
+//
+//		// Setup the fog color transition.
+//		m_Local.m_PlayerFog.m_OldColor = m_CurrentFog.colorPrimary;
+//		m_Local.m_PlayerFog.m_flOldStart = m_CurrentFog.start;
+//		m_Local.m_PlayerFog.m_flOldEnd = m_CurrentFog.end;
+//
+//		m_Local.m_PlayerFog.m_NewColor = pFogParams->colorPrimary;
+//		m_Local.m_PlayerFog.m_flNewStart = pFogParams->start;
+//		m_Local.m_PlayerFog.m_flNewEnd = pFogParams->end;
+//
+//		m_Local.m_PlayerFog.m_flTransitionTime = bSnap ? -1 : gpGlobals->curtime;
+//
+//		m_CurrentFog = *pFogParams;
+//
+//		// Update the fog player's local fog data with the fog controller's data if need be.
+//		UpdateFogController();
+//	}
+//}
 
 //-----------------------------------------------------------------------------
 // Purpose: Check to see that the controllers data is up to date.
 //-----------------------------------------------------------------------------
-void C_BasePlayer::UpdateFogController( void )
+void C_BasePlayer::UpdateFogController()
 {
-	if ( m_Local.m_PlayerFog.m_hCtrl )
+	if (m_Local.m_fog != m_CurrentFog)
 	{
-		// Don't bother copying while we're transitioning, since it'll be stomped in UpdateFogBlend();
-		if ( m_Local.m_PlayerFog.m_flTransitionTime == -1 && (m_hOldFogController == m_Local.m_PlayerFog.m_hCtrl) )
+		if (m_Local.m_fog.duration > 0.0f && m_Local.m_fog.enable)
 		{
-			fogparams_t	*pFogParams = &(m_Local.m_PlayerFog.m_hCtrl->m_fog);
-			if ( m_CurrentFog != *pFogParams )
-			{
-				/*
-					Msg("FORCING UPDATE: (%d,%d,%d) %.0f,%.0f -> (%d,%d,%d) %.0f,%.0f (%.2f seconds)\n", 
-										m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
-										m_CurrentFog.start.Get(), m_CurrentFog.end.Get(), 
-										pFogParams->colorPrimary.GetR(), pFogParams->colorPrimary.GetB(), pFogParams->colorPrimary.GetG(), 
-										pFogParams->start.Get(), pFogParams->end.Get(), pFogParams->duration.Get() );*/
-					
+			m_Local.m_PlayerFog.m_OldColor = m_CurrentFog.colorPrimary;
+			m_Local.m_PlayerFog.m_flOldStart = m_CurrentFog.start;
+			m_Local.m_PlayerFog.m_flOldEnd = m_CurrentFog.end;
 
-				m_CurrentFog = *pFogParams;
-			}
+			m_Local.m_PlayerFog.m_NewColor = m_Local.m_fog.colorPrimary;
+			m_Local.m_PlayerFog.m_flNewStart = m_Local.m_fog.start;
+			m_Local.m_PlayerFog.m_flNewEnd = m_Local.m_fog.end;
+
+			m_Local.m_PlayerFog.m_flTransitionTime = gpGlobals->curtime;
+		}
+		else
+		{
+			m_CurrentFog = m_Local.m_fog;
+			m_Local.m_PlayerFog.m_flTransitionTime = -1.0f;
 		}
 	}
-	else
-	{
-		if ( m_CurrentFog.farz != -1 || m_CurrentFog.enable != false )
-		{
-			// No fog controller in this level. Use default fog parameters.
-			m_CurrentFog.farz = -1;
-			m_CurrentFog.enable = false;
-		}
-	}
-
-	// Update the fog blending state - of necessary.
 	UpdateFogBlend();
 }
 

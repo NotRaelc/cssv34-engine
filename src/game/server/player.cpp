@@ -411,7 +411,7 @@ BEGIN_DATADESC( CBasePlayer )
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetHealth", InputSetHealth ),
 	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetHUDVisibility", InputSetHUDVisibility ),
-	DEFINE_INPUTFUNC( FIELD_STRING, "SetFogController", InputSetFogController ),
+	//DEFINE_INPUTFUNC( FIELD_STRING, "SetFogController", InputSetFogController ),
 
 	DEFINE_FIELD( m_nNumCrouches, FIELD_INTEGER ),
 	DEFINE_FIELD( m_bDuckToggled, FIELD_BOOLEAN ),
@@ -2393,12 +2393,9 @@ void CBasePlayer::CheckObserverSettings()
 		}
 
 		// Update the fog.
-		if ( target )
+		if (target)
 		{
-			if ( target->m_Local.m_PlayerFog.m_hCtrl.Get() != m_Local.m_PlayerFog.m_hCtrl.Get() )
-			{
-				m_Local.m_PlayerFog.m_hCtrl.Set( target->m_Local.m_PlayerFog.m_hCtrl.Get() );
-			}
+			m_Local.m_fog = target->m_Local.m_fog;
 		}
 	}
 }
@@ -8403,23 +8400,31 @@ void CBasePlayer::InputSetHUDVisibility( inputdata_t &inputdata )
 // Purpose: Set the fog controller data per player.
 // Input  : &inputdata -
 //-----------------------------------------------------------------------------
-void CBasePlayer::InputSetFogController( inputdata_t &inputdata )
-{
-	// Find the fog controller with the given name.
-	CFogController *pFogController = dynamic_cast<CFogController*>( gEntList.FindEntityByName( NULL, inputdata.value.String() ) );
-	if ( pFogController )
-	{
-		m_Local.m_PlayerFog.m_hCtrl.Set( pFogController );
-	}
-}
+//void CBasePlayer::InputSetFogController( inputdata_t &inputdata )
+//{
+//	// Find the fog controller with the given name.
+//	CFogController *pFogController = dynamic_cast<CFogController*>( gEntList.FindEntityByName( NULL, inputdata.value.String() ) );
+//	if ( pFogController )
+//	{
+//		m_Local.m_PlayerFog.m_hCtrl.Set( pFogController );
+//	}
+//}
 
 //-----------------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------------
-void CBasePlayer::InitFogController( void )
+void CBasePlayer::InitFogController()
 {
-	// Setup with the default master controller.
-	m_Local.m_PlayerFog.m_hCtrl = FogSystem()->GetMasterFogController();
+	CFogController* pMaster = FogSystem()->GetMasterFogController();
+	if (pMaster)
+	{
+		m_Local.m_fog = pMaster->m_fog;
+	}
+	else
+	{
+		m_Local.m_fog.enable = false;
+		m_Local.m_fog.farz = -1;
+	}
 }
 
 //-----------------------------------------------------------------------------

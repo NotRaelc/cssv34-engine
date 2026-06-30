@@ -25,7 +25,7 @@
 class CFogController : public CBaseEntity
 {
 public:
-	DECLARE_SERVERCLASS();
+	//DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 	DECLARE_CLASS( CFogController, CBaseEntity );
 
@@ -53,6 +53,7 @@ public:
 	void InputSetEndDistLerpTo(inputdata_t &data);
 
 	void InputStartFogTransition(inputdata_t &data);
+	void UpdateAllPlayers();
 
 	int CFogController::DrawDebugTextOverlays(void);
 
