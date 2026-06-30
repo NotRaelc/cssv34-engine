@@ -7695,9 +7695,10 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 		SendPropEHandle		( SENDINFO( m_hLastWeapon ) ),
 		SendPropEHandle		( SENDINFO( m_hGroundEntity ), SPROP_CHANGES_OFTEN ),
 
-		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 0), 32, SPROP_NOSCALE | SPROP_CHANGES_OFTEN),
-		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 1), 32, SPROP_NOSCALE | SPROP_CHANGES_OFTEN),
-		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 2), 32, SPROP_NOSCALE | SPROP_CHANGES_OFTEN),
+#define VEL_CLAMPING 2048.0f	// Must be power of 2
+		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 0), 20, SPROP_CHANGES_OFTEN, -VEL_CLAMPING, VEL_CLAMPING),
+		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 1), 20, SPROP_CHANGES_OFTEN, -VEL_CLAMPING, VEL_CLAMPING),
+		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 2), 16, SPROP_CHANGES_OFTEN, -VEL_CLAMPING, VEL_CLAMPING),
 
 #if PREDICTION_ERROR_CHECK_LEVEL > 1 
 		SendPropVector		( SENDINFO( m_vecBaseVelocity ), -1, SPROP_COORD ),
