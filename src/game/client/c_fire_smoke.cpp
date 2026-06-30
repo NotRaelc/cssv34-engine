@@ -268,7 +268,10 @@ void C_FireSmoke::SpawnSmoke( void )
 
 
 IMPLEMENT_CLIENTCLASS_DT( C_EntityFlame, DT_EntityFlame, CEntityFlame )
+	RecvPropFloat(RECVINFO(m_flSize)),
 	RecvPropEHandle(RECVINFO(m_hEntAttached)),
+	RecvPropBool(RECVINFO(m_bUseHitboxes)),
+	RecvPropFloat(RECVINFO(m_flLifetime)),
 END_RECV_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -278,6 +281,9 @@ C_EntityFlame::C_EntityFlame( void ) :
 m_hEffect( NULL )
 {
 	m_hOldAttached = NULL;
+	m_flSize = 0.0f;
+	m_bUseHitboxes = false;
+	m_flLifetime = 0.0f;
 }
 
 //-----------------------------------------------------------------------------
