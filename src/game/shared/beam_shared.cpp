@@ -149,15 +149,13 @@ BEGIN_NETWORK_TABLE_NOBASE( CBeam, DT_Beam )
 	SendPropInt		(SENDINFO(m_nBeamType),		Q_log2(NUM_BEAM_TYPES)+1,	SPROP_UNSIGNED ),
 	SendPropInt		(SENDINFO(m_nBeamFlags),	NUM_BEAM_FLAGS,	SPROP_UNSIGNED ),
 	SendPropInt		(SENDINFO(m_nNumBeamEnts ),			5,	SPROP_UNSIGNED ),
-	SendPropArray3
-	(
-		SENDINFO_ARRAY3(m_hAttachEntity), 
-		SendPropEHandle( SENDINFO_ARRAY(m_hAttachEntity) )
+	SendPropArray(
+		SendPropInt(SENDINFO_ARRAY(m_hAttachEntity), NUM_NETWORKED_EHANDLE_BITS, SPROP_UNSIGNED | SPROP_NOSCALE, SendProxy_EHandleToInt),
+		m_hAttachEntity
 	),
-	SendPropArray3
-	(
-		SENDINFO_ARRAY3(m_nAttachIndex), 
-		SendPropInt( SENDINFO_ARRAY(m_nAttachIndex), ATTACHMENT_INDEX_BITS, SPROP_UNSIGNED)
+	SendPropArray(
+		SendPropInt(SENDINFO_ARRAY(m_nAttachIndex), ATTACHMENT_INDEX_BITS, SPROP_UNSIGNED),
+		m_nAttachIndex
 	),
 	SendPropInt		(SENDINFO(m_nHaloIndex),	16, SPROP_UNSIGNED ),
 	SendPropFloat	(SENDINFO(m_fHaloScale),	0,	SPROP_NOSCALE ),
@@ -190,16 +188,8 @@ BEGIN_NETWORK_TABLE_NOBASE( CBeam, DT_Beam )
 	RecvPropInt		(RECVINFO(m_nBeamType)),
 	RecvPropInt		(RECVINFO(m_nBeamFlags)),
 	RecvPropInt		(RECVINFO(m_nNumBeamEnts)),
-	RecvPropArray3
-	(
-		RECVINFO_ARRAY( m_hAttachEntity ),
-		RecvPropEHandle (RECVINFO(m_hAttachEntity[0]))
-	),
-	RecvPropArray3	
-	(
-		RECVINFO_ARRAY( m_nAttachIndex ),
-		RecvPropInt (RECVINFO(m_nAttachIndex[0]))
-	),
+	RecvPropArray(RecvPropEHandle(RECVINFO(m_hAttachEntity[0])), m_hAttachEntity),
+	RecvPropArray(RecvPropInt(RECVINFO(m_nAttachIndex[0])), m_nAttachIndex),
 	RecvPropInt		(RECVINFO(m_nHaloIndex)),
 	RecvPropFloat	(RECVINFO(m_fHaloScale)),
 	RecvPropFloat	(RECVINFO(m_fWidth)),
