@@ -2370,22 +2370,17 @@ void C_BasePlayer::UpdateFogBlend()
 		if (flTimeDelta < m_TargetFog.duration)
 		{
 			float t = flTimeDelta / m_TargetFog.duration;
-			// Interpolate color and distances
+			// Interpolate float/int
 			m_CurrentFog.colorPrimary.SetR(Lerp(t, m_CurrentFog.colorPrimary.GetR(), m_TargetFog.colorPrimary.GetR()));
 			m_CurrentFog.colorPrimary.SetG(Lerp(t, m_CurrentFog.colorPrimary.GetG(), m_TargetFog.colorPrimary.GetG()));
 			m_CurrentFog.colorPrimary.SetB(Lerp(t, m_CurrentFog.colorPrimary.GetB(), m_TargetFog.colorPrimary.GetB()));
-			m_CurrentFog.start = Lerp(t, m_CurrentFog.start, m_TargetFog.start);
-			m_CurrentFog.end = Lerp(t, m_CurrentFog.end, m_TargetFog.end);
-			// If you need to interpolate secondary color, add similar lines
+			m_CurrentFog.start = Lerp(t, m_CurrentFog.start.Get(), m_TargetFog.start.Get());
+			m_CurrentFog.end = Lerp(t, m_CurrentFog.end.Get(), m_TargetFog.end.Get());
 		}
 		else
 		{
 			m_CurrentFog = m_TargetFog;
 			m_flFogTransitionStartTime = -1.0f;
-			/*
-				Msg("Finished transition to (%d,%d,%d) %.0f,%.0f\n",
-								m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(),
-								m_CurrentFog.start.Get(), m_CurrentFog.end.Get() );*/
 		}
 	}
 }
