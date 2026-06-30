@@ -371,8 +371,8 @@ public:
 
 	// Player FOV values
 	int						m_iFOV;				// field of view
-	int						m_iFOVStart;		// starting value of the FOV changing over time (client only)
-	float					m_flFOVTime;		// starting time of the FOV zoom
+	int						m_iFOVStart = 90;		// starting value of the FOV changing over time (client only)
+	float					m_flFOVTime = 0.0f;		// starting time of the FOV zoom
 	int						m_iDefaultFOV;		// default FOV if no other zooms are occurring
 	EHANDLE					m_hZoomOwner;		// This is a pointer to the entity currently controlling the player's zoom
 												// Only this entity can change the zoom state once it has ownership
@@ -448,8 +448,8 @@ private:
 	
 	float			m_flMaxspeed;
 
-	int				m_iBonusProgress;
-	int				m_iBonusChallenge;
+	int				m_iBonusProgress = 0;
+	int				m_iBonusChallenge = 0;
 
 	CInterpolatedVar< Vector >	m_iv_vecViewOffset;
 
@@ -553,7 +553,7 @@ protected:
 
 	bool			m_bSentFreezeFrame;
 	float			m_flFreezeZOffset;
-	byte			m_ubEFNoInterpParity;
+	byte			m_ubEFNoInterpParity = 0;
 	byte			m_ubOldEFNoInterpParity;
 
 private:

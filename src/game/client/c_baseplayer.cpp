@@ -150,7 +150,7 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropInt( RECVINFO( m_skybox3d.fog.colorSecondary ) ),
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.start ) ),
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.end ) ),
-	RecvPropFloat( RECVINFO( m_skybox3d.fog.maxdensity ) ),
+	//RecvPropFloat( RECVINFO( m_skybox3d.fog.maxdensity ) ),
 
 	// Direct fog parameters (new)
 	RecvPropInt( RECVINFO( m_fog.enable ) ),
@@ -161,7 +161,7 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropFloat( RECVINFO( m_fog.start ) ),
 	RecvPropFloat( RECVINFO( m_fog.end ) ),
 	RecvPropFloat( RECVINFO( m_fog.farz ) ),
-	RecvPropFloat( RECVINFO( m_fog.maxdensity ) ),
+	//RecvPropFloat( RECVINFO( m_fog.maxdensity ) ),
 	RecvPropInt( RECVINFO( m_fog.colorPrimaryLerpTo ) ),
 	RecvPropInt( RECVINFO( m_fog.colorSecondaryLerpTo ) ),
 	RecvPropFloat( RECVINFO( m_fog.startLerpTo ) ),

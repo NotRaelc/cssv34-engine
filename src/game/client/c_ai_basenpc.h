@@ -43,7 +43,7 @@ public:
 
 private:
 	C_AI_BaseNPC( const C_AI_BaseNPC & ); // not defined, not accessible
-	float m_flTimePingEffect;
+	float m_flTimePingEffect = 0.0f;
 	int  m_iDeathPose;
 	int	 m_iDeathFrame;
 
