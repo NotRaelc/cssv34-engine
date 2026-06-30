@@ -402,8 +402,8 @@ bool CCollisionProperty::ShouldTouchTrigger( int triggerSolidFlags ) const
 	// debris only touches certain triggers
 	if ( GetCollisionGroup() == COLLISION_GROUP_DEBRIS )
 	{
-		if ( triggerSolidFlags & FSOLID_TRIGGER_TOUCH_DEBRIS )
-			return true;
+		//if ( triggerSolidFlags & FSOLID_TRIGGER_TOUCH_DEBRIS )
+		//	return true;
 
 		return false;
 	}

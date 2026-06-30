@@ -81,7 +81,7 @@
 #define MAX_PACKEDENTITY_DATA	(2048)			// 2048 in src2006
 
 // This is the maximum number of properties that can be delta'd. Must be evenly divisible by 8.
-#define MAX_PACKEDENTITY_PROPS	(512)			//idk lol 512 instead of 4096
+#define MAX_PACKEDENTITY_PROPS	(1024)			//idk lol 512 instead of 4096
 
 // a client can have up to 4 customization files (logo, sounds, models, txt).
 #define MAX_CUSTOM_FILES		4		// max 4 files. It seems to be 4 in src2006?
@@ -200,9 +200,9 @@ enum SolidFlags_t
 	FSOLID_FORCE_WORLD_ALIGNED	= 0x0040,	// Forces the collision rep to be world-aligned even if it's SOLID_BSP or SOLID_VPHYSICS
 	FSOLID_USE_TRIGGER_BOUNDS	= 0x0080,	// Uses a special trigger bounds separate from the normal OBB
 	FSOLID_ROOT_PARENT_ALIGNED	= 0x0100,	// Collisions are defined in root parent's local coordinate space
-	FSOLID_TRIGGER_TOUCH_DEBRIS	= 0x0200,	// This trigger will touch debris objects
+	//FSOLID_TRIGGER_TOUCH_DEBRIS	= 0x0200,	// This trigger will touch debris objects
 
-	FSOLID_MAX_BITS	= 10
+	FSOLID_MAX_BITS	= 9
 };
 
 //-----------------------------------------------------------------------------
