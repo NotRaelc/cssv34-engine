@@ -3050,16 +3050,21 @@ static const char* SendFlagsToString(int flags)
 	static char str[1024];
 	str[0] = '\0';
 
-	if (flags & SPROP_UNSIGNED)       Q_strncat(str, "Unsigned|", sizeof(str));
-	if (flags & SPROP_COORD)          Q_strncat(str, "Coord|", sizeof(str));
-	if (flags & SPROP_NOSCALE)        Q_strncat(str, "NoScale|", sizeof(str));
-	if (flags & SPROP_ROUNDDOWN)      Q_strncat(str, "RoundDown|", sizeof(str));
-	if (flags & SPROP_ROUNDUP)        Q_strncat(str, "RoundUp|", sizeof(str));
-	if (flags & SPROP_NORMAL)         Q_strncat(str, "Normal|", sizeof(str));
-	if (flags & SPROP_EXCLUDE)        Q_strncat(str, "Exclude|", sizeof(str));
-	if (flags & SPROP_CHANGES_OFTEN)  Q_strncat(str, "ChangesOften|", sizeof(str));
+	if (flags & SPROP_UNSIGNED)           Q_strncat(str, "Unsigned|", sizeof(str));
+	if (flags & SPROP_COORD)              Q_strncat(str, "Coord|", sizeof(str));
+	if (flags & SPROP_NOSCALE)            Q_strncat(str, "NoScale|", sizeof(str));
+	if (flags & SPROP_ROUNDDOWN)          Q_strncat(str, "RoundDown|", sizeof(str));
+	if (flags & SPROP_ROUNDUP)            Q_strncat(str, "RoundUp|", sizeof(str));
+	if (flags & SPROP_NORMAL)             Q_strncat(str, "Normal|", sizeof(str));
+	if (flags & SPROP_EXCLUDE)            Q_strncat(str, "Exclude|", sizeof(str));
+	if (flags & SPROP_XYZE)               Q_strncat(str, "XYZE|", sizeof(str));
+	if (flags & SPROP_INSIDEARRAY)        Q_strncat(str, "InsideArray|", sizeof(str));
+	if (flags & SPROP_PROXY_ALWAYS_YES)   Q_strncat(str, "ProxyAlwaysYes|", sizeof(str));
+	if (flags & SPROP_CHANGES_OFTEN)      Q_strncat(str, "ChangesOften|", sizeof(str));
+	if (flags & SPROP_IS_A_VECTOR_ELEM)   Q_strncat(str, "VectorElem|", sizeof(str));
+	if (flags & SPROP_COLLAPSIBLE)        Q_strncat(str, "Collapsible|", sizeof(str));
 
-	// Delete '|' if not empty
+	// Убираем последний '|'
 	int len = Q_strlen(str);
 	if (len > 0 && str[len - 1] == '|')
 		str[len - 1] = '\0';
