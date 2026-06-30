@@ -72,27 +72,11 @@ BEGIN_DATADESC( CFogController )
 	DEFINE_FIELD( m_fog.endLerpTo, FIELD_FLOAT ),
 
 END_DATADESC()
-#if 0
-IMPLEMENT_SERVERCLASS_ST_NOBASE( CFogController, DT_FogController )
-// fog data
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.enable ), 1, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.blend ), 1, SPROP_UNSIGNED ),
-	SendPropVector( SENDINFO_STRUCTELEM(m_fog.dirPrimary), -1, SPROP_COORD),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimary ), 32, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondary ), 32, SPROP_UNSIGNED ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.start ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.end ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.maxdensity ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.farz ), 0, SPROP_NOSCALE ),
 
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimaryLerpTo ), 32, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondaryLerpTo ), 32, SPROP_UNSIGNED ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.startLerpTo ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.endLerpTo ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.lerptime ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.duration ), 0, SPROP_NOSCALE ),
-END_SEND_TABLE()
-#endif
+//------------------------------------------------------------------------------
+// No longer a networked entity; parameters are sent via m_Local.m_fog in players.
+//------------------------------------------------------------------------------
+
 CFogController::CFogController()
 {
 	// Make sure that old maps without fog fields don't get wacked out fog values.
@@ -111,18 +95,8 @@ void CFogController::Spawn( void )
 
 	m_fog.colorPrimaryLerpTo = m_fog.colorPrimary;
 	m_fog.colorSecondaryLerpTo = m_fog.colorSecondary;
-}
 
-void CFogController::UpdateAllPlayers()
-{
-	for (int i = 1; i <= gpGlobals->maxClients; i++)
-	{
-		CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-		if (pPlayer)
-		{
-			pPlayer->m_Local.m_fog = m_fog;
-		}
-	}
+	UpdateAllPlayers();
 }
 
 //-----------------------------------------------------------------------------
@@ -136,7 +110,8 @@ void CFogController::Activate( )
 	{
 		AngleVectors( GetAbsAngles(), &m_fog.dirPrimary.GetForModify() );
 		m_fog.dirPrimary.GetForModify() *= -1.0f; 
-	}	    
+	}
+	UpdateAllPlayers();
 }
 
 //-----------------------------------------------------------------------------
@@ -144,75 +119,66 @@ void CFogController::Activate( )
 //-----------------------------------------------------------------------------
 int CFogController::UpdateTransmitState()
 {
+	// Not networked, but still need to transmit for the entity to exist on clients? No.
 	return SetTransmitState( FL_EDICT_ALWAYS );
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Sends fog parameters directly to all players' m_Local.m_fog.
+//-----------------------------------------------------------------------------
+void CFogController::UpdateAllPlayers()
+{
+	for ( int i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex( i );
+		if ( pPlayer )
+		{
+			pPlayer->m_Local.m_fog = m_fog;
+		}
+	}
+}
+
 //------------------------------------------------------------------------------
-// Purpose: Input handler for setting the fog start distance.
+// Input handlers
 //------------------------------------------------------------------------------
-void CFogController::InputSetStartDist(inputdata_t& inputdata)
+void CFogController::InputSetStartDist(inputdata_t &inputdata)
 {
 	m_fog.start = inputdata.value.Float();
 	UpdateAllPlayers();
 }
 
-//------------------------------------------------------------------------------
-// Purpose: Input handler for setting the fog end distance.
-//------------------------------------------------------------------------------
 void CFogController::InputSetEndDist(inputdata_t &inputdata)
 {
-	// Get the world entity.
 	m_fog.end = inputdata.value.Float();
 	UpdateAllPlayers();
 }
 
-//------------------------------------------------------------------------------
-// Input handler for setting the maximum density of the fog. This lets us bring
-// the start distance in without the scene fogging too much.
-//------------------------------------------------------------------------------
 void CFogController::InputSetMaxDensity( inputdata_t &inputdata )
 {
 	m_fog.maxdensity = inputdata.value.Float();
 	UpdateAllPlayers();
 }
 
-//------------------------------------------------------------------------------
-// Purpose: Input handler for turning on the fog.
-//------------------------------------------------------------------------------
 void CFogController::InputTurnOn(inputdata_t &inputdata)
 {
-	// Get the world entity.
 	m_fog.enable = true;
 	UpdateAllPlayers();
 }
 
-//------------------------------------------------------------------------------
-// Purpose: Input handler for turning off the fog.
-//------------------------------------------------------------------------------
 void CFogController::InputTurnOff(inputdata_t &inputdata)
 {
-	// Get the world entity.
 	m_fog.enable = false;
 	UpdateAllPlayers();
 }
 
-//------------------------------------------------------------------------------
-// Purpose: Input handler for setting the primary fog color.
-//------------------------------------------------------------------------------
 void CFogController::InputSetColor(inputdata_t &inputdata)
 {
-	// Get the world entity.
 	m_fog.colorPrimary = inputdata.value.Color32();
 	UpdateAllPlayers();
 }
 
-
-//------------------------------------------------------------------------------
-// Purpose: Input handler for setting the secondary fog color.
-//------------------------------------------------------------------------------
 void CFogController::InputSetColorSecondary(inputdata_t &inputdata)
 {
-	// Get the world entity.
 	m_fog.colorSecondary = inputdata.value.Color32();
 	UpdateAllPlayers();
 }
@@ -223,10 +189,6 @@ void CFogController::InputSetFarZ(inputdata_t &inputdata)
 	UpdateAllPlayers();
 }
 
-
-//------------------------------------------------------------------------------
-// Purpose: Sets the angles to use for the secondary fog direction.
-//------------------------------------------------------------------------------
 void CFogController::InputSetAngles( inputdata_t &inputdata )
 {
 	const char *pAngles = inputdata.value.String();
@@ -243,11 +205,6 @@ void CFogController::InputSetAngles( inputdata_t &inputdata )
 	UpdateAllPlayers();
 }
 
-
-//-----------------------------------------------------------------------------
-// Purpose: Draw any debug text overlays
-// Output : Current text offset from the top
-//-----------------------------------------------------------------------------
 int CFogController::DrawDebugTextOverlays(void) 
 {
 	int text_offset = BaseClass::DrawDebugTextOverlays();
@@ -335,7 +292,7 @@ void CFogController::InputStartFogTransition(inputdata_t &data)
 	SetThink( &CFogController::SetLerpValues );
 
 	m_fog.lerptime = gpGlobals->curtime + m_fog.duration + 0.1;
-    SetNextThink( gpGlobals->curtime + m_fog.duration );
+	SetNextThink( gpGlobals->curtime + m_fog.duration );
 	UpdateAllPlayers();
 }
 
@@ -363,6 +320,7 @@ void CFogController::SetLerpValues( void )
 
 	m_iChangedVariables = 0;
 	m_fog.lerptime = gpGlobals->curtime;
+	UpdateAllPlayers();
 }
 
 
@@ -409,9 +367,15 @@ void CFogSystem::LevelInitPostEntity( void )
 		for (int i = 1; i <= gpGlobals->maxClients; i++)
 		{
 			CBasePlayer* pPlayer = UTIL_PlayerByIndex(i);
-			if ( pPlayer && ( pPlayer->m_Local.m_PlayerFog.m_hCtrl.Get() == NULL ) )
-				pPlayer->InitFogController();
+			// In Coop/SP, ensure players have fog data directly
+			if (pPlayer)
+			{
+				// Only update if fog has not been set yet (default state)
+				if (!pPlayer->m_Local.m_fog.enable && pPlayer->m_Local.m_fog.farz == -1)
+				{
+					pPlayer->InitFogController();
+				}
+			}
 		}
 	}
 }
-

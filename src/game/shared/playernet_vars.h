@@ -53,38 +53,7 @@ struct fogparams_t
 
 class CFogController;
 
-struct fogplayerparams_t
-{
-	DECLARE_CLASS_NOBASE( fogplayerparams_t );
-	DECLARE_EMBEDDED_NETWORKVAR();
-
-#ifndef CLIENT_DLL
-	DECLARE_SIMPLE_DATADESC();
-#endif
-
-	CNetworkHandle( CFogController, m_hCtrl );
-	float					m_flTransitionTime;
-
-	color32					m_OldColor;
-	float					m_flOldStart;
-	float					m_flOldEnd;
-
-	color32					m_NewColor;
-	float					m_flNewStart;
-	float					m_flNewEnd;
-
-	fogplayerparams_t()
-	{
-		m_hCtrl.Set( NULL );
-		m_flTransitionTime = -1.0f;
-		m_OldColor.r = m_OldColor.g = m_OldColor.g = m_OldColor.a = 0.0f;
-		m_flOldStart = 0.0f;
-		m_flOldEnd = 0.0f;
-		m_NewColor.r = m_NewColor.g = m_NewColor.g = m_NewColor.a = 0.0f;
-		m_flNewStart = 0.0f;
-		m_flNewEnd = 0.0f;
-	}
-};
+// fogplayerparams_t удалён за ненадобностью
 
 struct sky3dparams_t
 {

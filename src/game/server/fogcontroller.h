@@ -25,7 +25,6 @@
 class CFogController : public CBaseEntity
 {
 public:
-	//DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 	DECLARE_CLASS( CFogController, CBaseEntity );
 
@@ -53,7 +52,6 @@ public:
 	void InputSetEndDistLerpTo(inputdata_t &data);
 
 	void InputStartFogTransition(inputdata_t &data);
-	void UpdateAllPlayers();
 
 	int CFogController::DrawDebugTextOverlays(void);
 
@@ -62,9 +60,11 @@ public:
 
 	bool IsMaster( void )					{ return HasSpawnFlags( SF_FOG_MASTER ); }
 
+	void UpdateAllPlayers();
+
 public:
 
-	CNetworkVarEmbedded( fogparams_t, m_fog );
+	fogparams_t				m_fog;
 	bool					m_bUseAngles;
 	int						m_iChangedVariables;
 };

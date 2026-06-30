@@ -97,9 +97,9 @@ void RecvProxy_ObserverTarget( const CRecvProxyData *pData, void *pStruct, void 
 // RecvTable for CPlayerState.
 // -------------------------------------------------------------------------------- //
 
-	BEGIN_RECV_TABLE_NOBASE(CPlayerState, DT_PlayerState)
-		RecvPropInt		(RECVINFO(deadflag)),
-	END_RECV_TABLE()
+BEGIN_RECV_TABLE_NOBASE(CPlayerState, DT_PlayerState)
+	RecvPropInt		(RECVINFO(deadflag)),
+END_RECV_TABLE()
 
 
 BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
@@ -152,24 +152,22 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.end ) ),
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.maxdensity ) ),
 
-	// fog data
-	//RecvPropEHandle( RECVINFO( m_PlayerFog.m_hCtrl ) ),
-	RecvPropInt(RECVINFO(m_fog.enable)),
-	RecvPropInt(RECVINFO(m_fog.blend)),
-	RecvPropVector(RECVINFO(m_fog.dirPrimary)),
-	RecvPropInt(RECVINFO(m_fog.colorPrimary)),
-	RecvPropInt(RECVINFO(m_fog.colorSecondary)),
-	RecvPropFloat(RECVINFO(m_fog.start)),
-	RecvPropFloat(RECVINFO(m_fog.end)),
-	RecvPropFloat(RECVINFO(m_fog.farz)),
-	RecvPropFloat(RECVINFO(m_fog.maxdensity)),
-	
-	RecvPropInt(RECVINFO(m_fog.colorPrimaryLerpTo)),
-	RecvPropInt(RECVINFO(m_fog.colorSecondaryLerpTo)),
-	RecvPropFloat(RECVINFO(m_fog.startLerpTo)),
-	RecvPropFloat(RECVINFO(m_fog.endLerpTo)),
-	RecvPropFloat(RECVINFO(m_fog.lerptime)),
-	RecvPropFloat(RECVINFO(m_fog.duration)),
+	// Direct fog parameters (new)
+	RecvPropInt( RECVINFO( m_fog.enable ) ),
+	RecvPropInt( RECVINFO( m_fog.blend ) ),
+	RecvPropVector( RECVINFO( m_fog.dirPrimary ) ),
+	RecvPropInt( RECVINFO( m_fog.colorPrimary ) ),
+	RecvPropInt( RECVINFO( m_fog.colorSecondary ) ),
+	RecvPropFloat( RECVINFO( m_fog.start ) ),
+	RecvPropFloat( RECVINFO( m_fog.end ) ),
+	RecvPropFloat( RECVINFO( m_fog.farz ) ),
+	RecvPropFloat( RECVINFO( m_fog.maxdensity ) ),
+	RecvPropInt( RECVINFO( m_fog.colorPrimaryLerpTo ) ),
+	RecvPropInt( RECVINFO( m_fog.colorSecondaryLerpTo ) ),
+	RecvPropFloat( RECVINFO( m_fog.startLerpTo ) ),
+	RecvPropFloat( RECVINFO( m_fog.endLerpTo ) ),
+	RecvPropFloat( RECVINFO( m_fog.lerptime ) ),
+	RecvPropFloat( RECVINFO( m_fog.duration ) ),
 
 	// audio data
 	RecvPropVector( RECVINFO( m_audio.localSound[0] ) ),
@@ -825,11 +823,6 @@ void C_BasePlayer::OnDataChanged( DataUpdateType_t updateType )
 		}
 
 		Soundscape_Update( m_Local.m_audio );
-
-		//if ( m_hOldFogController != m_Local.m_PlayerFog.m_hCtrl )
-		//{
-		//	FogControllerChanged( updateType == DATA_UPDATE_CREATED );
-		//}
 	}
 }
 
@@ -2349,24 +2342,18 @@ bool IsInFreezeCam( void )
 //-----------------------------------------------------------------------------
 void C_BasePlayer::UpdateFogController()
 {
-	if (m_Local.m_fog != m_CurrentFog)
+	if ( m_Local.m_fog != m_CurrentFog )
 	{
-		if (m_Local.m_fog.duration > 0.0f && m_Local.m_fog.enable)
+		if ( m_Local.m_fog.duration > 0.0f && m_Local.m_fog.enable )
 		{
-			m_Local.m_PlayerFog.m_OldColor = m_CurrentFog.colorPrimary;
-			m_Local.m_PlayerFog.m_flOldStart = m_CurrentFog.start;
-			m_Local.m_PlayerFog.m_flOldEnd = m_CurrentFog.end;
-
-			m_Local.m_PlayerFog.m_NewColor = m_Local.m_fog.colorPrimary;
-			m_Local.m_PlayerFog.m_flNewStart = m_Local.m_fog.start;
-			m_Local.m_PlayerFog.m_flNewEnd = m_Local.m_fog.end;
-
-			m_Local.m_PlayerFog.m_flTransitionTime = gpGlobals->curtime;
+			m_TargetFog = m_Local.m_fog;
+			m_flFogTransitionStartTime = gpGlobals->curtime;
 		}
 		else
 		{
 			m_CurrentFog = m_Local.m_fog;
-			m_Local.m_PlayerFog.m_flTransitionTime = -1.0f;
+			m_TargetFog = m_Local.m_fog;
+			m_flFogTransitionStartTime = -1.0f;
 		}
 	}
 	UpdateFogBlend();
@@ -2375,39 +2362,34 @@ void C_BasePlayer::UpdateFogController()
 //-----------------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------------
-void C_BasePlayer::UpdateFogBlend( void )
+void C_BasePlayer::UpdateFogBlend()
 {
-	// Transition.
-	if ( m_Local.m_PlayerFog.m_flTransitionTime != -1 )
+	if (m_flFogTransitionStartTime >= 0.0f && m_TargetFog.duration > 0.0f)
 	{
-		float flTimeDelta = gpGlobals->curtime - m_Local.m_PlayerFog.m_flTransitionTime;
-		if ( flTimeDelta < m_CurrentFog.duration )
+		float flTimeDelta = gpGlobals->curtime - m_flFogTransitionStartTime;
+		if (flTimeDelta < m_TargetFog.duration)
 		{
-			float flScale = flTimeDelta / m_CurrentFog.duration;
-			m_CurrentFog.colorPrimary.SetR( ( m_Local.m_PlayerFog.m_NewColor.r * flScale ) + ( m_Local.m_PlayerFog.m_OldColor.r * ( 1.0f - flScale ) ) );
-			m_CurrentFog.colorPrimary.SetG( ( m_Local.m_PlayerFog.m_NewColor.g * flScale ) + ( m_Local.m_PlayerFog.m_OldColor.g * ( 1.0f - flScale ) ) );
-			m_CurrentFog.colorPrimary.SetB( ( m_Local.m_PlayerFog.m_NewColor.b * flScale ) + ( m_Local.m_PlayerFog.m_OldColor.b * ( 1.0f - flScale ) ) );
-			m_CurrentFog.start.Set( ( m_Local.m_PlayerFog.m_flNewStart * flScale ) + ( ( m_Local.m_PlayerFog.m_flOldStart * ( 1.0f - flScale ) ) ) );
-			m_CurrentFog.end.Set( ( m_Local.m_PlayerFog.m_flNewEnd * flScale ) + ( ( m_Local.m_PlayerFog.m_flOldEnd * ( 1.0f - flScale ) ) ) );
+			float t = flTimeDelta / m_TargetFog.duration;
+			// Interpolate color and distances
+			m_CurrentFog.colorPrimary.SetR(Lerp(t, m_CurrentFog.colorPrimary.GetR(), m_TargetFog.colorPrimary.GetR()));
+			m_CurrentFog.colorPrimary.SetG(Lerp(t, m_CurrentFog.colorPrimary.GetG(), m_TargetFog.colorPrimary.GetG()));
+			m_CurrentFog.colorPrimary.SetB(Lerp(t, m_CurrentFog.colorPrimary.GetB(), m_TargetFog.colorPrimary.GetB()));
+			m_CurrentFog.start = Lerp(t, m_CurrentFog.start, m_TargetFog.start);
+			m_CurrentFog.end = Lerp(t, m_CurrentFog.end, m_TargetFog.end);
+			// If you need to interpolate secondary color, add similar lines
 		}
 		else
 		{
-			// Slam the final fog values.
-			m_CurrentFog.colorPrimary.SetR( m_Local.m_PlayerFog.m_NewColor.r );
-			m_CurrentFog.colorPrimary.SetG( m_Local.m_PlayerFog.m_NewColor.g );
-			m_CurrentFog.colorPrimary.SetB( m_Local.m_PlayerFog.m_NewColor.b );
-			m_CurrentFog.start.Set( m_Local.m_PlayerFog.m_flNewStart );
-			m_CurrentFog.end.Set( m_Local.m_PlayerFog.m_flNewEnd );
-			m_Local.m_PlayerFog.m_flTransitionTime = -1;
-
+			m_CurrentFog = m_TargetFog;
+			m_flFogTransitionStartTime = -1.0f;
 			/*
-				Msg("Finished transition to (%d,%d,%d) %.0f,%.0f\n", 
-								m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
+				Msg("Finished transition to (%d,%d,%d) %.0f,%.0f\n",
+								m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(),
 								m_CurrentFog.start.Get(), m_CurrentFog.end.Get() );*/
-				
 		}
 	}
 }
+
 
 void CC_DumpClientSoundscapeData( const CCommand& args )
 {

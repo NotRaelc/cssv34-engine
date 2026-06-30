@@ -411,7 +411,6 @@ BEGIN_DATADESC( CBasePlayer )
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetHealth", InputSetHealth ),
 	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetHUDVisibility", InputSetHUDVisibility ),
-	//DEFINE_INPUTFUNC( FIELD_STRING, "SetFogController", InputSetFogController ),
 
 	DEFINE_FIELD( m_nNumCrouches, FIELD_INTEGER ),
 	DEFINE_FIELD( m_bDuckToggled, FIELD_BOOLEAN ),
@@ -8411,9 +8410,9 @@ void CBasePlayer::InputSetHUDVisibility( inputdata_t &inputdata )
 //}
 
 //-----------------------------------------------------------------------------
-//
+// Purpose: Initialise the fog controller for this player.
 //-----------------------------------------------------------------------------
-void CBasePlayer::InitFogController()
+void CBasePlayer::InitFogController(void)
 {
 	CFogController* pMaster = FogSystem()->GetMasterFogController();
 	if (pMaster)

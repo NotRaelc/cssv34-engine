@@ -69,22 +69,22 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.end ), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.maxdensity ), 0, SPROP_NOSCALE ),
 
-	//SendPropEHandle( SENDINFO_STRUCTELEM( m_PlayerFog.m_hCtrl ) ),
-	SendPropInt(SENDINFO_STRUCTELEM(m_fog.enable), 1, SPROP_UNSIGNED),
-	SendPropInt(SENDINFO_STRUCTELEM(m_fog.blend), 1, SPROP_UNSIGNED),
-	SendPropVector(SENDINFO_STRUCTELEM(m_fog.dirPrimary), -1, SPROP_COORD),
-	SendPropInt(SENDINFO_STRUCTELEM(m_fog.colorPrimary), 32, SPROP_UNSIGNED),
-	SendPropInt(SENDINFO_STRUCTELEM(m_fog.colorSecondary), 32, SPROP_UNSIGNED),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.start), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.end), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.maxdensity), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.farz), 0, SPROP_NOSCALE),
-	SendPropInt(SENDINFO_STRUCTELEM(m_fog.colorPrimaryLerpTo), 32, SPROP_UNSIGNED),
-	SendPropInt(SENDINFO_STRUCTELEM(m_fog.colorSecondaryLerpTo), 32, SPROP_UNSIGNED),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.startLerpTo), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.endLerpTo), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.lerptime), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO_STRUCTELEM(m_fog.duration), 0, SPROP_NOSCALE),
+	// Direct fog parameters (new)
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.enable ), 1, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.blend ), 1, SPROP_UNSIGNED ),
+	SendPropVector( SENDINFO_STRUCTELEM( m_fog.dirPrimary ), -1, SPROP_COORD ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimary ), 32, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondary ), 32, SPROP_UNSIGNED ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.start ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.end ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.maxdensity ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.farz ), 0, SPROP_NOSCALE ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimaryLerpTo ), 32, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondaryLerpTo ), 32, SPROP_UNSIGNED ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.startLerpTo ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.endLerpTo ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.lerptime ), 0, SPROP_NOSCALE ),
+	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.duration ), 0, SPROP_NOSCALE ),
 
 	// audio data
 	SendPropVector( SENDINFO_STRUCTARRAYELEM( m_audio.localSound, 0 ), -1, SPROP_COORD),
@@ -99,17 +99,6 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropInt( SENDINFO_STRUCTELEM( m_audio.localBits ), NUM_AUDIO_LOCAL_SOUNDS, SPROP_UNSIGNED ),
 	SendPropEHandle( SENDINFO_STRUCTELEM( m_audio.ent ) ),
 END_SEND_TABLE()
-
-BEGIN_SIMPLE_DATADESC( fogplayerparams_t )
-	DEFINE_FIELD( m_hCtrl, FIELD_EHANDLE ),
-	DEFINE_FIELD( m_flTransitionTime, FIELD_FLOAT ),
-	DEFINE_FIELD( m_OldColor, FIELD_COLOR32 ),
-	DEFINE_FIELD( m_flOldStart, FIELD_FLOAT ),
-	DEFINE_FIELD( m_flOldEnd, FIELD_FLOAT ),
-	DEFINE_FIELD( m_NewColor, FIELD_COLOR32 ),
-	DEFINE_FIELD( m_flNewStart, FIELD_FLOAT ),
-	DEFINE_FIELD( m_flNewEnd, FIELD_FLOAT ),
-END_DATADESC()
 
 BEGIN_SIMPLE_DATADESC( fogparams_t )
 
@@ -171,7 +160,6 @@ BEGIN_SIMPLE_DATADESC( CPlayerLocalData )
 	DEFINE_FIELD( m_flStepSize, FIELD_FLOAT ),
 	DEFINE_FIELD( m_bAllowAutoMovement, FIELD_BOOLEAN ),
 	DEFINE_EMBEDDED( m_skybox3d ),
-	DEFINE_EMBEDDED( m_PlayerFog ),
 	DEFINE_EMBEDDED( m_fog ),
 	DEFINE_EMBEDDED( m_audio ),
 	
@@ -268,4 +256,3 @@ void UpdateAllClientData( void )
 		ClientData_Update( pl );
 	}
 }
-
