@@ -6657,10 +6657,10 @@ void CBasePlayer::UpdateClientData( void )
 						&& ( m_iHealth < 100 );
 
 	// Check if the bonus progress HUD element should be displayed
-	if ( m_iBonusChallenge == 0 && m_iBonusProgress == 0 && !( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
-		m_Local.m_iHideHUD |= HIDEHUD_BONUS_PROGRESS;
-	if ( ( m_iBonusChallenge != 0 )&& ( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
-		m_Local.m_iHideHUD &= ~HIDEHUD_BONUS_PROGRESS;
+	//if ( m_iBonusChallenge == 0 && m_iBonusProgress == 0 && !( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
+	//	m_Local.m_iHideHUD |= HIDEHUD_BONUS_PROGRESS;
+	//if ( ( m_iBonusChallenge != 0 )&& ( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
+	//	m_Local.m_iHideHUD &= ~HIDEHUD_BONUS_PROGRESS;
 
 	// Let any global rules update the HUD, too
 	g_pGameRules->UpdateClientData( this );
