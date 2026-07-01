@@ -21,7 +21,7 @@ class C_ParticleSystem : public C_BaseEntity
 {
 	DECLARE_CLASS( C_ParticleSystem, C_BaseEntity );
 public:
-	DECLARE_CLIENTCLASS();
+	//DECLARE_CLIENTCLASS();
 
 	void PreDataUpdate( DataUpdateType_t updateType );
 	void PostDataUpdate( DataUpdateType_t updateType );
@@ -41,22 +41,22 @@ protected:
 	unsigned char m_iControlPointParents[kMAXCONTROLPOINTS];
 };
 
-IMPLEMENT_CLIENTCLASS(C_ParticleSystem, DT_ParticleSystem, CParticleSystem);
-
-BEGIN_RECV_TABLE_NOBASE( C_ParticleSystem, DT_ParticleSystem )
-	RecvPropVector( RECVINFO_NAME( m_vecNetworkOrigin, m_vecOrigin ) ),
-	RecvPropEHandle( RECVINFO(m_hOwnerEntity) ),
-	RecvPropInt( RECVINFO_NAME(m_hNetworkMoveParent, moveparent), 0, RecvProxy_IntToMoveParent ),
-	RecvPropInt( RECVINFO( m_iParentAttachment ) ),
-	RecvPropQAngles( RECVINFO_NAME( m_angNetworkAngles, m_angRotation ) ),
-
-	RecvPropInt( RECVINFO( m_iEffectIndex ) ),
-	RecvPropBool( RECVINFO( m_bActive ) ),
-	RecvPropFloat( RECVINFO( m_flStartTime ) ),
-
-	RecvPropArray3( RECVINFO_ARRAY(m_hControlPointEnts), RecvPropEHandle( RECVINFO( m_hControlPointEnts[0] ) ) ),
-	RecvPropArray3( RECVINFO_ARRAY(m_iControlPointParents), RecvPropInt( RECVINFO(m_iControlPointParents[0]))), 
-END_RECV_TABLE();
+//IMPLEMENT_CLIENTCLASS(C_ParticleSystem, DT_ParticleSystem, CParticleSystem);
+//
+//BEGIN_RECV_TABLE_NOBASE( C_ParticleSystem, DT_ParticleSystem )
+//	RecvPropVector( RECVINFO_NAME( m_vecNetworkOrigin, m_vecOrigin ) ),
+//	RecvPropEHandle( RECVINFO(m_hOwnerEntity) ),
+//	RecvPropInt( RECVINFO_NAME(m_hNetworkMoveParent, moveparent), 0, RecvProxy_IntToMoveParent ),
+//	RecvPropInt( RECVINFO( m_iParentAttachment ) ),
+//	RecvPropQAngles( RECVINFO_NAME( m_angNetworkAngles, m_angRotation ) ),
+//
+//	RecvPropInt( RECVINFO( m_iEffectIndex ) ),
+//	RecvPropBool( RECVINFO( m_bActive ) ),
+//	RecvPropFloat( RECVINFO( m_flStartTime ) ),
+//
+//	RecvPropArray3( RECVINFO_ARRAY(m_hControlPointEnts), RecvPropEHandle( RECVINFO( m_hControlPointEnts[0] ) ) ),
+//	RecvPropArray3( RECVINFO_ARRAY(m_iControlPointParents), RecvPropInt( RECVINFO(m_iControlPointParents[0]))), 
+//END_RECV_TABLE();
 
 //-----------------------------------------------------------------------------
 // Purpose: 

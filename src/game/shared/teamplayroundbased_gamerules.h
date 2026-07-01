@@ -105,7 +105,7 @@ class CTeamplayRoundBasedRulesProxy : public CGameRulesProxy
 {
 public:
 	DECLARE_CLASS( CTeamplayRoundBasedRulesProxy, CGameRulesProxy );
-	DECLARE_NETWORKCLASS();
+	//DECLARE_NETWORKCLASS();
 
 #ifdef GAME_DLL
 	DECLARE_DATADESC();
@@ -130,12 +130,12 @@ public:
 	CTeamplayRoundBasedRules();
 
 #ifdef CLIENT_DLL
-	DECLARE_CLIENTCLASS_NOBASE(); // This makes datatables able to access our private vars.
+	//DECLARE_CLIENTCLASS_NOBASE(); // This makes datatables able to access our private vars.
 
 	void SetRoundState( int iRoundState );
 	float m_flLastRoundStateChangeTime;
 #else
-	DECLARE_SERVERCLASS_NOBASE(); // This makes datatables able to access our private vars.
+	//DECLARE_SERVERCLASS_NOBASE(); // This makes datatables able to access our private vars.
 #endif
 
 	// Data accessors
@@ -371,22 +371,22 @@ public:
 	bool AreTeamsUnbalanced( int &iHeaviestTeam, int &iLightestTeam );
 
 protected:
-	CNetworkVar( gamerules_roundstate_t, m_iRoundState );
-	CNetworkVar( bool, m_bInOvertime ); // Are we currently in overtime?
-	CNetworkVar( bool, m_bInSetup ); // Are we currently in setup?
-	CNetworkVar( bool, m_bSwitchedTeamsThisRound );
+	gamerules_roundstate_t m_iRoundState;
+	bool m_bInOvertime; // Are we currently in overtime?
+	bool m_bInSetup; // Are we currently in setup?
+	bool m_bSwitchedTeamsThisRound;
 
 protected:
-	CNetworkVar( int,			m_iWinningTeam );				// Set before entering GR_STATE_TEAM_WIN
-	CNetworkVar( int,			m_iWinReason );
-	CNetworkVar( bool,			m_bInWaitingForPlayers );
-	CNetworkVar( bool,			m_bAwaitingReadyRestart );
-	CNetworkVar( float,			m_flRestartRoundTime );
-	CNetworkVar( float,			m_flMapResetTime );						// Time that the map was reset
-	CNetworkArray( float,		m_flNextRespawnWave, MAX_TEAMS );		// Minor waste, but cleaner code
+	int   m_iWinningTeam;				// Set before entering GR_STATE_TEAM_WIN
+	int   m_iWinReason;
+	bool  m_bInWaitingForPlayers;
+	bool  m_bAwaitingReadyRestart;
+	float m_flRestartRoundTime;
+	float m_flMapResetTime;						// Time that the map was reset
+	float m_flNextRespawnWave[MAX_TEAMS];		// Minor waste, but cleaner code
 
 public:
-	CNetworkArray( float,		m_TeamRespawnWaveTimes, MAX_TEAMS );	// Time between each team's respawn wave
+	float m_TeamRespawnWaveTimes[MAX_TEAMS];	// Time between each team's respawn wave
 
 private:
 	float m_flStartBalancingTeamsAt;

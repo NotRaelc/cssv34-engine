@@ -26,7 +26,7 @@ public:
 
 	DECLARE_CLASS( CSlideshowDisplay, CBaseEntity );
 	DECLARE_DATADESC();
-	DECLARE_SERVERCLASS();
+	//DECLARE_SERVERCLASS();
 
 	virtual ~CSlideshowDisplay();
 
@@ -68,21 +68,17 @@ private:
 
 private:
 
-	CNetworkVar( bool, m_bEnabled );
-
-	CNetworkString( m_szDisplayText, 128 );
-
-	CNetworkString( m_szSlideshowDirectory, 128 );
+	bool           m_bEnabled;
+	char           m_szDisplayText[128];
+	char           m_szSlideshowDirectory[128];
 	string_t	m_String_tSlideshowDirectory;
 
 	CUtlVector<SlideKeywordList_t*>		m_SlideKeywordList;
-	CNetworkArray( unsigned char, m_chCurrentSlideLists, 16 );
-
-	CNetworkVar( float, m_fMinSlideTime );
-	CNetworkVar( float, m_fMaxSlideTime );
-
-	CNetworkVar( int, m_iCycleType );
-	CNetworkVar( bool, m_bNoListRepeats );
+	unsigned char  m_chCurrentSlideLists[16];
+	float          m_fMinSlideTime;
+	float          m_fMaxSlideTime;
+	int            m_iCycleType;
+	bool           m_bNoListRepeats;
 
 	int		m_iScreenWidth;
 	int		m_iScreenHeight;
@@ -139,16 +135,16 @@ BEGIN_DATADESC( CSlideshowDisplay )
 
 END_DATADESC()
 
-IMPLEMENT_SERVERCLASS_ST( CSlideshowDisplay, DT_SlideshowDisplay )
-	SendPropBool( SENDINFO(m_bEnabled) ),
-	SendPropString( SENDINFO( m_szDisplayText ) ),
-	SendPropString( SENDINFO( m_szSlideshowDirectory ) ),
-	SendPropArray3( SENDINFO_ARRAY3(m_chCurrentSlideLists), SendPropInt( SENDINFO_ARRAY(m_chCurrentSlideLists), 8, SPROP_UNSIGNED ) ),
-	SendPropFloat( SENDINFO(m_fMinSlideTime), 11, 0, 0.0f, 20.0f ),
-	SendPropFloat( SENDINFO(m_fMaxSlideTime), 11, 0, 0.0f, 20.0f ),
-	SendPropInt( SENDINFO(m_iCycleType), 2, SPROP_UNSIGNED ),
-	SendPropBool( SENDINFO(m_bNoListRepeats) ),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST( CSlideshowDisplay, DT_SlideshowDisplay )
+//	SendPropBool( SENDINFO(m_bEnabled) ),
+//	SendPropString( SENDINFO( m_szDisplayText ) ),
+//	SendPropString( SENDINFO( m_szSlideshowDirectory ) ),
+//	SendPropArray3( SENDINFO_ARRAY3(m_chCurrentSlideLists), SendPropInt( SENDINFO_ARRAY(m_chCurrentSlideLists), 8, SPROP_UNSIGNED ) ),
+//	SendPropFloat( SENDINFO(m_fMinSlideTime), 11, 0, 0.0f, 20.0f ),
+//	SendPropFloat( SENDINFO(m_fMaxSlideTime), 11, 0, 0.0f, 20.0f ),
+//	SendPropInt( SENDINFO(m_iCycleType), 2, SPROP_UNSIGNED ),
+//	SendPropBool( SENDINFO(m_bNoListRepeats) ),
+//END_SEND_TABLE()
 
 
 CSlideshowDisplay::~CSlideshowDisplay()
@@ -228,7 +224,7 @@ void CSlideshowDisplay::SetTransmit( CCheckTransmitInfo *pInfo, bool bAlways )
 
 void CSlideshowDisplay::Spawn( void )
 {
-	Q_strcpy( m_szSlideshowDirectory.GetForModify(), m_String_tSlideshowDirectory.ToCStr() );
+	Q_strcpy( m_szSlideshowDirectory, m_String_tSlideshowDirectory.ToCStr() );
 	Precache();
 
 	BaseClass::Spawn();
@@ -236,9 +232,9 @@ void CSlideshowDisplay::Spawn( void )
 	m_bEnabled = false;
 	
 	// Clear out selected list
-	m_chCurrentSlideLists.GetForModify( 0 ) = 0;	// Select all slides to begin with
+	m_chCurrentSlideLists[0] = 0;	// Select all slides to begin with
 	for ( int i = 1; i < 16; ++i )
-		m_chCurrentSlideLists.GetForModify( i ) = (unsigned char)-1;
+		m_chCurrentSlideLists[i] = (unsigned char)-1;
 
 	SpawnControlPanels();
 
@@ -313,14 +309,14 @@ void CSlideshowDisplay::InputEnable( inputdata_t &inputdata )
 
 void CSlideshowDisplay::InputSetDisplayText( inputdata_t &inputdata )
 {
-	Q_strcpy( m_szDisplayText.GetForModify(), inputdata.value.String() );
+	Q_strcpy( m_szDisplayText, inputdata.value.String() );
 }
 
 void CSlideshowDisplay::InputRemoveAllSlides( inputdata_t &inputdata )
 {
 	// Clear out selected list
 	for ( int i = 0; i < 16; ++i )
-		m_chCurrentSlideLists.GetForModify( i ) = (unsigned char)-1;
+		m_chCurrentSlideLists[i] = (unsigned char)-1;
 }
 
 void CSlideshowDisplay::InputAddSlides( inputdata_t &inputdata )
@@ -346,7 +342,7 @@ void CSlideshowDisplay::InputAddSlides( inputdata_t &inputdata )
 		if ( iNumCurrentSlideLists >= 16 )
 			return;
 
-		m_chCurrentSlideLists.GetForModify( iNumCurrentSlideLists ) = iList;
+		m_chCurrentSlideLists[iNumCurrentSlideLists] = iList;
 	}
 }
 
@@ -460,7 +456,7 @@ void CSlideshowDisplay::BuildSlideShowImagesList( void )
 
 	if ( IsX360() )
 	{
-		Q_snprintf( szDirectory, sizeof( szDirectory ), "materials/vgui/%s/slides.txt", m_szSlideshowDirectory.Get() );
+		Q_snprintf( szDirectory, sizeof( szDirectory ), "materials/vgui/%s/slides.txt", m_szSlideshowDirectory );
 
 		FileHandle_t fh = g_pFullFileSystem->Open( szDirectory, "rt" );
 		if ( !fh )
@@ -502,7 +498,7 @@ void CSlideshowDisplay::BuildSlideShowImagesList( void )
 	}
 	else
 	{
-		Q_snprintf( szDirectory, sizeof( szDirectory ), "materials/vgui/%s/*.vmt", m_szSlideshowDirectory.Get() );
+		Q_snprintf( szDirectory, sizeof( szDirectory ), "materials/vgui/%s/*.vmt", m_szSlideshowDirectory );
 		const char *pMatFileName = g_pFullFileSystem->FindFirst( szDirectory, &matHandle );
 
 		if ( pMatFileName )
@@ -514,14 +510,14 @@ void CSlideshowDisplay::BuildSlideShowImagesList( void )
 	while ( szMatFileName[ 0 ] )
 	{
 		char szFileName[_MAX_PATH];
-		Q_snprintf( szFileName, sizeof( szFileName ), "vgui/%s/%s", m_szSlideshowDirectory.Get(), szMatFileName );
+		Q_snprintf( szFileName, sizeof( szFileName ), "vgui/%s/%s", m_szSlideshowDirectory, szMatFileName );
 		szFileName[ Q_strlen( szFileName ) - 4 ] = '\0';
 
 		PrecacheMaterial( szFileName );	
 
 		// Get material keywords
 		char szFullFileName[_MAX_PATH];
-		Q_snprintf( szFullFileName, sizeof( szFullFileName ), "materials/vgui/%s/%s", m_szSlideshowDirectory.Get(), szMatFileName );
+		Q_snprintf( szFullFileName, sizeof( szFullFileName ), "materials/vgui/%s/%s", m_szSlideshowDirectory, szMatFileName );
 
 		KeyValues *pMaterialKeys = new KeyValues( "material" );
 		bool bLoaded = pMaterialKeys->LoadFromFile( g_pFullFileSystem, szFullFileName, NULL );

@@ -19,7 +19,7 @@ class CParticleSystem : public CBaseEntity
 {
 	DECLARE_CLASS( CParticleSystem, CBaseEntity );
 public:
-	DECLARE_SERVERCLASS();
+	//DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 
 	virtual void Precache( void );
@@ -44,13 +44,13 @@ protected:
 	bool				m_bStartActive;
 	string_t			m_iszEffectName;
 	
-	CNetworkVar( bool,	m_bActive );
-	CNetworkVar( int,	m_iEffectIndex )
-	CNetworkVar( float,	m_flStartTime );	// Time at which this effect was started.  This is used after restoring an active effect.
+	bool           m_bActive;
+	int            m_iEffectIndex;
+	float          m_flStartTime;	// Time at which this effect was started.  This is used after restoring an active effect.
 
 	string_t			m_iszControlPointNames[kMAXCONTROLPOINTS];
-	CNetworkArray( EHANDLE, m_hControlPointEnts, kMAXCONTROLPOINTS );
-	CNetworkArray( unsigned char, m_iControlPointParents, kMAXCONTROLPOINTS );
+	EHANDLE        m_hControlPointEnts[kMAXCONTROLPOINTS];
+	unsigned char  m_iControlPointParents[kMAXCONTROLPOINTS];
 };
 
 #endif // PARTICLE_SYSTEM_H
