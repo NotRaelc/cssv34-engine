@@ -121,23 +121,23 @@ private:
 };
 
 // Datatable.. this can have all the smoketrail parameters when we need it to.
-IMPLEMENT_CLIENTCLASS_DT(C_SmokeTrail, DT_SmokeTrail, SmokeTrail)
-	RecvPropFloat(RECVINFO(m_SpawnRate)),
-	RecvPropVector(RECVINFO(m_StartColor)),
-	RecvPropVector(RECVINFO(m_EndColor)),
-	RecvPropFloat(RECVINFO(m_ParticleLifetime)),
-	RecvPropFloat(RECVINFO(m_StopEmitTime)),
-	RecvPropFloat(RECVINFO(m_MinSpeed)),
-	RecvPropFloat(RECVINFO(m_MaxSpeed)),
-	RecvPropFloat(RECVINFO(m_MinDirectedSpeed)),
-	RecvPropFloat(RECVINFO(m_MaxDirectedSpeed)),
-	RecvPropFloat(RECVINFO(m_StartSize)),
-	RecvPropFloat(RECVINFO(m_EndSize)),
-	RecvPropFloat(RECVINFO(m_SpawnRadius)),
-	RecvPropInt(RECVINFO(m_bEmit)),
-	RecvPropInt(RECVINFO(m_nAttachment)),	
-	RecvPropFloat(RECVINFO(m_Opacity)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_DT(C_SmokeTrail, DT_SmokeTrail, SmokeTrail)
+//	RecvPropFloat(RECVINFO(m_SpawnRate)),
+//	RecvPropVector(RECVINFO(m_StartColor)),
+//	RecvPropVector(RECVINFO(m_EndColor)),
+//	RecvPropFloat(RECVINFO(m_ParticleLifetime)),
+//	RecvPropFloat(RECVINFO(m_StopEmitTime)),
+//	RecvPropFloat(RECVINFO(m_MinSpeed)),
+//	RecvPropFloat(RECVINFO(m_MaxSpeed)),
+//	RecvPropFloat(RECVINFO(m_MinDirectedSpeed)),
+//	RecvPropFloat(RECVINFO(m_MaxDirectedSpeed)),
+//	RecvPropFloat(RECVINFO(m_StartSize)),
+//	RecvPropFloat(RECVINFO(m_EndSize)),
+//	RecvPropFloat(RECVINFO(m_SpawnRadius)),
+//	RecvPropInt(RECVINFO(m_bEmit)),
+//	RecvPropInt(RECVINFO(m_nAttachment)),	
+//	RecvPropFloat(RECVINFO(m_Opacity)),
+//END_RECV_TABLE()
 
 // ------------------------------------------------------------------------- //
 // ParticleMovieExplosion
@@ -510,23 +510,23 @@ void C_SmokeTrail::CleanupToolRecordingState( KeyValues *msg )
 EXPOSE_PROTOTYPE_EFFECT(RocketTrail, C_RocketTrail);
 
 // Datatable.. this can have all the smoketrail parameters when we need it to.
-IMPLEMENT_CLIENTCLASS_DT(C_RocketTrail, DT_RocketTrail, RocketTrail)
-	RecvPropFloat(RECVINFO(m_SpawnRate)),
-	RecvPropVector(RECVINFO(m_StartColor)),
-	RecvPropVector(RECVINFO(m_EndColor)),
-	RecvPropFloat(RECVINFO(m_ParticleLifetime)),
-	RecvPropFloat(RECVINFO(m_StopEmitTime)),
-	RecvPropFloat(RECVINFO(m_MinSpeed)),
-	RecvPropFloat(RECVINFO(m_MaxSpeed)),
-	RecvPropFloat(RECVINFO(m_StartSize)),
-	RecvPropFloat(RECVINFO(m_EndSize)),
-	RecvPropFloat(RECVINFO(m_SpawnRadius)),
-	RecvPropInt(RECVINFO(m_bEmit)),
-	RecvPropInt(RECVINFO(m_nAttachment)),	
-	RecvPropFloat(RECVINFO(m_Opacity)),
-	RecvPropInt(RECVINFO(m_bDamaged)),
-	RecvPropFloat(RECVINFO(m_flFlareScale)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_DT(C_RocketTrail, DT_RocketTrail, RocketTrail)
+//	RecvPropFloat(RECVINFO(m_SpawnRate)),
+//	RecvPropVector(RECVINFO(m_StartColor)),
+//	RecvPropVector(RECVINFO(m_EndColor)),
+//	RecvPropFloat(RECVINFO(m_ParticleLifetime)),
+//	RecvPropFloat(RECVINFO(m_StopEmitTime)),
+//	RecvPropFloat(RECVINFO(m_MinSpeed)),
+//	RecvPropFloat(RECVINFO(m_MaxSpeed)),
+//	RecvPropFloat(RECVINFO(m_StartSize)),
+//	RecvPropFloat(RECVINFO(m_EndSize)),
+//	RecvPropFloat(RECVINFO(m_SpawnRadius)),
+//	RecvPropInt(RECVINFO(m_bEmit)),
+//	RecvPropInt(RECVINFO(m_nAttachment)),	
+//	RecvPropFloat(RECVINFO(m_Opacity)),
+//	RecvPropInt(RECVINFO(m_bDamaged)),
+//	RecvPropFloat(RECVINFO(m_flFlareScale)),
+//END_RECV_TABLE()
 
 // ------------------------------------------------------------------------- //
 // ParticleMovieExplosion
@@ -893,15 +893,15 @@ float SporeEffect::UpdateAlpha( const SimpleParticle *pParticle )
 
 EXPOSE_PROTOTYPE_EFFECT( SporeExplosion, C_SporeExplosion );
 
-IMPLEMENT_CLIENTCLASS_DT( C_SporeExplosion, DT_SporeExplosion, SporeExplosion )
-	RecvPropFloat(RECVINFO(m_flSpawnRate)),
-	RecvPropFloat(RECVINFO(m_flParticleLifetime)),
-	RecvPropFloat(RECVINFO(m_flStartSize)),
-	RecvPropFloat(RECVINFO(m_flEndSize)),
-	RecvPropFloat(RECVINFO(m_flSpawnRadius)),
-	RecvPropBool(RECVINFO(m_bEmit)),
-	RecvPropBool(RECVINFO(m_bDontRemove)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_DT( C_SporeExplosion, DT_SporeExplosion, SporeExplosion )
+//	RecvPropFloat(RECVINFO(m_flSpawnRate)),
+//	RecvPropFloat(RECVINFO(m_flParticleLifetime)),
+//	RecvPropFloat(RECVINFO(m_flStartSize)),
+//	RecvPropFloat(RECVINFO(m_flEndSize)),
+//	RecvPropFloat(RECVINFO(m_flSpawnRadius)),
+//	RecvPropBool(RECVINFO(m_bEmit)),
+//	RecvPropBool(RECVINFO(m_bDontRemove)),
+//END_RECV_TABLE()
 
 C_SporeExplosion::C_SporeExplosion( void )
 {
@@ -1135,7 +1135,7 @@ class C_SporeTrail : public C_BaseParticleEntity
 {
 public:
 	DECLARE_CLASS( C_SporeTrail, C_BaseParticleEntity );
-	DECLARE_CLIENTCLASS();
+	//DECLARE_CLIENTCLASS();
 	
 	C_SporeTrail( void );
 	virtual	~C_SporeTrail( void );
@@ -1196,15 +1196,15 @@ private:
 // C_SporeTrail
 //==================================================
 
-IMPLEMENT_CLIENTCLASS_DT( C_SporeTrail, DT_SporeTrail, SporeTrail )
-	RecvPropFloat(RECVINFO(m_flSpawnRate)),
-	RecvPropVector(RECVINFO(m_vecEndColor)),
-	RecvPropFloat(RECVINFO(m_flParticleLifetime)),
-	RecvPropFloat(RECVINFO(m_flStartSize)),
-	RecvPropFloat(RECVINFO(m_flEndSize)),
-	RecvPropFloat(RECVINFO(m_flSpawnRadius)),
-	RecvPropInt(RECVINFO(m_bEmit)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_DT( C_SporeTrail, DT_SporeTrail, SporeTrail )
+//	RecvPropFloat(RECVINFO(m_flSpawnRate)),
+//	RecvPropVector(RECVINFO(m_vecEndColor)),
+//	RecvPropFloat(RECVINFO(m_flParticleLifetime)),
+//	RecvPropFloat(RECVINFO(m_flStartSize)),
+//	RecvPropFloat(RECVINFO(m_flEndSize)),
+//	RecvPropFloat(RECVINFO(m_flSpawnRadius)),
+//	RecvPropInt(RECVINFO(m_bEmit)),
+//END_RECV_TABLE()
 
 C_SporeTrail::C_SporeTrail( void )
 {
@@ -1408,10 +1408,10 @@ void C_SporeTrail::GetAimEntOrigin( IClientEntity *pAttachedTo, Vector *pAbsOrig
 //==================================================
 
 // Datatable.. this can have all the smoketrail parameters when we need it to.
-IMPLEMENT_CLIENTCLASS_DT(C_FireTrail, DT_FireTrail, CFireTrail)
-	RecvPropInt(RECVINFO(m_nAttachment)),	
-	RecvPropFloat(RECVINFO(m_flLifetime)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_DT(C_FireTrail, DT_FireTrail, CFireTrail)
+//	RecvPropInt(RECVINFO(m_nAttachment)),	
+//	RecvPropFloat(RECVINFO(m_flLifetime)),
+//END_RECV_TABLE()
 
 // ------------------------------------------------------------------------- //
 // ParticleMovieExplosion
@@ -1625,21 +1625,21 @@ private:
 
 
 // Datatable.. this can have all the smoketrail parameters when we need it to.
-IMPLEMENT_CLIENTCLASS_DT(C_DustTrail, DT_DustTrail, DustTrail)
-	RecvPropFloat(RECVINFO(m_SpawnRate)),
-	RecvPropVector(RECVINFO(m_Color)),
-	RecvPropFloat(RECVINFO(m_ParticleLifetime)),
-	RecvPropFloat(RECVINFO(m_StopEmitTime)),
-	RecvPropFloat(RECVINFO(m_MinSpeed)),
-	RecvPropFloat(RECVINFO(m_MaxSpeed)),
-	RecvPropFloat(RECVINFO(m_MinDirectedSpeed)),
-	RecvPropFloat(RECVINFO(m_MaxDirectedSpeed)),
-	RecvPropFloat(RECVINFO(m_StartSize)),
-	RecvPropFloat(RECVINFO(m_EndSize)),
-	RecvPropFloat(RECVINFO(m_SpawnRadius)),
-	RecvPropInt(RECVINFO(m_bEmit)),
-	RecvPropFloat(RECVINFO(m_Opacity)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_DT(C_DustTrail, DT_DustTrail, DustTrail)
+//	RecvPropFloat(RECVINFO(m_SpawnRate)),
+//	RecvPropVector(RECVINFO(m_Color)),
+//	RecvPropFloat(RECVINFO(m_ParticleLifetime)),
+//	RecvPropFloat(RECVINFO(m_StopEmitTime)),
+//	RecvPropFloat(RECVINFO(m_MinSpeed)),
+//	RecvPropFloat(RECVINFO(m_MaxSpeed)),
+//	RecvPropFloat(RECVINFO(m_MinDirectedSpeed)),
+//	RecvPropFloat(RECVINFO(m_MaxDirectedSpeed)),
+//	RecvPropFloat(RECVINFO(m_StartSize)),
+//	RecvPropFloat(RECVINFO(m_EndSize)),
+//	RecvPropFloat(RECVINFO(m_SpawnRadius)),
+//	RecvPropInt(RECVINFO(m_bEmit)),
+//	RecvPropFloat(RECVINFO(m_Opacity)),
+//END_RECV_TABLE()
 
 
 // ------------------------------------------------------------------------- //
