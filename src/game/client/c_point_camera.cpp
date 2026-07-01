@@ -22,7 +22,7 @@ IMPLEMENT_CLIENTCLASS_DT( C_PointCamera, DT_PointCamera, CPointCamera )
 	RecvPropInt( RECVINFO( m_FogColor ) ),
 	RecvPropFloat( RECVINFO( m_flFogStart ) ), 
 	RecvPropFloat( RECVINFO( m_flFogEnd ) ), 
-	RecvPropFloat( RECVINFO( m_flFogMaxDensity ) ), 
+	//RecvPropFloat( RECVINFO( m_flFogMaxDensity ) ), 
 	RecvPropInt( RECVINFO( m_bActive ) ),
 	RecvPropInt( RECVINFO( m_bUseScreenAspectRatio ) ),
 END_RECV_TABLE()
@@ -39,7 +39,7 @@ C_PointCamera::C_PointCamera()
 {
 	m_bActive = false;
 	m_bFogEnable = false;
-
+	m_flFogMaxDensity = 1.0f;
 	g_PointCameraList.Insert( this );
 }
 
