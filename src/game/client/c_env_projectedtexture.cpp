@@ -51,7 +51,7 @@ private:
 	bool	m_bLightOnlyTarget;
 	bool	m_bLightWorld;
 	bool	m_bCameraSpace;
-	Vector	m_LinearFloatLightColor;
+	int		m_cLightColor;
 	float	m_flAmbient;
 	float	m_flNearZ;
 	float	m_flFarZ;
@@ -68,13 +68,13 @@ IMPLEMENT_CLIENTCLASS_DT( C_EnvProjectedTexture, DT_EnvProjectedTexture, CEnvPro
 	RecvPropBool(	 RECVINFO( m_bLightOnlyTarget ) ),
 	RecvPropBool(	 RECVINFO( m_bLightWorld )		),
 	RecvPropBool(	 RECVINFO( m_bCameraSpace )		),
-	RecvPropVector(	 RECVINFO( m_LinearFloatLightColor )		),
-	RecvPropFloat(	 RECVINFO( m_flAmbient )		),
-	RecvPropString(  RECVINFO( m_SpotlightTextureName ) ),
-	RecvPropInt(	 RECVINFO( m_nSpotlightTextureFrame ) ),
-	RecvPropFloat(	 RECVINFO( m_flNearZ )	),
-	RecvPropFloat(	 RECVINFO( m_flFarZ )	),
-	RecvPropInt(	 RECVINFO( m_nShadowQuality )	),
+	RecvPropInt(	 RECVINFO( m_cLightColor )		),
+	//RecvPropFloat(	 RECVINFO( m_flAmbient )		),
+	//RecvPropString(  RECVINFO( m_SpotlightTextureName ) ),
+	//RecvPropInt(	 RECVINFO( m_nSpotlightTextureFrame ) ),
+	//RecvPropFloat(	 RECVINFO( m_flNearZ )	),
+	//RecvPropFloat(	 RECVINFO( m_flFarZ )	),
+	//RecvPropInt(	 RECVINFO( m_nShadowQuality )	),
 END_RECV_TABLE()
 
 C_EnvProjectedTexture::C_EnvProjectedTexture( void )
@@ -184,19 +184,26 @@ void C_EnvProjectedTexture::UpdateLight( bool bForceUpdate )
 	state.m_fQuadraticAtten = 0.0;
 	state.m_fLinearAtten = 100;
 	state.m_fConstantAtten = 0.0f;
-	state.m_Color[0] = m_LinearFloatLightColor.x;
-	state.m_Color[1] = m_LinearFloatLightColor.y;
-	state.m_Color[2] = m_LinearFloatLightColor.z;
-	state.m_Color[3] = 0.0f; // fixme: need to make ambient work m_flAmbient;
-	state.m_NearZ = m_flNearZ;
-	state.m_FarZ = m_flFarZ;
+	// Unpacking SRGB + Density
+	int r_raw = (m_cLightColor >> 24) & 0xFF;
+	int g_raw = (m_cLightColor >> 16) & 0xFF;
+	int b_raw = (m_cLightColor >> 8) & 0xFF;
+	int a_raw = m_cLightColor & 0xFF;         // intensity (0..255)
+
+	float flScale = a_raw / 255.0f;
+	state.m_Color[0] = GammaToLinear(r_raw / 255.0f) * flScale;
+	state.m_Color[1] = GammaToLinear(g_raw / 255.0f) * flScale;
+	state.m_Color[2] = GammaToLinear(b_raw / 255.0f) * flScale;
+	state.m_Color[3] = 0.0f; // fixme: need to make ambient work m_flAmbient;	Unused alpha channel
+	state.m_NearZ = 4.0f;
+	state.m_FarZ = 750.0f;
 	state.m_flShadowSlopeScaleDepthBias = mat_slopescaledepthbias_shadowmap.GetFloat();
 	state.m_flShadowDepthBias = mat_depthbias_shadowmap.GetFloat();
 	state.m_bEnableShadows = m_bEnableShadows;
-	state.m_pSpotlightTexture = materials->FindTexture( m_SpotlightTextureName, TEXTURE_GROUP_OTHER, false );
-	state.m_nSpotlightTextureFrame = m_nSpotlightTextureFrame;
+	state.m_pSpotlightTexture = materials->FindTexture("effects/flashlight001", TEXTURE_GROUP_OTHER, false);
+	state.m_nSpotlightTextureFrame = 0;
 
-	state.m_nShadowQuality = m_nShadowQuality; // Allow entity to affect shadow quality
+	state.m_nShadowQuality = 0; // Allow entity to affect shadow quality
 
 	if( m_LightHandle == CLIENTSHADOW_INVALID_HANDLE )
 	{
