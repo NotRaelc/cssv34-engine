@@ -36,7 +36,7 @@ void RecvProxy_RecomputeSprings( const CRecvProxyData *pData, void *pStruct, voi
 
 
 IMPLEMENT_CLIENTCLASS_DT_NOBASE( C_RopeKeyframe, DT_RopeKeyframe, CRopeKeyframe )
-	RecvPropInt( RECVINFO(m_iRopeMaterialModelIndex) ),
+	RecvPropInt( RECVINFO_NAME(m_iRopeMaterialModelIndex, m_iRopeMaterialModel) ),
 	RecvPropEHandle( RECVINFO(m_hStartPoint) ),
 	RecvPropEHandle( RECVINFO(m_hEndPoint) ),
 	RecvPropInt( RECVINFO(m_iStartAttachment) ),
@@ -48,7 +48,7 @@ IMPLEMENT_CLIENTCLASS_DT_NOBASE( C_RopeKeyframe, DT_RopeKeyframe, CRopeKeyframe 
 	RecvPropInt( RECVINFO(m_RopeFlags) ),
 	RecvPropFloat( RECVINFO(m_TextureScale) ),
 	RecvPropInt( RECVINFO(m_nSegments) ),
-	RecvPropBool( RECVINFO(m_bConstrainBetweenEndpoints) ),
+	//RecvPropBool( RECVINFO(m_bConstrainBetweenEndpoints) ),
 	RecvPropInt( RECVINFO(m_Subdiv) ),
 
 	RecvPropFloat( RECVINFO(m_Width) ),
