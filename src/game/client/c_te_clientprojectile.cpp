@@ -18,7 +18,7 @@ class C_TEClientProjectile : public C_BaseTempEntity
 {
 public:
 	DECLARE_CLASS( C_TEClientProjectile, C_BaseTempEntity );
-	DECLARE_CLIENTCLASS();
+	//DECLARE_CLIENTCLASS();
 
 	C_TEClientProjectile( void );
 	virtual			~C_TEClientProjectile( void );
@@ -69,10 +69,10 @@ void C_TEClientProjectile::PostDataUpdate( DataUpdateType_t updateType )
 	tempents->ClientProjectile( m_vecOrigin, m_vecVelocity, vec3_origin, m_nModelIndex, m_nLifeTime, m_hOwner );
 }
 
-IMPLEMENT_CLIENTCLASS_EVENT_DT(C_TEClientProjectile, DT_TEClientProjectile, CTEClientProjectile)
-	RecvPropVector( RECVINFO(m_vecOrigin)),
-	RecvPropVector( RECVINFO(m_vecVelocity)),
-	RecvPropInt( RECVINFO(m_nModelIndex)),
-	RecvPropInt( RECVINFO(m_nLifeTime)),
-	RecvPropEHandle( RECVINFO(m_hOwner)),
-END_RECV_TABLE()
+//IMPLEMENT_CLIENTCLASS_EVENT_DT(C_TEClientProjectile, DT_TEClientProjectile, CTEClientProjectile)
+//	RecvPropVector( RECVINFO(m_vecOrigin)),
+//	RecvPropVector( RECVINFO(m_vecVelocity)),
+//	RecvPropInt( RECVINFO(m_nModelIndex)),
+//	RecvPropInt( RECVINFO(m_nLifeTime)),
+//	RecvPropEHandle( RECVINFO(m_hOwner)),
+//END_RECV_TABLE()
