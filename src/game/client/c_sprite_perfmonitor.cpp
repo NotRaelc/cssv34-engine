@@ -17,7 +17,7 @@ class C_ParticlePerformanceMonitor : public C_BaseEntity
 {
 	DECLARE_CLASS( C_ParticlePerformanceMonitor, C_BaseEntity );
 public:
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 
 	C_ParticlePerformanceMonitor();
 	~C_ParticlePerformanceMonitor();
@@ -30,10 +30,10 @@ private:
 	C_ParticlePerformanceMonitor( const C_ParticlePerformanceMonitor & );
 };
 
-//IMPLEMENT_CLIENTCLASS_DT( C_ParticlePerformanceMonitor, DT_ParticlePerformanceMonitor, CParticlePerformanceMonitor )
-//	RecvPropInt( RECVINFO(m_bMeasurePerf) ),
-//	RecvPropInt( RECVINFO(m_bDisplayPerf) ),
-//END_RECV_TABLE()
+IMPLEMENT_CLIENTCLASS_DT( C_ParticlePerformanceMonitor, DT_ParticlePerformanceMonitor, CParticlePerformanceMonitor )
+	RecvPropInt( RECVINFO(m_bMeasurePerf) ),
+	RecvPropInt( RECVINFO(m_bDisplayPerf) ),
+END_RECV_TABLE()
 
 //-----------------------------------------------------------------------------
 // Purpose: 

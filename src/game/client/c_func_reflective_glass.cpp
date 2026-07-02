@@ -14,7 +14,7 @@ class C_FuncReflectiveGlass : public C_BaseEntity
 {
 public:
 	DECLARE_CLASS( C_FuncReflectiveGlass, C_BaseEntity );
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 
 // C_BaseEntity.
 public:
@@ -26,8 +26,8 @@ public:
 	C_FuncReflectiveGlass	*m_pNext;
 };
 
-//IMPLEMENT_CLIENTCLASS_DT( C_FuncReflectiveGlass, DT_FuncReflectiveGlass, CFuncReflectiveGlass )
-//END_RECV_TABLE()
+IMPLEMENT_CLIENTCLASS_DT( C_FuncReflectiveGlass, DT_FuncReflectiveGlass, CFuncReflectiveGlass )
+END_RECV_TABLE()
 
 
 //-----------------------------------------------------------------------------

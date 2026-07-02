@@ -838,15 +838,15 @@ const Vector& CSprite::GetRenderOrigin()
 //			CSprites swap the roll and yaw angle inputs, and rotate the yaw 180 degrees
 //-----------------------------------------------------------------------------
 
-//#if !defined( CLIENT_DLL )
-//IMPLEMENT_SERVERCLASS_ST( CSpriteOriented, DT_SpriteOriented )
-//END_SEND_TABLE()
-//#else
-//#undef CSpriteOriented
-//IMPLEMENT_CLIENTCLASS_DT(C_SpriteOriented, DT_SpriteOriented, CSpriteOriented)
-//#define CSpriteOriented C_SpriteOriented
-//END_RECV_TABLE()
-//#endif
+#if !defined( CLIENT_DLL )
+IMPLEMENT_SERVERCLASS_ST( CSpriteOriented, DT_SpriteOriented )
+END_SEND_TABLE()
+#else
+#undef CSpriteOriented
+IMPLEMENT_CLIENTCLASS_DT(C_SpriteOriented, DT_SpriteOriented, CSpriteOriented)
+#define CSpriteOriented C_SpriteOriented
+END_RECV_TABLE()
+#endif
 
 #if !defined( CLIENT_DLL )
 

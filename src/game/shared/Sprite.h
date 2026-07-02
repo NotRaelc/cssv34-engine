@@ -278,13 +278,16 @@ private:
 class CSpriteOriented : public CSprite
 {
 public:
-	DECLARE_CLASS(CSpriteOriented, CSprite);
+	DECLARE_CLASS( CSpriteOriented, CSprite );
 #if !defined( CLIENT_DLL )
-	void Spawn(void);
+	DECLARE_SERVERCLASS();
+	void Spawn( void );
 #else
-	virtual bool IsTransparent(void);
+	DECLARE_CLIENTCLASS();
+	virtual bool IsTransparent( void );
 #endif
 };
+
 
 
 // Macro to wrap creation

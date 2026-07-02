@@ -45,35 +45,35 @@ void RecvProxy_TeamplayRoundState( const CRecvProxyData *pData, void *pStruct, v
 }
 #endif 
 
-//BEGIN_NETWORK_TABLE_NOBASE( CTeamplayRoundBasedRules, DT_TeamplayRoundBasedRules )
-//#ifdef CLIENT_DLL
-//	RecvPropInt( RECVINFO( m_iRoundState ), 0, RecvProxy_TeamplayRoundState ),
-//	RecvPropBool( RECVINFO( m_bInWaitingForPlayers ) ),
-//	RecvPropInt( RECVINFO( m_iWinningTeam ) ),
-//	RecvPropInt( RECVINFO( m_bInOvertime ) ),
-//	RecvPropInt( RECVINFO( m_bInSetup ) ),
-//	RecvPropInt( RECVINFO( m_bSwitchedTeamsThisRound ) ),
-//	RecvPropBool( RECVINFO( m_bAwaitingReadyRestart ) ),
-//	RecvPropTime( RECVINFO( m_flRestartRoundTime ) ),
-//	RecvPropTime( RECVINFO( m_flMapResetTime ) ),
-//	RecvPropArray3( RECVINFO_ARRAY(m_flNextRespawnWave), RecvPropTime( RECVINFO(m_flNextRespawnWave[0]) ) ),
-//	RecvPropArray3( RECVINFO_ARRAY(m_TeamRespawnWaveTimes), RecvPropFloat( RECVINFO(m_TeamRespawnWaveTimes[0]) ) ),
-//#else
-//	SendPropInt( SENDINFO( m_iRoundState ), 5 ),
-//	SendPropBool( SENDINFO( m_bInWaitingForPlayers ) ),
-//	SendPropInt( SENDINFO( m_iWinningTeam ), 3, SPROP_UNSIGNED ),
-//	SendPropBool( SENDINFO( m_bInOvertime ) ),
-//	SendPropBool( SENDINFO( m_bInSetup ) ),
-//	SendPropBool( SENDINFO( m_bSwitchedTeamsThisRound ) ),
-//	SendPropBool( SENDINFO( m_bAwaitingReadyRestart ) ),
-//	SendPropTime( SENDINFO( m_flRestartRoundTime ) ),
-//	SendPropTime( SENDINFO( m_flMapResetTime ) ),
-//	SendPropArray3( SENDINFO_ARRAY3(m_flNextRespawnWave), SendPropTime( SENDINFO_ARRAY(m_flNextRespawnWave) ) ),
-//	SendPropArray3( SENDINFO_ARRAY3(m_TeamRespawnWaveTimes), SendPropFloat( SENDINFO_ARRAY(m_TeamRespawnWaveTimes) ) ),
-//#endif
-//END_NETWORK_TABLE()
+BEGIN_NETWORK_TABLE_NOBASE( CTeamplayRoundBasedRules, DT_TeamplayRoundBasedRules )
+#ifdef CLIENT_DLL
+	RecvPropInt( RECVINFO( m_iRoundState ), 0, RecvProxy_TeamplayRoundState ),
+	RecvPropBool( RECVINFO( m_bInWaitingForPlayers ) ),
+	RecvPropInt( RECVINFO( m_iWinningTeam ) ),
+	RecvPropInt( RECVINFO( m_bInOvertime ) ),
+	RecvPropInt( RECVINFO( m_bInSetup ) ),
+	RecvPropInt( RECVINFO( m_bSwitchedTeamsThisRound ) ),
+	RecvPropBool( RECVINFO( m_bAwaitingReadyRestart ) ),
+	RecvPropTime( RECVINFO( m_flRestartRoundTime ) ),
+	RecvPropTime( RECVINFO( m_flMapResetTime ) ),
+	RecvPropArray3( RECVINFO_ARRAY(m_flNextRespawnWave), RecvPropTime( RECVINFO(m_flNextRespawnWave[0]) ) ),
+	RecvPropArray3( RECVINFO_ARRAY(m_TeamRespawnWaveTimes), RecvPropFloat( RECVINFO(m_TeamRespawnWaveTimes[0]) ) ),
+#else
+	SendPropInt( SENDINFO( m_iRoundState ), 5 ),
+	SendPropBool( SENDINFO( m_bInWaitingForPlayers ) ),
+	SendPropInt( SENDINFO( m_iWinningTeam ), 3, SPROP_UNSIGNED ),
+	SendPropBool( SENDINFO( m_bInOvertime ) ),
+	SendPropBool( SENDINFO( m_bInSetup ) ),
+	SendPropBool( SENDINFO( m_bSwitchedTeamsThisRound ) ),
+	SendPropBool( SENDINFO( m_bAwaitingReadyRestart ) ),
+	SendPropTime( SENDINFO( m_flRestartRoundTime ) ),
+	SendPropTime( SENDINFO( m_flMapResetTime ) ),
+	SendPropArray3( SENDINFO_ARRAY3(m_flNextRespawnWave), SendPropTime( SENDINFO_ARRAY(m_flNextRespawnWave) ) ),
+	SendPropArray3( SENDINFO_ARRAY3(m_TeamRespawnWaveTimes), SendPropFloat( SENDINFO_ARRAY(m_TeamRespawnWaveTimes) ) ),
+#endif
+END_NETWORK_TABLE()
 
-//IMPLEMENT_NETWORKCLASS_ALIASED( TeamplayRoundBasedRulesProxy, DT_TeamplayRoundBasedRulesProxy )
+IMPLEMENT_NETWORKCLASS_ALIASED( TeamplayRoundBasedRulesProxy, DT_TeamplayRoundBasedRulesProxy )
 
 #ifdef CLIENT_DLL
 void RecvProxy_TeamplayRoundBasedRules( const RecvProp *pProp, void **pOut, void *pData, int objectID )
@@ -83,9 +83,9 @@ void RecvProxy_TeamplayRoundBasedRules( const RecvProp *pProp, void **pOut, void
 	*pOut = pRules;
 }
 
-//BEGIN_RECV_TABLE( CTeamplayRoundBasedRulesProxy, DT_TeamplayRoundBasedRulesProxy )
-//	RecvPropDataTable( "teamplayroundbased_gamerules_data", 0, 0, &REFERENCE_RECV_TABLE( DT_TeamplayRoundBasedRules ), RecvProxy_TeamplayRoundBasedRules )
-//END_RECV_TABLE()
+BEGIN_RECV_TABLE( CTeamplayRoundBasedRulesProxy, DT_TeamplayRoundBasedRulesProxy )
+	RecvPropDataTable( "teamplayroundbased_gamerules_data", 0, 0, &REFERENCE_RECV_TABLE( DT_TeamplayRoundBasedRules ), RecvProxy_TeamplayRoundBasedRules )
+END_RECV_TABLE()
 
 void CTeamplayRoundBasedRulesProxy::OnPreDataChanged( DataUpdateType_t updateType )
 {
@@ -113,9 +113,9 @@ void* SendProxy_TeamplayRoundBasedRules( const SendProp *pProp, const void *pStr
 	return pRules;
 }
 
-//BEGIN_SEND_TABLE( CTeamplayRoundBasedRulesProxy, DT_TeamplayRoundBasedRulesProxy )
-//	SendPropDataTable( "teamplayroundbased_gamerules_data", 0, &REFERENCE_SEND_TABLE( DT_TeamplayRoundBasedRules ), SendProxy_TeamplayRoundBasedRules )
-//END_SEND_TABLE()
+BEGIN_SEND_TABLE( CTeamplayRoundBasedRulesProxy, DT_TeamplayRoundBasedRulesProxy )
+	SendPropDataTable( "teamplayroundbased_gamerules_data", 0, &REFERENCE_SEND_TABLE( DT_TeamplayRoundBasedRules ), SendProxy_TeamplayRoundBasedRules )
+END_SEND_TABLE()
 
 BEGIN_DATADESC( CTeamplayRoundBasedRulesProxy )
 	// Inputs.
@@ -269,8 +269,8 @@ CTeamplayRoundBasedRules::CTeamplayRoundBasedRules( void )
 {
 	for ( int i = 0; i < MAX_TEAMS; i++ )
 	{
-		m_flNextRespawnWave[i] = 0;
-		m_TeamRespawnWaveTimes[i] = -1.0f;
+		m_flNextRespawnWave.Set( i, 0 );
+		m_TeamRespawnWaveTimes.Set( i, -1.0f );
 
 #ifdef GAME_DLL
 		m_flOriginalTeamRespawnWaveTime[i] = -1.0f;
@@ -331,7 +331,7 @@ void CTeamplayRoundBasedRules::SetTeamRespawnWaveTime( int iTeam, float flValue 
 		m_flOriginalTeamRespawnWaveTime[iTeam] = flValue;
 	}
 
-	m_TeamRespawnWaveTimes[iTeam] = flValue;
+	m_TeamRespawnWaveTimes.Set( iTeam, flValue );
 }
 
 //-----------------------------------------------------------------------------
@@ -361,7 +361,7 @@ void CTeamplayRoundBasedRules::AddTeamRespawnWaveTime( int iTeam, float flValue 
 		flNewValue = 0;
 	}
 
-	m_TeamRespawnWaveTimes[iTeam] = flValue;
+	m_TeamRespawnWaveTimes.Set( iTeam, flNewValue );
 }
 #endif
 
@@ -1749,7 +1749,7 @@ void CTeamplayRoundBasedRules::RoundRespawn( void )
 	{
 		if ( m_flOriginalTeamRespawnWaveTime[i] >= 0 )
 		{
-			m_TeamRespawnWaveTimes[i] = m_flOriginalTeamRespawnWaveTime[i];
+			m_TeamRespawnWaveTimes.Set( i, m_flOriginalTeamRespawnWaveTime[i] );
 		}
 	}
 
@@ -1959,7 +1959,7 @@ void CTeamplayRoundBasedRules::CheckRespawnWaves( void )
 
 		RespawnTeam( team );
 
-		m_flNextRespawnWave[team] = gpGlobals->curtime + GetRespawnWaveMaxLength( team ) ;
+		m_flNextRespawnWave.Set( team, gpGlobals->curtime + GetRespawnWaveMaxLength( team ) );
 	}
 }
 
@@ -2370,7 +2370,7 @@ bool CTeamplayRoundBasedRules::AreTeamsUnbalanced( int &iHeaviestTeam, int &iLig
 //-----------------------------------------------------------------------------
 void CTeamplayRoundBasedRules::SetRoundState( int iRoundState )
 {
-	m_iRoundState = (gamerules_roundstate_t)iRoundState;
+	m_iRoundState = iRoundState;
 	m_flLastRoundStateChangeTime = gpGlobals->curtime;
 }
 

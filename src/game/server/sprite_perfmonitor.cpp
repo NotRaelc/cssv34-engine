@@ -20,7 +20,7 @@ class CParticlePerformanceMonitor : public CPointEntity
 	DECLARE_CLASS( CParticlePerformanceMonitor, CPointEntity );
 public:
 	DECLARE_DATADESC();
-	//DECLARE_SERVERCLASS();
+	DECLARE_SERVERCLASS();
 
 	void	Spawn( void );
 	int		UpdateTransmitState( void );
@@ -32,8 +32,8 @@ public:
 	void	InputStopMeasuring( inputdata_t &inputdata );
 
 private:
-	bool m_bDisplayPerf;
-	bool m_bMeasurePerf;
+	CNetworkVar( bool, m_bDisplayPerf );
+	CNetworkVar( bool, m_bMeasurePerf );
 };
 
 LINK_ENTITY_TO_CLASS( env_particle_performance_monitor, CParticlePerformanceMonitor );
@@ -49,10 +49,10 @@ BEGIN_DATADESC( CParticlePerformanceMonitor )
 	DEFINE_INPUTFUNC( FIELD_VOID, "StopMeasuring", InputStopMeasuring ),
 END_DATADESC()
 
-//IMPLEMENT_SERVERCLASS_ST( CParticlePerformanceMonitor, DT_ParticlePerformanceMonitor )
-//	SendPropInt( SENDINFO(m_bDisplayPerf), 1, SPROP_UNSIGNED ),
-//	SendPropInt( SENDINFO(m_bMeasurePerf), 1, SPROP_UNSIGNED ),
-//END_SEND_TABLE()
+IMPLEMENT_SERVERCLASS_ST( CParticlePerformanceMonitor, DT_ParticlePerformanceMonitor )
+	SendPropInt( SENDINFO(m_bDisplayPerf), 1, SPROP_UNSIGNED ),
+	SendPropInt( SENDINFO(m_bMeasurePerf), 1, SPROP_UNSIGNED ),
+END_SEND_TABLE()
 
 //-----------------------------------------------------------------------------
 // Purpose: 

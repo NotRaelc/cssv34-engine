@@ -28,7 +28,7 @@ class C_SmokeTrail : public C_BaseParticleEntity, public IPrototypeAppEffect
 {
 public:
 	DECLARE_CLASS( C_SmokeTrail, C_BaseParticleEntity );
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 	
 					C_SmokeTrail();
 	virtual			~C_SmokeTrail();
@@ -108,7 +108,7 @@ class C_RocketTrail : public C_BaseParticleEntity, public IPrototypeAppEffect
 {
 public:
 	DECLARE_CLASS( C_RocketTrail, C_BaseParticleEntity );
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 	
 					C_RocketTrail();
 	virtual			~C_RocketTrail();
@@ -208,7 +208,7 @@ class C_SporeExplosion : public C_BaseParticleEntity, public IPrototypeAppEffect
 {
 public:
 	DECLARE_CLASS( C_SporeExplosion, C_BaseParticleEntity );
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 	
 	C_SporeExplosion( void );
 	virtual	~C_SporeExplosion( void );
@@ -263,7 +263,7 @@ class C_FireTrail : public C_ParticleTrail
 {
 public:
 	DECLARE_CLASS( C_FireTrail, C_ParticleTrail );
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 
 	C_FireTrail( void );
 	virtual ~C_FireTrail( void );
@@ -319,7 +319,7 @@ class C_DustTrail : public C_BaseParticleEntity, public IPrototypeAppEffect
 {
 public:
 	DECLARE_CLASS( C_DustTrail, C_BaseParticleEntity );
-	//DECLARE_CLIENTCLASS();
+	DECLARE_CLIENTCLASS();
 	
 					C_DustTrail();
 	virtual			~C_DustTrail();
