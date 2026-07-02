@@ -49,6 +49,12 @@ public:
 	bool	m_bSequenceFinished;
 	bool	m_bLooping;
 	
+private:
+	
+	int	_pad0;
+
+public:
+
 	CNetworkVar( int, m_nSequence );
 	CNetworkVar( float, m_flCycle );
 	CNetworkVar( float, m_flPrevCycle );
