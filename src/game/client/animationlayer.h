@@ -28,10 +28,6 @@ public:
 
 	bool IsActive( void );
 
-private:
-
-	int _pad0;		// padding for v34
-
 public:
 
 	CRangeCheckedVar<int, -1, 65535, 0>	m_nSequence;

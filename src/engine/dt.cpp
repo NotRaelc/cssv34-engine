@@ -688,9 +688,3 @@ void DataTable_Warning( const char *pInMessage, ... )
 	Warning( "DataTable warning: %s", msg );
 }
 
-
-
-
-
-
-
