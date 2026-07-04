@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <winsock2.h>
 
 #include "vstdlib/pch_vstdlib.h"
 #include "tier0/memdbgoff.h"

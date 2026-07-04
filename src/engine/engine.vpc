@@ -9,6 +9,8 @@ $Macro OUTBINDIR	"$SRCDIR\..\game\bin"
 
 $include "$SRCDIR\vpc_scripts\source_dll_base.vpc"
 
+$Macro NOMASTER "0"
+
 $Configuration
 {
 	$Compiler
@@ -17,6 +19,7 @@ $Configuration
 		$AdditionalIncludeDirectories	"$BASE;.\steam;.\steam\encryption"
 		$AdditionalIncludeDirectories	"$BASE;$SRCDIR\dx9sdk\include" [$WIN32]
 		$PreprocessorDefinitions		"$BASE;USE_CONVARS;VOICE_OVER_IP;BUMPMAP;__USEA3D;_ADD_EAX_;ENGINE_DLL;PROTECTED_THINGS_ENABLE;fopen=dont_use_fopen"
+		$PreprocessorDefinitions		"$BASE;NOMASTER" [$NOMASTER]
 	}
 
 	$Compiler [$WIN32]
@@ -314,12 +317,14 @@ $Project "engine"
 		//$File	"matchmakingshared.cpp"
 		//$File	"matchmakingmigrate.cpp"
 		$File	"MaterialProxyFactory.cpp"
-		$File	"masterserver.cpp"
-		$File	"master_lanservers.cpp"
-		$File	"master_favoriteservers.cpp"
-		$File	"master_historyservers.cpp"
-		$File	"master_serverqueries.cpp"
-		$File	"master_nethandler.cpp"
+		$File	"masterserver.cpp" [!$NOMASTER]
+		$File	"master_lanservers.cpp" [!$NOMASTER]
+		$File	"master_favoriteservers.cpp" [!$NOMASTER]
+		$File	"master_historyservers.cpp" [!$NOMASTER]
+		$File	"master_serverqueries.cpp" [!$NOMASTER]
+		$File	"master_monitoringservers.cpp" [!$NOMASTER]
+		$File	"master_nethandler.cpp" [!$NOMASTER]
+		$File	"$SRCDIR\public\serversinfo.cpp"
 		$File	"mem_fgets.cpp"
 		$File	"mod_vis.cpp"
 		$File	"ModelInfo.cpp"

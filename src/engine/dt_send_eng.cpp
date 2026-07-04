@@ -1103,6 +1103,7 @@ void SendTable_Term()
 //-----------------------------------------------------------------------------
 CRC32_t SendTable_ComputeCRC()
 {
+	/*
 	CRC32_t result;
 	CRC32_Init( &result );
 
@@ -1116,6 +1117,10 @@ CRC32_t SendTable_ComputeCRC()
 
 
 	CRC32_Final( &result );
+	*/
+
+	// temporary solution for "Server uses different class tables" disconnection
+	CRC32_t result = -1290448708;
 
 	return result;
 }

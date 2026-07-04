@@ -264,14 +264,14 @@ static eSteamInfoInit Sys_TryInitSteamInfo(void* pvAPI, SteamInfVersionInfo_t& V
 		// not started through Steam. So we create one there containing the
 		// current AppID
 		FILE* fh;
-		fopen_s(&fh, "steam_appid.txt", "wb");
+		//fopen_s(&fh, "steam_appid.txt", "wb");
 		if (fh)
 		{
 			char strAppID[512];
 			sprintf(strAppID, "%u\n", VerInfo.AppID);
-			fwrite(strAppID, sizeof(strAppID) + 1, 1, fh);
+			//fwrite(strAppID, sizeof(strAppID) + 1, 1, fh);
 
-			fclose(fh);
+			//fclose(fh);
 		}
 	}
 

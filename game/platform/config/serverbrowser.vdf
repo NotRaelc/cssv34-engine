@@ -1,15 +1,90 @@
 "Filters"
 {
+	"gamelist"		"internet"
+	"FilterList"
+	{
+		"InternetGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+			"location"		"0"
+		}
+		"FavoriteGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+		}
+		"HistoryGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+		}
+		"LanGames"
+		{
+			"appid"		"0x0000000000000000"
+			"MaxPlayerCount"		"0"
+			"ping"		"0"
+			"NoFull"		"0"
+			"NoEmpty"		"0"
+			"NoPassword"		"0"
+			"Secure"		"0"
+			"QuickList"		"0"
+			"tagsinclude"		"0"
+			"Replay"		"0"
+		}
+	}
 	"favorites"
 	{
 		"1"
 		{
-			"name"		"[v34] MILLENNIUM © MIGCSS [Public] 18+"
-			"gamedir"		"cstrike"
-			"Players"		"15"
-			"maxplayers"		"32"
-			"map"		"de_cache_csgo"
-			"address"		"176.114.92.210:27077"
+			"name"		"unknown"
+			"gamedir"		"unknown"
+			"Players"		"0"
+			"maxplayers"		"0"
+			"map"		"unknown"
+			"address"		"46.174.49.22:27777"
+		}
+		"2"
+		{
+			"name"		"unknown"
+			"gamedir"		"unknown"
+			"Players"		"0"
+			"maxplayers"		"0"
+			"map"		"unknown"
+			"address"		"37.230.162.93:1995"
+		}
+		"1"
+		{
+			"name"		"unknown"
+			"gamedir"		"unknown"
+			"Players"		"0"
+			"maxplayers"		"0"
+			"map"		"unknown"
+			"address"		"46.174.48.45:27230"
 		}
 	}
 }

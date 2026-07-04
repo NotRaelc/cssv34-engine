@@ -1791,8 +1791,9 @@ bool SV_ActivateServer()
 
 	// Heartbeat the master server in case we turned SrcTV on or off.
 	Steam3Server().SendUpdatedServerDetails();
+#ifndef NOMASTER
 		master->Heartbeat_f();
-
+#endif
 	COM_TimestampedLog( "SV_ActivateServer(finished)" );
 
 	return true;

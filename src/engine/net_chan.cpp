@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: net_chan.cpp: implementation of the CNetChan_t struct.
 //
@@ -24,7 +24,7 @@
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
-#define NET_SHOW_PACKETS "1" // default value for any of net_show*
+#define NET_SHOW_PACKETS "0" // default value for any of net_show*
 
 ConVar net_showudp( "net_showudp", NET_SHOW_PACKETS, 0, "Dump UDP packets summary to console" );
 ConVar net_showtcp( "net_showtcp", NET_SHOW_PACKETS, 0, "Dump TCP stream summary to console" );
@@ -43,8 +43,6 @@ static ConVar net_maxfilesize( "net_maxfilesize", "16", 0, "Maximum allowed file
        ConVar net_blocksize("net_maxfragments", "1260", 0, "Max fragment bytes per packet", true, FRAGMENT_SIZE, true, MAX_ROUTABLE_PAYLOAD);
 
 static ConVar net_compresssplits("net_compresssplits", "1", 0, "Compress splitpacket parts before sending"); 
-static ConVar net_compresspackets( "net_compresspackets", "0", 0, "[DontUse] Use lz compression on game packets." );
-static ConVar net_compresspackets_minsize( "net_compresspackets_minsize", "128", 0, "[DontUse] Don't bother compressing packets below this size." );
 
 static ConVar net_maxcleartime( "net_maxcleartime", "0", 0, "Max # of seconds we can wait for next packets to be sent based on rate setting (0 == no limit)." );
 
@@ -63,6 +61,7 @@ extern int  NET_ReceiveStream( int nSock, char * buf, int len, int flags );
 #define FLIPBIT(v,b) if (v&b) v &= ~b; else v |= b;
 
 // We only need to checksum packets on the PC and only when we're actually sending them over the network.
+// This is not exist in CS:S v34
 static bool ShouldChecksumPackets()
 {
 	// temporary solution for testing
@@ -1607,12 +1606,13 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	bf_write flagsPos = send; // remember flags byte position
 
 	send.WriteByte ( 0 ); // write correct flags value later
+#if 0
 	if ( ShouldChecksumPackets() )
 	{
 		send.WriteShort( 0 );  // write correct checksum later
 		Assert( !(send.GetNumBitsWritten() % 8 ) );
 	}
-
+#endif
 	// Note, this only matters on the PC
 	int nCheckSumStart = send.GetNumBytesWritten();
 
@@ -1724,6 +1724,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	// write correct flags value and the checksum
 	flagsPos.WriteByte( flags ); 
 
+#if 0
 	// Compute checksum (must be aligned to a byte boundary!!)
 	if ( ShouldChecksumPackets() )
 	{
@@ -1733,7 +1734,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 		unsigned short usCheckSum = BufferToShortChecksum( pvData, nCheckSumBytes );
 		flagsPos.WriteUBitLong( usCheckSum, 16 );
 	}
-
+#endif
 	// Send the datagram
 	//int	bytesSent = NET_SendPacket ( this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), bSendVoice ? &m_StreamVoice : 0, bCompress );
 

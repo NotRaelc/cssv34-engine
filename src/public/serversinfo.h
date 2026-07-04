@@ -10,6 +10,11 @@
 #pragma once
 #endif
 
+#include "tier0/platform.h"
+#include "tier1/bitbuf.h"
+#include "tier1/netadr.h"
+
+// Server response status
 enum NServerResponse
 {
 	nServerResponded = 0,
@@ -17,6 +22,10 @@ enum NServerResponse
 	nNoServersListedOnMasterServer,
 };
 
+//
+// class for each game server
+// in server browser
+// 
 class newgameserver_t
 {
 public:
@@ -74,19 +83,6 @@ public:
 
 };
 
-struct FilterPair_t
-{
-	FilterPair_t() { m_szKey[0] = m_szValue[0] = 0; }
-	FilterPair_t(const char* pchKey, const char* pchValue)
-	{
-		strncpy(m_szKey, pchKey, sizeof(m_szKey)); // this is a public header, use basic c library string funcs only!
-		strncpy(m_szValue, pchValue, sizeof(m_szValue));
-	}
-	char m_szKey[256];
-	char m_szValue[256];
-};
-
-
 class IServerListResponse
 {
 public:
@@ -104,6 +100,7 @@ public:
 	// Server has responded successfully and has updated data
 	virtual void ServerResponded(newgameserver_t& server) = 0;
 };
+
 //-----------------------------------------------------------------------------
 // Purpose: Callback interface for receiving responses after requesting details on
 // who is playing on a particular server.
@@ -124,6 +121,7 @@ public:
 
 enum EServerQuery
 {
+	k_eQuery_Any = -1,
 	k_ePingServer = 1,
 	k_ePlayerDetails,
 //	k_eServerRules
@@ -153,7 +151,7 @@ public:
 };
 
 // Current interface version
-#define SERVERLIST_INTERFACE_VERSION "ServerList004"
+#define SERVERLIST_INTERFACE_VERSION "ServerList009"
 
 extern IServersInfo* g_pServersInfo;
 

@@ -96,7 +96,7 @@ void CFavoriteServers::AddServer(uint32 unIP, uint16 usPort, time_t timeLastPlay
 	Q_snprintf(serverID, sizeof(serverID), "%d", m_iServersCount);
 
 	KeyValues* server = new KeyValues(serverID);
-	netadr_t addr(htonl(unIP),  usPort);
+	netadr_t addr(unIP,  usPort);
 
 	server->SetString("name", "unknown");
 	server->SetString("gamedir", "unknown");
@@ -198,12 +198,11 @@ void CFavoriteServers::List_UpdateServers()
 		if (!addrStr || !addrStr[0])
 			continue;
 
-		netadr_t addr;
-		addr.SetFromString(addrStr);
+		netadr_t addr(addrStr);
 
 		m_iServersCount++;
 
-		g_pServersInfo->PingServer(addr.GetIP(), ntohs(addr.GetPort()), this);
+		g_pServersInfo->PingServer(addr.GetIPHostByteOrder(), ntohs(addr.GetPort()), this);
 	}
 
 	savedData->deleteThis();

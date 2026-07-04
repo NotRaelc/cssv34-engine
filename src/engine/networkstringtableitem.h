@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -27,7 +27,7 @@ class CNetworkStringTableItem
 public:
 	enum
 	{
-		MAX_USERDATA_BITS = 14,
+		MAX_USERDATA_BITS = 12,
 		MAX_USERDATA_SIZE = (1 << MAX_USERDATA_BITS)
 	};
 

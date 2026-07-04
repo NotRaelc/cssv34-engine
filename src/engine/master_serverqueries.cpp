@@ -51,11 +51,14 @@ public:
 	a2s_player_t& ProcessPlayers(bf_read& buf);
 	void RequestPlayers(const netadr_t& adr);
 
+	query_t FindQuery(EServerQuery type, const netadr_t& adr);
+	bool IsValidQuery(EServerQuery type, const netadr_t& adr);
 	void CreateQuery(uint32 unIP, uint16 usPort, EServerQuery type, IServerPingResponse* pi_response, IServerPlayersResponse* pl_response);
 
 	void PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response);
 	void PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response);
 	bool CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort);
+
 private:
 	long m_nChallengeNumber;
 
@@ -87,12 +90,6 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 	if (c == 0)
 		return;
 
-	unsigned short index = m_serverQueries.Find(packet->from);
-	if (index == m_serverQueries.InvalidIndex())
-		return;
-
-	query_t query = m_serverQueries[index];
-
 	Msg("ServerQueriesMaster: Got connectionless packet (%c) from %s\n", c, packet->from.ToString());
 
 	switch (c) {
@@ -100,8 +97,7 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 	{
 		newgameserver_t& s = ProcessInfo(msg);
 
-		if (query.type != k_ePingServer)
-			return;
+		query_t query = FindQuery(k_ePingServer, packet->from);
 
 		if (!query.ping_response)
 			return;
@@ -111,22 +107,27 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 		s.m_NetAdr = packet->from;
 
 		query.ping_response->ServerResponded(s);
-		CancelServerQuery(query.type, packet->from.GetIP(), packet->from.GetPort());
+		CancelServerQuery(query.type, packet->from.GetIPHostByteOrder(), packet->from.GetPort());
 
 		break;
 	}
 	case S2C_CHALLENGE:
 	{
 		int challenge = msg.ReadLong();
-		if (challenge == -1 || challenge == 0)
-			break;
+		//if (challenge == -1 || challenge == 0)
+		//	break;
 
 		// Save our challenge
 		m_nChallengeNumber = challenge;
+		Msg("ServerQueriesMaster: Got challenge number (%i)\n", challenge);
+
+		// check what this challenge actually used for
+		query_t query = FindQuery(k_ePlayerDetails, packet->from);
 
 		// retry request
-		if (query.type == k_ePlayerDetails)
+		if (query.type != 0)
 		{
+			Msg("ServerQueriesMaster: Retrying players request with saved challenge number.\n");
 			RequestPlayers(packet->from);
 		}
 
@@ -136,17 +137,22 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 	case S2A_PLAYER_REPLY:
 	{
 		a2s_player_t result = ProcessPlayers(msg);
+		query_t query = FindQuery(k_ePlayerDetails, packet->from);
 
-		if (query.type != k_ePlayerDetails)
+		if (query.type == 0) {
+			Warning("Wrong request type (expected %i, got %i)\n", k_ePlayerDetails, query.type);
 			return;
+		}
 
-		if (!query.players_response)
+		if (!query.players_response) {
+			Warning("NULL players response\n");
 			return;
+		}
 
 		if (result.m_nCount == 0)
 		{
 			query.players_response->PlayersFailedToRespond();
-			CancelServerQuery(query.type, packet->from.GetIP(), packet->from.GetPort());
+			CancelServerQuery(query.type, packet->from.GetIPHostByteOrder(), packet->from.GetPort());
 			break;
 		}
 
@@ -155,7 +161,8 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 		}
 
 		query.players_response->PlayersRefreshComplete();
-		CancelServerQuery(query.type, packet->from.GetIP(), packet->from.GetPort());
+		Msg("ServerQueriesMaster: players refresh complete.\n");
+		CancelServerQuery(query.type, packet->from.GetIPHostByteOrder(), packet->from.GetPort());
 
 		break;
 	}
@@ -226,6 +233,13 @@ a2s_player_t& CServerQueriesMaster::ProcessPlayers(bf_read& buf) {
 		buf.ReadString(playerQuery.players[i].m_szName, sizeof(playerQuery.players[i].m_szName));
 		playerQuery.players[i].m_nScore = buf.ReadLong();
 		playerQuery.players[i].m_flTime = buf.ReadFloat();
+
+		//ConColorMsg(Color(100, 255, 100, 255), "ServerQueriesMaster: processed player { id:%u, name:\"%s\", score:%i, time:%f }\n",
+		//	playerQuery.players[i].m_nId,
+		//	playerQuery.players[i].m_szName,
+		//	playerQuery.players[i].m_nScore,
+		//	playerQuery.players[i].m_flTime
+		//);
 	}
 
 	//m_serverPlayersResponse->PlayersRefreshComplete();
@@ -245,8 +259,52 @@ void CServerQueriesMaster::RequestPlayers(const netadr_t& adr)
 	MasterNetHandler()->NET_SendPacket(NS_CLIENT, adr, msg.GetData(), msg.GetNumBytesWritten());
 }
 
+query_t CServerQueriesMaster::FindQuery(EServerQuery type, const netadr_t& adr)
+{
+	query_t nullQuery = { (EServerQuery)0, 0, 0 };
+
+	FOR_EACH_MAP(m_serverQueries, i)
+	{
+		if (i == m_serverQueries.InvalidIndex())
+			continue;
+
+		query_t& query = m_serverQueries[i];
+		netadr_t& key = m_serverQueries.Key(i);
+		if (key == adr)
+		{
+			if (type == k_eQuery_Any)
+				return query;
+
+			if (query.type == type)
+				return query;
+		}
+	}
+	return nullQuery;
+}
+
+bool CServerQueriesMaster::IsValidQuery(EServerQuery type, const netadr_t& adr) {
+	FOR_EACH_MAP(m_serverQueries, i)
+	{
+		if (i == m_serverQueries.InvalidIndex())
+			continue;
+
+		query_t& query = m_serverQueries[i];
+		netadr_t& key = m_serverQueries.Key(i);
+		if (key == adr)
+		{
+			if (type == k_eQuery_Any)
+				return true;
+
+			if (query.type == type)
+				return true;
+		}
+	}
+
+	return false;
+}
+
 void CServerQueriesMaster::CreateQuery(uint32 unIP, uint16 usPort, EServerQuery type, IServerPingResponse* pi_response, IServerPlayersResponse* pl_response) {
-	netadr_t addr(ntohl(unIP), ntohs(usPort));
+	netadr_t addr(unIP, usPort);
 	query_t query;
 	memset(&query, 0, sizeof(query));
 

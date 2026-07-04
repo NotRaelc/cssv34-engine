@@ -1,12 +1,8 @@
 #pragma once
 
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <Windows.h>
 #include <wininet.h>
 #include <iostream>
-
-#pragma comment(lib, "wininet.lib")
 
 #define URL_INVALID 0
 #define URL_HTTP    1

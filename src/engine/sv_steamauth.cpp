@@ -151,7 +151,7 @@ void CSteam3::Activate()
 		NET_StringToAdr( ipname.GetString(), &ipaddr );
 		if ( !ipaddr.IsLoopback() && !ipaddr.IsLocalhost() )
 		{
-			m_unIP = htonl( ipaddr.GetIP() );
+			m_unIP = htonl( ipaddr.GetIPNetworkByteOrder() );
 		}
 	}
 
@@ -677,7 +677,7 @@ bool CSteam3::NotifyClientConnect( CBaseClient *client, uint32 unUserID, netadr_
 		return false;
 #ifndef NO_STEAM
 	// Msg("S3: Sending client logon request for %x\n", steamIDClient.ConvertToUint64( ) );
-	bool bRet = SteamGameServer()->GSSendSteam2UserConnect( unUserID, 0, 0, ntohl( adr.GetIP() ), ntohs( adr.GetPort() ), pvCookie, ucbCookie );
+	bool bRet = SteamGameServer()->GSSendSteam2UserConnect( unUserID, 0, 0, ntohl( adr.GetIPNetworkByteOrder() ), ntohs( adr.GetPort() ), pvCookie, ucbCookie );
 #else
 	bool bRet = false;
 #endif

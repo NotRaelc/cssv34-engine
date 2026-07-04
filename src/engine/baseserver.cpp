@@ -1402,7 +1402,7 @@ bool CBaseServer::CheckChallengeType( CBaseClient * client, int nNewUserID, neta
 		netadr_t checkAdr = adr;
 		if ( adr.GetType() == NA_LOOPBACK || adr.IsLocalhost() )
 		{
-			checkAdr.SetIP( net_local_adr.addr_htonl() );
+			checkAdr.SetIP( net_local_adr.GetIPHostByteOrder() );
 		}
 #ifndef NO_STEAM
 		if ( !Steam3Server().NotifyClientConnect( client, nNewUserID, checkAdr, pchLogonCookie, cbCookie ) 
