@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: net_chan.cpp: implementation of the CNetChan_t struct.
 //
@@ -63,6 +63,7 @@ extern int  NET_ReceiveStream( int nSock, char * buf, int len, int flags );
 #define FLIPBIT(v,b) if (v&b) v &= ~b; else v |= b;
 
 // We only need to checksum packets on the PC and only when we're actually sending them over the network.
+// This is not exist in CS:S v34
 static bool ShouldChecksumPackets()
 {
 	// temporary solution for testing
@@ -1607,12 +1608,13 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	bf_write flagsPos = send; // remember flags byte position
 
 	send.WriteByte ( 0 ); // write correct flags value later
+#if 0
 	if ( ShouldChecksumPackets() )
 	{
 		send.WriteShort( 0 );  // write correct checksum later
 		Assert( !(send.GetNumBitsWritten() % 8 ) );
 	}
-
+#endif
 	// Note, this only matters on the PC
 	int nCheckSumStart = send.GetNumBytesWritten();
 
@@ -1724,6 +1726,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	// write correct flags value and the checksum
 	flagsPos.WriteByte( flags ); 
 
+#if 0
 	// Compute checksum (must be aligned to a byte boundary!!)
 	if ( ShouldChecksumPackets() )
 	{
@@ -1733,7 +1736,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 		unsigned short usCheckSum = BufferToShortChecksum( pvData, nCheckSumBytes );
 		flagsPos.WriteUBitLong( usCheckSum, 16 );
 	}
-
+#endif
 	// Send the datagram
 	//int	bytesSent = NET_SendPacket ( this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten(), bSendVoice ? &m_StreamVoice : 0, bCompress );
 
