@@ -60,13 +60,13 @@
 #define UDP_HEADER_SIZE				(20+8)	// IP = 20, UDP = 8
 
 
-#define MAX_ROUTABLE_PAYLOAD		1260	
+#define MAX_ROUTABLE_PAYLOAD		1280
 
 #if (MAX_ROUTABLE_PAYLOAD & 3) != 0
 #error Bit buffers must be a multiple of 4 bytes
 #endif
 
-#define MIN_ROUTABLE_PAYLOAD		16		// minimum playload size
+#define MIN_ROUTABLE_PAYLOAD		128		// minimum playload size
 
 #define NETMSG_TYPE_BITS	5	// must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG
 

@@ -148,6 +148,7 @@ $Project "Server (CStrike)"
 			$File	"$SRCDIR\game\shared\cstrike\weapon_ump45.cpp"
 			$File	"$SRCDIR\game\shared\cstrike\weapon_usp.cpp"
 			$File	"$SRCDIR\game\shared\cstrike\weapon_xm1014.cpp"
+			$File	"$SRCDIR\game\shared\cstrike\weapon_cubemap.cpp"
 
 			$Folder	"Bot"
 			{

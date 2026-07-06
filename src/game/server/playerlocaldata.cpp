@@ -67,7 +67,7 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropInt( SENDINFO_STRUCTELEM( m_skybox3d.fog.colorSecondary ), 32, SPROP_UNSIGNED ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.start ), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.end ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.maxdensity ), 0, SPROP_NOSCALE ),
+	//SendPropFloat( SENDINFO_STRUCTELEM( m_skybox3d.fog.maxdensity ), 0, SPROP_NOSCALE ),
 
 	SendPropEHandle( SENDINFO_STRUCTELEM( m_PlayerFog.m_hCtrl ) ),
 
@@ -84,6 +84,19 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropInt( SENDINFO_STRUCTELEM( m_audio.localBits ), NUM_AUDIO_LOCAL_SOUNDS, SPROP_UNSIGNED ),
 	SendPropEHandle( SENDINFO_STRUCTELEM( m_audio.ent ) ),
 END_SEND_TABLE()
+
+BEGIN_SIMPLE_DATADESC( fogparams_simplified_t )
+
+	DEFINE_FIELD( enable, FIELD_BOOLEAN ),
+	DEFINE_FIELD( blend, FIELD_BOOLEAN ),
+	DEFINE_FIELD( dirPrimary, FIELD_VECTOR ),
+	DEFINE_FIELD( colorPrimary, FIELD_COLOR32 ),
+	DEFINE_FIELD( colorSecondary, FIELD_COLOR32 ),
+	DEFINE_FIELD( start, FIELD_FLOAT ),
+	DEFINE_FIELD( end, FIELD_FLOAT ),
+	//DEFINE_FIELD( maxdensity, FIELD_FLOAT ),
+
+END_DATADESC()
 
 BEGIN_SIMPLE_DATADESC( fogplayerparams_t )
 	DEFINE_FIELD( m_hCtrl, FIELD_EHANDLE ),

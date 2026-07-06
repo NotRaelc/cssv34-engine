@@ -57,7 +57,7 @@ BEGIN_DATADESC( CFogController )
 	DEFINE_KEYFIELD( m_fog.blend,			FIELD_BOOLEAN,	"fogblend" ),
 	DEFINE_KEYFIELD( m_fog.start,			FIELD_FLOAT,	"fogstart" ),
 	DEFINE_KEYFIELD( m_fog.end,				FIELD_FLOAT,	"fogend" ),
-	DEFINE_KEYFIELD( m_fog.maxdensity,		FIELD_FLOAT,	"fogmaxdensity" ),
+	// DEFINE_KEYFIELD( m_fog.maxdensity,		FIELD_FLOAT,	"fogmaxdensity" ),
 	DEFINE_KEYFIELD( m_fog.farz,			FIELD_FLOAT,	"farz" ),
 	DEFINE_KEYFIELD( m_fog.duration,		FIELD_FLOAT,	"foglerptime" ),
 
@@ -82,7 +82,7 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE( CFogController, DT_FogController )
 	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondary ), 32, SPROP_UNSIGNED ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.start ), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.end ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.maxdensity ), 0, SPROP_NOSCALE ),
+	// SendPropFloat( SENDINFO_STRUCTELEM( m_fog.maxdensity ), 0, SPROP_NOSCALE ),
 	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.farz ), 0, SPROP_NOSCALE ),
 
 	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimaryLerpTo ), 32, SPROP_UNSIGNED ),
@@ -159,7 +159,8 @@ void CFogController::InputSetEndDist(inputdata_t &inputdata)
 //------------------------------------------------------------------------------
 void CFogController::InputSetMaxDensity( inputdata_t &inputdata )
 {
-	m_fog.maxdensity = inputdata.value.Float();
+	m_fog.maxdensity = 1.0f;
+	//m_fog.maxdensity = inputdata.value.Float();
 }
 
 //------------------------------------------------------------------------------

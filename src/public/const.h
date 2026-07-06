@@ -78,10 +78,10 @@
 
 // This is the maximum amount of data a PackedEntity can have. Having a limit allows us
 // to use static arrays sometimes instead of allocating memory all over the place.
-#define MAX_PACKEDENTITY_DATA	(16384)
+#define MAX_PACKEDENTITY_DATA	(2048)
 
 // This is the maximum number of properties that can be delta'd. Must be evenly divisible by 8.
-#define MAX_PACKEDENTITY_PROPS	(4096)
+#define MAX_PACKEDENTITY_PROPS	(1024)
 
 // a client can have up to 4 customization files (logo, sounds, models, txt).
 #define MAX_CUSTOM_FILES		4		// max 4 files

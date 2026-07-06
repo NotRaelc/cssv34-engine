@@ -1356,7 +1356,7 @@ bool NET_ReceiveDatagram ( const int sock, netpacket_t * packet )
 				if ( !NET_GetLong( sock, packet ) )
 					return false;
 			}
-
+#if 0
 			if ( nVoiceBits > 0 )
 			{
 				// 9th byte is flag byte
@@ -1379,7 +1379,7 @@ bool NET_ReceiveDatagram ( const int sock, netpacket_t * packet )
 
 				packet->size = fixup.GetNumBytesWritten();
 			}
-
+#endif
 			return NET_LagPacket( true, packet );
 		}
 		else
