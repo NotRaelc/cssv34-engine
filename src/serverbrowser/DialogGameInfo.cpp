@@ -525,29 +525,15 @@ void CDialogGameInfo::OnTick()
 //-----------------------------------------------------------------------------
 void CDialogGameInfo::ServerResponded( newgameserver_t &server )
 {
-	if (!server.m_NetAdr.GetPort())
+	if (!server.m_NetAdr.GetPort() || !server.m_NetAdr.GetIPHostByteOrder())
 		return;
 
-	if (!server.m_nPlayers || !server.m_nMaxPlayers)
-		return;
-
-	if (!m_pAutoRetry)
-		return;
-
-	// FIXME(johns): This is a workaround for a steam bug, where it inproperly reads signed bytes out of the
-	//               message. Once the upstream fix makes it into our SteamSDK, this block can be removed.
-	server.m_nPlayers    = (uint8)(int8)server.m_nPlayers;
-	server.m_nBotPlayers = (uint8)(int8)server.m_nBotPlayers;
-	server.m_nMaxPlayers = (uint8)(int8)server.m_nMaxPlayers;
-
-	//m_hPingQuery = HSERVERQUERY_INVALID;
 	m_Server = server;
-
-	if ( m_bConnecting )
+	if (m_bConnecting)
 	{
 		ConnectToServer();
 	}
-	else if ( m_pAutoRetry->IsSelected() && server.m_nPlayers < server.m_nMaxPlayers )
+	else if (m_pAutoRetry->IsSelected() && server.m_nPlayers < server.m_nMaxPlayers)
 	{
 		// there is a slot free, we can join
 
@@ -565,8 +551,9 @@ void CDialogGameInfo::ServerResponded( newgameserver_t &server )
 	}
 	else
 	{
-		SendPlayerQuery( server.m_NetAdr.GetIPHostByteOrder(), server.m_NetAdr.GetPort() );
+		SendPlayerQuery(server.m_NetAdr.GetIPHostByteOrder(), server.m_NetAdr.GetPort());
 	}
+	
 
 	m_bServerNotResponding = false;
 

@@ -202,7 +202,7 @@ void CFavoriteServers::List_UpdateServers()
 
 		m_iServersCount++;
 
-		g_pServersInfo->PingServer(addr.GetIPHostByteOrder(), ntohs(addr.GetPort()), this);
+		g_pServersInfo->PingServer(addr.GetIPHostByteOrder(), addr.GetPort(), this);
 	}
 
 	savedData->deleteThis();

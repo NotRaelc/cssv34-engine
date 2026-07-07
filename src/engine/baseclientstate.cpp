@@ -500,12 +500,12 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 	int steam3CookieLen = 0;
 	int generation = 0;
 
-	if (esteamation == true)
+	//if (esteamation == true)
 		generation = 3;
-	else
-		generation = 4;
+	//else
+	//	generation = 4;
 
-	Msg("Generation = %i\n", generation);
+	//Msg("Generation = %i\n", generation);
 	steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIPNetworkByteOrder(), checkAdr.GetPort(), bGSSecure, generation);
 
 	msg.WriteShort( steam3CookieLen );
@@ -1170,7 +1170,7 @@ bool CBaseClientState::ProcessCreateStringTable( SVC_CreateStringTable *msg )
 	m_StringTableContainer->AllowCreation( false );
 
 	COM_TimestampedLog( " CBaseClient::ProcessCreateStringTable(%s)-done", msg->m_szTableName );
-	Msg("Done processing svc_CreateStringTable: %s\n", msg->m_szTableName);
+	//Msg("Done processing svc_CreateStringTable: %s\n", msg->m_szTableName);
 
 	// some of entries in these string tables are null
 	const char* badStringTables[]

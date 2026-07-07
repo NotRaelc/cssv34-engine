@@ -11,15 +11,15 @@
 					"gamelist"
 					{
 						"configVersion"		"2"
-						"lastBarWidth"		"918"
+						"lastBarWidth"		"605"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"0"
 						"1_width"		"16"
 						"2_hidden"		"0"
-						"2_width"		"339"
-						"3_hidden"		"1"
-						"3_width"		"64"
+						"2_width"		"215"
+						"3_hidden"		"0"
+						"3_width"		"20"
 						"4_hidden"		"0"
 						"4_width"		"112"
 						"5_hidden"		"0"
@@ -29,9 +29,9 @@
 						"7_hidden"		"0"
 						"7_width"		"90"
 						"8_hidden"		"0"
-						"8_width"		"124"
+						"8_width"		"20"
 						"9_hidden"		"0"
-						"9_width"		"126"
+						"9_width"		"21"
 					}
 				}
 				"FavoriteGames"
@@ -39,13 +39,13 @@
 					"gamelist"
 					{
 						"configVersion"		"2"
-						"lastBarWidth"		"902"
+						"lastBarWidth"		"589"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"0"
 						"1_width"		"16"
 						"2_hidden"		"0"
-						"2_width"		"300"
+						"2_width"		"196"
 						"3_hidden"		"1"
 						"3_width"		"64"
 						"4_hidden"		"0"
@@ -57,9 +57,9 @@
 						"7_hidden"		"0"
 						"7_width"		"90"
 						"8_hidden"		"0"
-						"8_width"		"124"
+						"8_width"		"20"
 						"9_hidden"		"0"
-						"9_width"		"126"
+						"9_width"		"21"
 					}
 				}
 				"HistoryGames"
@@ -67,13 +67,13 @@
 					"gamelist"
 					{
 						"configVersion"		"2"
-						"lastBarWidth"		"589"
+						"lastBarWidth"		"902"
 						"0_hidden"		"0"
 						"0_width"		"16"
 						"1_hidden"		"0"
 						"1_width"		"16"
 						"2_hidden"		"0"
-						"2_width"		"96"
+						"2_width"		"200"
 						"3_hidden"		"1"
 						"3_width"		"64"
 						"4_hidden"		"0"
@@ -85,11 +85,11 @@
 						"7_hidden"		"0"
 						"7_width"		"105"
 						"8_hidden"		"0"
-						"8_width"		"20"
+						"8_width"		"124"
 						"9_hidden"		"0"
 						"9_width"		"20"
 						"10_hidden"		"0"
-						"10_width"		"21"
+						"10_width"		"126"
 					}
 				}
 				"LanGames"
@@ -121,10 +121,10 @@
 					}
 				}
 			}
-			"xpos"		"483"
-			"ypos"		"283"
-			"wide"		"953"
-			"tall"		"514"
+			"xpos"		"640"
+			"ypos"		"300"
+			"wide"		"640"
+			"tall"		"480"
 		}
 	}
 }

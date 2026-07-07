@@ -112,6 +112,8 @@ lib/public/**/vgui_controls.*
 config.cfg
 gamestate.txt
 stats.txt
+voice_ban.dt
+demoheader.tmp
 
 *.dt
 *.inf
@@ -148,6 +150,14 @@ modeswitchsave.tga
 /game/cstrike_content
 /game/hl2
 /game/episodic
+
+/game/**/download
+/game/**/downloads
+/game/**/downloadlists
+/game/**/cache
+/game/**/maps/soundcache
+ingamedialogconfig.vdf
+serverbrowser.vdf
 
 # --------------------------------------------
 # Excludes

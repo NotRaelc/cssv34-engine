@@ -44,6 +44,7 @@ $Project "launcher"
 	$Folder	"Source Files"
 	{
 		$File	"$SRCDIR\public\filesystem_init.cpp"
+		$File	"$SRCDIR\public\registry.cpp"
 		$File	"launcher.cpp"
 		$File	"reslistgenerator.cpp"
 	}

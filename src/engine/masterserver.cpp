@@ -1123,7 +1123,7 @@ void CMaster::RequestFavoritesServerList(const char* gamedir, IServerListRespons
 
 void CMaster::RequestHistoryServerList(const char* gamedir, IServerListResponse* response)
 {
-	//historyservers->RequestServerList(gamedir, response);
+	historyservers->RequestServerList(gamedir, response);
 }
 
 void CMaster::AddFavoriteServer(uint32 unIP, uint16 usPort) 
@@ -1133,7 +1133,7 @@ void CMaster::AddFavoriteServer(uint32 unIP, uint16 usPort)
 
 void CMaster::AddHistoryServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed) 
 {
-	//historyservers->AddServer(unIP, usPort, timeLastPlayed);
+	historyservers->AddServer(unIP, usPort, timeLastPlayed);
 }
 
 void CMaster::RemoveFavoriteServer(uint32 unIP, uint16 usPort)
@@ -1143,7 +1143,7 @@ void CMaster::RemoveFavoriteServer(uint32 unIP, uint16 usPort)
 
 void CMaster::RemoveHistoryServer(uint32 unIP, uint16 usPort)
 {
-	//historyservers->RemoveServer(unIP, usPort);
+	historyservers->RemoveServer(unIP, usPort);
 }
 
 void CMaster::AddServerAddresses( netadr_t **adr, int count )
@@ -1152,11 +1152,20 @@ void CMaster::AddServerAddresses( netadr_t **adr, int count )
 }
 
 void CMaster::PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) {
+	if (unIP == 0 || usPort == 0 || response == 0)
+		return;
+
 	serverqueries->PingServer(unIP, usPort, response);
 }
 void CMaster::PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) {
+	if (unIP == 0 || usPort == 0 || response == 0)
+		return;
+
 	serverqueries->PlayerDetails(unIP, usPort, response);
 }
 bool CMaster::CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort) {
+	if (unIP == 0 || usPort == 0)
+		return false;
+
 	return serverqueries->CancelServerQuery(type, unIP, usPort);
 }

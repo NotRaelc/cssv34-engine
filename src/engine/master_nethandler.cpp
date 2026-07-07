@@ -208,7 +208,7 @@ void CMasterNETHandler::PacketReceived(sockaddr_in& from, byte* data, int length
 
 	if (serverqueries->IsValidQuery(k_eQuery_Any, packet.from)) {
 		serverqueries->ProcessConnectionlessPacket(&packet);
-		return;
+		//return;
 	}
 	// Check if this packet came from LAN
 	if (IsLANIP(packet.from.GetIPNetworkByteOrder()))

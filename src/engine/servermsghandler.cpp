@@ -91,6 +91,7 @@ void CClientState::ConnectionClosing( const char * reason )
 		Host_Disconnect(true);
 	}
 
+	/*
 	if (strstr("Client dropped by server", reason)) {
 		Msg("Server uses eSTEAMATION, commencing connection retry...\n");
 		esteamation = true;
@@ -99,7 +100,7 @@ void CClientState::ConnectionClosing( const char * reason )
 	}
 	else
 		esteamation = false;
-
+		*/
 }
 
 

@@ -1268,5 +1268,39 @@ extern "C" __declspec(dllexport) int LauncherMain(HINSTANCE hInstance, HINSTANCE
 
 #endif
 
+	// Fix multiple values in registry
+	IRegistry* steam_registry = InstanceRegistry("Steam\\ActiveProcess");
+
+	// This is set by steamclient.dll,
+	// which is in bin/steamclient.dll. But steam can override this values,
+	// causing steamclient.dll to crash. So there is a quick fix
+	steam_registry->WriteInt("pid", 0);
+	steam_registry->WriteString("SteamClientDll", "");
+
+	// release our registry
+	ReleaseInstancedRegistry(steam_registry);
+
+	// This can also crash the game
+	registry->WriteInt("AutoConfigVersion", 1);
+	registry->WriteInt("DXLevel_V1", 0); // 0 = default (means 95)
+
+	// Load steam.dll module
+	CSysModule* hSteamDLL = Sys_LoadModule("steam.dll");
+	if (!hSteamDLL)
+		return 0;
+
+	// Load & Init steam_api
+	CSysModule* hSteamAPIDLL = Sys_LoadModule("steam_api.dll");
+	if (hSteamAPIDLL)
+	{
+		decltype(SteamAPI_Init) *pInitSteamAPI = 0;
+		pInitSteamAPI = (decltype(pInitSteamAPI))GetProcAddress((HMODULE)hSteamAPIDLL, "SteamAPI_Init");
+
+		if (!pInitSteamAPI)
+			return 0;
+
+		pInitSteamAPI();
+	}
+
 	return 0;
 }

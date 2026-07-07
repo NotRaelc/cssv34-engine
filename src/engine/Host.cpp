@@ -114,7 +114,7 @@
 #include "xbox/xbox_win32stubs.h"
 #include "audio_pch.h"
 #endif
-
+#undef time
 
 #include "ixboxsystem.h"
 extern IXboxSystem *g_pXboxSystem;

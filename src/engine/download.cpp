@@ -51,10 +51,12 @@
 
 extern IFileSystem *g_pFileSystem;
 static const char *CacheDirectory = "cache";
-static const char *CacheFilename = "cache/DownloadCache.db";
-Color DownloadColor			(   0, 200, 100, 255 );
+static const char *CacheFilename = "cache/downloadcache.db";
+Color DownloadColor			( 100, 200, 100, 255 );
 Color DownloadErrorColor	( 200, 100, 100, 255 );
-Color DownloadCompleteColor	( 100, 200, 100, 255 );
+Color DownloadCompleteColor	( 100, 255, 100, 255 );
+
+const char k_szDownloadPathID[] = "download";
 
 //--------------------------------------------------------------------------------------------------------------
 static char * CloneString( const char *original )
@@ -271,31 +273,31 @@ void DownloadCache::PersistToDisk( const RequestContext *rc )
 
 	if ( rc && rc->data && rc->nBytesTotal )
 	{
-		char gamePath[MAX_PATH];
+		char absPath[MAX_PATH];
 		if ( rc->bIsBZ2 )
 		{
-			Q_StripExtension( rc->gamePath, gamePath, sizeof( gamePath ) );
+			Q_StripExtension( rc->fullPath, absPath, sizeof( absPath ) );
 		}
 		else
 		{
-			Q_strncpy( gamePath, rc->gamePath, sizeof( gamePath ) );
+			Q_strncpy( absPath, rc->fullPath, sizeof( absPath ) );
 		}
 
-		if ( !g_pFileSystem->FileExists( gamePath ) )
+		if ( !g_pFileSystem->FileExists( absPath ) )
 		{
 			// Create the subdirs
-			char * tmpDir = CloneString( gamePath );
+			char * tmpDir = V_strdup( absPath );
 			COM_CreatePath( tmpDir );
 			delete[] tmpDir;
 
 			bool success = false;
 			if ( rc->bIsBZ2 )
 			{
-				success = DecompressBZipToDisk( gamePath, rc->gamePath, reinterpret_cast< char * >(rc->data), rc->nBytesTotal );
+				success = DecompressBZipToDisk( absPath, rc->fullPath, reinterpret_cast< char * >(rc->data), rc->nBytesTotal );
 			}
 			else
 			{
-				FileHandle_t fp = g_pFileSystem->Open( gamePath, "wb" );
+				FileHandle_t fp = g_pFileSystem->Open( absPath, "wb" );
 				if ( fp )
 				{
 					g_pFileSystem->Write( rc->data, rc->nBytesTotal, fp );
@@ -422,6 +424,7 @@ public:
 	void MarkMapAsDownloadedFromServer( const char *serverMapName );
 
 private:
+	void QueueInternal (const char* pBaseURL, const char* pGamePath,bool bAsHttp, bool bCompressed );
 	void Reset();						///< Cancels any active download, as well as any queued ones
 
 	void PruneCompletedRequests();		///< Check download requests that have been completed to see if their threads have exited
@@ -495,7 +498,7 @@ bool DownloadManager::FileDenied( const char *filename, unsigned int requestID )
 	if ( m_activeRequest->bAsHTTP )
 		return false;
 
-	ConDColorMsg( DownloadErrorColor, "Error downloading %s\n", m_activeRequest->gamePath );
+	ConDColorMsg( DownloadErrorColor, "Error downloading %s\n", m_activeRequest->fullPath );
 	UpdateProgressBar();
 
 	// try to download the next file
@@ -538,6 +541,79 @@ void DownloadManager::MarkMapAsDownloadedFromServer( const char *serverMapName )
 
 
 	return;
+}
+
+//--------------------------------------------------------------------------------------------------------------
+void DownloadManager::QueueInternal( const char *pBaseURL, const char *pGamePath,
+									 bool bAsHttp, bool bCompressed )
+{
+	// NOTE: Assumes valid game path (i.e. IsGamePathValidAndSafe() has been called already)
+
+	++m_totalRequests;
+
+	// Initialize the download cache if necessary
+	if ( !TheDownloadCache )
+	{
+		TheDownloadCache = new DownloadCache;
+		TheDownloadCache->Init();
+	}
+
+	// Create a new context and add queue it
+	RequestContext* rc = new RequestContext;
+	m_queuedRequests.AddToTail( rc );
+	memset(rc, 0, sizeof(RequestContext));
+
+	rc->bIsBZ2 = bCompressed;
+	rc->bAsHTTP = bAsHttp;
+	rc->status = HTTP_CONNECTING;
+
+	// Setup base path.  We put it in the "download" search path, if they have set one
+	if ( g_pFileSystem->GetSearchPath( k_szDownloadPathID, false, rc->basePath, sizeof(rc->basePath) ) > 0 )
+	{
+		char *split = V_strstr( rc->basePath, ";" );
+		if ( split != NULL )
+		{
+			Warning( "Multiple download search paths?  Check gameinfo.txt\n" );
+			*split = '\0';
+		}
+	}
+
+	// Otherwise, put it in the game dir
+	if ( rc->basePath[0] == '\0' )
+		V_strcpy_safe( rc->basePath, com_gamedir );
+
+	// Setup game path
+	V_strcpy_safe( rc->gamePath, pGamePath );
+	if ( bCompressed )
+	{
+		V_strcat_safe( rc->gamePath, ".bz2" );
+	}
+	Q_FixSlashes( rc->gamePath, '/' ); // only matters for debug prints, which are full URLS, so we want forward slashes
+
+	// NOTE: Loose files on disk must always be lowercase!  At least on Linux they HAVE to be,
+	// but we do the same thing on Windows to keep things consistent.
+	char szGamePathLower[MAX_PATH];
+	V_strcpy_safe( szGamePathLower, rc->gamePath );
+	V_strlower( szGamePathLower );
+
+	// Now set the full absolute path.  Why does the file system not provide a convenient method to
+	// do stuff like this?
+	V_strcpy_safe(rc->fullPath, rc->basePath);
+	V_AppendSlash(rc->fullPath, sizeof(rc->fullPath));
+	V_strcat_safe(rc->fullPath, szGamePathLower);
+	V_FixSlashes(rc->fullPath);
+
+	ConDColorMsg(DownloadColor, "RequestContext fullPath is %s\n", rc->fullPath);
+
+	V_strcpy_safe(rc->serverURL, cl.m_NetChannel->GetRemoteAddress().ToString());
+
+	if (bAsHttp)
+	{
+		V_strcpy_safe(rc->baseURL, pBaseURL);
+		V_strcat_safe(rc->baseURL, "/");
+	}
+
+	ConDColorMsg( DownloadColor, "Queueing %s%s.\n", rc->baseURL, pGamePath );
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -628,65 +704,10 @@ void DownloadManager::Queue( const char *baseURL, const char *gamePath )
 		// original destination, and the queued download of the uncompressed
 		// file will abort.
 
-		++m_totalRequests;
-		if ( !TheDownloadCache )
-		{
-			TheDownloadCache = new DownloadCache;
-			TheDownloadCache->Init();
-		}
-
-		RequestContext *rc = new RequestContext;
-		m_queuedRequests.AddToTail( rc );
-
-		memset( rc, 0, sizeof(RequestContext) );
-
-		rc->status = HTTP_CONNECTING;
-
-		Q_strncpy( rc->basePath, com_gamedir, BufferSize );
-		Q_strncpy( rc->gamePath, gamePath, BufferSize );
-		Q_strncat( rc->gamePath, ".bz2", BufferSize, COPY_ALL_CHARACTERS );
-		Q_FixSlashes( rc->gamePath, '/' ); // only matters for debug prints, which are full URLS, so we want forward slashes
-		Q_strncpy( rc->serverURL, cl.m_NetChannel->GetRemoteAddress().ToString(), BufferSize );
-
-		rc->bIsBZ2 = true;
-		rc->bAsHTTP = true;
-		Q_strncpy( rc->baseURL, baseURL, BufferSize );
-		Q_strncat( rc->baseURL, "/", BufferSize, COPY_ALL_CHARACTERS );
-
-		//ConDColorMsg( DownloadColor, "Queueing %s%s.\n", rc->baseURL, gamePath );
+		QueueInternal(baseURL, gamePath, bAsHTTP, true);
 	}
 
-	++m_totalRequests;
-	if ( !TheDownloadCache )
-	{
-		TheDownloadCache = new DownloadCache;
-		TheDownloadCache->Init();
-	}
-
-	RequestContext *rc = new RequestContext;
-	m_queuedRequests.AddToTail( rc );
-
-	memset( rc, 0, sizeof(RequestContext) );
-
-	rc->status = HTTP_CONNECTING;
-
-	Q_strncpy( rc->basePath, com_gamedir, BufferSize );
-	Q_strncpy( rc->gamePath, gamePath, BufferSize );
-	Q_FixSlashes( rc->gamePath, '/' ); // only matters for debug prints, which are full URLS, so we want forward slashes
-	Q_strncpy( rc->serverURL, cl.m_NetChannel->GetRemoteAddress().ToString(), BufferSize );
-
-	if ( bAsHTTP )
-	{
-		rc->bAsHTTP = true;
-		Q_strncpy( rc->baseURL, baseURL, BufferSize );
-		Q_strncat( rc->baseURL, "/", BufferSize, COPY_ALL_CHARACTERS );
-	}
-	else
-	{
-		rc->bAsHTTP = false;
-	}
-
-	ConDColorMsg( DownloadColor, "Queueing %s%s.\n", rc->baseURL, gamePath );
+	QueueInternal(baseURL, gamePath, bAsHTTP, false);
 }
 
 //--------------------------------------------------------------------------------------------------------------
@@ -827,7 +848,7 @@ void DownloadManager::StartNewDownload()
 		m_activeRequest = m_queuedRequests[0];
 		m_queuedRequests.Remove( 0 );
 
-		if ( g_pFileSystem->FileExists( m_activeRequest->gamePath ) )
+		if ( g_pFileSystem->FileExists( m_activeRequest->fullPath ) )
 		{
 			ConDColorMsg( DownloadColor, "Skipping existing file %s%s.\n", m_activeRequest->baseURL, m_activeRequest->gamePath );
 			m_activeRequest->shouldStop = true;
@@ -840,7 +861,7 @@ void DownloadManager::StartNewDownload()
 	if ( !m_activeRequest )
 		return;
 
-	if ( g_pFileSystem->FileExists( m_activeRequest->gamePath ) )
+	if ( g_pFileSystem->FileExists( m_activeRequest->fullPath ) )
 	{
 		m_activeRequest->shouldStop = true;
 		m_activeRequest->threadDone = true;

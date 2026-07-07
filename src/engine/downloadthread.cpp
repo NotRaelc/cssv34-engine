@@ -40,6 +40,26 @@
 #include "tier0/memdbgon.h"
 
 //--------------------------------------------------------------------------------------------------------------
+
+void WriteFileFromRequestContext( const RequestContext &rc )
+{
+	struct stat buf;
+	int rt = stat(rc.fullPath, &buf);
+	if ( rt == -1 )
+	{
+		FILE *fp = fopen( rc.fullPath, "wb" );
+		if ( fp )
+		{
+			if ( rc.data )
+			{
+				fwrite( rc.data, rc.nBytesTotal, 1, fp );
+			}
+			fclose( fp );
+		}
+	}
+}
+
+//--------------------------------------------------------------------------------------------------------------
 /**
  * Formats a string to spit out via OutputDebugString (only in debug).  OutputDebugString
  * is threadsafe, so this should be fine.
@@ -173,19 +193,7 @@ void ReadData( RequestContext& rc )
 			// if InternetReadFile() succeeded, but we read 0 bytes, we're at the end of the file.
 
 			// if the file doesn't exist, write it out
-			char path[_MAX_PATH];
-			Q_snprintf( path, sizeof(path), "%s\\%s", rc.basePath, rc.gamePath );
-			struct stat buf;
-			int rt = stat(path, &buf);
-			if ( rt == -1 )
-			{
-				FILE *fp = fopen( path, "wb" );
-				if ( fp )
-				{
-					fwrite( rc.data, rc.nBytesTotal, 1, fp );
-					fclose( fp );
-				}
-			}
+			WriteFileFromRequestContext(rc);
 
 			// Let the main thread know we finished reading data, and wait for it to let us exit.
 			rc.status = HTTP_DONE;

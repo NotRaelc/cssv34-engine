@@ -414,12 +414,12 @@ CServerContextMenu *CServerBrowserDialog::GetContextMenu(vgui::Panel *pPanel)
 CDialogGameInfo *CServerBrowserDialog::JoinGame(IGameList *gameList, newgameserver_t *pServer)
 {
 	// open the game info dialog, then mark it to attempt to connect right away
-	CDialogGameInfo *gameDialog = OpenGameInfoDialog(gameList, pServer);
+	//CDialogGameInfo *gameDialog = OpenGameInfoDialog(gameList, pServer);
 
 	// set the dialog name to be the server name
-	gameDialog->Connect();
+	//gameDialog->Connect();
 
-	return gameDialog;
+	return JoinGame(pServer->m_NetAdr.GetIPHostByteOrder(), pServer->m_NetAdr.GetPort(), "serverbrowser_internet");//gameDialog;
 }
 
 //-----------------------------------------------------------------------------
@@ -429,9 +429,19 @@ CDialogGameInfo *CServerBrowserDialog::JoinGame(int serverIP, int serverPort, co
 {
 	// open the game info dialog, then mark it to attempt to connect right away
 	CDialogGameInfo *gameDialog = OpenGameInfoDialog( serverIP, serverPort, serverPort, pszConnectCode );
+	gameDialog->Close();
+
+	// temporary solution for testing
+	char command[256];
+
+	// send engine command to change servers
+	netadr_t addr(serverIP, serverPort);
+
+	Q_snprintf(command, Q_ARRAYSIZE(command), "connect %s %s\n", addr.ToString(), pszConnectCode);
+	g_pRunGameEngine->AddTextCommand(command);
 
 	// set the dialog name to be the server name
-	gameDialog->Connect();
+	//gameDialog->Connect();
 
 	return gameDialog;
 }
@@ -557,9 +567,9 @@ void CServerBrowserDialog::OnConnectToGame( KeyValues *pMessageValues )
 	m_CurrentConnection.m_NetAdr.SetIP( unIP );
 	m_CurrentConnection.m_NetAdr.SetPort( (unsigned short)connectionPort );
 
-	if (m_pHistory && SteamMatchmaking() )
+	if (m_pHistory && g_pServersInfo )
 	{
-		SteamMatchmaking()->AddFavoriteGame( 0, unIP, connectionPort, k_unFavoriteFlagHistory, time( NULL ) );
+		g_pServersInfo->AddHistoryServer( unIP, connectionPort, time( NULL ) );
 		m_pHistory->SetRefreshOnReload();
 	}
 

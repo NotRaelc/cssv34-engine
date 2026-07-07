@@ -9,6 +9,10 @@
 
 #define HTTP_REQUEST_TIMEOUT 5.0 // seconds
 
+#undef WaitForSingleObject
+#undef CreateThread
+#undef EnterCriticalSection
+
 using json = nlohmann::json;
 
 const char* g_pszApiURLs[] = {
@@ -151,162 +155,269 @@ public:
 	CGameMonitoringServerList();
 	~CGameMonitoringServerList();
 
-	void RunFrame(void);
-	void ProcessConnectionlessPacket(netpacket_t* packet) {}
+	void RunFrame();
 	void RequestServerList(const char* gamedir, IServerListResponse* response);
+	void StopRefresh();
 
+	void ProcessConnectionlessPacket(netpacket_t* packet) {}
 	void AddServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed = 0ull) {}
 	void RemoveServer(uint32 unIP, uint16 usPort) {}
 
-	void StopRefresh();
-
-protected:
-	static void RequestServers(CGameMonitoringServerList* This);
-
 private:
-	float m_flStartRequestTime;
-	bool m_bRefreshing;
-
-	int m_iServersResponded;
+	static DWORD WINAPI ThreadProc(LPVOID);
+	void Worker();
 
 	HANDLE m_hThread;
+	HANDLE m_hWake;
 
-	IServerListResponse* m_serverListResponse;
+	CRITICAL_SECTION m_CS;
+
+	bool m_bShutdown;
+
+	volatile LONG m_RequestID;
+	volatile LONG m_WorkingRequest;
+
+	bool m_bFinished;
+
+	IServerListResponse* m_pResponse;
+
+	CUtlVector<newgameserver_t> m_Queue;
 };
 
 static CGameMonitoringServerList s_monitoringservers;
 IServerList* monitoringservers = (IServerList*)&s_monitoringservers;
 
-CGameMonitoringServerList::CGameMonitoringServerList() {
-	m_bRefreshing = 0;
-	m_serverListResponse = 0;
-	m_iServersResponded = 0;
-	m_hThread = 0;
+CGameMonitoringServerList::CGameMonitoringServerList()
+{
+	InitializeCriticalSection(&m_CS);
+
+	m_bShutdown = false;
+	m_bFinished = false;
+
+	m_hWake = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	//m_hStopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+
+	m_hThread = CreateThread(
+		nullptr,
+		0,
+		ThreadProc,
+		this,
+		0,
+		nullptr);
 }
 
-CGameMonitoringServerList::~CGameMonitoringServerList() {
+CGameMonitoringServerList::~CGameMonitoringServerList()
+{
+	m_bShutdown = true;
 
+	SetEvent(m_hWake);
+
+	WaitForSingleObject(m_hThread, INFINITE);
+
+	CloseHandle(m_hThread);
+	CloseHandle(m_hWake);
+	//CloseHandle(m_hStopEvent);
+
+	DeleteCriticalSection(&m_CS);
 }
 
-void CGameMonitoringServerList::RunFrame() {
-	if (!m_bRefreshing)
+void CGameMonitoringServerList::RunFrame()
+{
+	if (!m_pResponse)
 		return;
 
-	if (m_serverListResponse &&
-		m_flStartRequestTime < Plat_FloatTime() - HTTP_REQUEST_TIMEOUT)
+	EnterCriticalSection(&m_CS);
+
+	while (m_Queue.Count())
 	{
-		StopRefresh();
-		m_serverListResponse->RefreshComplete(NServerResponse::nServerFailedToRespond);
-		return;
+		m_pResponse->ServerResponded(m_Queue[0]);
+		m_Queue.Remove(0);
 	}
 
-	if (m_iServersResponded > 0 &&
-		m_flStartRequestTime < Plat_FloatTime() - HTTP_REQUEST_TIMEOUT)
-	{
-		StopRefresh();
-		m_serverListResponse->RefreshComplete(NServerResponse::nServerResponded);
-		return;
-	}
+	bool finished = m_bFinished;
+
+	if (finished)
+		m_bFinished = false;
+
+	LeaveCriticalSection(&m_CS);
+
+	if (finished)
+		m_pResponse->RefreshComplete(nServerResponded);
 }
 
 void CGameMonitoringServerList::StopRefresh()
 {
-	if (!m_bRefreshing)
-		return;
-
-	m_iServersResponded = 0;
-	m_bRefreshing = false;
+	InterlockedIncrement(&m_RequestID);
 }
 
-
-void CGameMonitoringServerList::RequestServerList(const char* gamedir, IServerListResponse* response) {
-	Warning("CGameMonitoringServerList::RequestServerList\n");
-	if (response) {
-		m_bRefreshing = true;
-		m_flStartRequestTime = Plat_FloatTime();
-		m_serverListResponse = response;
-	}
-
-	m_hThread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)RequestServers, this, 0, 0);
-}
-
-void CGameMonitoringServerList::RequestServers(CGameMonitoringServerList* This)
+DWORD WINAPI CGameMonitoringServerList::ThreadProc(LPVOID p)
 {
-	if (!This->m_bRefreshing)
-		return;
+	((CGameMonitoringServerList*)p)->Worker();
+	
+	return 0;
+}
 
-	char game[32];
-	itoa(GetSteamInfIDVersionInfo().AppID, game, 10);
-
-	serverFilter filters[] = {
-		{"game", game},
-		{"version", GetSteamInfIDVersionInfo().szVersionString},
-		{"limit", "384"}
-	};
-
-	char* raw_response = get_servers(filters, sizeof(filters) / sizeof(*filters));
-	if (!raw_response) {
-		This->m_serverListResponse->RefreshComplete(nServerFailedToRespond);
-		return;
-	}
-
-	json root = json::parse(raw_response);
-
-	if (!root.contains("response"))
+void CGameMonitoringServerList::Worker()
+{
+	while (!m_bShutdown)
 	{
-		This->m_serverListResponse->RefreshComplete(nServerFailedToRespond);
-		return;
-	}
+		WaitForSingleObject(m_hWake, INFINITE);
 
-	json& response = root["response"];
-
-	//Msg("Has response: %d\n", root.contains("response"));
-	//Msg("Has items: %d\n", response.contains("items"));
-	//Msg("Items count: %u\n", response["items"].size());
-
-	for (const auto& item : response["items"]) {
-
-		if (!This->m_bRefreshing)
+		if (m_bShutdown)
 			break;
 
-		newgameserver_t server{};
+		//
+		// We remember the current request ID.
+		// If RequestServerList() is called again,
+		// m_RequestID will change and this Worker will terminate itself.
+		//
+		LONG requestID = m_RequestID;
 
-		// get detailed information of server
-		char* raw_sv = get_server(item["id"]);
-		json sv_response = json::parse(raw_sv);
-		json& sv = sv_response["response"];
-		
-		// Sometimes address is invalid
+		char game[32];
+		itoa(GetSteamInfIDVersionInfo().AppID, game, 10);
+
+		serverFilter filters[] =
+		{
+			{ "game", game },
+			{ "version", GetSteamInfIDVersionInfo().szVersionString },
+			{ "limit", "256" }
+		};
+
+		char* raw = get_servers(filters, ARRAYSIZE(filters));
+
+		if (!raw)
+			continue;
+
+		json root;
+
 		try
 		{
-			server.m_NetAdr.SetFromString(sv["connect"].get<std::string>().c_str());
+			root = json::parse(raw);
 		}
-		catch (std::exception e)
+		catch (const std::exception& e)
 		{
-			Msg("Exception in " __FUNCTION__ ", line " V_STRINGIFY(__LINE__) ": %s\n", e.what());
+			Warning("GameMonitoring: %s\n", e.what());
 			continue;
 		}
 
-		strcpy(server.m_szGameDir, GetSteamInfIDVersionInfo().szProductString);
-		strcpy(server.m_szMap, sv["map"].get<std::string>().c_str());
-		strcpy(server.m_szGameDescription, sv["gamemode"].get<std::string>().c_str());
-		strcpy(server.m_szServerName, sv["name"].get<std::string>().c_str());
-		strcpy(server.m_szGameVersion, sv["version"].get<std::string>().c_str());
+		if (!root.contains("response"))
+			continue;
 
-		server.m_nProtocolVersion = 7;
-		server.m_nAppID = sv["game"];
-		server.m_bSecure = sv["secured"];
-		server.m_bPassword = sv["private"];
-		server.m_nPlayers = sv["numplayers"];
-		server.m_nBotPlayers = sv["bots"];
-		server.m_nMaxPlayers = sv["maxplayers"];
+		if (!root["response"].contains("items"))
+			continue;
 
-		This->m_serverListResponse->ServerResponded(server);
-		//Msg("MonitoringServerList: Added %s\n", server.toString());
+		for (const auto& item : root["response"]["items"])
+		{
+			//
+			// User pressed Refresh?
+			//
+
+			if ((item & 15) == 0)
+				Sleep(1);
+
+			if (requestID != m_RequestID)
+				break;
+
+			char* rawServer = get_server(item["id"]);
+
+			if (!rawServer)
+				continue;
+
+			json serverRoot;
+
+			try
+			{
+				serverRoot = json::parse(rawServer);
+			}
+			catch (...)
+			{
+				continue;
+			}
+
+			if (!serverRoot.contains("response"))
+				continue;
+
+			auto& sv = serverRoot["response"];
+
+			newgameserver_t server{};
+
+			try
+			{
+				char connectAddr[32];
+
+				sprintf(connectAddr, "%s:%u", sv["ip"].get<std::string>().c_str(), sv["port"].get<short>());
+
+				server.m_NetAdr.SetFromString(connectAddr);
+				//Msg("Added %s\n", connectAddr);
+			}
+			catch (...)
+			{
+				continue;
+			}
+
+			strcpy(server.m_szGameDir,
+				GetSteamInfIDVersionInfo().szProductString);
+
+			strcpy(server.m_szMap,
+				sv["map"].get<std::string>().c_str());
+
+			strcpy(server.m_szGameDescription,
+				sv["gamemode"].get<std::string>().c_str());
+
+			strcpy(server.m_szServerName,
+				sv["name"].get<std::string>().c_str());
+
+			strcpy(server.m_szGameVersion,
+				sv["version"].get<std::string>().c_str());
+
+			server.m_nProtocolVersion = 7;
+			server.m_nAppID = sv["game"];
+			server.m_bSecure = sv["secured"];
+			server.m_bPassword = sv["private"];
+			server.m_nPlayers = sv["numplayers"];
+			server.m_nBotPlayers = sv["bots"];
+			server.m_nMaxPlayers = sv["maxplayers"];
+
+			//
+			// During the HTTP request, 
+			// the user may have already canceled the update.
+			//
+			if (requestID != m_RequestID)
+				break;
+
+			EnterCriticalSection(&m_CS);
+			m_Queue.AddToTail(server);
+			LeaveCriticalSection(&m_CS);
+		}
+
+		//
+		// Marking update as finished only if,
+		// this is still relevant request
+		//
+		if (requestID == m_RequestID)
+		{
+			EnterCriticalSection(&m_CS);
+			m_bFinished = true;
+			LeaveCriticalSection(&m_CS);
+		}
 	}
+}
 
-	Warning("MonitoringServerList: Refresh complete\n");
-	This->m_serverListResponse->RefreshComplete(nServerResponded);
+void CGameMonitoringServerList::RequestServerList(
+	const char* gamedir,
+	IServerListResponse* response)
+{
+	EnterCriticalSection(&m_CS);
 
-	return;
+	m_pResponse = response;
+
+	m_Queue.RemoveAll();
+
+	m_bFinished = false;
+
+	InterlockedIncrement(&m_RequestID);
+
+	LeaveCriticalSection(&m_CS);
+
+	SetEvent(m_hWake);
 }

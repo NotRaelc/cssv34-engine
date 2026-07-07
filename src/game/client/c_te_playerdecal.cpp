@@ -194,7 +194,7 @@ void TE_PlayerDecal( IRecipientFilter& filter, float delay,
 	if ( !filesystem->FileExists( fulltexname ) )
 	{
 		char custname[ 512 ];
-		Q_snprintf( custname, sizeof( custname ), "downloads/%s.dat", logohex );
+		Q_snprintf(custname, sizeof(custname), "download/user_custom/%c%c/%s.dat", logohex[0], logohex[1], logohex);
 		// it may have been downloaded but not copied under materials folder
 		if ( !filesystem->FileExists( custname ) )
 			return; // not downloaded yet

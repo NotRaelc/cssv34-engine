@@ -34,7 +34,6 @@ static ConVar net_showfragments( "net_showfragments", NET_SHOW_PACKETS, 0, "Show
 static ConVar net_showpeaks( "net_showpeaks", NET_SHOW_PACKETS, 0, "Show messages for large packets only: <size>" );
 static ConVar net_blockmsg( "net_blockmsg", "none", 0, "Discards incoming message: <0|1|name>" );
 static ConVar net_showdrop( "net_showdrop", NET_SHOW_PACKETS, 0, "Show dropped packets in console" );
-static ConVar net_showdownloads( "net_showdownloads", NET_SHOW_PACKETS, 0, "Show downloaded files in console <0|1>" );
 
 static ConVar net_drawslider( "net_drawslider", "0", 0, "Draw completion slider during signon" );
 static ConVar net_chokeloopback( "net_chokeloop", "0", 0, "Apply bandwidth choke to loopback packets" );
@@ -103,15 +102,7 @@ static bool IsSafeFileToDownload( const char *pFilename )
 		|| V_stricmp(pExt, ".dll") == 0
 		|| V_stricmp(pExt, ".ini") == 0
 		|| V_stricmp(pExt, ".log") == 0)
-	{
-		if (net_showdownloads.GetBool())
-			Msg("-X- Download denied: %s\n", pFilename);
-
 		return false;
-	}
-
-	if (net_showdownloads.GetBool())
-		Msg("-Y- Downloading: %s\n", pFilename);
 
 	// Word.
 	return true;
@@ -313,14 +304,14 @@ void CNetChan::UncompressFragments( dataFragments_t *data )
 
 	// uncompress data
 	if (NET_BufferToBufferDecompress(newbuffer, &uncompressedSize, data->buffer, data->bytes)) {
-		ConMsg("Uncompressing fragments (%d -> %d bytes)\n", data->bytes, uncompressedSize);
+		DevMsg("Uncompressing fragments (%d -> %d bytes)\n", data->bytes, uncompressedSize);
 	}
 	else {
-		ConMsg("Uncompressing fragments failed\n");
+		DevMsg("Uncompressing fragments failed\n");
 	}
 
 	if ( uncompressedSize != data->nUncompressedSize ){
-		ConMsg("UncompressFragments: uncompressedSize(%d) not equal to: data->nUncompressedSize(%d)\n", uncompressedSize, data->nUncompressedSize);
+		Warning("UncompressFragments: uncompressedSize(%d) not equal to: data->nUncompressedSize(%d)\n", uncompressedSize, data->nUncompressedSize);
 	}
 
 	// free old buffer and set new buffer
@@ -1765,7 +1756,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 		//	, (flags & PACKET_FLAG_RELIABLE) ? 1 : 0
 		//	, (float)net_time
 		//	, comp );
-
+		
 		ConMsg("UDP -> %s: sz=%i seq=%i ack=%i rel=%i tm=%f\n",
 			GetName(),
 			send.GetNumBytesWritten(),
@@ -2081,14 +2072,21 @@ bool CNetChan::CheckReceivingList(int nList)
 	}
 	else
 	{
-		// we received a file, write it to disc and notify host
-		if ( !g_pFileSystem->FileExists(data->filename) )
-		{
-			// mae sure path exists
-			COM_CreatePath( data->filename );
+		// There's a special write path for this stuff
+		const char* pszPathID = "download";
 
-			// open new file for write binary
-			data->file = g_pFileSystem->Open( data->filename, "wb" );
+		// we received a file, write it to disc and notify host
+		if ( !g_pFileSystem->FileExists(data->filename, pszPathID) )
+		{
+			// Make sure path exists
+			char szParentDir[MAX_PATH];
+			if (!V_ExtractFilePath(data->filename, szParentDir, sizeof(szParentDir)))
+				szParentDir[0] = '\0';
+
+			g_pFileSystem->CreateDirHierarchy(szParentDir, pszPathID);
+
+			// Open new file for write binary.
+			data->file = g_pFileSystem->Open( data->filename, "wb", pszPathID );
 			
 			if ( FILESYSTEM_INVALID_HANDLE != data->file )
 			{

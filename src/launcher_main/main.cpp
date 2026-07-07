@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <assert.h>
 #include <direct.h>
-#include <tlhelp32.h>
 #endif
 
 #include "steam\steam_api.h"
@@ -48,35 +47,7 @@ char* GetBaseDir(const char* pszBuffer)
 	return basedir;
 }
 
-DWORD FindProcess(const char* processName) {
-	DWORD pid = 0;
-	HANDLE hProcessSnap;
-	PROCESSENTRY32 pe32;
-
-	hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (INVALID_HANDLE_VALUE == hProcessSnap) return 0;
-
-	pe32.dwSize = sizeof(PROCESSENTRY32);
-
-	if (!Process32First(hProcessSnap, &pe32)) {
-		CloseHandle(hProcessSnap);
-		return 0;
-	}
-
-	do {
-		// Compare the process name
-		if (processName == pe32.szExeFile) {
-			pid = pe32.th32ProcessID;
-			break; // Found the process, break the loop
-		}
-	} while (Process32Next(hProcessSnap, &pe32));
-
-	CloseHandle(hProcessSnap);
-	
-	return pid;
-}
-
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
 	// Must add 'bin' to the path....
 	char* pPath = getenv("PATH");
@@ -126,18 +97,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		return 0;
 	}
 
-	// Loads Steam dlls
-	// Note: if you for some reason see C++ Access Violation exceptions with steamclient.dll, that is absolutely normal.
-	// It will not crash your game
-	HMODULE hSteamDLL = LoadLibrary("steam.dll");
-	if (hSteamDLL) {
-		// Also, initialze SteamAPI to make everything work from start, not just after connecting to server.
-		decltype(SteamAPI_Init)* SteamAPIInit = (decltype(SteamAPI_Init)*)GetProcAddress(LoadLibrary("steam_api.dll"), "SteamAPI_Init");
-		if (!SteamAPIInit()) {
-			MessageBox(0, "SteamAPI_Init failed or could not be executed.", "Launcher Error", MB_OK);
-		}
-	}
-
 	typedef int(__cdecl* LauncherMainFn)(
 		HINSTANCE,
 		HINSTANCE,
@@ -148,7 +107,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	LauncherMainFn LauncherMain =
 		(LauncherMainFn)GetProcAddress(launcher, "LauncherMain");
 
-	return LauncherMain(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
+	return LauncherMain(hInstance, hPrevInstance, lpCmdLine, nShowCmd);
 }
 
 

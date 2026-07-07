@@ -5,6 +5,7 @@
 //===========================================================================//
 
 #include "render_pch.h"
+#include <winlite.h>
 #include "materialsystem/imaterialsystemhardwareconfig.h"
 #include "materialsystem/materialsystem_config.h"
 #include "materialsystem/MaterialSystemUtil.h"
@@ -497,6 +498,12 @@ void InitMaterialSystemConfig( bool bInEditMode )
 		return;
 
 	MaterialSystem_Config_t config = *g_pMaterialSystemConfig;
+
+	int w = GetSystemMetrics(SM_CXSCREEN);
+	int h = GetSystemMetrics(SM_CYSCREEN);
+
+	config.m_VideoMode.m_Width = w;
+	config.m_VideoMode.m_Height = h;
 
 #if !defined(SWDS)
 	// see if they've changed video card, or have no settings present

@@ -34,6 +34,7 @@
 #include "datacache/imdlcache.h"
 #include "sys_dll.h"
 #include "testscriptmgr.h"
+#undef time
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"

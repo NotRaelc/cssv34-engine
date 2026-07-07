@@ -103,14 +103,18 @@ void CHistoryGames::OnRemoveFromHistory()
 		return;
 
 	// iterate the selection
-	for ( int i = m_pGameList->GetSelectedItemsCount() - 1; i >= 0; i-- )
+	for (int iGame = 0; iGame < m_pGameList->GetSelectedItemsCount(); iGame++)
 	{
-		int itemID = m_pGameList->GetSelectedItem( i );
+		int itemID = m_pGameList->GetSelectedItem(iGame);
 		int serverID = m_pGameList->GetItemData(itemID)->userData;
-		
-		gameserveritem_t *pServer = SteamMatchmakingServers()->GetServerDetails( (EMatchMakingType)m_eMatchMakingType, serverID );
-		if ( pServer )
-			SteamMatchmaking()->RemoveFavoriteGame( pServer->m_nAppID, pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetConnectionPort(), k_unFavoriteFlagHistory );
+
+		newgameserver_t* pServer = GetServer(serverID);
+
+		if (pServer)
+		{
+			m_pGameList->RemoveItem(itemID);
+			g_pServersInfo->RemoveHistoryServer(pServer->m_NetAdr.GetIPHostByteOrder(), pServer->m_NetAdr.GetPort());
+		}
 	}
 
 	UpdateStatus();	

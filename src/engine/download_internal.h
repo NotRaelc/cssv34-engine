@@ -168,6 +168,7 @@ typedef struct {
 	HTTPError		error;					///< Detailed error info
 
 	char			baseURL[BufferSize];	///< Base URL (including http://).  Set by main thread.
+	char			fullPath[BufferSize];	///< Full local path where the file should go.  Set by main thread.
 	char			basePath[BufferSize];	///< Base path for the mod in the filesystem.  Set by main thread.
 	char			gamePath[BufferSize];	///< Game path to be appended to base URL.  Set by main thread.
 	char			serverURL[BufferSize];	///< Server URL (IP:port, loopback, etc).  Set by main thread, and used for HTTP Referer header.

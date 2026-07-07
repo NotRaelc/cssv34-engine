@@ -321,8 +321,19 @@ $Project "engine"
 		$File	"master_lanservers.cpp" [!$NOMASTER]
 		$File	"master_favoriteservers.cpp" [!$NOMASTER]
 		$File	"master_historyservers.cpp" [!$NOMASTER]
-		$File	"master_serverqueries.cpp" [!$NOMASTER]
-		$File	"master_monitoringservers.cpp" [!$NOMASTER]
+		$File	"master_serverqueries.cpp" \
+			"master_monitoringservers.cpp"
+		{
+			$Configuration
+			{
+				$Compiler
+				{
+					// Omg i dont believe im doing this
+					// This will be disabled in future, when i would have time to fix some issues
+					$EnableC++Exceptions	"Yes With SEH Exceptions (/EHa)"
+				}
+			}
+		}
 		$File	"master_nethandler.cpp" [!$NOMASTER]
 		$File	"$SRCDIR\public\serversinfo.cpp"
 		$File	"mem_fgets.cpp"

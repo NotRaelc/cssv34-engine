@@ -1605,6 +1605,7 @@ void CBaseGamesPage::OnAddToFavorites()
 		int serverID = m_pGameList->GetItemUserData(m_pGameList->GetSelectedItem(i));
 
 		newgameserver_t* pServer = GetServer(serverID);
+
 		if ( pServer )
 		{
 			// add to favorites list
@@ -2027,7 +2028,7 @@ const char *CBaseGamesPage::GetConnectCode()
 void CBaseGamesPage::ServerResponded( newgameserver_t &server )
 {
 	newgameserver_t *pServerItem = &server;
-
+	
 	// check filters
 	bool removeItem = false;
 #if 0

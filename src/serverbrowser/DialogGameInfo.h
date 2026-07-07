@@ -25,7 +25,10 @@ class CDialogGameInfo : public vgui::Frame, public IServerPlayersResponse, publi
 	DECLARE_CLASS_SIMPLE( CDialogGameInfo, vgui::Frame ); 
 
 public:
-	CDialogGameInfo(vgui::Panel *parent, int serverIP, int queryPort, unsigned short connectionPort, const char *pszConnectCode );
+	CDialogGameInfo(
+		vgui::Panel *parent, int serverIP, int queryPort,
+		unsigned short connectionPort, const char *pszConnectCode );
+
 	~CDialogGameInfo();
 
 	void Run(const char *titleName);

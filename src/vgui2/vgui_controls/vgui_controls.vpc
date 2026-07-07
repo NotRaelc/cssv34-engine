@@ -15,6 +15,10 @@ $Configuration
 	$Compiler
 	{
 //		$TreatWchar_tAsBuiltinType	"No"
+
+		// Omg i dont believe im doing this
+		// This will be disabled in future, when i would have time to fix some issues
+		$EnableC++Exceptions	"Yes With SEH Exceptions (/EHa)"
 	}
 }
 

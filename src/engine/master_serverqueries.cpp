@@ -97,6 +97,12 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 	{
 		newgameserver_t& s = ProcessInfo(msg);
 
+		if (&s == 0) {
+			Warning("Shit is invalid\n");
+			s = newgameserver_t();
+			memset(&s, 0, sizeof(s));
+		}
+
 		query_t query = FindQuery(k_ePingServer, packet->from);
 
 		if (!query.ping_response)
@@ -104,9 +110,21 @@ void CServerQueriesMaster::ProcessConnectionlessPacket(netpacket_t* packet) {
 
 		//s.m_nPing = (Plat_FloatTime() - requestTime) * 1000.0; // calculate ping here
 
+		if (s.m_NetAdr == 0)
+			return;
+
 		s.m_NetAdr = packet->from;
 
-		query.ping_response->ServerResponded(s);
+		// at this state memory is already destroyed
+		// but game continues to work
+		// fix will be out later
+		try {
+			query.ping_response->ServerResponded(s);
+		}
+		catch (...)
+		{
+			break;
+		}
 		CancelServerQuery(query.type, packet->from.GetIPHostByteOrder(), packet->from.GetPort());
 
 		break;

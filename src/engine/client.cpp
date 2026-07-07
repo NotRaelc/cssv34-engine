@@ -191,7 +191,6 @@ bool CClientState::SetSignonState ( int state, int count )
 	}
 
 	// ConDMsg ("Signon state: %i\n", state );
-	Msg("Signon state: %i (count %i)\n", state, count);
 	COM_TimestampedLog( "CClientState::SetSignonState: start %i", state );
 
 	switch ( m_nSignonState )
@@ -1079,11 +1078,24 @@ void CClientState::AddCustomFile( int slot, const char *resourceFile)
 	if ( bCopy )
 	{
 		// Copy it over under the new name
-		COM_CopyFile( resourceFile, filehex.m_Filename );
 
-		if ( !g_pFileSystem->FileExists( filehex.m_Filename ) )
+		// Load up the file
+		CUtlBuffer buf;
+		if ( !g_pFileSystem->ReadFile( resourceFile, "game", buf ) )
 		{
-			Warning( "CacheCustomFiles: can't copy '%s' to '%s'.\n", resourceFile, filehex.m_Filename );
+			Warning( "CacheCustomFiles: can't read '%s'.\n", resourceFile );
+			return;
+		}
+
+		// Make sure dest directory exists
+		char szParentDir[ MAX_PATH ];
+		V_ExtractFilePath( filehex.m_Filename, szParentDir, sizeof(szParentDir) );
+		g_pFileSystem->CreateDirHierarchy( szParentDir, "download" );
+
+		// Save it
+		if ( !g_pFileSystem->WriteFile( filehex.m_Filename, "download", buf ) )
+		{
+			Warning( "CacheCustomFiles: can't write '%s'.\n", filehex.m_Filename );
 			return;
 		}
 	}
