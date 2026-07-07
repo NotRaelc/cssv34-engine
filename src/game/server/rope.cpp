@@ -39,8 +39,8 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE( CRopeKeyframe, DT_RopeKeyframe )
 	SendPropInt( SENDINFO(m_fLockedPoints), 4, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO(m_RopeFlags), ROPE_NUMFLAGS, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO(m_nSegments), 4, SPROP_UNSIGNED ),
-	SendPropBool( SENDINFO(m_bConstrainBetweenEndpoints) ),
-	SendPropInt( SENDINFO(m_iRopeMaterialModelIndex), 16, SPROP_UNSIGNED ),
+	//SendPropBool( SENDINFO(m_bConstrainBetweenEndpoints) ),
+	SendPropInt(SENDINFO_NAME(m_iRopeMaterialModelIndex, m_iRopeMaterialModel), 16, SPROP_UNSIGNED),
 	SendPropInt( SENDINFO(m_Subdiv), 4, SPROP_UNSIGNED ),
 
 	SendPropFloat( SENDINFO(m_TextureScale), 10, 0, 0.1f, 10.0f ),

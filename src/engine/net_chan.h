@@ -30,15 +30,15 @@
 
 #define NET_FRAMES_BACKUP	64		// must be power of 2
 #define NET_FRAMES_MASK		(NET_FRAMES_BACKUP-1)
-#define MAX_SUBCHANNELS		8		// we have 8 alternative send&wait bits
+#define MAX_SUBCHANNELS		8		// we have 8 alternative send&wait bits; =8 in src2006
 
 #define SUBCHANNEL_FREE		0	// subchannel is free to use
-#define SUBCHANNEL_TOSEND	1	// subchannel has data, but not send yet
+#define SUBCHANNEL_TOSEND	1	// subchannel has data, but not send yet; 1 in src2006
 #define SUBCHANNEL_WAITING	2   // sbuchannel sent data, waiting for ACK
 #define SUBCHANNEL_DIRTY	3	// subchannel is marked as dirty during changelevel
 
 
-class CNetChan : public INetChannel // SIZE = 7688 according to IDA. FIXME! I think its even 7684 without vtable. Or maybe I missed some padding bytes at the end!
+class CNetChan : public INetChannel // SIZE = 7688 according to IDA. 
 {
 
 private: // netchan structurs
@@ -87,15 +87,15 @@ private: // netchan structurs
 		float			time;			// net_time received/send
 		int				size;			// total size in bytes
 		float			latency;		// raw ping for this packet, not cleaned. set when acknowledged otherwise -1.
-		//float			avg_latency;	// averaged ping for this packet
+		//float			avg_latency;	// averaged ping for this packet. Not used in v34
 		bool			valid;			// false if dropped, lost, flushed
 		int				choked;			// number of previously chocked packets
 		//int				dropped;
 		//float			m_flInterpolationAmount; // FIXME: i dont sure that cssv34 actually needs this
-		unsigned short	msggroups[INetChannelInfo::TOTAL];	// received bytes for each message group
-	} netframe_t;
+		unsigned short	msggroups[INetChannelInfo::TOTAL];	// received bytes for each message group. 13 IN SOURCE 2006
+	} netframe_t; // FIXED :)
 
-	typedef struct // SIZE = 3116 bye according to IDA
+	typedef struct // SIZE = 3116 bye according to IDA. FIXED :)
 	{
 		float		nextcompute;	// Time when we should recompute k/sec data
 		float		avgbytespersec;	// average bytes/sec
@@ -256,12 +256,12 @@ public:
 	
 		
 	// Reliable data buffer, send which each packet (or put in waiting list)
-	bf_write	m_StreamReliable;
-	CUtlMemory<byte> m_ReliableDataBuffer;
+	bf_write	m_StreamReliable; // FIXED :)
+	CUtlMemory<byte> m_ReliableDataBuffer; // FIXED :)
 
 	// unreliable message buffer, cleared which each packet
-	bf_write	m_StreamUnreliable;
-	CUtlMemory<byte> m_UnreliableDataBuffer;
+	bf_write	m_StreamUnreliable; // FIXED :)
+	CUtlMemory<byte> m_UnreliableDataBuffer; // FIXED :)
 
 	//bf_write	m_StreamVoice;			// FIXME: Didnt exist in source 2006
 	//CUtlMemory<byte> m_VoiceDataBuffer; // FIXME: Didnt exist in source 2006
@@ -288,8 +288,8 @@ public:
 	double		m_fClearTime;
 
  	CUtlVector<dataFragments_t*>	m_WaitingList[MAX_STREAMS];	// waiting list for reliable data and file transfer
-	dataFragments_t					m_ReceiveList[MAX_STREAMS]; // receive buffers for streams
-	subChannel_s					m_SubChannels[MAX_SUBCHANNELS];
+	dataFragments_t					m_ReceiveList[MAX_STREAMS]; // receive buffers for streams // FIXED :) and EXIST IN SRC2006
+	subChannel_s					m_SubChannels[MAX_SUBCHANNELS]; 
 
 	unsigned int	m_FileRequestCounter;	// increasing counter with each file request
 	bool			m_bFileBackgroundTranmission; // if true, only send 1 fragment per packet
@@ -324,8 +324,8 @@ public:
 
 	//float						m_flInterpolationAmount;
 	//float						m_flRemoteFrameTime;
-	//float						m_flRemoteFrameTimeStdDeviation;
-	int							m_nMaxRoutablePayloadSize;
+	//float						m_flRemoteFrameTimeStdDeviation;	
+	//int							m_nMaxRoutablePayloadSize; // Didnt exist back then in 2006???
 
 	//int							m_nSplitPacketSequence; // FIXME: didnt exist in source 2006!!!
 };

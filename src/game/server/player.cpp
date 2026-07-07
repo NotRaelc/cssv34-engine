@@ -393,7 +393,7 @@ BEGIN_DATADESC( CBasePlayer )
 	DEFINE_FIELD( m_flConstraintRadius, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flConstraintWidth, FIELD_FLOAT ),
 	DEFINE_FIELD( m_flConstraintSpeedFactor, FIELD_FLOAT ),
-	DEFINE_FIELD( m_hZoomOwner, FIELD_EHANDLE ),
+	//DEFINE_FIELD( m_hZoomOwner, FIELD_EHANDLE ),
 	
 	DEFINE_FIELD( m_flLaggedMovementValue, FIELD_FLOAT ),
 
@@ -411,7 +411,6 @@ BEGIN_DATADESC( CBasePlayer )
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_INTEGER, "SetHealth", InputSetHealth ),
 	DEFINE_INPUTFUNC( FIELD_BOOLEAN, "SetHUDVisibility", InputSetHUDVisibility ),
-	DEFINE_INPUTFUNC( FIELD_STRING, "SetFogController", InputSetFogController ),
 
 	DEFINE_FIELD( m_nNumCrouches, FIELD_INTEGER ),
 	DEFINE_FIELD( m_bDuckToggled, FIELD_BOOLEAN ),
@@ -2393,12 +2392,9 @@ void CBasePlayer::CheckObserverSettings()
 		}
 
 		// Update the fog.
-		if ( target )
+		if (target)
 		{
-			if ( target->m_Local.m_PlayerFog.m_hCtrl.Get() != m_Local.m_PlayerFog.m_hCtrl.Get() )
-			{
-				m_Local.m_PlayerFog.m_hCtrl.Set( target->m_Local.m_PlayerFog.m_hCtrl.Get() );
-			}
+			m_Local.m_fog = target->m_Local.m_fog;
 		}
 	}
 }
@@ -6661,10 +6657,10 @@ void CBasePlayer::UpdateClientData( void )
 						&& ( m_iHealth < 100 );
 
 	// Check if the bonus progress HUD element should be displayed
-	if ( m_iBonusChallenge == 0 && m_iBonusProgress == 0 && !( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
-		m_Local.m_iHideHUD |= HIDEHUD_BONUS_PROGRESS;
-	if ( ( m_iBonusChallenge != 0 )&& ( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
-		m_Local.m_iHideHUD &= ~HIDEHUD_BONUS_PROGRESS;
+	//if ( m_iBonusChallenge == 0 && m_iBonusProgress == 0 && !( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
+	//	m_Local.m_iHideHUD |= HIDEHUD_BONUS_PROGRESS;
+	//if ( ( m_iBonusChallenge != 0 )&& ( m_Local.m_iHideHUD & HIDEHUD_BONUS_PROGRESS ) )
+	//	m_Local.m_iHideHUD &= ~HIDEHUD_BONUS_PROGRESS;
 
 	// Let any global rules update the HUD, too
 	g_pGameRules->UpdateClientData( this );
@@ -7699,9 +7695,11 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 		SendPropEHandle		( SENDINFO( m_hLastWeapon ) ),
 		SendPropEHandle		( SENDINFO( m_hGroundEntity ), SPROP_CHANGES_OFTEN ),
 
-		SendPropFloat		( SENDINFO_VECTORELEM(m_vecVelocity, 0), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-		SendPropFloat		( SENDINFO_VECTORELEM(m_vecVelocity, 1), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
-		SendPropFloat		( SENDINFO_VECTORELEM(m_vecVelocity, 2), 32, SPROP_NOSCALE|SPROP_CHANGES_OFTEN ),
+
+#define VEL_CLAMPING1 4096.0f	// Must be n^2
+		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 0), 20, SPROP_CHANGES_OFTEN, -VEL_CLAMPING1, VEL_CLAMPING1),
+		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 1), 20, SPROP_CHANGES_OFTEN, -VEL_CLAMPING1, VEL_CLAMPING1),
+		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 2), 16, SPROP_CHANGES_OFTEN, -VEL_CLAMPING1/2, VEL_CLAMPING1/2),
 
 #if PREDICTION_ERROR_CHECK_LEVEL > 1 
 		SendPropVector		( SENDINFO( m_vecBaseVelocity ), -1, SPROP_COORD ),
@@ -7735,20 +7733,20 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 		SendPropEHandle(SENDINFO(m_hUseEntity)),
 		SendPropInt		(SENDINFO(m_iHealth), 10 ),
 		SendPropInt		(SENDINFO(m_lifeState), 3, SPROP_UNSIGNED ),
-		SendPropInt		(SENDINFO(m_iBonusProgress), 15 ),
-		SendPropInt		(SENDINFO(m_iBonusChallenge), 4 ),
+		//SendPropInt		(SENDINFO(m_iBonusProgress), 15 ),
+		//SendPropInt		(SENDINFO(m_iBonusChallenge), 4 ),
 		SendPropFloat	(SENDINFO(m_flMaxspeed), 12, SPROP_ROUNDDOWN, 0.0f, 2048.0f ),  // CL
 		SendPropInt		(SENDINFO(m_fFlags), PLAYER_FLAG_BITS, SPROP_UNSIGNED|SPROP_CHANGES_OFTEN, SendProxy_CropFlagsToPlayerFlagBitsLength ),
 		SendPropInt		(SENDINFO(m_iObserverMode), 3, SPROP_UNSIGNED ),
 		SendPropEHandle	(SENDINFO(m_hObserverTarget) ),
 		SendPropInt		(SENDINFO(m_iFOV), 8, SPROP_UNSIGNED ),
-		SendPropInt		(SENDINFO(m_iFOVStart), 8, SPROP_UNSIGNED ),
-		SendPropFloat	(SENDINFO(m_flFOVTime) ),
+		//SendPropInt		(SENDINFO(m_iFOVStart), 8, SPROP_UNSIGNED ),
+		//SendPropFloat	(SENDINFO(m_flFOVTime) ),
 		SendPropInt		(SENDINFO(m_iDefaultFOV), 8, SPROP_UNSIGNED ),
-		SendPropEHandle	(SENDINFO(m_hZoomOwner) ),
+		//SendPropEHandle	(SENDINFO(m_hZoomOwner) ),
 		SendPropArray	( SendPropEHandle( SENDINFO_ARRAY( m_hViewModel ) ), m_hViewModel ),
 		SendPropString	(SENDINFO(m_szLastPlaceName) ),
-		SendPropInt		( SENDINFO( m_ubEFNoInterpParity ), NOINTERP_PARITY_MAX_BITS, SPROP_UNSIGNED ),
+		//SendPropInt		( SENDINFO( m_ubEFNoInterpParity ), NOINTERP_PARITY_MAX_BITS, SPROP_UNSIGNED ),
 
 		// Data that only gets sent to the local player.
 		SendPropDataTable( "localdata", 0, &REFERENCE_SEND_TABLE(DT_LocalPlayerExclusive), SendProxy_SendLocalDataTable ),
@@ -8403,23 +8401,31 @@ void CBasePlayer::InputSetHUDVisibility( inputdata_t &inputdata )
 // Purpose: Set the fog controller data per player.
 // Input  : &inputdata -
 //-----------------------------------------------------------------------------
-void CBasePlayer::InputSetFogController( inputdata_t &inputdata )
-{
-	// Find the fog controller with the given name.
-	CFogController *pFogController = dynamic_cast<CFogController*>( gEntList.FindEntityByName( NULL, inputdata.value.String() ) );
-	if ( pFogController )
-	{
-		m_Local.m_PlayerFog.m_hCtrl.Set( pFogController );
-	}
-}
+//void CBasePlayer::InputSetFogController( inputdata_t &inputdata )
+//{
+//	// Find the fog controller with the given name.
+//	CFogController *pFogController = dynamic_cast<CFogController*>( gEntList.FindEntityByName( NULL, inputdata.value.String() ) );
+//	if ( pFogController )
+//	{
+//		m_Local.m_PlayerFog.m_hCtrl.Set( pFogController );
+//	}
+//}
 
 //-----------------------------------------------------------------------------
-//
+// Purpose: Initialise the fog controller for this player.
 //-----------------------------------------------------------------------------
-void CBasePlayer::InitFogController( void )
+void CBasePlayer::InitFogController(void)
 {
-	// Setup with the default master controller.
-	m_Local.m_PlayerFog.m_hCtrl = FogSystem()->GetMasterFogController();
+	CFogController* pMaster = FogSystem()->GetMasterFogController();
+	if (pMaster)
+	{
+		m_Local.m_fog = pMaster->m_fog;
+	}
+	else
+	{
+		m_Local.m_fog.enable = false;
+		m_Local.m_fog.farz = -1;
+	}
 }
 
 //-----------------------------------------------------------------------------

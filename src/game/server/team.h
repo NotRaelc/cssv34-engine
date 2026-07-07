@@ -83,7 +83,7 @@ public:
 	// Data
 	CNetworkString( m_szTeamname, MAX_TEAM_NAME_LENGTH );
 	CNetworkVar( int, m_iScore );
-	CNetworkVar( int, m_iRoundsWon );
+	int		m_iRoundsWon = 0;
 	int		m_iDeaths;
 
 	// Spawnpoints

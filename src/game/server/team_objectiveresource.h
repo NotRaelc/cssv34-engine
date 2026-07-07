@@ -23,8 +23,8 @@ class CBaseTeamObjectiveResource : public CBaseEntity
 {
 	DECLARE_CLASS( CBaseTeamObjectiveResource, CBaseEntity );
 public:
-	DECLARE_SERVERCLASS();
-	DECLARE_DATADESC();
+	//DECLARE_SERVERCLASS();
+	//DECLARE_DATADESC();
 
 	CBaseTeamObjectiveResource();
 	~CBaseTeamObjectiveResource();
@@ -57,7 +57,7 @@ public:
 	void SetPreviousPoint( int index, int iTeam, int iPrevIndex, int iPrevPoint );
 	int GetPreviousPointForPoint( int index, int team, int iPrevIndex );
 	bool TeamCanCapPoint( int index, int team );
-	void SetCapLayoutInHUD( const char *pszLayout ) { Q_strncpy(m_pszCapLayoutInHUD.GetForModify(), pszLayout, MAX_CAPLAYOUT_LENGTH ); }
+	void SetCapLayoutInHUD( const char *pszLayout ) { Q_strncpy(m_pszCapLayoutInHUD, pszLayout, MAX_CAPLAYOUT_LENGTH); }
 	void SetWarnOnCap( int index, bool bWarn );
 	void SetWarnSound( int index, string_t iszSound );
 
@@ -98,13 +98,14 @@ public:
 	// Mini-rounds data
 	void SetPlayingMiniRounds( bool bPlayingMiniRounds ){ m_bPlayingMiniRounds = bPlayingMiniRounds; }
 	bool PlayingMiniRounds( void ){ return m_bPlayingMiniRounds; }
-	void SetInMiniRound( int index, bool bInRound ) { m_bInMiniRound.Set( index, bInRound ); }
+	void SetInMiniRound( int index, bool bInRound ) { m_bInMiniRound[index] = bInRound; }
 	bool IsInMiniRound( int index ) { return m_bInMiniRound[index]; }
 
 	void UpdateCapHudElement( void );
 
 
 private:
+#if 0
 	CNetworkVar( int, m_iTimerToShowInHUD );	
 
 	CNetworkVar( int, m_iNumControlPoints );	
@@ -142,9 +143,47 @@ private:
 
 	// describes how to lay out the cap points in the hud
 	CNetworkString(  m_pszCapLayoutInHUD,		MAX_CAPLAYOUT_LENGTH );
+#endif
+	int				m_iTimerToShowInHUD;
+
+	int				m_iNumControlPoints;
+	bool			m_bPlayingMiniRounds;
+	bool			m_bControlPointsReset;
+	int				m_iUpdateCapHudParity;
+
+	// data variables
+	Vector			m_vCPPositions[MAX_CONTROL_POINTS];
+	int				m_bCPIsVisible[MAX_CONTROL_POINTS];
+	float			m_flLazyCapPerc[MAX_CONTROL_POINTS];
+	int				m_iTeamIcons[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS];
+	int				m_iTeamOverlays[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS];
+	int				m_iTeamReqCappers[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS];
+	float			m_flTeamCapTime[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS];
+	int				m_iPreviousPoints[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS * MAX_PREVIOUS_POINTS];
+	bool			m_bTeamCanCap[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS];
+	int				m_iTeamBaseIcons[MAX_TEAMS];
+	int				m_iBaseControlPoints[MAX_TEAMS];
+	bool			m_bInMiniRound[MAX_CONTROL_POINTS];
+	bool			m_bWarnOnCap[MAX_CONTROL_POINTS];
+	string_t		m_iszWarnSound[MAX_CONTROL_POINTS];
+
+	// change when players enter/exit an area
+	int				m_iNumTeamMembers[MAX_CONTROL_POINTS * MAX_CONTROL_POINT_TEAMS];
+
+	// changes when a cap starts. start and end times are calculated on client
+	int				m_iCappingTeam[MAX_CONTROL_POINTS];
+
+	int				m_iTeamInZone[MAX_CONTROL_POINTS];
+	bool			m_bBlocked[MAX_CONTROL_POINTS];
+
+	// changes when a point is successfully captured
+	int				m_iOwner[MAX_CONTROL_POINTS];
+
+	// describes how to lay out the cap points in the hud
+	char			m_pszCapLayoutInHUD[MAX_CAPLAYOUT_LENGTH];
 
 	// Not networked, because the client recalculates it
-	float	m_flCapPercentages[ MAX_CONTROL_POINTS ];
+	float			m_flCapPercentages[ MAX_CONTROL_POINTS ];
 };
 
 extern CBaseTeamObjectiveResource *g_pObjectiveResource;

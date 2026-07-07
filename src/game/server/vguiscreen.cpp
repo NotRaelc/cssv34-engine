@@ -22,9 +22,9 @@ IMPLEMENT_SERVERCLASS_ST(CVGuiScreen, DT_VGuiScreen)
 	SendPropFloat(SENDINFO(m_flHeight),	0, SPROP_NOSCALE ),
 	SendPropInt(SENDINFO(m_nAttachmentIndex), 5, SPROP_UNSIGNED ),
 	SendPropInt(SENDINFO(m_nPanelName), MAX_VGUI_SCREEN_STRING_BITS, SPROP_UNSIGNED ),
-	SendPropInt(SENDINFO(m_fScreenFlags), VGUI_SCREEN_MAX_BITS, SPROP_UNSIGNED ),
+	SendPropInt(SENDINFO(m_fScreenFlags), 3, SPROP_UNSIGNED ),		// 3 instead of VGUI_SCREEN_MAX_BITS because of server support! Maybe there will be bugs LOL
 	SendPropInt(SENDINFO(m_nOverlayMaterial), MAX_MATERIAL_STRING_BITS, SPROP_UNSIGNED ),
-	SendPropEHandle(SENDINFO(m_hPlayerOwner)),
+	//SendPropEHandle(SENDINFO(m_hPlayerOwner)),
 END_SEND_TABLE();
 
 LINK_ENTITY_TO_CLASS( vgui_screen, CVGuiScreen );
@@ -44,7 +44,7 @@ BEGIN_DATADESC( CVGuiScreen )
 	DEFINE_KEYFIELD( m_flWidth, FIELD_FLOAT, "width" ),
 	DEFINE_KEYFIELD( m_flHeight, FIELD_FLOAT, "height" ),
 	DEFINE_KEYFIELD( m_strOverlayMaterial, FIELD_STRING, "overlaymaterial" ),
-	DEFINE_FIELD( m_hPlayerOwner, FIELD_EHANDLE ),
+	//DEFINE_FIELD( m_hPlayerOwner, FIELD_EHANDLE ),
 
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetActive", InputSetActive ),
 	DEFINE_INPUTFUNC( FIELD_VOID, "SetInactive", InputSetInactive ),

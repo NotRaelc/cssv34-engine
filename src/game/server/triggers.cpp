@@ -330,10 +330,10 @@ void CBaseTrigger::InitTrigger( )
 
 	m_hTouchingEntities.Purge();
 
-	if ( HasSpawnFlags( SF_TRIG_TOUCH_DEBRIS ) )
-	{
-		CollisionProp()->AddSolidFlags( FSOLID_TRIGGER_TOUCH_DEBRIS );
-	}
+	//if ( HasSpawnFlags( SF_TRIG_TOUCH_DEBRIS ) )
+	//{
+	//	CollisionProp()->AddSolidFlags( FSOLID_TRIGGER_TOUCH_DEBRIS );
+	//}
 }
 
 

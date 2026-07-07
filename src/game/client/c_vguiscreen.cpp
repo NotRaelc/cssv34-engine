@@ -84,7 +84,7 @@ IMPLEMENT_CLIENTCLASS_DT(C_VGuiScreen, DT_VGuiScreen, CVGuiScreen)
 	RecvPropInt( RECVINFO(m_nPanelName) ),
 	RecvPropInt( RECVINFO(m_nAttachmentIndex) ),
 	RecvPropInt( RECVINFO(m_nOverlayMaterial) ),
-	RecvPropEHandle( RECVINFO(m_hPlayerOwner) ),
+	//RecvPropEHandle( RECVINFO(m_hPlayerOwner) ),
 END_RECV_TABLE()
 
 

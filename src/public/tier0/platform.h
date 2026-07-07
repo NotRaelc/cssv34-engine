@@ -21,6 +21,8 @@
 #define COMPILER_CLANG 1
 #endif
 
+#define NO_STEAM
+
 #if defined( _X360 )
 	#define NO_STEAM
 	#define NO_VOICE

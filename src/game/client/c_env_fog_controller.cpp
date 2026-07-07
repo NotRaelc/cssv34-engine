@@ -10,11 +10,12 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-IMPLEMENT_NETWORKCLASS_ALIASED( FogController, DT_FogController )
+//IMPLEMENT_NETWORKCLASS_ALIASED( FogController, DT_FogController )
 
 //-----------------------------------------------------------------------------
 // Datatable
 //-----------------------------------------------------------------------------
+/*
 BEGIN_NETWORK_TABLE_NOBASE( CFogController, DT_FogController )
 	// fog data
 	RecvPropInt( RECVINFO( m_fog.enable ) ),
@@ -34,6 +35,7 @@ BEGIN_NETWORK_TABLE_NOBASE( CFogController, DT_FogController )
 	RecvPropFloat( RECVINFO( m_fog.lerptime ) ),
 	RecvPropFloat( RECVINFO( m_fog.duration ) ),
 END_NETWORK_TABLE()
+*/
 
 //-----------------------------------------------------------------------------
 // Purpose: 

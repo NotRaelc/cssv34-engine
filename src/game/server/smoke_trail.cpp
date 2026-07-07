@@ -20,23 +20,23 @@
 //-----------------------------------------------------------------------------
 //Data table
 //-----------------------------------------------------------------------------
-IMPLEMENT_SERVERCLASS_ST(SmokeTrail, DT_SmokeTrail)
-	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
-	SendPropVector(SENDINFO(m_StartColor), 8, 0, 0, 1),
-	SendPropVector(SENDINFO(m_EndColor), 8, 0, 0, 1),
-	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
-	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MinDirectedSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MaxDirectedSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
-	SendPropBool(SENDINFO(m_bEmit) ),
-	SendPropInt(SENDINFO(m_nAttachment), 32 ),	
-	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST(SmokeTrail, DT_SmokeTrail)
+//	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
+//	SendPropVector(SENDINFO(m_StartColor), 8, 0, 0, 1),
+//	SendPropVector(SENDINFO(m_EndColor), 8, 0, 0, 1),
+//	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
+//	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MinDirectedSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MaxDirectedSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
+//	SendPropBool(SENDINFO(m_bEmit) ),
+//	SendPropInt(SENDINFO(m_nAttachment), 32 ),	
+//	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS(env_smoketrail, SmokeTrail);
 
@@ -68,8 +68,8 @@ END_DATADESC()
 SmokeTrail::SmokeTrail()
 {
 	m_SpawnRate = 10;
-	m_StartColor.GetForModify().Init(0.5, 0.5, 0.5);
-	m_EndColor.GetForModify().Init(0,0,0);
+	m_StartColor.Init(0.5, 0.5, 0.5);
+	m_EndColor.Init(0, 0, 0);
 	m_ParticleLifetime = 5;
 	m_StopEmitTime = 0; // Don't stop emitting particles
 	m_MinSpeed = 2;
@@ -93,7 +93,7 @@ bool SmokeTrail::KeyValue( const char *szKeyName, const char *szValue )
 	{
 		color32 tmp;
 		UTIL_StringToColor32( &tmp, szValue );
-		m_StartColor.GetForModify().Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
+		m_StartColor.Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
 		return true;
 	}
 
@@ -101,7 +101,7 @@ bool SmokeTrail::KeyValue( const char *szKeyName, const char *szValue )
 	{
 		color32 tmp;
 		UTIL_StringToColor32( &tmp, szValue );
-		m_EndColor.GetForModify().Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
+		m_EndColor.Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
 		return true;
 	}
 
@@ -176,23 +176,23 @@ void SmokeTrail::FollowEntity( CBaseEntity *pEntity, const char *pAttachmentName
 //==================================================
 
 //Data table
-IMPLEMENT_SERVERCLASS_ST(RocketTrail, DT_RocketTrail)
-	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
-	SendPropVector(SENDINFO(m_StartColor), 8, 0, 0, 1),
-	SendPropVector(SENDINFO(m_EndColor), 8, 0, 0, 1),
-	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
-	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
-	SendPropBool(SENDINFO(m_bEmit)),
-	SendPropInt(SENDINFO(m_nAttachment), 32 ),	
-	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
-	SendPropInt	(SENDINFO(m_bDamaged), 1, SPROP_UNSIGNED),
-	SendPropFloat(SENDINFO(m_flFlareScale), -1, SPROP_NOSCALE),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST(RocketTrail, DT_RocketTrail)
+//	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
+//	SendPropVector(SENDINFO(m_StartColor), 8, 0, 0, 1),
+//	SendPropVector(SENDINFO(m_EndColor), 8, 0, 0, 1),
+//	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
+//	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
+//	SendPropBool(SENDINFO(m_bEmit)),
+//	SendPropInt(SENDINFO(m_nAttachment), 32 ),	
+//	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
+//	SendPropInt	(SENDINFO(m_bDamaged), 1, SPROP_UNSIGNED),
+//	SendPropFloat(SENDINFO(m_flFlareScale), -1, SPROP_NOSCALE),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( env_rockettrail, RocketTrail );
 
@@ -223,8 +223,8 @@ END_DATADESC()
 RocketTrail::RocketTrail()
 {
 	m_SpawnRate = 10;
-	m_StartColor.GetForModify().Init(0.5, 0.5, 0.5);
-	m_EndColor.GetForModify().Init(0,0,0);
+	m_StartColor.Init(0.5, 0.5, 0.5);
+	m_EndColor.Init(0, 0, 0);
 	m_ParticleLifetime = 5;
 	m_StopEmitTime = 0; // Don't stop emitting particles
 	m_MinSpeed = 2;
@@ -298,15 +298,15 @@ void RocketTrail::FollowEntity( CBaseEntity *pEntity, const char *pAttachmentNam
 // SporeTrail
 //==================================================
 
-IMPLEMENT_SERVERCLASS_ST( SporeTrail, DT_SporeTrail )
-	SendPropFloat	(SENDINFO(m_flSpawnRate), 8, 0, 1, 1024),
-	SendPropVector	(SENDINFO(m_vecEndColor), 8, 0, 0, 1),
-	SendPropFloat	(SENDINFO(m_flParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
-	SendPropFloat	(SENDINFO(m_flStartSize), -1, SPROP_NOSCALE),
-	SendPropFloat	(SENDINFO(m_flEndSize), -1, SPROP_NOSCALE),
-	SendPropFloat	(SENDINFO(m_flSpawnRadius), -1, SPROP_NOSCALE),
-	SendPropBool	(SENDINFO(m_bEmit)),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST( SporeTrail, DT_SporeTrail )
+//	SendPropFloat	(SENDINFO(m_flSpawnRate), 8, 0, 1, 1024),
+//	SendPropVector	(SENDINFO(m_vecEndColor), 8, 0, 0, 1),
+//	SendPropFloat	(SENDINFO(m_flParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
+//	SendPropFloat	(SENDINFO(m_flStartSize), -1, SPROP_NOSCALE),
+//	SendPropFloat	(SENDINFO(m_flEndSize), -1, SPROP_NOSCALE),
+//	SendPropFloat	(SENDINFO(m_flSpawnRadius), -1, SPROP_NOSCALE),
+//	SendPropBool	(SENDINFO(m_bEmit)),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS(env_sporetrail, SporeTrail);
 
@@ -324,7 +324,7 @@ END_DATADESC()
 
 SporeTrail::SporeTrail( void )
 {
-	m_vecEndColor.GetForModify().Init();
+	m_vecEndColor.Init();
 
 	m_flSpawnRate			= 100.0f;
 	m_flParticleLifetime	= 1.0f;
@@ -364,15 +364,15 @@ SporeTrail* SporeTrail::CreateSporeTrail()
 // SporeExplosion
 //==================================================
 
-IMPLEMENT_SERVERCLASS_ST( SporeExplosion, DT_SporeExplosion )
-	SendPropFloat	(SENDINFO(m_flSpawnRate), 8, 0, 1, 1024),
-	SendPropFloat	(SENDINFO(m_flParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
-	SendPropFloat	(SENDINFO(m_flStartSize), -1, SPROP_NOSCALE),
-	SendPropFloat	(SENDINFO(m_flEndSize), -1, SPROP_NOSCALE),
-	SendPropFloat	(SENDINFO(m_flSpawnRadius), -1, SPROP_NOSCALE),
-	SendPropBool	(SENDINFO(m_bEmit) ),
-	SendPropBool	(SENDINFO(m_bDontRemove) ),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST( SporeExplosion, DT_SporeExplosion )
+//	SendPropFloat	(SENDINFO(m_flSpawnRate), 8, 0, 1, 1024),
+//	SendPropFloat	(SENDINFO(m_flParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
+//	SendPropFloat	(SENDINFO(m_flStartSize), -1, SPROP_NOSCALE),
+//	SendPropFloat	(SENDINFO(m_flEndSize), -1, SPROP_NOSCALE),
+//	SendPropFloat	(SENDINFO(m_flSpawnRadius), -1, SPROP_NOSCALE),
+//	SendPropBool	(SENDINFO(m_bEmit) ),
+//	SendPropBool	(SENDINFO(m_bDontRemove) ),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( env_sporeexplosion, SporeExplosion );
 
@@ -460,10 +460,10 @@ BEGIN_DATADESC( CFireTrail )
 
 END_DATADESC()
 
-IMPLEMENT_SERVERCLASS_ST( CFireTrail, DT_FireTrail )
-	SendPropInt( SENDINFO( m_nAttachment ), 32 ),
-	SendPropFloat( SENDINFO( m_flLifetime ), 0, SPROP_NOSCALE ),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST( CFireTrail, DT_FireTrail )
+//	SendPropInt( SENDINFO( m_nAttachment ), 32 ),
+//	SendPropFloat( SENDINFO( m_flLifetime ), 0, SPROP_NOSCALE ),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( env_fire_trail, CFireTrail );
 
@@ -527,21 +527,21 @@ CFireTrail *CFireTrail::CreateFireTrail( void )
 //-----------------------------------------------------------------------------
 //Data table
 //-----------------------------------------------------------------------------
-IMPLEMENT_SERVERCLASS_ST(DustTrail, DT_DustTrail)
-	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
-	SendPropVector(SENDINFO(m_Color), 8, 0, 0, 1),
-	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
-	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MinDirectedSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_MaxDirectedSpeed), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
-	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
-	SendPropBool(SENDINFO(m_bEmit) ),
-	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST(DustTrail, DT_DustTrail)
+//	SendPropFloat(SENDINFO(m_SpawnRate), 8, 0, 1, 1024),
+//	SendPropVector(SENDINFO(m_Color), 8, 0, 0, 1),
+//	SendPropFloat(SENDINFO(m_ParticleLifetime), 16, SPROP_ROUNDUP, 0.1, 100),
+//	SendPropFloat(SENDINFO(m_StopEmitTime), 0, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MinSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MaxSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MinDirectedSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_MaxDirectedSpeed), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_StartSize), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_EndSize), -1, SPROP_NOSCALE),
+//	SendPropFloat(SENDINFO(m_SpawnRadius), -1, SPROP_NOSCALE),
+//	SendPropBool(SENDINFO(m_bEmit) ),
+//	SendPropFloat(SENDINFO(m_Opacity), -1, SPROP_NOSCALE),
+//END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( env_dusttrail, DustTrail);
 
@@ -572,7 +572,7 @@ END_DATADESC()
 DustTrail::DustTrail()
 {
 	m_SpawnRate = 10;
-	m_Color.GetForModify().Init(0.5, 0.5, 0.5);
+	m_Color.Init(0.5, 0.5, 0.5);
 	m_ParticleLifetime = 5;
 	m_StopEmitTime = 0; // Don't stop emitting particles
 	m_MinSpeed = 2;
@@ -595,7 +595,7 @@ bool DustTrail::KeyValue( const char *szKeyName, const char *szValue )
 	{
 		color32 tmp;
 		UTIL_StringToColor32( &tmp, szValue );
-		m_Color.GetForModify().Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
+		m_Color.Init( tmp.r / 255.0f, tmp.g / 255.0f, tmp.b / 255.0f );
 		return true;
 	}
 

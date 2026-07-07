@@ -25,42 +25,42 @@
 #define INVALID_STEAM_LOGGED_IN_ELSEWHERE "This Steam account is being used in another location\n"
 
 // This is the default, see shareddefs.h for mod-specific value, which can override this
-#define DEFAULT_TICK_INTERVAL	(0.015)				// 15 msec is the default
-#define MINIMUM_TICK_INTERVAL   (0.001)
-#define MAXIMUM_TICK_INTERVAL	(0.1)
+#define DEFAULT_TICK_INTERVAL	(0.015)				// 15 msec is the default in source2006
+#define MINIMUM_TICK_INTERVAL   (0.001)				// 1 ms in src2006
+#define MAXIMUM_TICK_INTERVAL	(0.1)				// 100 ms in src2006
 
 // This is the max # of players the engine can handle
-#define ABSOLUTE_PLAYER_LIMIT 255  // not 256, so we can send the limit as a byte 
+#define ABSOLUTE_PLAYER_LIMIT 255  // not 256, so we can send the limit as a byte. 255 in src2006
 #define ABSOLUTE_PLAYER_LIMIT_DW	( (ABSOLUTE_PLAYER_LIMIT/32) + 1 )
 
 // a player name may have 31 chars + 0 on the PC.
 // the 360 only allows 15 char + 0, but stick with the larger PC size for cross-platform communication
-#define MAX_PLAYER_NAME_LENGTH		32
+#define MAX_PLAYER_NAME_LENGTH		32		// 32 in src2006
 
 #ifdef _X360
 #define MAX_PLAYERS_PER_CLIENT		XUSER_MAX_COUNT	// Xbox 360 supports 4 players per console
 #else
-#define MAX_PLAYERS_PER_CLIENT		1	// One player per PC
+#define MAX_PLAYERS_PER_CLIENT		1	// One player per PC. Logically 1 in src2006?
 #endif
 
 #define MAX_MAP_NAME				32	
-#define	MAX_NETWORKID_LENGTH		64  // num chars for a network (i.e steam) ID
+#define	MAX_NETWORKID_LENGTH		64  // num chars for a network (i.e steam) ID. I guess 64 in source2006 bcs why not lol.
 
 // BUGBUG: Reconcile with or derive this from the engine's internal definition!
 // FIXME: I added an extra bit because I needed to make it signed
 #define SP_MODEL_INDEX_BITS			11
 
 // How many bits to use to encode an edict.
-#define	MAX_EDICT_BITS				11			// # of bits needed to represent max edicts
+#define	MAX_EDICT_BITS				11			// # of bits needed to represent max edicts. CORRECT in src2006!!
 // Max # of edicts in a level
 #define	MAX_EDICTS					(1<<MAX_EDICT_BITS)
 
 // How many bits to use to encode an server class index
-#define MAX_SERVER_CLASS_BITS		9
+#define MAX_SERVER_CLASS_BITS		9			// CORRECT 9 in src2006!!!
 // Max # of networkable server classes
 #define MAX_SERVER_CLASSES			(1<<MAX_SERVER_CLASS_BITS)
 
-#define SIGNED_GUID_LEN 32 // Hashed CD Key (32 hex alphabetic chars + 0 terminator )
+#define SIGNED_GUID_LEN 32 // Hashed CD Key (32 hex alphabetic chars + 0 terminator ). 32 in src2006!!!
 
 // Used for networking ehandles.
 #define NUM_ENT_ENTRY_BITS		(MAX_EDICT_BITS + 1)
@@ -72,20 +72,20 @@
 
 
 // Networked ehandles use less bits to encode the serial number.
-#define NUM_NETWORKED_EHANDLE_SERIAL_NUMBER_BITS	10
+#define NUM_NETWORKED_EHANDLE_SERIAL_NUMBER_BITS	10				// 10 in src2006.
 #define NUM_NETWORKED_EHANDLE_BITS					(MAX_EDICT_BITS + NUM_NETWORKED_EHANDLE_SERIAL_NUMBER_BITS)
 #define INVALID_NETWORKED_EHANDLE_VALUE				((1 << NUM_NETWORKED_EHANDLE_BITS) - 1)
 
 // This is the maximum amount of data a PackedEntity can have. Having a limit allows us
 // to use static arrays sometimes instead of allocating memory all over the place.
-#define MAX_PACKEDENTITY_DATA	(16384)
+#define MAX_PACKEDENTITY_DATA	(2048)
 
 // This is the maximum number of properties that can be delta'd. Must be evenly divisible by 8.
-#define MAX_PACKEDENTITY_PROPS	(4096)
+#define MAX_PACKEDENTITY_PROPS	(1024)
 
 // a client can have up to 4 customization files (logo, sounds, models, txt).
-#define MAX_CUSTOM_FILES		4		// max 4 files
-#define MAX_CUSTOM_FILE_SIZE	131072	
+#define MAX_CUSTOM_FILES		4		// max 4 files. It seems to be 4 in src2006?
+#define MAX_CUSTOM_FILE_SIZE	131072	// Real in src2006!
 
 //
 // Constants shared by the engine and dlls
@@ -200,9 +200,9 @@ enum SolidFlags_t
 	FSOLID_FORCE_WORLD_ALIGNED	= 0x0040,	// Forces the collision rep to be world-aligned even if it's SOLID_BSP or SOLID_VPHYSICS
 	FSOLID_USE_TRIGGER_BOUNDS	= 0x0080,	// Uses a special trigger bounds separate from the normal OBB
 	FSOLID_ROOT_PARENT_ALIGNED	= 0x0100,	// Collisions are defined in root parent's local coordinate space
-	FSOLID_TRIGGER_TOUCH_DEBRIS	= 0x0200,	// This trigger will touch debris objects
+	//FSOLID_TRIGGER_TOUCH_DEBRIS	= 0x0200,	// This trigger will touch debris objects
 
-	FSOLID_MAX_BITS	= 10
+	FSOLID_MAX_BITS	= 9
 };
 
 //-----------------------------------------------------------------------------

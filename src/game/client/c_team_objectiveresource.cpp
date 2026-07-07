@@ -47,7 +47,7 @@ void RecvProxy_CapLayout( const CRecvProxyData *pData, void *pStruct, void *pOut
 {
 	ObjectiveResource()->SetCapLayout( pData->m_Value.m_pString );
 }
-
+#if 0
 IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_BaseTeamObjectiveResource, DT_BaseTeamObjectiveResource, CBaseTeamObjectiveResource)
 	RecvPropInt( RECVINFO(m_iTimerToShowInHUD) ),
 
@@ -79,7 +79,7 @@ IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_BaseTeamObjectiveResource, DT_BaseTeamObjectiv
 	RecvPropArray3( RECVINFO_ARRAY(m_iOwner),			RecvPropInt( RECVINFO(m_iOwner[0]), 0, RecvProxy_Owner ) ),
 	RecvPropString( RECVINFO(m_pszCapLayoutInHUD), 0, RecvProxy_CapLayout ),
 END_RECV_TABLE()
-
+#endif
 C_BaseTeamObjectiveResource *g_pObjectiveResource = NULL;
 
 //-----------------------------------------------------------------------------

@@ -82,6 +82,7 @@
 #include "hl2orange.spa.h"
 #include "particle_parse.h"
 #include "tier3/tier3.h"
+#include "netprop_dump.h"
 
 #ifdef CSTRIKE_DLL // BOTPORT: TODO: move these ifdefs out
 #include "bot/bot.h"
@@ -3024,5 +3025,3 @@ private:
 };
 
 EXPOSE_SINGLE_INTERFACE( CServerDLLSharedAppSystems, IServerDLLSharedAppSystems, SERVER_DLL_SHARED_APPSYSTEMS );
-
-

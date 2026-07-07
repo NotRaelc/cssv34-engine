@@ -19,8 +19,8 @@
 class C_FogController : public C_BaseEntity
 {
 public:
-	DECLARE_NETWORKCLASS();
-	DECLARE_CLASS( C_FogController, C_BaseEntity );
+	//DECLARE_NETWORKCLASS(); // No longer networked
+	DECLARE_CLASS(C_FogController, C_BaseEntity);
 
 	C_FogController();
 

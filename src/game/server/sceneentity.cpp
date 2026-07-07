@@ -491,7 +491,7 @@ public:
 
 	CNetworkVar( bool, m_bIsPlayingBack );
 	CNetworkVar( bool, m_bPaused );
-	CNetworkVar( bool, m_bMultiplayer );
+	bool				m_bMultiplayer;
 	CNetworkVar( float, m_flForceClientTime );
 
 	float					m_flCurrentTime;
@@ -615,7 +615,7 @@ IMPLEMENT_SERVERCLASS_ST_NOBASE( CSceneEntity, DT_SceneEntity )
 	SendPropInt(SENDINFO(m_nSceneStringIndex),MAX_CHOREO_SCENES_STRING_BITS,SPROP_UNSIGNED),
 	SendPropBool(SENDINFO(m_bIsPlayingBack)),
 	SendPropBool(SENDINFO(m_bPaused)),
-	SendPropBool(SENDINFO(m_bMultiplayer)),
+	//SendPropBool(SENDINFO(m_bMultiplayer)),
 	SendPropFloat(SENDINFO(m_flForceClientTime)),
 	SendPropUtlVector(
 		SENDINFO_UTLVECTOR( m_hActorList ),
@@ -744,7 +744,7 @@ CSceneEntity::CSceneEntity( void )
 	m_bInterruptedActorsScenes = false;
 	m_bIsPlayingBack	= false;
 	m_bPaused			= false;
-	m_bMultiplayer = false;
+	m_bMultiplayer = true;
 	m_fPitch = 1.0f;
 	m_iszSceneFile		= NULL_STRING;
 	m_iszResumeSceneFile = NULL_STRING;

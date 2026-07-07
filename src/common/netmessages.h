@@ -455,7 +455,7 @@ class SVC_VoiceData : public CNetMessage
 
 public:	
 	int				m_nFromClient;	// client who has spoken
-	bool			m_bProximity;
+	//bool			m_bProximity;	// didnt exist in V34
 	int				m_nLength;		// data length in bits
 	uint64			m_xuid;			// X360 player ID
 

@@ -78,7 +78,6 @@ public:
 	// 3d skybox
 	CNetworkVarEmbedded( sky3dparams_t, m_skybox3d );
 	// world fog
-	CNetworkVarEmbedded( fogplayerparams_t, m_PlayerFog );
 	fogparams_t			m_fog;
 	// audio environment
 	CNetworkVarEmbedded( audioparams_t, m_audio );

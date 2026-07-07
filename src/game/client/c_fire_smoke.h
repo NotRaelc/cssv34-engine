@@ -293,6 +293,10 @@ public:
 	EHANDLE				m_hEntAttached;		// The entity that we are burning (attached to).
 	EHANDLE				m_hOldAttached;
 
+	float	m_flSize;
+	bool	m_bUseHitboxes;
+	float	m_flLifetime;
+
 protected:
 
 	void	CreateEffect( void );

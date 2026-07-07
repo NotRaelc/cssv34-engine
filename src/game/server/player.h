@@ -768,7 +768,7 @@ public:
 	//  the player and not to other players.
 	CNetworkVarEmbedded( CPlayerLocalData, m_Local );
 	void InitFogController( void );
-	void InputSetFogController( inputdata_t &inputdata );
+	//void InputSetFogController( inputdata_t &inputdata );
 
 	// Used by env_soundscape_triggerable to manage when the player is touching multiple
 	// soundscape triggers simultaneously.
@@ -852,8 +852,8 @@ protected:
 	void					UpdateButtonState( int nUserCmdButtonMask );
 
 	bool	m_bPauseBonusProgress;
-	CNetworkVar( int, m_iBonusProgress );
-	CNetworkVar( int, m_iBonusChallenge );
+	int		m_iBonusProgress = 0;
+	int		m_iBonusChallenge = 0;
 
 	int						m_lastDamageAmount;		// Last damage taken
 
@@ -869,14 +869,14 @@ protected:
 	CNetworkVar( int, m_iObserverMode );	// if in spectator mode != 0
 	CNetworkVar( int,	m_iFOV );			// field of view
 	CNetworkVar( int,	m_iDefaultFOV );	// default field of view
-	CNetworkVar( int,	m_iFOVStart );		// What our FOV started at
-	CNetworkVar( float,	m_flFOVTime );		// Time our FOV change started
+	int					m_iFOVStart = 90;		// What our FOV started at
+	float				m_flFOVTime = 0.0f;		// Time our FOV change started
 	
 	int						m_iObserverLastMode; // last used observer mode
 	CNetworkHandle( CBaseEntity, m_hObserverTarget );	// entity handle to m_iObserverTarget
 	bool					m_bForcedObserverMode; // true, player was forced by invalid targets to switch mode
 	
-	CNetworkHandle( CBaseEntity, m_hZoomOwner );	//This is a pointer to the entity currently controlling the player's zoom
+	EHANDLE					m_hZoomOwner;			//This is a pointer to the entity currently controlling the player's zoom
 													//Only this entity can change the zoom state once it has ownership
 
 	float					m_tbdPrev;				// Time-based damage timer
@@ -1095,7 +1095,7 @@ protected:
 
 	bool			m_bSinglePlayerGameEnding;
 
-	CNetworkVar( int, m_ubEFNoInterpParity );
+	int				m_ubEFNoInterpParity = 0;
 
 public:
 

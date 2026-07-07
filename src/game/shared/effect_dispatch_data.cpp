@@ -83,12 +83,14 @@
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), COORD_INTEGER_BITS+SUBINCH_PRECISION, 0, MIN_COORD_INTEGER, MAX_COORD_INTEGER ),
 #else
-		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[0] ), -1, SPROP_COORD ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[1] ), -1, SPROP_COORD ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vOrigin[2] ), -1, SPROP_COORD ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vStart[0] ), -1, SPROP_COORD ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vStart[1] ), -1, SPROP_COORD ),
-		SendPropFloat( SENDINFO_NOCHECK( m_vStart[2] ), -1, SPROP_COORD ),
+
+#define POS_CLAMPING 16384.0f
+		SendPropFloat(SENDINFO_NOCHECK(m_vOrigin[0]), 14, 0, -POS_CLAMPING, POS_CLAMPING),
+		SendPropFloat(SENDINFO_NOCHECK(m_vOrigin[1]), 14, 0, -POS_CLAMPING, POS_CLAMPING),
+		SendPropFloat(SENDINFO_NOCHECK(m_vOrigin[2]), 14, 0, -POS_CLAMPING, POS_CLAMPING),
+		SendPropFloat(SENDINFO_NOCHECK(m_vStart[0]), 14, 0, -POS_CLAMPING, POS_CLAMPING),
+		SendPropFloat(SENDINFO_NOCHECK(m_vStart[1]), 14, 0, -POS_CLAMPING, POS_CLAMPING),
+		SendPropFloat(SENDINFO_NOCHECK(m_vStart[2]), 14, 0, -POS_CLAMPING, POS_CLAMPING),
 #endif
 		SendPropQAngles( SENDINFO_NOCHECK( m_vAngles ), 7 ),
 
@@ -105,7 +107,7 @@
 		SendPropIntWithMinusOneFlag( SENDINFO_NOCHECK( m_nSurfaceProp ), 8, SendProxy_ShortAddOne ),
 		SendPropInt( SENDINFO_NOCHECK( m_iEffectName ), MAX_EFFECT_DISPATCH_STRING_BITS, SPROP_UNSIGNED ),
 
-		SendPropInt( SENDINFO_NOCHECK( m_nMaterial ), MAX_MODEL_INDEX_BITS, SPROP_UNSIGNED ),
+		SendPropInt(SENDINFO_NOCHECK(m_nMaterial), 16, SPROP_UNSIGNED), // 16 instead of MAX_MODEL_INDEX_BITS
 		SendPropInt( SENDINFO_NOCHECK( m_nDamageType ), 32, SPROP_UNSIGNED ),
 		SendPropInt( SENDINFO_NOCHECK( m_nHitBox ), 11, SPROP_UNSIGNED ),
 

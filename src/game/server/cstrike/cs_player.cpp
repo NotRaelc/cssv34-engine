@@ -186,13 +186,13 @@ public:
 
 	CNetworkHandle( CBasePlayer, m_hPlayer );
 	CNetworkVar( int, m_iEvent );
-	CNetworkVar( int, m_nData );
+	int			m_nData;
 };
 
 IMPLEMENT_SERVERCLASS_ST_NOBASE( CTEPlayerAnimEvent, DT_TEPlayerAnimEvent )
 	SendPropEHandle( SENDINFO( m_hPlayer ) ),
 	SendPropInt( SENDINFO( m_iEvent ), Q_log2( PLAYERANIMEVENT_COUNT ) + 1, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO( m_nData ), 32 )
+	//SendPropInt( SENDINFO( m_nData ), 32 )
 END_SEND_TABLE()
 
 static CTEPlayerAnimEvent g_TEPlayerAnimEvent( "PlayerAnimEvent" );

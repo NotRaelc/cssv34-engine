@@ -45,7 +45,7 @@ IMPLEMENT_CLIENTCLASS_DT(C_SceneEntity, DT_SceneEntity, CSceneEntity)
 	RecvPropInt(RECVINFO(m_nSceneStringIndex)),
 	RecvPropBool(RECVINFO(m_bIsPlayingBack)),
 	RecvPropBool(RECVINFO(m_bPaused)),
-	RecvPropBool(RECVINFO(m_bMultiplayer)),
+	//RecvPropBool(RECVINFO(m_bMultiplayer)),
 	RecvPropFloat(RECVINFO(m_flForceClientTime), 0, RecvProxy_ForcedClientTime ),
 	RecvPropUtlVector( 
 		RECVINFO_UTLVECTOR( m_hActorList ), 
@@ -56,7 +56,7 @@ END_RECV_TABLE()
 C_SceneEntity::C_SceneEntity( void )
 {
 	m_pScene = NULL;
-	m_bMultiplayer = false;
+	m_bMultiplayer = true;
 
 	m_hOwner = NULL;
 	m_bClientOnly = false;
@@ -193,7 +193,7 @@ void C_SceneEntity::StopClientOnlyScene()
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void C_SceneEntity::SetupClientOnlyScene( const char *pszFilename, C_BaseFlex *pOwner /* = NULL */, bool bMultiplayer /* = false */ )
+void C_SceneEntity::SetupClientOnlyScene( const char *pszFilename, C_BaseFlex *pOwner /* = NULL */, bool bMultiplayer /* = true */)
 {
 	m_bIsPlayingBack = true;
 	m_bMultiplayer = bMultiplayer;

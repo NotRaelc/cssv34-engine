@@ -23,14 +23,14 @@ public:
 
 	virtual void	Test( const Vector& current_origin, const QAngle& current_angles );
 	
-	DECLARE_SERVERCLASS();
+	//DECLARE_SERVERCLASS();
 
 public:
-	CNetworkVector( m_vecOrigin );
-	CNetworkVector( m_vecVelocity );
-	CNetworkVar( int, m_nModelIndex );
-	CNetworkVar( int, m_nLifeTime );
-	CNetworkHandle( CBaseEntity, m_hOwner );
+	Vector		m_vecOrigin;
+	Vector		m_vecVelocity;
+	int			m_nModelIndex;
+	int			m_nLifeTime;
+	EHANDLE		m_hOwner;
 };
 
 //-----------------------------------------------------------------------------
@@ -78,13 +78,13 @@ void CTEClientProjectile::Test( const Vector& current_origin, const QAngle& curr
 	Create( filter, 0.0 );
 }
 
-IMPLEMENT_SERVERCLASS_ST(CTEClientProjectile, DT_TEClientProjectile)
-	SendPropVector( SENDINFO(m_vecOrigin), -1, SPROP_COORD),
-	SendPropVector( SENDINFO(m_vecVelocity), -1, SPROP_COORD),
-	SendPropModelIndex( SENDINFO(m_nModelIndex) ),
-	SendPropInt( SENDINFO(m_nLifeTime),	6, SPROP_UNSIGNED ),
-	SendPropEHandle(SENDINFO(m_hOwner)),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST(CTEClientProjectile, DT_TEClientProjectile)
+//	SendPropVector( SENDINFO(m_vecOrigin), -1, SPROP_COORD),
+//	SendPropVector( SENDINFO(m_vecVelocity), -1, SPROP_COORD),
+//	SendPropModelIndex( SENDINFO(m_nModelIndex) ),
+//	SendPropInt( SENDINFO(m_nLifeTime),	6, SPROP_UNSIGNED ),
+//	SendPropEHandle(SENDINFO(m_hOwner)),
+//END_SEND_TABLE()
 
 
 // Singleton to fire TEClientProjectile objects
@@ -113,5 +113,5 @@ void TE_ClientProjectile( IRecipientFilter& filter, float delay,
 	g_TEClientProjectile.m_hOwner = pOwner;
 
 	// Send it over the wire
-	g_TEClientProjectile.Create( filter, delay );
+	//g_TEClientProjectile.Create( filter, delay );
 }
