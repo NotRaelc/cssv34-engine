@@ -158,7 +158,8 @@ void CClientState::SendClientInfo( void )
 {
 	CLC_ClientInfo info;
 	
-	info.m_nSendTableCRC = SendTable_GetCRC();
+	//info.m_nSendTableCRC = SendTable_GetCRC();
+	info.m_nSendTableCRC = -1290448708; // FIXME: v34 hardcode CRC!
 	info.m_nServerCount = m_nServerCount;
 	info.m_bIsHLTV = false;
 #if !defined( NO_STEAM )

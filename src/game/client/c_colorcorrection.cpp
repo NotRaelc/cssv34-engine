@@ -41,7 +41,7 @@ private:
 
 	float	m_minFalloff;
 	float	m_maxFalloff;
-	float	m_flCurWeight;
+	float	m_MaxWeight = 0.0f;
 	char	m_netLookupFilename[MAX_PATH];
 
 	bool	m_bEnabled;
@@ -53,7 +53,7 @@ IMPLEMENT_CLIENTCLASS_DT(C_ColorCorrection, DT_ColorCorrection, CColorCorrection
 	RecvPropVector( RECVINFO(m_vecOrigin) ),
 	RecvPropFloat(  RECVINFO(m_minFalloff) ),
 	RecvPropFloat(  RECVINFO(m_maxFalloff) ),
-	RecvPropFloat(  RECVINFO(m_flCurWeight) ),
+	RecvPropFloat(  RECVINFO(m_MaxWeight) ),
 	RecvPropString( RECVINFO(m_netLookupFilename) ),
 	RecvPropBool(   RECVINFO(m_bEnabled) ),
 
@@ -116,7 +116,7 @@ void C_ColorCorrection::ClientThink()
 		return;
 	}
 
-	if( !m_bEnabled && m_flCurWeight == 0.0f )
+	if( !m_bEnabled && m_MaxWeight == 0.0f )
 	{
 		g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CCHandle, 0.0f );
 		return;
@@ -137,20 +137,7 @@ void C_ColorCorrection::ClientThink()
 		if ( weight>1.0f ) weight = 1.0f;	
 	}
 	
-	g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CCHandle, m_flCurWeight * ( 1.0 - weight ) );
+	g_pColorCorrectionMgr->SetColorCorrectionWeight( m_CCHandle, m_MaxWeight * ( 1.0 - weight ) );
 
 	BaseClass::ClientThink();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -90,6 +90,7 @@
 #include "engine/imatchmaking.h"
 #include "cdll_bounded_cvars.h"
 #include "statgather.h"
+#include "netprop_dump.h"
 
 #ifdef PORTAL
 #include "PortalRender.h"

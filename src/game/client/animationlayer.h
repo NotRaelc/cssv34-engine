@@ -26,9 +26,9 @@ public:
 
 	void SetOrder( int order );
 
-public:
-
 	bool IsActive( void );
+
+public:
 
 	CRangeCheckedVar<int, -1, 65535, 0>	m_nSequence;
 	CRangeCheckedVar<float, -2, 2, 0>	m_flPrevCycle;

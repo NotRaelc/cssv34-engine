@@ -1,11 +1,13 @@
 # --------------------------------------------
 # Visual Studio 
+/game/
 *.suo
 *.user
 *.obj
 *.pch
 *.tlog
 *.log
+*.dmp
 *.scc
 *.exp
 *.ilk

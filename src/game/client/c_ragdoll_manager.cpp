@@ -12,23 +12,23 @@
 class C_RagdollManager : public C_BaseEntity
 {
 public:
-	DECLARE_CLASS( C_RagdollManager, C_BaseEntity );
+	DECLARE_CLASS(C_RagdollManager, C_BaseEntity);
 	DECLARE_CLIENTCLASS();
 
 	C_RagdollManager();
 
-// C_BaseEntity overrides.
+	// C_BaseEntity overrides.
 public:
 
-	virtual void	OnDataChanged( DataUpdateType_t updateType );
+	virtual void	OnDataChanged(DataUpdateType_t updateType);
 
 public:
 
-	int		m_iCurrentMaxRagdollCount;
+	int		m_iMaxRagdollCount;   // renamed from m_iCurrentMaxRagdollCount
 };
 
-IMPLEMENT_CLIENTCLASS_DT_NOBASE( C_RagdollManager, DT_RagdollManager, CRagdollManager )
-	RecvPropInt( RECVINFO( m_iCurrentMaxRagdollCount ) ),
+IMPLEMENT_CLIENTCLASS_DT_NOBASE(C_RagdollManager, DT_RagdollManager, CRagdollManager)
+RecvPropInt(RECVINFO(m_iMaxRagdollCount)),   // renamed
 END_RECV_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -36,16 +36,16 @@ END_RECV_TABLE()
 //-----------------------------------------------------------------------------
 C_RagdollManager::C_RagdollManager()
 {
-	m_iCurrentMaxRagdollCount = -1;
+	m_iMaxRagdollCount = -1;
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Input  : updateType - 
 //-----------------------------------------------------------------------------
-void C_RagdollManager::OnDataChanged( DataUpdateType_t updateType )
+void C_RagdollManager::OnDataChanged(DataUpdateType_t updateType)
 {
-	BaseClass::OnDataChanged( updateType );
+	BaseClass::OnDataChanged(updateType);
 
-	s_RagdollLRU.SetMaxRagdollCount( m_iCurrentMaxRagdollCount );
+	s_RagdollLRU.SetMaxRagdollCount(m_iMaxRagdollCount);
 }

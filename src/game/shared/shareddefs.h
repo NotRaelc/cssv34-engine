@@ -99,14 +99,14 @@ public:
 #define MAX_WEAPON_SLOTS		10	// hud item selection slots
 #define MAX_WEAPON_POSITIONS	20	// max number of items within a slot
 #define MAX_ITEM_TYPES			10	// hud item selection slots
-#define MAX_WEAPONS				72	// Max number of weapons available
+#define MAX_WEAPONS				48	// Max number of weapons available
 
 #define MAX_ITEMS				5	// hard coded item types
 
 #define WEAPON_NOCLIP			-1	// clip sizes set to this tell the weapon it doesn't use a clip
 
-#define	MAX_AMMO_TYPES	64		// ???
-#define MAX_AMMO_SLOTS  64		// not really slots
+#define	MAX_AMMO_TYPES	32		// ???
+#define MAX_AMMO_SLOTS  32		// not really slots
 
 #define HUD_PRINTNOTIFY		1
 #define HUD_PRINTCONSOLE	2
@@ -133,9 +133,9 @@ public:
 #define	HIDEHUD_CROSSHAIR			( 1<<8 )	// Hide crosshairs
 #define	HIDEHUD_VEHICLE_CROSSHAIR	( 1<<9 )	// Hide vehicle crosshair
 #define HIDEHUD_INVEHICLE			( 1<<10 )
-#define HIDEHUD_BONUS_PROGRESS		( 1<<11 )	// Hide bonus progress display (for bonus map challenges)
+//#define HIDEHUD_BONUS_PROGRESS		( 1<<11 )	// Hide bonus progress display (for bonus map challenges)
 
-#define HIDEHUD_BITCOUNT			12
+#define HIDEHUD_BITCOUNT			11
 
 //===================================================================================================================
 // suit usage bits
@@ -153,7 +153,7 @@ public:
 // The Source engine is really designed for 32 or less players.  If you raise this number above 32, you better know what you are doing
 //  and have a good answer for a bunch of perf question related to player simulation, thinking logic, tracelines, networking overhead, etc.
 // But if you are brave or are doing something interesting, go for it...   ywb 9/22/03
-#define MAX_PLAYERS				32  // Absolute max players supported
+#define MAX_PLAYERS				64  // Absolute max players supported. 
 
 #define MAX_PLACE_NAME_LENGTH		32
 

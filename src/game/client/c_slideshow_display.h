@@ -24,7 +24,7 @@ class C_SlideshowDisplay : public C_BaseEntity
 {
 public:
 	DECLARE_CLASS( C_SlideshowDisplay, CBaseEntity );
-	DECLARE_CLIENTCLASS();
+	//DECLARE_CLIENTCLASS();
 
 	C_SlideshowDisplay();
 	virtual ~C_SlideshowDisplay();

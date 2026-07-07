@@ -418,7 +418,7 @@ public:
 	int	 DrawDebugTextOverlays(void);
 
 	DECLARE_DATADESC();
-	DECLARE_SERVERCLASS();
+	//DECLARE_SERVERCLASS();
 
 protected:
 
@@ -544,15 +544,15 @@ void SendProxy_FuncRotatingSimulationTime( const SendProp *pProp, const void *pS
 	SendProxy_SimulationTime( pProp, pStruct, pVarData, pOut, iElement, objectID );
 }
 
-IMPLEMENT_SERVERCLASS_ST(CFuncRotating, DT_FuncRotating)
-	SendPropExclude( "DT_BaseEntity", "m_angRotation" ),
-	SendPropExclude( "DT_BaseEntity", "m_vecOrigin" ),
-	SendPropExclude( "DT_BaseEntity", "m_flSimulationTime" ),
-
-	SendPropVector(SENDINFO(m_vecOrigin), -1,  SPROP_COORD|SPROP_CHANGES_OFTEN, 0.0f, HIGH_DEFAULT, SendProxy_FuncRotatingOrigin ),
-	SendPropQAngles(SENDINFO(m_angRotation), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngles ),
-	SendPropInt(SENDINFO(m_flSimulationTime), SIMULATION_TIME_WINDOW_BITS, SPROP_UNSIGNED|SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingSimulationTime),
-END_SEND_TABLE()
+//IMPLEMENT_SERVERCLASS_ST(CFuncRotating, DT_FuncRotating)
+//	SendPropExclude( "DT_BaseEntity", "m_angRotation" ),
+//	SendPropExclude( "DT_BaseEntity", "m_vecOrigin" ),
+//	SendPropExclude( "DT_BaseEntity", "m_flSimulationTime" ),
+//
+//	SendPropVector(SENDINFO(m_vecOrigin), -1,  SPROP_COORD|SPROP_CHANGES_OFTEN, 0.0f, HIGH_DEFAULT, SendProxy_FuncRotatingOrigin ),
+//	SendPropQAngles(SENDINFO(m_angRotation), 13, SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingAngles ),
+//	SendPropInt(SENDINFO(m_flSimulationTime), SIMULATION_TIME_WINDOW_BITS, SPROP_UNSIGNED|SPROP_CHANGES_OFTEN, SendProxy_FuncRotatingSimulationTime),
+//END_SEND_TABLE()
 
 
 

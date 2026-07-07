@@ -45,12 +45,13 @@ CPointCamera::~CPointCamera()
 
 CPointCamera::CPointCamera()
 {
+
 	// Set these to opposites so that it'll be sent the first time around.
 	m_bActive = false;
 	m_bIsOn = false;
 	
 	m_bFogEnable = false;
-
+	m_flFogMaxDensity = 1.0f;
 	g_PointCameraList.Insert( this );
 }
 
@@ -247,7 +248,7 @@ IMPLEMENT_SERVERCLASS_ST( CPointCamera, DT_PointCamera )
 	SendPropInt( SENDINFO_STRUCTELEM( m_FogColor ), 32, SPROP_UNSIGNED ),
 	SendPropFloat( SENDINFO( m_flFogStart ), 0, SPROP_NOSCALE ),	
 	SendPropFloat( SENDINFO( m_flFogEnd ), 0, SPROP_NOSCALE ),	
-	SendPropFloat( SENDINFO( m_flFogMaxDensity ), 0, SPROP_NOSCALE ),	
+	//SendPropFloat( SENDINFO( m_flFogMaxDensity ), 0, SPROP_NOSCALE ),	
 	SendPropInt( SENDINFO( m_bActive ), 1, SPROP_UNSIGNED ),
 	SendPropInt( SENDINFO( m_bUseScreenAspectRatio ), 1, SPROP_UNSIGNED ),
 END_SEND_TABLE()

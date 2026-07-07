@@ -56,8 +56,8 @@ protected:
 
 	CNetworkVar( float, m_flSize );
 	CNetworkVar( bool, m_bUseHitboxes );
-	CNetworkVar( int, m_iNumHitboxFires );
-	CNetworkVar( float, m_flHitboxFireScale );
+	int			m_iNumHitboxFires;
+	float		m_flHitboxFireScale;
 
 	CNetworkVar( float, m_flLifetime );
 	bool	m_bPlayingSound;

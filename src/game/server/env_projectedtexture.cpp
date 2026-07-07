@@ -38,8 +38,8 @@ public:
 	void InputSetLightWorld(inputdata_t& inputdata);
 	void InputSetEnableShadows(inputdata_t& inputdata);
 	//	void InputSetLightColor( inputdata_t &inputdata );
-	void InputSetSpotlightTexture(inputdata_t& inputdata);
-	void InputSetAmbient(inputdata_t& inputdata);
+	//void InputSetSpotlightTexture(inputdata_t& inputdata);
+	//void InputSetAmbient(inputdata_t& inputdata);
 
 	void InitialThink(void);
 
@@ -53,13 +53,13 @@ private:
 	CNetworkVar(bool, m_bLightOnlyTarget);
 	CNetworkVar(bool, m_bLightWorld);
 	CNetworkVar(bool, m_bCameraSpace);
-	CNetworkVector(m_LinearFloatLightColor);
-	CNetworkVar(float, m_flAmbient);
-	CNetworkString(m_SpotlightTextureName, MAX_PATH);
-	CNetworkVar(int, m_nSpotlightTextureFrame);
-	CNetworkVar(float, m_flNearZ);
-	CNetworkVar(float, m_flFarZ);
-	CNetworkVar(int, m_nShadowQuality);
+	CNetworkVar(int, m_cLightColor);
+	//CNetworkVar(float, m_flAmbient);
+	//CNetworkString(m_SpotlightTextureName, MAX_PATH);
+	//CNetworkVar(int, m_nSpotlightTextureFrame);
+	//CNetworkVar(float, m_flNearZ);
+	//CNetworkVar(float, m_flFarZ);
+	//CNetworkVar(int, m_nShadowQuality);
 };
 
 LINK_ENTITY_TO_CLASS(env_projectedtexture, CEnvProjectedTexture);
@@ -72,13 +72,13 @@ DEFINE_KEYFIELD(m_bEnableShadows, FIELD_BOOLEAN, "enableshadows"),
 DEFINE_KEYFIELD(m_bLightOnlyTarget, FIELD_BOOLEAN, "lightonlytarget"),
 DEFINE_KEYFIELD(m_bLightWorld, FIELD_BOOLEAN, "lightworld"),
 DEFINE_KEYFIELD(m_bCameraSpace, FIELD_BOOLEAN, "cameraspace"),
-DEFINE_KEYFIELD(m_flAmbient, FIELD_FLOAT, "ambient"),
-DEFINE_AUTO_ARRAY_KEYFIELD(m_SpotlightTextureName, FIELD_CHARACTER, "texturename"),
-DEFINE_KEYFIELD(m_nSpotlightTextureFrame, FIELD_INTEGER, "textureframe"),
-DEFINE_KEYFIELD(m_flNearZ, FIELD_FLOAT, "nearz"),
-DEFINE_KEYFIELD(m_flFarZ, FIELD_FLOAT, "farz"),
-DEFINE_KEYFIELD(m_nShadowQuality, FIELD_INTEGER, "shadowquality"),
-DEFINE_FIELD(m_LinearFloatLightColor, FIELD_VECTOR),
+//DEFINE_KEYFIELD(m_flAmbient, FIELD_FLOAT, "ambient"),
+//DEFINE_AUTO_ARRAY_KEYFIELD(m_SpotlightTextureName, FIELD_CHARACTER, "texturename"),
+//DEFINE_KEYFIELD(m_nSpotlightTextureFrame, FIELD_INTEGER, "textureframe"),
+//DEFINE_KEYFIELD(m_flNearZ, FIELD_FLOAT, "nearz"),
+//DEFINE_KEYFIELD(m_flFarZ, FIELD_FLOAT, "farz"),
+//DEFINE_KEYFIELD(m_nShadowQuality, FIELD_INTEGER, "shadowquality"),
+DEFINE_FIELD(m_cLightColor, FIELD_INTEGER),
 
 DEFINE_INPUTFUNC(FIELD_VOID, "TurnOn", InputTurnOn),
 DEFINE_INPUTFUNC(FIELD_VOID, "TurnOff", InputTurnOff),
@@ -90,8 +90,8 @@ DEFINE_INPUTFUNC(FIELD_BOOLEAN, "LightWorld", InputSetLightWorld),
 DEFINE_INPUTFUNC(FIELD_BOOLEAN, "EnableShadows", InputSetEnableShadows),
 // this is broken . . need to be able to set color and intensity like light_dynamic
 //	DEFINE_INPUTFUNC( FIELD_COLOR32, "LightColor", InputSetLightColor ),
-DEFINE_INPUTFUNC(FIELD_FLOAT, "Ambient", InputSetAmbient),
-DEFINE_INPUTFUNC(FIELD_STRING, "SpotlightTexture", InputSetSpotlightTexture),
+//DEFINE_INPUTFUNC(FIELD_FLOAT, "Ambient", InputSetAmbient),
+//DEFINE_INPUTFUNC(FIELD_STRING, "SpotlightTexture", InputSetSpotlightTexture),
 DEFINE_THINKFUNC(InitialThink),
 END_DATADESC()
 
@@ -103,13 +103,13 @@ SendPropBool(SENDINFO(m_bEnableShadows)),
 SendPropBool(SENDINFO(m_bLightOnlyTarget)),
 SendPropBool(SENDINFO(m_bLightWorld)),
 SendPropBool(SENDINFO(m_bCameraSpace)),
-SendPropVector(SENDINFO(m_LinearFloatLightColor)),
-SendPropFloat(SENDINFO(m_flAmbient)),
-SendPropString(SENDINFO(m_SpotlightTextureName)),
-SendPropInt(SENDINFO(m_nSpotlightTextureFrame)),
-SendPropFloat(SENDINFO(m_flNearZ), 16, SPROP_ROUNDDOWN, 0.0f, 500.0f),
-SendPropFloat(SENDINFO(m_flFarZ), 18, SPROP_ROUNDDOWN, 0.0f, 1500.0f),
-SendPropInt(SENDINFO(m_nShadowQuality), 1, SPROP_UNSIGNED),  // Just one bit for now
+SendPropInt(SENDINFO(m_cLightColor), 32, SPROP_UNSIGNED),
+//SendPropFloat(SENDINFO(m_flAmbient)),
+//SendPropString(SENDINFO(m_SpotlightTextureName)),
+//SendPropInt(SENDINFO(m_nSpotlightTextureFrame)),
+//SendPropFloat(SENDINFO(m_flNearZ), 16, SPROP_ROUNDDOWN, 0.0f, 500.0f),
+//SendPropFloat(SENDINFO(m_flFarZ), 18, SPROP_ROUNDDOWN, 0.0f, 1500.0f),
+//SendPropInt(SENDINFO(m_nShadowQuality), 1, SPROP_UNSIGNED),  // Just one bit for now
 END_SEND_TABLE()
 
 //-----------------------------------------------------------------------------
@@ -128,15 +128,15 @@ CEnvProjectedTexture::CEnvProjectedTexture(void)
 #if defined( _X360 )
 	Q_strcpy(m_SpotlightTextureName.GetForModify(), "effects/flashlight_border");
 #else
-	Q_strcpy(m_SpotlightTextureName.GetForModify(), "effects/flashlight001");
+	//Q_strcpy(m_SpotlightTextureName.GetForModify(), "effects/flashlight001");
 #endif
 
-	m_nSpotlightTextureFrame = 0;
-	m_LinearFloatLightColor.Init(1.0f, 1.0f, 1.0f);
-	m_flAmbient = 0.0f;
-	m_flNearZ = 4.0f;
-	m_flFarZ = 750.0f;
-	m_nShadowQuality = 0;
+	//m_nSpotlightTextureFrame = 0;
+	m_cLightColor = 0xFFFFFFFF;  // R=255, G=255, B=255, A=255 (white, density=1.0)
+	//m_flAmbient = 0.0f;
+	//m_flNearZ = 4.0f;
+	//m_flFarZ = 750.0f;
+	//m_nShadowQuality = 0;
 }
 
 void UTIL_ColorStringToLinearFloatColor(Vector& color, const char* pString)
@@ -157,15 +157,19 @@ bool CEnvProjectedTexture::KeyValue(const char* szKeyName, const char* szValue)
 {
 	if (FStrEq(szKeyName, "lightcolor"))
 	{
-		Vector tmp;
-		UTIL_ColorStringToLinearFloatColor(tmp, szValue);
-		m_LinearFloatLightColor = tmp;
+		float tmp[4];
+		UTIL_StringToFloatArray(tmp, 4, szValue);
+		// 0...255
+		int r = clamp((int)(tmp[0]), 0, 255);
+		int g = clamp((int)(tmp[1]), 0, 255);
+		int b = clamp((int)(tmp[2]), 0, 255);
+		int a = clamp((int)(tmp[3] > 0 ? tmp[3] : 255), 0, 255); // density
+		m_cLightColor = (r << 24) | (g << 16) | (b << 8) | a;
 	}
 	else
 	{
 		return BaseClass::KeyValue(szKeyName, szValue);
 	}
-
 	return true;
 }
 
@@ -214,15 +218,15 @@ void CEnvProjectedTexture::InputSetEnableShadows(inputdata_t& inputdata)
 //	m_cLightColor = inputdata.value.Color32();
 //}
 
-void CEnvProjectedTexture::InputSetAmbient(inputdata_t& inputdata)
-{
-	m_flAmbient = inputdata.value.Float();
-}
-
-void CEnvProjectedTexture::InputSetSpotlightTexture(inputdata_t& inputdata)
-{
-	Q_strcpy(m_SpotlightTextureName.GetForModify(), inputdata.value.String());
-}
+//void CEnvProjectedTexture::InputSetAmbient(inputdata_t& inputdata)
+//{
+//	m_flAmbient = inputdata.value.Float();
+//}
+//
+//void CEnvProjectedTexture::InputSetSpotlightTexture(inputdata_t& inputdata)
+//{
+//	Q_strcpy(m_SpotlightTextureName.GetForModify(), inputdata.value.String());
+//}
 
 void CEnvProjectedTexture::Activate(void)
 {

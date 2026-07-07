@@ -73,7 +73,7 @@ private:
 	CNetworkVar( int, m_nAttachmentIndex );
 	CNetworkVar( int, m_nOverlayMaterial );
 	CNetworkVar( int, m_fScreenFlags );
-	CNetworkVar( EHANDLE, m_hPlayerOwner );
+	HANDLE			m_hPlayerOwner;
 
 	friend CVGuiScreen *CreateVGuiScreen( const char *pScreenClassname, const char *pScreenType, CBaseEntity *pAttachedTo, CBaseEntity *pOwner, int nAttachmentIndex );
 };

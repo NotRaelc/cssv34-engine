@@ -26,7 +26,7 @@ BEGIN_DATADESC( CEntityFlame )
 	DEFINE_FIELD( m_hEntAttached, FIELD_EHANDLE ),
 	DEFINE_FIELD( m_bUseHitboxes, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_iNumHitboxFires, FIELD_INTEGER ),
-	DEFINE_FIELD( m_flHitboxFireScale, FIELD_FLOAT ),
+	// DEFINE_FIELD( m_flHitboxFireScale, FIELD_FLOAT ),
 	// DEFINE_FIELD( m_bPlayingSound, FIELD_BOOLEAN ),
 	
 	DEFINE_FUNCTION( FlameThink ),
@@ -35,9 +35,11 @@ BEGIN_DATADESC( CEntityFlame )
 
 END_DATADESC()
 
-
-IMPLEMENT_SERVERCLASS_ST( CEntityFlame, DT_EntityFlame )
-	SendPropEHandle( SENDINFO( m_hEntAttached ) ),
+IMPLEMENT_SERVERCLASS_ST(CEntityFlame, DT_EntityFlame)
+SendPropFloat(SENDINFO(m_flSize), 16, SPROP_NOSCALE),
+SendPropEHandle(SENDINFO(m_hEntAttached)),
+SendPropBool(SENDINFO(m_bUseHitboxes)),
+SendPropFloat(SENDINFO(m_flLifetime), 0, SPROP_NOSCALE),
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( entityflame, CEntityFlame );

@@ -826,6 +826,8 @@ void CGameClient::ActivatePlayer( void )
 	COM_TimestampedLog( "CGameClient::ActivatePlayer -end" );
 }
 
+
+
 bool CGameClient::SendSignonData( void )
 {
 	bool bClientHasdifferentTables = false;
@@ -837,7 +839,7 @@ bool CGameClient::SendSignonData( void )
 	}
 
 	if ( SendTable_GetCRC() != (CRC32_t)0 )
-	{
+	{	
 		bClientHasdifferentTables =  m_nSendtableCRC != SendTable_GetCRC();
 	}
 
@@ -859,7 +861,8 @@ bool CGameClient::SendSignonData( void )
 			m_NetChannel->SendData( sv.m_FullSendTables );
 		}
 		else
-		{
+		{	
+
 			Disconnect( "Server uses different class tables" );
 			return false;
 		}

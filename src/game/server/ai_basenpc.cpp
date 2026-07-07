@@ -10549,7 +10549,7 @@ BEGIN_DATADESC( CAI_BaseNPC )
 	//								m_poseAim_Pitch (not saved; recomputed on restore)
 	//								m_poseAim_Yaw (not saved; recomputed on restore)
 	//								m_poseMove_Yaw (not saved; recomputed on restore)
-	DEFINE_FIELD( m_flTimePingEffect,			FIELD_TIME ),
+	//DEFINE_FIELD( m_flTimePingEffect,			FIELD_TIME ),
 	DEFINE_FIELD( m_bForceConditionsGather,		FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bConditionsGathered,		FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bSkippedChooseEnemy,		FIELD_BOOLEAN ),
@@ -10780,7 +10780,7 @@ IMPLEMENT_SERVERCLASS_ST( CAI_BaseNPC, DT_AI_BaseNPC )
 	SendPropInt( SENDINFO( m_iSpeedModRadius ) ),
 	SendPropInt( SENDINFO( m_iSpeedModSpeed ) ),
 	SendPropBool( SENDINFO( m_bImportanRagdoll ) ),
-	SendPropFloat( SENDINFO( m_flTimePingEffect ) ),
+	//SendPropFloat( SENDINFO( m_flTimePingEffect ) ),
 END_SEND_TABLE()
 
 //-------------------------------------

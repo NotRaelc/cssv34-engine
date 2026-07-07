@@ -64,8 +64,8 @@ IMPLEMENT_SERVERCLASS_ST(CPoseController, DT_PoseController)
 	SendPropArray3( SENDINFO_ARRAY3(m_chPoseIndex), SendPropInt( SENDINFO_ARRAY(m_chPoseIndex), 5, SPROP_UNSIGNED ) ),	// bits sent must be enough to represent MAXSTUDIOPOSEPARAM
 	SendPropBool( SENDINFO(m_bPoseValueParity) ),
 	SendPropFloat( SENDINFO(m_fPoseValue), 11, 0, 0.0f, 1.0f ),
-	SendPropFloat( SENDINFO(m_fInterpolationTime), 11, 0, 0.0f, MAX_POSE_INTERPOLATION_TIME ),
-	SendPropBool( SENDINFO(m_bInterpolationWrap) ),
+	//SendPropFloat( SENDINFO(m_fInterpolationTime), 11, 0, 0.0f, MAX_POSE_INTERPOLATION_TIME ),
+	//SendPropBool( SENDINFO(m_bInterpolationWrap) ),
 	SendPropFloat( SENDINFO(m_fCycleFrequency), 11, 0, -MAX_POSE_CYCLE_FREQUENCY, MAX_POSE_CYCLE_FREQUENCY ),
 	SendPropInt( SENDINFO(m_nFModType), 3, SPROP_UNSIGNED ),
 	SendPropFloat( SENDINFO(m_fFModTimeOffset), 11, 0, -1.0f, 1.0f ),
@@ -76,6 +76,8 @@ END_SEND_TABLE()
 
 void CPoseController::Spawn( void )
 {
+	m_fInterpolationTime = 0.0f;
+	m_bInterpolationWrap = false;
 	BaseClass::Spawn();
 
 	// Talk to the client class when data changes
@@ -338,8 +340,8 @@ IMPLEMENT_CLIENTCLASS_DT( C_PoseController, DT_PoseController, CPoseController )
 	RecvPropArray3( RECVINFO_ARRAY(m_chPoseIndex), RecvPropInt( RECVINFO(m_chPoseIndex[0]) ) ),
 	RecvPropBool( RECVINFO(m_bPoseValueParity) ),
 	RecvPropFloat( RECVINFO(m_fPoseValue) ),
-	RecvPropFloat( RECVINFO(m_fInterpolationTime) ),
-	RecvPropBool( RECVINFO(m_bInterpolationWrap) ),
+	//RecvPropFloat( RECVINFO(m_fInterpolationTime) ),
+	//RecvPropBool( RECVINFO(m_bInterpolationWrap) ),
 	RecvPropFloat( RECVINFO(m_fCycleFrequency) ),
 	RecvPropInt( RECVINFO(m_nFModType) ),
 	RecvPropFloat( RECVINFO(m_fFModTimeOffset) ),
@@ -353,6 +355,8 @@ void C_PoseController::Spawn( void )
 	SetThink( &C_PoseController::ClientThink );
 	SetNextClientThink( CLIENT_THINK_ALWAYS );
 
+	m_fInterpolationTime = 0.0f;
+	m_bInterpolationWrap = false;
 	m_fCurrentFMod = 0.0f;
 	m_PoseTransitionValue.Init( 0.0f, 0.0f, 0.0f );
 

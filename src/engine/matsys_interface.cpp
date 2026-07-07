@@ -499,12 +499,6 @@ void InitMaterialSystemConfig( bool bInEditMode )
 
 	MaterialSystem_Config_t config = *g_pMaterialSystemConfig;
 
-	int w = GetSystemMetrics(SM_CXSCREEN);
-	int h = GetSystemMetrics(SM_CYSCREEN);
-
-	config.m_VideoMode.m_Width = w;
-	config.m_VideoMode.m_Height = h;
-
 #if !defined(SWDS)
 	// see if they've changed video card, or have no settings present
 	MaterialAdapterInfo_t driverInfo;

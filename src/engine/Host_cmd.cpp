@@ -868,7 +868,9 @@ CON_COMMAND( version, "Print version info string." )
 		             "Product version:	%s (%s)\n", PROTOCOL_VERSION, info.szVersionString, info.szProductString);
 	ConColorMsg(clr, "Build info:		" __TIME__ " " __DATE__ " (%i) (%i)\n", build_number(), info.AppID);
 
-	ConColorMsg(Color(98, 132, 252, 255), "-- Made by RuSHeRR (https://github.com/rusherr-c)\n\n");
+	ConColorMsg(Color(100, 144, 252, 255), "-- Made by RuSHeRR (https://github.com/rusherr-c)\n\n");
+	ConColorMsg(Color(100, 144, 252, 255), "-- with Raelc (https://github.com/NotRaelc)\n\n");
+	ConColorMsg(Color(100, 144, 252, 255), "-- and entityname (https://github.com/nttnmDev)\n\n");
 }
 
 

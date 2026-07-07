@@ -225,7 +225,7 @@ private:
 	CNetworkVar( float, m_fAmplitude );
 	CNetworkVar( float, m_fStartFrame );
 	CNetworkVar( float, m_fSpeed );
-	CNetworkVar( int, m_nMinDXLevel );
+	int				 m_nMinDXLevel;
 	CNetworkVar( float, m_flFrame );
 
 	CNetworkVector( m_vecEndPos );

@@ -97,9 +97,9 @@ void RecvProxy_ObserverTarget( const CRecvProxyData *pData, void *pStruct, void 
 // RecvTable for CPlayerState.
 // -------------------------------------------------------------------------------- //
 
-	BEGIN_RECV_TABLE_NOBASE(CPlayerState, DT_PlayerState)
-		RecvPropInt		(RECVINFO(deadflag)),
-	END_RECV_TABLE()
+BEGIN_RECV_TABLE_NOBASE(CPlayerState, DT_PlayerState)
+	RecvPropInt		(RECVINFO(deadflag)),
+END_RECV_TABLE()
 
 
 BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
@@ -150,10 +150,24 @@ BEGIN_RECV_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	RecvPropInt( RECVINFO( m_skybox3d.fog.colorSecondary ) ),
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.start ) ),
 	RecvPropFloat( RECVINFO( m_skybox3d.fog.end ) ),
-	RecvPropFloat( RECVINFO( m_skybox3d.fog.maxdensity ) ),
+	//RecvPropFloat( RECVINFO( m_skybox3d.fog.maxdensity ) ),
 
-	// fog data
-	RecvPropEHandle( RECVINFO( m_PlayerFog.m_hCtrl ) ),
+	// Direct fog parameters (new)
+	RecvPropInt( RECVINFO( m_fog.enable ) ),
+	RecvPropInt( RECVINFO( m_fog.blend ) ),
+	RecvPropVector( RECVINFO( m_fog.dirPrimary ) ),
+	RecvPropInt( RECVINFO( m_fog.colorPrimary ) ),
+	RecvPropInt( RECVINFO( m_fog.colorSecondary ) ),
+	RecvPropFloat( RECVINFO( m_fog.start ) ),
+	RecvPropFloat( RECVINFO( m_fog.end ) ),
+	RecvPropFloat( RECVINFO( m_fog.farz ) ),
+	//RecvPropFloat( RECVINFO( m_fog.maxdensity ) ),
+	RecvPropInt( RECVINFO( m_fog.colorPrimaryLerpTo ) ),
+	RecvPropInt( RECVINFO( m_fog.colorSecondaryLerpTo ) ),
+	RecvPropFloat( RECVINFO( m_fog.startLerpTo ) ),
+	RecvPropFloat( RECVINFO( m_fog.endLerpTo ) ),
+	RecvPropFloat( RECVINFO( m_fog.lerptime ) ),
+	RecvPropFloat( RECVINFO( m_fog.duration ) ),
 
 	// audio data
 	RecvPropVector( RECVINFO( m_audio.localSound[0] ) ),
@@ -223,10 +237,10 @@ END_RECV_TABLE()
 		RecvPropDataTable(RECVINFO_DT(pl), 0, &REFERENCE_RECV_TABLE(DT_PlayerState), DataTableRecvProxy_StaticDataTable),
 
 		RecvPropInt		(RECVINFO(m_iFOV)),
-		RecvPropInt		(RECVINFO(m_iFOVStart)),
-		RecvPropFloat	(RECVINFO(m_flFOVTime)),
+		//RecvPropInt		(RECVINFO(m_iFOVStart)),
+		//RecvPropFloat	(RECVINFO(m_flFOVTime)),
 		RecvPropInt		(RECVINFO(m_iDefaultFOV)),
-		RecvPropEHandle (RECVINFO(m_hZoomOwner)),
+		//RecvPropEHandle (RECVINFO(m_hZoomOwner)),
 
 		RecvPropEHandle( RECVINFO(m_hVehicle) ),
 		RecvPropEHandle( RECVINFO(m_hUseEntity) ),
@@ -234,8 +248,8 @@ END_RECV_TABLE()
 		RecvPropInt		(RECVINFO(m_iHealth)),
 		RecvPropInt		(RECVINFO(m_lifeState)),
 
-		RecvPropInt		(RECVINFO(m_iBonusProgress)),
-		RecvPropInt		(RECVINFO(m_iBonusChallenge)),
+		//RecvPropInt		(RECVINFO(m_iBonusProgress)),
+		//RecvPropInt		(RECVINFO(m_iBonusChallenge)),
 
 		RecvPropFloat	(RECVINFO(m_flMaxspeed)),
 		RecvPropInt		(RECVINFO(m_fFlags)),
@@ -248,7 +262,7 @@ END_RECV_TABLE()
 
 		RecvPropString( RECVINFO(m_szLastPlaceName) ),
 
-		RecvPropInt( RECVINFO( m_ubEFNoInterpParity ) ),
+		//RecvPropInt( RECVINFO( m_ubEFNoInterpParity ) ),
 
 	END_RECV_TABLE()
 
@@ -302,15 +316,15 @@ BEGIN_PREDICTION_DATA( C_BasePlayer )
 	DEFINE_PRED_TYPEDESCRIPTION( pl, CPlayerState ),
 
 	DEFINE_PRED_FIELD( m_iFOV, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
-	DEFINE_PRED_FIELD( m_hZoomOwner, FIELD_EHANDLE, FTYPEDESC_INSENDTABLE ),
-	DEFINE_PRED_FIELD( m_flFOVTime, FIELD_FLOAT, 0 ),
-	DEFINE_PRED_FIELD( m_iFOVStart, FIELD_INTEGER, 0 ),
+	//DEFINE_PRED_FIELD( m_hZoomOwner, FIELD_EHANDLE, FTYPEDESC_INSENDTABLE ),
+	//DEFINE_PRED_FIELD( m_flFOVTime, FIELD_FLOAT, 0 ),
+	//DEFINE_PRED_FIELD( m_iFOVStart, FIELD_INTEGER, 0 ),
 
 	DEFINE_PRED_FIELD( m_hVehicle, FIELD_EHANDLE, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD_TOL( m_flMaxspeed, FIELD_FLOAT, FTYPEDESC_INSENDTABLE, 0.5f ),
 	DEFINE_PRED_FIELD( m_iHealth, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
-	DEFINE_PRED_FIELD( m_iBonusProgress, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
-	DEFINE_PRED_FIELD( m_iBonusChallenge, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
+	//DEFINE_PRED_FIELD( m_iBonusProgress, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
+	//DEFINE_PRED_FIELD( m_iBonusChallenge, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_fOnTarget, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_nNextThinkTick, FIELD_INTEGER, FTYPEDESC_INSENDTABLE ),
 	DEFINE_PRED_FIELD( m_lifeState, FIELD_CHARACTER, FTYPEDESC_INSENDTABLE ),
@@ -603,7 +617,7 @@ void C_BasePlayer::OnPreDataChanged( DataUpdateType_t updateType )
 	}
 
 	m_bWasFreezeFraming = (GetObserverMode() == OBS_MODE_FREEZECAM);
-	m_hOldFogController = m_Local.m_PlayerFog.m_hCtrl;
+	m_OldFog = m_Local.m_fog;
 
 	BaseClass::OnPreDataChanged( updateType );
 }
@@ -809,11 +823,6 @@ void C_BasePlayer::OnDataChanged( DataUpdateType_t updateType )
 		}
 
 		Soundscape_Update( m_Local.m_audio );
-
-		if ( m_hOldFogController != m_Local.m_PlayerFog.m_hCtrl )
-		{
-			FogControllerChanged( updateType == DATA_UPDATE_CREATED );
-		}
 	}
 }
 
@@ -2296,113 +2305,86 @@ bool IsInFreezeCam( void )
 // Purpose: Set the fog controller data per player.
 // Input  : &inputdata -
 //-----------------------------------------------------------------------------
-void C_BasePlayer::FogControllerChanged( bool bSnap )
-{
-	if ( m_Local.m_PlayerFog.m_hCtrl )
-	{
-		fogparams_t	*pFogParams = &(m_Local.m_PlayerFog.m_hCtrl->m_fog);
-
-		/*
-		Msg("Updating Fog Target: (%d,%d,%d) %.0f,%.0f -> (%d,%d,%d) %.0f,%.0f (%.2f seconds)\n", 
-					m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
-					m_CurrentFog.start.Get(), m_CurrentFog.end.Get(), 
-					pFogParams->colorPrimary.GetR(), pFogParams->colorPrimary.GetB(), pFogParams->colorPrimary.GetG(), 
-					pFogParams->start.Get(), pFogParams->end.Get(), pFogParams->duration.Get() );*/
-		
-
-		// Setup the fog color transition.
-		m_Local.m_PlayerFog.m_OldColor = m_CurrentFog.colorPrimary;
-		m_Local.m_PlayerFog.m_flOldStart = m_CurrentFog.start;
-		m_Local.m_PlayerFog.m_flOldEnd = m_CurrentFog.end;
-
-		m_Local.m_PlayerFog.m_NewColor = pFogParams->colorPrimary;
-		m_Local.m_PlayerFog.m_flNewStart = pFogParams->start;
-		m_Local.m_PlayerFog.m_flNewEnd = pFogParams->end;
-
-		m_Local.m_PlayerFog.m_flTransitionTime = bSnap ? -1 : gpGlobals->curtime;
-
-		m_CurrentFog = *pFogParams;
-
-		// Update the fog player's local fog data with the fog controller's data if need be.
-		UpdateFogController();
-	}
-}
+//void C_BasePlayer::FogControllerChanged( bool bSnap )
+//{
+//	if ( m_Local.m_PlayerFog.m_hCtrl )
+//	{
+//		fogparams_t	*pFogParams = &(m_Local.m_PlayerFog.m_hCtrl->m_fog);
+//
+//		/*
+//		Msg("Updating Fog Target: (%d,%d,%d) %.0f,%.0f -> (%d,%d,%d) %.0f,%.0f (%.2f seconds)\n", 
+//					m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
+//					m_CurrentFog.start.Get(), m_CurrentFog.end.Get(), 
+//					pFogParams->colorPrimary.GetR(), pFogParams->colorPrimary.GetB(), pFogParams->colorPrimary.GetG(), 
+//					pFogParams->start.Get(), pFogParams->end.Get(), pFogParams->duration.Get() );*/
+//		
+//
+//		// Setup the fog color transition.
+//		m_Local.m_PlayerFog.m_OldColor = m_CurrentFog.colorPrimary;
+//		m_Local.m_PlayerFog.m_flOldStart = m_CurrentFog.start;
+//		m_Local.m_PlayerFog.m_flOldEnd = m_CurrentFog.end;
+//
+//		m_Local.m_PlayerFog.m_NewColor = pFogParams->colorPrimary;
+//		m_Local.m_PlayerFog.m_flNewStart = pFogParams->start;
+//		m_Local.m_PlayerFog.m_flNewEnd = pFogParams->end;
+//
+//		m_Local.m_PlayerFog.m_flTransitionTime = bSnap ? -1 : gpGlobals->curtime;
+//
+//		m_CurrentFog = *pFogParams;
+//
+//		// Update the fog player's local fog data with the fog controller's data if need be.
+//		UpdateFogController();
+//	}
+//}
 
 //-----------------------------------------------------------------------------
 // Purpose: Check to see that the controllers data is up to date.
 //-----------------------------------------------------------------------------
-void C_BasePlayer::UpdateFogController( void )
+void C_BasePlayer::UpdateFogController()
 {
-	if ( m_Local.m_PlayerFog.m_hCtrl )
+	if ( m_Local.m_fog != m_CurrentFog )
 	{
-		// Don't bother copying while we're transitioning, since it'll be stomped in UpdateFogBlend();
-		if ( m_Local.m_PlayerFog.m_flTransitionTime == -1 && (m_hOldFogController == m_Local.m_PlayerFog.m_hCtrl) )
+		if ( m_Local.m_fog.duration > 0.0f && m_Local.m_fog.enable )
 		{
-			fogparams_t	*pFogParams = &(m_Local.m_PlayerFog.m_hCtrl->m_fog);
-			if ( m_CurrentFog != *pFogParams )
-			{
-				/*
-					Msg("FORCING UPDATE: (%d,%d,%d) %.0f,%.0f -> (%d,%d,%d) %.0f,%.0f (%.2f seconds)\n", 
-										m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
-										m_CurrentFog.start.Get(), m_CurrentFog.end.Get(), 
-										pFogParams->colorPrimary.GetR(), pFogParams->colorPrimary.GetB(), pFogParams->colorPrimary.GetG(), 
-										pFogParams->start.Get(), pFogParams->end.Get(), pFogParams->duration.Get() );*/
-					
-
-				m_CurrentFog = *pFogParams;
-			}
+			m_TargetFog = m_Local.m_fog;
+			m_flFogTransitionStartTime = gpGlobals->curtime;
+		}
+		else
+		{
+			m_CurrentFog = m_Local.m_fog;
+			m_TargetFog = m_Local.m_fog;
+			m_flFogTransitionStartTime = -1.0f;
 		}
 	}
-	else
-	{
-		if ( m_CurrentFog.farz != -1 || m_CurrentFog.enable != false )
-		{
-			// No fog controller in this level. Use default fog parameters.
-			m_CurrentFog.farz = -1;
-			m_CurrentFog.enable = false;
-		}
-	}
-
-	// Update the fog blending state - of necessary.
 	UpdateFogBlend();
 }
 
 //-----------------------------------------------------------------------------
 //
 //-----------------------------------------------------------------------------
-void C_BasePlayer::UpdateFogBlend( void )
+void C_BasePlayer::UpdateFogBlend()
 {
-	// Transition.
-	if ( m_Local.m_PlayerFog.m_flTransitionTime != -1 )
+	if (m_flFogTransitionStartTime >= 0.0f && m_TargetFog.duration > 0.0f)
 	{
-		float flTimeDelta = gpGlobals->curtime - m_Local.m_PlayerFog.m_flTransitionTime;
-		if ( flTimeDelta < m_CurrentFog.duration )
+		float flTimeDelta = gpGlobals->curtime - m_flFogTransitionStartTime;
+		if (flTimeDelta < m_TargetFog.duration)
 		{
-			float flScale = flTimeDelta / m_CurrentFog.duration;
-			m_CurrentFog.colorPrimary.SetR( ( m_Local.m_PlayerFog.m_NewColor.r * flScale ) + ( m_Local.m_PlayerFog.m_OldColor.r * ( 1.0f - flScale ) ) );
-			m_CurrentFog.colorPrimary.SetG( ( m_Local.m_PlayerFog.m_NewColor.g * flScale ) + ( m_Local.m_PlayerFog.m_OldColor.g * ( 1.0f - flScale ) ) );
-			m_CurrentFog.colorPrimary.SetB( ( m_Local.m_PlayerFog.m_NewColor.b * flScale ) + ( m_Local.m_PlayerFog.m_OldColor.b * ( 1.0f - flScale ) ) );
-			m_CurrentFog.start.Set( ( m_Local.m_PlayerFog.m_flNewStart * flScale ) + ( ( m_Local.m_PlayerFog.m_flOldStart * ( 1.0f - flScale ) ) ) );
-			m_CurrentFog.end.Set( ( m_Local.m_PlayerFog.m_flNewEnd * flScale ) + ( ( m_Local.m_PlayerFog.m_flOldEnd * ( 1.0f - flScale ) ) ) );
+			float t = flTimeDelta / m_TargetFog.duration;
+			// Interpolate float/int
+			m_CurrentFog.colorPrimary.SetR(Lerp(t, m_CurrentFog.colorPrimary.GetR(), m_TargetFog.colorPrimary.GetR()));
+			m_CurrentFog.colorPrimary.SetG(Lerp(t, m_CurrentFog.colorPrimary.GetG(), m_TargetFog.colorPrimary.GetG()));
+			m_CurrentFog.colorPrimary.SetB(Lerp(t, m_CurrentFog.colorPrimary.GetB(), m_TargetFog.colorPrimary.GetB()));
+			m_CurrentFog.start = Lerp(t, m_CurrentFog.start.Get(), m_TargetFog.start.Get());
+			m_CurrentFog.end = Lerp(t, m_CurrentFog.end.Get(), m_TargetFog.end.Get());
 		}
 		else
 		{
-			// Slam the final fog values.
-			m_CurrentFog.colorPrimary.SetR( m_Local.m_PlayerFog.m_NewColor.r );
-			m_CurrentFog.colorPrimary.SetG( m_Local.m_PlayerFog.m_NewColor.g );
-			m_CurrentFog.colorPrimary.SetB( m_Local.m_PlayerFog.m_NewColor.b );
-			m_CurrentFog.start.Set( m_Local.m_PlayerFog.m_flNewStart );
-			m_CurrentFog.end.Set( m_Local.m_PlayerFog.m_flNewEnd );
-			m_Local.m_PlayerFog.m_flTransitionTime = -1;
-
-			/*
-				Msg("Finished transition to (%d,%d,%d) %.0f,%.0f\n", 
-								m_CurrentFog.colorPrimary.GetR(), m_CurrentFog.colorPrimary.GetB(), m_CurrentFog.colorPrimary.GetG(), 
-								m_CurrentFog.start.Get(), m_CurrentFog.end.Get() );*/
-				
+			m_CurrentFog = m_TargetFog;
+			m_flFogTransitionStartTime = -1.0f;
 		}
 	}
 }
+
 
 void CC_DumpClientSoundscapeData( const CCommand& args )
 {

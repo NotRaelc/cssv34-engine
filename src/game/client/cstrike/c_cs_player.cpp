@@ -112,7 +112,7 @@ public:
 public:
 	CNetworkHandle( CBasePlayer, m_hPlayer );
 	CNetworkVar( int, m_iEvent );
-	CNetworkVar( int, m_nData );
+	int			m_nData;
 };
 
 IMPLEMENT_CLIENTCLASS_EVENT( C_TEPlayerAnimEvent, DT_TEPlayerAnimEvent, CTEPlayerAnimEvent );
@@ -120,7 +120,7 @@ IMPLEMENT_CLIENTCLASS_EVENT( C_TEPlayerAnimEvent, DT_TEPlayerAnimEvent, CTEPlaye
 BEGIN_RECV_TABLE_NOBASE( C_TEPlayerAnimEvent, DT_TEPlayerAnimEvent )
 	RecvPropEHandle( RECVINFO( m_hPlayer ) ),
 	RecvPropInt( RECVINFO( m_iEvent ) ),
-	RecvPropInt( RECVINFO( m_nData ) )
+	//RecvPropInt( RECVINFO( m_nData ) )
 END_RECV_TABLE()
 
 BEGIN_PREDICTION_DATA( C_CSPlayer )

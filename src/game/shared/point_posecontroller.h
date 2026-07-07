@@ -86,8 +86,8 @@ private:
 	string_t	m_iszPoseParameterName;		// Pose parameter name to control
 
 	CNetworkVar( float, m_fPoseValue );			// Normalized pose parameter value (maps to each pose parameter's min and max range)
-	CNetworkVar( float, m_fInterpolationTime );	// Interpolation speed for client matching absolute pose values
-	CNetworkVar( bool, m_bInterpolationWrap );	// Interpolation for the client wraps 0 to 1.
+	float				m_fInterpolationTime;	// Interpolation speed for client matching absolute pose values
+	bool				m_bInterpolationWrap;	// Interpolation for the client wraps 0 to 1.
 
 	CNetworkVar( float, m_fCycleFrequency );	// Cycles per second
 
