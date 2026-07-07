@@ -692,8 +692,10 @@ void Panel::Init( int x, int y, int wide, int tall )
 	_vpanel = ivgui()->AllocPanel();
 	ipanel()->Init(_vpanel, this);
 
+	//SetProportional(true);
 	SetPos(x, y);
 	SetSize(wide, tall);
+
 	_flags.SetFlag( NEEDS_LAYOUT | NEEDS_SCHEME_UPDATE | NEEDS_DEFAULT_SETTINGS_APPLIED );
 	_flags.SetFlag( AUTODELETE_ENABLED | PAINT_BORDER_ENABLED | PAINT_BACKGROUND_ENABLED | PAINT_ENABLED );
 #if defined( VGUI_USEKEYBINDINGMAPS )

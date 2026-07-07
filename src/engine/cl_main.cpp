@@ -188,16 +188,16 @@ void whitelist_f( const CCommand &args )
 		CPureServerWhitelist *pWhitelist = CPureServerWhitelist::Create( g_pFileSystem );
 		if( pureLevel == 2 )
 		{
-			Warning( "whitelist 2: pWhitelist->EnableFullyPureMode()\n" );
-			pWhitelist->EnableFullyPureMode();
+			//Warning( "whitelist 2: pWhitelist->EnableFullyPureMode()\n" );
+			//pWhitelist->EnableFullyPureMode();
 		}
 		else
 		{
 			Warning( "whitelist 1: loading pure_server_whitelist.txt\n" );
 			KeyValues *kv = new KeyValues( "" );
 			bool bLoaded = kv->LoadFromFile( g_pFileSystem, "pure_server_whitelist.txt", "game" );
-			if ( bLoaded )
-				bLoaded = pWhitelist->LoadFromKeyValues( kv );
+			if (bLoaded)
+				bLoaded = false; //pWhitelist->LoadFromKeyValues( kv );
 
 			if ( !bLoaded )
 				Warning( "Error loading pure_server_whitelist.txt\n" );
@@ -882,11 +882,11 @@ void CL_FullyConnected( void )
  	g_ClientDLL->LevelInitPostEntity();
 
 	// communicate to tracker that we're in a game
-	int ip = cl.m_NetChannel->GetRemoteAddress().GetIP();
+	int ip = cl.m_NetChannel->GetRemoteAddress().GetIPNetworkByteOrder();
 	short port = cl.m_NetChannel->GetRemoteAddress().GetPort();
 	if (!port)
 	{
-		ip = net_local_adr.GetIP();
+		ip = net_local_adr.GetIPNetworkByteOrder();
 		port = net_local_adr.GetPort();
 	}
 

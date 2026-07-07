@@ -72,7 +72,7 @@ CMasterNETHandler::CMasterNETHandler() : m_nClientSocket(INVALID_SOCKET), m_nSer
 
 	sockaddr_in addr{};
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(0);
+	addr.sin_port = 0;
 	addr.sin_addr.s_addr = INADDR_ANY;
 
 	if (bind(m_nClientSocket, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -80,11 +80,20 @@ CMasterNETHandler::CMasterNETHandler() : m_nClientSocket(INVALID_SOCKET), m_nSer
 		return;
 	}
 
+	int len = sizeof(addr);
+
+	getsockname(m_nClientSocket, (sockaddr*)&addr, &len);
+
+	Msg(
+		"Client socket bound to %u\n",
+		ntohs(addr.sin_port)
+	);
+
 	// Cleanup address and allocate new for server socket
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(0);
+	addr.sin_port = 0;
 	addr.sin_addr.s_addr = INADDR_ANY;
 
 	if (bind(m_nServerSocket, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR) {
@@ -117,13 +126,27 @@ void CMasterNETHandler::RunFrame(CMasterNETHandler* This) {
 		master->RunFrame();
 		lanservers->RunFrame();
 		favoriteservers->RunFrame();
+		monitoringservers->RunFrame();
 		//historyservers->RunFrame();
 
 		int bytesClient = recvfrom(This->m_nClientSocket, buffer, sizeof(buffer), 0,
 			(sockaddr*)&sender, &senderSize);
+
 		if (bytesClient > 0 && bytesClient >= 4 && *(int*)buffer == -1)
 		{
 			This->PacketReceived(sender, (byte*)buffer, bytesClient);
+		}
+
+		if (bytesClient == SOCKET_ERROR)
+		{
+			int err = WSAGetLastError();
+
+			if (err != WSAEWOULDBLOCK)
+				Msg("server recv error %d\n", err);
+		}
+		else if (bytesClient > 0)
+		{
+			//Msg("recvfrom success bytes=%d\n", bytesClient);
 		}
 
 		int bytesServer = recvfrom(This->m_nServerSocket, buffer, sizeof(buffer), 0,
@@ -131,6 +154,14 @@ void CMasterNETHandler::RunFrame(CMasterNETHandler* This) {
 		if (bytesServer > 0 && bytesServer >= 4 && *(int*)buffer == -1)
 		{
 			This->PacketReceived(sender, (byte*)buffer, bytesServer);
+		}
+
+		if (bytesServer == SOCKET_ERROR)
+		{
+			int err = WSAGetLastError();
+
+			if (err != WSAEWOULDBLOCK)
+				Msg("server recv error %d\n", err);
 		}
 	}
 }
@@ -163,6 +194,7 @@ void CMasterNETHandler::PacketReceived(sockaddr_in& from, byte* data, int length
 	packet.data = connectionless_data;
 
 	packet.from.SetFromSockadr((sockaddr*)&from);
+	//packet.from.port = ntohs(packet.from.port);
 
 	packet.source = NS_SOCKET;
 
@@ -172,18 +204,15 @@ void CMasterNETHandler::PacketReceived(sockaddr_in& from, byte* data, int length
 
 	packet.size = length;
 
-	packet.wiresize = length;
-
-	packet.pNext = 0;
-
 	//Msg("CMasterNETHandler: packet received from %s, data %s, length %i\n", packet.from.ToString(), data, length);
 
-	serverqueries->ProcessConnectionlessPacket(&packet);
-
+	if (serverqueries->IsValidQuery(k_eQuery_Any, packet.from)) {
+		serverqueries->ProcessConnectionlessPacket(&packet);
+		return;
+	}
 	// Check if this packet came from LAN
-	if (IsLANIP(packet.from.GetIP()))
+	if (IsLANIP(packet.from.GetIPNetworkByteOrder()))
 		lanservers->ProcessConnectionlessPacket(&packet);
 	else
 		master->ProcessConnectionlessPacket(&packet);
-
 }

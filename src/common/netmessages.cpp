@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright Â© 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -652,6 +652,10 @@ bool SVC_VoiceData::WriteToBuffer( bf_write &buffer )
 {
 	buffer.WriteUBitLong( GetType(), NETMSG_TYPE_BITS );
 	buffer.WriteByte( m_nFromClient );
+<<<<<<< HEAD
+=======
+	// CS:S v34 has no m_bProximity
+>>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 	//buffer.WriteByte( m_bProximity );
 	buffer.WriteWord( m_nLength );
 	

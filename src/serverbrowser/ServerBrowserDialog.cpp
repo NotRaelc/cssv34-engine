@@ -52,7 +52,7 @@ static ServerInfoTest testinfo;
 CON_COMMAND(serverinfo, "") {
 	netadr_t addr(args.ArgS());
 	Msg("-- serverinfo \"%s\"\n", addr.ToString());
-	g_pServersInfo->PingServer(addr.GetIP(), addr.GetPort(), &testinfo);
+	g_pServersInfo->PingServer(addr.GetIPHostByteOrder(), addr.GetPort(), &testinfo);
 }
 
 
@@ -380,7 +380,7 @@ CServerBrowserDialog *CServerBrowserDialog::GetInstance()
 //-----------------------------------------------------------------------------
 void CServerBrowserDialog::AddServerToFavorites(newgameserver_t &server)
 {
-	g_pServersInfo->AddFavoriteServer(server.m_NetAdr.GetIP(), server.m_NetAdr.GetPort());
+	g_pServersInfo->AddFavoriteServer(server.m_NetAdr.GetIPHostByteOrder(), server.m_NetAdr.GetPort());
 }
 
 //-----------------------------------------------------------------------------
@@ -441,10 +441,10 @@ CDialogGameInfo *CServerBrowserDialog::JoinGame(int serverIP, int serverPort, co
 //-----------------------------------------------------------------------------
 CDialogGameInfo *CServerBrowserDialog::OpenGameInfoDialog( IGameList *gameList, newgameserver_t *pServer )
 {
-	CDialogGameInfo *gameDialog = new CDialogGameInfo( NULL, ntohl(pServer->m_NetAdr.GetIP()), 0, pServer->m_NetAdr.GetPort(), gameList->GetConnectCode() );
+	CDialogGameInfo *gameDialog = new CDialogGameInfo( NULL, pServer->m_NetAdr.GetIPHostByteOrder(), 0, pServer->m_NetAdr.GetPort(), gameList->GetConnectCode() );
 	gameDialog->SetParent(GetVParent());
 	gameDialog->AddActionSignalTarget(this);
-	gameDialog->Run( "Test" /*pServer->GetName()*/ );
+	gameDialog->Run( pServer->m_szServerName );
 	int i = m_GameInfoDialogs.AddToTail();
 	m_GameInfoDialogs[i] = gameDialog;
 	return gameDialog;
@@ -551,7 +551,7 @@ void CServerBrowserDialog::OnConnectToGame( KeyValues *pMessageValues )
 	if ( !ip )
 		return;
 
-	uint32 unIP = htonl( ip );
+	uint32 unIP = ip;
 
 	memset( &m_CurrentConnection, 0, sizeof(newgameserver_t) );
 	m_CurrentConnection.m_NetAdr.SetIP( unIP );

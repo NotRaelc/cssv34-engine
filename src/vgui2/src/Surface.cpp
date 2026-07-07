@@ -363,7 +363,7 @@ private:
 
 	CUtlDict< IImage *, unsigned short >	m_FileTypeImages;
 
-	enum { BASE_HEIGHT = 480, BASE_WIDTH = 640 };
+	enum { BASE_HEIGHT = 768, BASE_WIDTH = 1024 };
 
 	bool LoadTGA(Texture *texture, const char *filename);
 	bool LoadBMP(Texture *texture, const char *filename);

@@ -1302,9 +1302,9 @@ void Host_ShutdownServer( void )
 {
 	if ( !sv.IsActive() )
 		return;
-
+#ifndef NOMASTER
 	master->ShutdownConnection();
-
+#endif
 	// clear structures
 #if !defined( SWDS )
 	g_pShadowMgr->LevelShutdown();
@@ -3383,8 +3383,9 @@ void Host_Init( bool bDedicated )
 	}
 
 	// Allow master server interface to register its commands
+#ifndef NOMASTER
 	TRACEINIT( master->Init(), master->Shutdown() );
-
+#endif
 	TRACEINIT( g_Log.Init(), g_Log.Shutdown() );
 
 	TRACEINIT( HLTV_Init(), HLTV_Shutdown() );
@@ -3976,6 +3977,7 @@ void Host_FreeToLowMark( bool server )
 //-----------------------------------------------------------------------------
 void Host_Shutdown(void)
 {
+	Plat_DebugString("Host_Shutdown\n");
 	if ( host_checkheap )
 	{
 #ifdef _WIN32
@@ -4081,8 +4083,9 @@ void Host_Shutdown(void)
 
 	TRACESHUTDOWN( g_GameEventManager.Shutdown() );
 
+#ifndef NOMASTER
 	TRACESHUTDOWN( master->Shutdown() );
-
+#endif
 	TRACESHUTDOWN( sv.Shutdown() );
 
 	TRACESHUTDOWN( NET_Shutdown() );

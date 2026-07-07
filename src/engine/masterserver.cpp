@@ -32,11 +32,11 @@ extern ConVar sv_region;
 
 #define MASTER_SERVER_PROTOCOL_VERSION 7
 
-#define S2A_EDF_GAMEID 0x01
-#define S2A_EDF_STEAMID 0x10
-#define S2A_EDF_GAMETAGS 0x20
-#define S2A_EDF_SOURCETV 0x40
 #define S2A_EDF_GAMEPORT 0x80
+#define S2A_EDF_STEAMID 0x10
+#define S2A_EDF_SOURCETV 0x40
+#define S2A_EDF_GAMETAGS 0x20
+#define S2A_EDF_GAMEID 0x01
 
 #define RETRY_INFO_REQUEST_TIME 0.4 // seconds
 #define MASTER_RESPONSE_TIMEOUT 1.5 // seconds
@@ -96,7 +96,7 @@ public:
 	void RespondToHeartbeatChallenge( netadr_t &from, bf_read &msg );
 	void PingServer(netadr_t& svadr) {}
 
-	void ProcessConnectionlessPacket( netpacket_t *packet );
+	void ProcessConnectionlessPacket(netpacket_t*packet );
 	void ProcessConnectionless_GameServer(netpacket_t* packet);
 	void ProcessConnectionless_GameClient(netpacket_t* packet);
 
@@ -248,6 +248,12 @@ void CMaster::StopRefresh()
 	m_bRefreshing = false;
 	m_serverAddresses.RemoveAll();
 	m_serversRequestTime.RemoveAll();
+
+	// stop all refresh operations
+	favoriteservers->StopRefresh();
+	lanservers->StopRefresh();
+	historyservers->StopRefresh();
+	monitoringservers->StopRefresh();
 }
 
 void CMaster::ReplyInfo( const netadr_t &adr )
@@ -306,7 +312,7 @@ void CMaster::ReplyInfo( const netadr_t &adr )
 	if ( nFlags & S2A_EDF_GAMETAGS )
 		buf.PutString( pchTags );
 
-	NET_SendPacket( NULL, NS_SERVER, adr, (unsigned char *)buf.Base(), buf.TellPut() );
+	MasterNetHandler()->NET_SendPacket( NS_SERVER, adr, (unsigned char *)buf.Base(), buf.TellPut() );
 }
 
 newgameserver_t &CMaster::ProcessInfo(bf_read &buf)
@@ -336,12 +342,37 @@ newgameserver_t &CMaster::ProcessInfo(bf_read &buf)
 	s.m_bSecure = buf.ReadByte();
 	buf.ReadString(s.m_szGameVersion, sizeof(s.m_szGameVersion));
 
-	s.m_iFlags = buf.ReadLong();
+	s.m_iFlags = buf.ReadByte();
+
+	if (s.m_iFlags & S2A_EDF_GAMEPORT)
+	{
+		s.m_NetAdr.SetPort(buf.ReadShort());
+	}
+
+	if (s.m_iFlags & S2A_EDF_STEAMID)
+	{
+		uint64 ulSteamID;
+		buf.ReadBytes(&ulSteamID, 8);
+	}
+
+	if (s.m_iFlags & S2A_EDF_SOURCETV)
+	{
+		char str[64];
+		buf.ReadShort(); // spectator port (unused)
+		buf.ReadString(str, sizeof(str)); // spectator sv name
+	}
 
 	if( s.m_iFlags & S2A_EDF_GAMETAGS )
 	{
 		buf.ReadString( s.m_szGameTags, sizeof(s.m_szGameTags) );
 	}
+
+	if (s.m_iFlags & S2A_EDF_GAMEID)
+	{
+		uint64 ulGameID;
+		buf.ReadBytes(&ulGameID, 8);
+	}
+	Msg("CMaster: server processed\n%s\n", s.toString());
 
 	return s;
 }
@@ -379,7 +410,7 @@ void CMaster::ReplyPlayers(const netadr_t& adr) {
 	MasterNetHandler()->NET_SendPacket(NS_SERVER, adr, msg.GetData(), msg.GetNumBytesWritten());
 }
 
-void CMaster::ProcessConnectionlessPacket( netpacket_t *packet )
+void CMaster::ProcessConnectionlessPacket(netpacket_t*packet )
 {
 	static ALIGN4 char string[2048] ALIGN4_POST;    // Buffer for sending heartbeat
 
@@ -478,7 +509,6 @@ void CMaster::ProcessConnectionless_GameServer(netpacket_t* packet) {
 		}
 	}
 }
-
 
 void CMaster::ProcessConnectionless_GameClient(netpacket_t* packet) {
 	bf_read msg = packet->message;
@@ -732,7 +762,7 @@ void CMaster::AddServer( netadr_t *adr )
 	n = m_pMasterAddresses;
 	while ( n )
 	{
-		if ( n->adr.CompareAdr( *adr ) )
+		if ( n->adr == *adr )
 			break;
 		n = n->next;
 	}
@@ -771,11 +801,9 @@ void CMaster::UseDefault ( void )
 	for( int i = 0; i < ARRAYSIZE(g_MasterServers);i++ )
 	{
 		// Convert to netadr_t
-		if ( NET_StringToAdr ( g_MasterServers[i], &adr ) )
-		{
-			// Add to master list
-			AddServer( &adr );
-		}
+		adr = g_MasterServers[i];
+		// Add to master list
+		AddServer( &adr );
 	}
 }
 
@@ -793,7 +821,7 @@ void CMaster::RespondToHeartbeatChallenge( netadr_t &from, bf_read &msg )
 	p = m_pMasterAddresses;
 	while ( p )
 	{
-		if ( from.CompareAdr( p->adr ) )
+		if ( from == p->adr )
 			break;
 
 		p = p->next;
@@ -816,14 +844,15 @@ void CMaster::RespondToHeartbeatChallenge( netadr_t &from, bf_read &msg )
 //-----------------------------------------------------------------------------
 // Purpose: Add/remove master servers
 //-----------------------------------------------------------------------------
-void CMaster::AddMaster_f ( const CCommand &args )
+void CMaster::AddMaster_f(const CCommand& args)
 {
-	CUtlString cmd( ( args.ArgC() > 1 ) ? args[ 1 ] : "" );
+	CUtlString cmd((args.ArgC() > 1) ? args[1] : "");
 
 	netadr_t adr;
 
-	if( !NET_StringToAdr(cmd.String(), &adr) )
-	{
+	adr = cmd.String();
+
+	if (adr.GetIPNetworkByteOrder() == 0) {
 		Warning("Invalid address\n");
 		return;
 	}
@@ -1040,8 +1069,9 @@ void CMaster::Shutdown(void)
 // ServersInfo
 void CMaster::RequestInternetServerList(const char *gamedir, IServerListResponse *response)
 {
+#if 0
 	if (!m_lastServerAdr.IsValid())
-		m_lastServerAdr.SetFromString("0.0.0.0:0");
+		m_lastServerAdr.SetIPAndPort(0, 0);
 
 	if( m_bNoMasters ) return;
 	strncpy( m_szGameDir, gamedir, sizeof(m_szGameDir) );
@@ -1075,6 +1105,9 @@ void CMaster::RequestInternetServerList(const char *gamedir, IServerListResponse
 		MasterNetHandler()->NET_SendPacket( NS_CLIENT, p->adr, msg.GetData(), msg.GetNumBytesWritten() );
 		p = p->next;
 	}
+#else
+	monitoringservers->RequestServerList(0, response);
+#endif
 }
 
 

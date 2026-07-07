@@ -100,6 +100,33 @@ BEGIN_SEND_TABLE_NOBASE( CPlayerLocalData, DT_Local )
 	SendPropEHandle( SENDINFO_STRUCTELEM( m_audio.ent ) ),
 END_SEND_TABLE()
 
+<<<<<<< HEAD
+=======
+BEGIN_SIMPLE_DATADESC( fogparams_simplified_t )
+
+	DEFINE_FIELD( enable, FIELD_BOOLEAN ),
+	DEFINE_FIELD( blend, FIELD_BOOLEAN ),
+	DEFINE_FIELD( dirPrimary, FIELD_VECTOR ),
+	DEFINE_FIELD( colorPrimary, FIELD_COLOR32 ),
+	DEFINE_FIELD( colorSecondary, FIELD_COLOR32 ),
+	DEFINE_FIELD( start, FIELD_FLOAT ),
+	DEFINE_FIELD( end, FIELD_FLOAT ),
+	//DEFINE_FIELD( maxdensity, FIELD_FLOAT ),
+
+END_DATADESC()
+
+BEGIN_SIMPLE_DATADESC( fogplayerparams_t )
+	DEFINE_FIELD( m_hCtrl, FIELD_EHANDLE ),
+	DEFINE_FIELD( m_flTransitionTime, FIELD_FLOAT ),
+	DEFINE_FIELD( m_OldColor, FIELD_COLOR32 ),
+	DEFINE_FIELD( m_flOldStart, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flOldEnd, FIELD_FLOAT ),
+	DEFINE_FIELD( m_NewColor, FIELD_COLOR32 ),
+	DEFINE_FIELD( m_flNewStart, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flNewEnd, FIELD_FLOAT ),
+END_DATADESC()
+
+>>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 BEGIN_SIMPLE_DATADESC( fogparams_t )
 
 	DEFINE_FIELD( enable, FIELD_BOOLEAN ),

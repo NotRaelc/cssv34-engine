@@ -137,7 +137,7 @@ void CFavoriteGames::OnRemoveFromFavorites()
 		if (pServer)
 		{
 			m_pGameList->RemoveItem(itemID);
-			g_pServersInfo->RemoveFavoriteServer(pServer->m_NetAdr.GetIP(), pServer->m_NetAdr.GetPort());
+			g_pServersInfo->RemoveFavoriteServer(pServer->m_NetAdr.GetIPHostByteOrder(), pServer->m_NetAdr.GetPort());
 		}
 	}
 
@@ -166,7 +166,7 @@ void CFavoriteGames::OnAddCurrentServer()
 
 	if ( pConnected )
 	{
-		g_pServersInfo->AddFavoriteServer(pConnected->m_NetAdr.GetIP(), pConnected->m_NetAdr.GetPort());
+		g_pServersInfo->AddFavoriteServer(pConnected->m_NetAdr.GetIPHostByteOrder(), pConnected->m_NetAdr.GetPort());
 		m_bRefreshOnListReload = true;
 	}
 }
