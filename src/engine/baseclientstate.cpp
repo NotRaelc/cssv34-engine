@@ -479,7 +479,7 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 	// Size looks bogus
 	if ( keySize >= STEAM_KEYSIZE || keySize <= 0 )
 	{
-		Warning( "PrepareSteamConnectResponse: STEAM userid keysize is bogus (%i)\n", keySize);
+		COM_ExplainDisconnection(true, "Steam UserID keysize is bogus (%i/%i)\n", keySize, STEAM_KEYSIZE);
 		Disconnect();
 		return false;
 	}
@@ -488,7 +488,7 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 	netadr_t checkAdr = adr;
 	if ( adr.GetType() == NA_LOOPBACK || adr.IsLocalhost() )
 	{
-		checkAdr.SetIP( net_local_adr.addr_ntohl() );
+		checkAdr.SetIP( net_local_adr.GetIPHostByteOrder() );
 	}
 
 #ifndef SWDS
@@ -504,8 +504,9 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 		generation = 3;
 	else
 		generation = 4;
+
 	Msg("Generation = %i\n", generation);
-	steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIP(), checkAdr.GetPort(), bGSSecure, generation);
+	steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIPNetworkByteOrder(), checkAdr.GetPort(), bGSSecure, generation);
 
 	msg.WriteShort( steam3CookieLen );
 	if ( steam3CookieLen > 0 )
@@ -614,10 +615,10 @@ void CBaseClientState::Disconnect( bool bShowMainMenu )
 	netadr_t checkAdr = adr;
 	if ( adr.GetType() == NA_LOOPBACK || adr.IsLocalhost() )
 	{
-		checkAdr.SetIP( net_local_adr.addr_ntohl() );
+		checkAdr.SetIP( net_local_adr.GetIPHostByteOrder() );
 	}
 
-	Steam3Client().TerminateConnection( checkAdr.GetIP(), adr.GetPort() );
+	Steam3Client().TerminateConnection( checkAdr.GetIPNetworkByteOrder(), adr.GetPort() );
 #endif
 
 	if ( m_NetChannel )

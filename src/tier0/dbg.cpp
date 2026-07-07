@@ -309,7 +309,7 @@ static SpewRetval_t _SpewMessage( SpewType_t spewType, const char *pGroupName, i
 		break;
 		
 	case SPEW_ABORT:
-//		MessageBox(NULL,"Error in _SpewMessage","Error",MB_OK);
+		MessageBox(NULL,"Error in _SpewMessage","Error",MB_OK);
 		ConMsg( _T("Exiting on SPEW_ABORT\n") );
 		exit(0);
 	}

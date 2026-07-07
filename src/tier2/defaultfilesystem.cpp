@@ -27,16 +27,19 @@ void InitDefaultFileSystem( void )
 	if ( !Sys_LoadInterface( "filesystem_stdio", FILESYSTEM_INTERFACE_VERSION,
 		&g_pFullFileSystemModule, (void**)&g_pFullFileSystem ) )
 	{
+		Msg("Tier2 exit on: " __FUNCTION__ ", line " V_STRINGIFY(__LINE__) "\n");
 		exit(0);
 	}
 
 	if ( !g_pFullFileSystem->Connect( DefaultCreateInterfaceFn ) )
 	{
+		Msg("Tier2 exit on: " __FUNCTION__ ", line " V_STRINGIFY(__LINE__) "\n");
 		exit(0);
 	}
 
 	if ( g_pFullFileSystem->Init() != INIT_OK )
 	{
+		Msg("Tier2 exit on: " __FUNCTION__ ", line " V_STRINGIFY(__LINE__) "\n");
 		exit(0);
 	}
 

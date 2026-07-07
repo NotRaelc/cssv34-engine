@@ -102,17 +102,6 @@ struct SteamInfVersionInfo_t
 	int32 ClientVersion; // PatchVersion
 	int32 ServerVersion; // ServerVersion
 
-	//-------------------------------------
-	// Short Version numbers
-	// e.g: 
-	// ServerVersion is 10034(1.0.0.34)
-	// ==> ShortVersions[0] = 34
-	//-------------------------------------
-	// ClientVersion is 10034(1.0.0.34)
-	// ==> ShortVersions[1] = 34
-	//-------------------------------------
-	int32 ShortVersions[2];
-
 	char szVersionString[32]; // PatchVersion string
 	char szProductString[32]; // ProductName string
 

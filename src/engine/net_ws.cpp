@@ -1379,7 +1379,11 @@ bool NET_ReceiveDatagram ( const int sock, netpacket_t * packet )
 
 				packet->size = fixup.GetNumBytesWritten();
 			}
+<<<<<<< HEAD
 #endif	
+=======
+#endif
+>>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 			return NET_LagPacket( true, packet );
 		}
 		else

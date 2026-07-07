@@ -47,7 +47,7 @@ public:
 	unsigned short	GetPort() const;
 	const char*		ToString( bool onlyBase = false ) const; // returns xxx.xxx.xxx.xxx:ppppp
 	void			ToSockadr(struct sockaddr *s) const;
-	unsigned int	GetIP() const;
+	unsigned int	GetIPNetworkByteOrder() const;
 
 	bool	IsLocalhost() const; // true, if this is the localhost IP 
 	bool	IsLoopback() const;	// true if engine loopback buffers are used

@@ -23,7 +23,7 @@
 
 #include "net.h"
 #include "convar.h"
-#include "engine/iserversinfo.h"
+#include "serversinfo.h"
 
 #undef CreateThread
 #undef recvfrom
@@ -45,7 +45,7 @@ public:
 	// Sends the actual heartbeat to the master ( after challenge value is parsed )
 	virtual void SendHeartbeat( struct adrlist_s *p ) = 0;
 	// Add server to global master list
-	virtual void AddServer( struct netadr_s *adr ) = 0;
+	virtual void AddServer( netadr_t *adr ) = 0;
 	// If parsing for server, etc. fails, always have at least one server around to use.
 	virtual void UseDefault ( void ) = 0;
 	// See if it's time to send the next heartbeat
@@ -71,6 +71,8 @@ public:
 
 	virtual void PingServer(uint32 unIP, uint16 usPort, IServerPingResponse* response) = 0;
 	virtual void PlayerDetails(uint32 unIP, uint16 usPort, IServerPlayersResponse* response) = 0;
+
+	virtual bool IsValidQuery(EServerQuery type, const netadr_t& adr) = 0;
 	virtual bool CancelServerQuery(EServerQuery type, uint32 unIP, uint16 usPort) = 0;
 };
 
@@ -94,6 +96,7 @@ public:
 	virtual void RunFrame(void) = 0;
 	virtual void ProcessConnectionlessPacket(netpacket_t* packet) = 0;
 	virtual void RequestServerList(const char* gamedir, IServerListResponse* response) = 0;
+	virtual void StopRefresh() = 0;
 
 	virtual void AddServer(uint32 unIP, uint16 usPort, time_t timeLastPlayed = 0ull) = 0;
 	virtual void RemoveServer(uint32 unIP, uint16 usPort) = 0;
@@ -113,6 +116,7 @@ extern IServerQueriesMaster* serverqueries;
 extern IServerList* lanservers;
 extern IServerList* favoriteservers;
 extern IServerList* historyservers;
+extern IServerList* monitoringservers;
 extern IMasterNETHandler* MasterNetHandler();
 extern IServersInfo* g_pServersInfo;
 

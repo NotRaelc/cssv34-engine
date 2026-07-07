@@ -552,6 +552,18 @@ void CShadowMgr::LevelShutdown()
 //-----------------------------------------------------------------------------
 void CShadowMgr::SetMaterial( Shadow_t& shadow, IMaterial* pMaterial, IMaterial* pModelMaterial, void *pBindProxy )
 {
+	if (!pMaterial)
+	{
+		Msg("NULL pMaterial in CShadowMgr::SetMaterial\n");
+		return;
+	}
+
+	if (!pMaterial)
+	{
+		Msg("NULL pModelMaterial in CShadowMgr::SetMaterial\n");
+		return;
+	}
+
 	shadow.m_pMaterial = pMaterial;
 	shadow.m_pModelMaterial = pModelMaterial;
 	shadow.m_pBindProxy = pBindProxy;

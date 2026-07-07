@@ -196,7 +196,9 @@ CBaseGamesPage::CBaseGamesPage( vgui::Panel *parent, const char *name, EPageType
 		300,	// maxwidth
 		0		// flags
 	);
-	m_pGameList->AddColumnHeader(k_nColumn_Ping, "Ping", "#ServerBrowser_Latency", 55, ListPanel::COLUMN_RESIZEWITHWINDOW);
+	m_pGameList->AddColumnHeader(k_nColumn_Tags, "Tags", "#ServerBrowser_Tags", 64, ListPanel::COLUMN_RESIZEWITHWINDOW);
+
+	m_pGameList->AddColumnHeader(k_nColumn_Ping, "Ping", "#ServerBrowser_Latency", 32, ListPanel::COLUMN_RESIZEWITHWINDOW);
 
 	m_pGameList->SetColumnHeaderTooltip(k_nColumn_Password, "#ServerBrowser_PasswordColumn_Tooltip");
 	m_pGameList->SetColumnHeaderTooltip(k_nColumn_Bots, "#ServerBrowser_BotColumn_Tooltip");
@@ -212,6 +214,7 @@ CBaseGamesPage::CBaseGamesPage( vgui::Panel *parent, const char *name, EPageType
 	m_pGameList->SetSortFunc(k_nColumn_GameDesc, GameCompare);
 	m_pGameList->SetSortFunc(k_nColumn_Players, PlayersCompare);
 	m_pGameList->SetSortFunc(k_nColumn_Map, MapCompare);
+	m_pGameList->SetSortFunc(k_nColumn_Tags, TagsCompare);
 	m_pGameList->SetSortFunc(k_nColumn_Ping, PingCompare);
 
 	// Sort by ping time by default
@@ -678,7 +681,7 @@ void CBaseGamesPage::ServerResponded( int iServer, gameserveritem_t *pServerItem
 	int iServerMap = m_mapServers.Find( iServer );
 	if ( iServerMap == m_mapServers.InvalidIndex() )
 	{
-		netadr_t netAdr( pServerItem->m_NetAdr.GetIP(), pServerItem->m_NetAdr.GetConnectionPort() );
+		netadr_t netAdr( pServerItem->m_NetAdr.GetIPNetworkByteOrder(), pServerItem->m_NetAdr.GetConnectionPort() );
 		int iServerIP = m_mapServerIP.Find( netAdr );
 		if ( iServerIP != m_mapServerIP.InvalidIndex() )
 		{
@@ -703,7 +706,7 @@ void CBaseGamesPage::ServerResponded( int iServer, gameserveritem_t *pServerItem
 
 	serverdisplay_t *pServer = &m_mapServers[ iServerMap ];
 	pServer->m_iServerID = iServer;
-	Assert( pServerItem->m_NetAdr.GetIP() != 0 );
+	Assert( pServerItem->m_NetAdr.GetIPNetworkByteOrder() != 0 );
 
 	// check filters
 	bool removeItem = false;
@@ -2055,6 +2058,21 @@ void CBaseGamesPage::ServerResponded( newgameserver_t &server )
 	kv->SetInt("password", pServerItem->m_bPassword ? m_nImageIndexPassword : 0);
 	kv->SetInt("bots", pServerItem->m_nBotPlayers);
 
+	/* EXPERIMENTAL
+	if (!pServerItem->m_szGameTags)
+		kv->SetInt("secure", pServerItem->m_bSecure ? m_nImageIndexSecure : 0);
+	else {
+		char anticheat[64];
+		if (strstr(pServerItem->m_szGameTags, "kac"))
+			strcpy(anticheat, "kac");
+		else if (strstr(pServerItem->m_szGameTags, "smac"))
+			strcpy(anticheat, "smac");
+		else
+			strcpy(anticheat, "?");
+		kv->SetString("secure", pServerItem->m_bSecure ? anticheat : "");
+	}
+	*/
+
 	kv->SetInt("secure", pServerItem->m_bSecure ? m_nImageIndexSecure : 0);
 
 	kv->SetString( "IPAddr", pServerItem->m_NetAdr.ToString() );
@@ -2070,7 +2088,10 @@ void CBaseGamesPage::ServerResponded( newgameserver_t &server )
 
 	kv->SetInt("Ping", pServerItem->m_nPing);
 
-	kv->SetString("Tags", pServerItem->m_szGameTags);
+	if (!pServerItem->m_szGameTags)
+		kv->SetString("Tags", "none");
+	else
+		kv->SetString("Tags", pServerItem->m_szGameTags);
 
 	kv->SetInt("Replay", 0);
 

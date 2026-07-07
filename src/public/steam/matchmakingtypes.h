@@ -103,7 +103,7 @@ inline void	servernetadr_t::Init( unsigned int ip, uint16 usQueryPort, uint16 us
 #ifdef NETADR_H
 inline void	servernetadr_t::Init( const netadr_t &ipAndQueryPort, uint16 usConnectionPort )
 {
-	Init( ipAndQueryPort.GetIP(), ipAndQueryPort.GetPort(), usConnectionPort );
+	Init( ipAndQueryPort.GetIPHostByteOrder(), ipAndQueryPort.GetPort(), usConnectionPort );
 }
 
 inline netadr_t& servernetadr_t::GetIPAndQueryPort()

@@ -126,11 +126,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		return 0;
 	}
 
-	// Load RevEmu
-	// Note: if you see C++ Access Violation exceptions with steamclient.dll or some random *.dat, that is absolutely normal.
-	// It will not crash your game, dont cry :).
-	HMODULE hRevEmuDLL = LoadLibrary("steam.dll");
-	if (hRevEmuDLL) {
+	// Loads Steam dlls
+	// Note: if you for some reason see C++ Access Violation exceptions with steamclient.dll, that is absolutely normal.
+	// It will not crash your game
+	HMODULE hSteamDLL = LoadLibrary("steam.dll");
+	if (hSteamDLL) {
 		// Also, initialze SteamAPI to make everything work from start, not just after connecting to server.
 		decltype(SteamAPI_Init)* SteamAPIInit = (decltype(SteamAPI_Init)*)GetProcAddress(LoadLibrary("steam_api.dll"), "SteamAPI_Init");
 		if (!SteamAPIInit()) {
@@ -138,7 +138,16 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		}
 	}
 
-	decltype(WinMain)* LauncherMain = (decltype(WinMain)*)GetProcAddress(launcher, "LauncherMain");
+	typedef int(__cdecl* LauncherMainFn)(
+		HINSTANCE,
+		HINSTANCE,
+		LPSTR,
+		int
+		);
+
+	LauncherMainFn LauncherMain =
+		(LauncherMainFn)GetProcAddress(launcher, "LauncherMain");
+
 	return LauncherMain(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
 }
 

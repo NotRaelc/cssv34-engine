@@ -1123,9 +1123,9 @@ void CConPanel::PaintBackground()
 		return;
 
 	int wide = GetWide();
-	char ver[ 100 ];
-	Q_snprintf(ver, sizeof( ver ), "Source Engine %i (build %d)", PROTOCOL_VERSION, build_number() );
-	wchar_t unicode[ 200 ];
+	char ver[ 200 ];
+	Q_snprintf(ver, sizeof( ver ), "Source Engine %s (network ver. %i, build %i)", build_hex(), PROTOCOL_VERSION, build_number());
+	wchar_t unicode[ 400 ];
 	g_pVGuiLocalize->ConvertANSIToUnicode( ver, unicode, sizeof( unicode ) );
 
 	vgui::surface()->DrawSetTextColor( Color( 255, 255, 255, 255 ) );

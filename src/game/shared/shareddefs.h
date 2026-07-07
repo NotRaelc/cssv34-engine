@@ -153,7 +153,11 @@ public:
 // The Source engine is really designed for 32 or less players.  If you raise this number above 32, you better know what you are doing
 //  and have a good answer for a bunch of perf question related to player simulation, thinking logic, tracelines, networking overhead, etc.
 // But if you are brave or are doing something interesting, go for it...   ywb 9/22/03
+<<<<<<< HEAD
 #define MAX_PLAYERS				64  // Absolute max players supported. 
+=======
+#define MAX_PLAYERS				64  // Absolute max players supported
+>>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 
 #define MAX_PLACE_NAME_LENGTH		32
 

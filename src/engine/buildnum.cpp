@@ -7,6 +7,7 @@
 //=============================================================================//
 
 #include "quakedef.h"
+#include "winlite.h"
 #include "tier1/strtools.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -70,10 +71,47 @@ private:
 static CBuildNumber g_BuildNumber;
 
 //-----------------------------------------------------------------------------
-// Purpose: Only compute build number the first time we run the app
+// Purpose: Old build number value implementation 
 // Output : int
 //-----------------------------------------------------------------------------
 int build_number( void )
 {
 	return g_BuildNumber.GetBuildNumber();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////// New style build number implementation using timestamp. //////////////
+///////////////////////////////////////////////////////////////////////////////
+
+extern "C" IMAGE_DOS_HEADER __ImageBase;
+
+//-----------------------------------------------------------------------------
+// Purpose: Get timestamp from nt header
+// Output : unsigned int
+//-----------------------------------------------------------------------------
+uint32 build_timestamp()
+{
+	auto base = (BYTE*)&__ImageBase;
+
+	auto dos = (PIMAGE_DOS_HEADER)base;
+	auto nt = (PIMAGE_NT_HEADERS)(base + dos->e_lfanew);
+
+	uint32 timestamp = nt->FileHeader.TimeDateStamp;
+
+	return timestamp;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Convert timestamp(build number) to hex string.
+// Output : char*
+//-----------------------------------------------------------------------------
+char* build_hex()
+{
+	char buffer[256];
+
+	uint32 timestamp = build_timestamp();
+
+	sprintf(buffer, "%x", timestamp);
+
+	return buffer;
 }
