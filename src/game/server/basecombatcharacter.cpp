@@ -188,10 +188,6 @@ IMPLEMENT_SERVERCLASS_ST(CBaseCombatCharacter, DT_BaseCombatCharacter)
 	SendPropDataTable( "bcc_localdata", 0, &REFERENCE_SEND_TABLE(DT_BCCLocalPlayerExclusive), SendProxy_SendBaseCombatCharacterLocalDataTable ),
 
 	SendPropEHandle( SENDINFO( m_hActiveWeapon ) ),
-<<<<<<< HEAD
-	//SendPropArray3( SENDINFO_ARRAY3(m_hMyWeapons), SendPropEHandle( SENDINFO_ARRAY(m_hMyWeapons) ) ),
-=======
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 
 #ifdef INVASION_DLL
 	SendPropInt( SENDINFO(m_iPowerups), MAX_POWERUPS, SPROP_UNSIGNED ), 

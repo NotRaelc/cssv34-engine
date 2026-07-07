@@ -60,21 +60,12 @@
 #define UDP_HEADER_SIZE				(20+8)	// IP = 20, UDP = 8			28 in src2006
 
 
-<<<<<<< HEAD
 #define MAX_ROUTABLE_PAYLOAD		1280	// 1280 in src2006
-=======
-#define MAX_ROUTABLE_PAYLOAD		1280
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
-
 #if (MAX_ROUTABLE_PAYLOAD & 3) != 0
 #error Bit buffers must be a multiple of 4 bytes
 #endif
 
-<<<<<<< HEAD
 #define MIN_ROUTABLE_PAYLOAD		128		// minimum playload size. 128 in src2006
-=======
-#define MIN_ROUTABLE_PAYLOAD		128		// minimum playload size
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 
 #define NETMSG_TYPE_BITS	5	// must be 2^NETMSG_TYPE_BITS > SVC_LASTMSG. Correct!
 

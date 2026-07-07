@@ -61,11 +61,8 @@ extern int  NET_ReceiveStream( int nSock, char * buf, int len, int flags );
 #define FLIPBIT(v,b) if (v&b) v &= ~b; else v |= b;
 
 // We only need to checksum packets on the PC and only when we're actually sending them over the network.
-<<<<<<< HEAD
 #if 0
-=======
 // This is not exist in CS:S v34
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 static bool ShouldChecksumPackets()
 {
 	// temporary solution for testing
@@ -1423,11 +1420,8 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 			length -= rest;
 	}
 
-<<<<<<< HEAD
-=======
 	Assert ( (offset + length) <= data->bytes );
 #if 1
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 	// Disassembler recovery 
 	if (length && (offset + length) <= data->bytes)
 	{
@@ -1437,21 +1431,6 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 		if (net_showfragments.GetBool())
 			ConMsg("Received fragments: start %i, num %i\n",
 				startFragment, numFragments);
-<<<<<<< HEAD
-
-		return true;
-	}
-	else
-	{
-		delete[] data->buffer;
-		data->buffer = NULL;
-		ConDMsg("Malformed fragment ofs %i len %d, buffer size %d from %s\n",
-			offset, length,
-			PAD_NUMBER(data->bytes, 4),
-			remote_address.ToString());
-		return false;
-	}
-=======
 
 		return true;
 	}
@@ -1474,7 +1453,6 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 		ConMsg("Received fragments: start %i, num %i\n", startFragment, numFragments );
 #endif
 	return true;
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 }
 
 void CNetChan::UpdateSubChannels()

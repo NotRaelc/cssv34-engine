@@ -35,20 +35,11 @@ BEGIN_DATADESC( CEntityFlame )
 
 END_DATADESC()
 
-<<<<<<< HEAD
 IMPLEMENT_SERVERCLASS_ST(CEntityFlame, DT_EntityFlame)
 SendPropFloat(SENDINFO(m_flSize), 16, SPROP_NOSCALE),
 SendPropEHandle(SENDINFO(m_hEntAttached)),
 SendPropBool(SENDINFO(m_bUseHitboxes)),
 SendPropFloat(SENDINFO(m_flLifetime), 0, SPROP_NOSCALE),
-=======
-
-IMPLEMENT_SERVERCLASS_ST( CEntityFlame, DT_EntityFlame )
-	SendPropFloat(SENDINFO(m_flSize), 16, SPROP_NOSCALE),
-	SendPropEHandle(SENDINFO(m_hEntAttached)),
-	SendPropBool(SENDINFO(m_bUseHitboxes)),
-	SendPropFloat(SENDINFO(m_flLifetime), 0, SPROP_NOSCALE),
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 END_SEND_TABLE()
 
 LINK_ENTITY_TO_CLASS( entityflame, CEntityFlame );

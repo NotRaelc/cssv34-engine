@@ -281,11 +281,7 @@ C_EntityFlame::C_EntityFlame( void ) :
 m_hEffect( NULL )
 {
 	m_hOldAttached = NULL;
-<<<<<<< HEAD
-	m_flSize = 0.0f;
-=======
 	m_flSize = 1.0f;
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 	m_bUseHitboxes = false;
 	m_flLifetime = 0.0f;
 }

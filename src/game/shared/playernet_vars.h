@@ -36,11 +36,7 @@ struct fogparams_t
 	CNetworkVar( float, start );
 	CNetworkVar( float, end );
 	CNetworkVar( float, farz );
-<<<<<<< HEAD
-	float			maxdensity = 1.0f;
-=======
 	float		maxdensity = 1.0f;
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 
 	CNetworkVar( float, startLerpTo );
 	CNetworkVar( float, endLerpTo );

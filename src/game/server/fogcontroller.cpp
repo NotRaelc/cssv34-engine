@@ -73,31 +73,9 @@ BEGIN_DATADESC( CFogController )
 
 END_DATADESC()
 
-<<<<<<< HEAD
 //------------------------------------------------------------------------------
 // No longer a networked entity; parameters are sent via m_Local.m_fog in players.
 //------------------------------------------------------------------------------
-=======
-IMPLEMENT_SERVERCLASS_ST_NOBASE( CFogController, DT_FogController )
-// fog data
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.enable ), 1, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.blend ), 1, SPROP_UNSIGNED ),
-	SendPropVector( SENDINFO_STRUCTELEM(m_fog.dirPrimary), -1, SPROP_COORD),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimary ), 32, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondary ), 32, SPROP_UNSIGNED ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.start ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.end ), 0, SPROP_NOSCALE ),
-	// SendPropFloat( SENDINFO_STRUCTELEM( m_fog.maxdensity ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.farz ), 0, SPROP_NOSCALE ),
-
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorPrimaryLerpTo ), 32, SPROP_UNSIGNED ),
-	SendPropInt( SENDINFO_STRUCTELEM( m_fog.colorSecondaryLerpTo ), 32, SPROP_UNSIGNED ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.startLerpTo ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.endLerpTo ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.lerptime ), 0, SPROP_NOSCALE ),
-	SendPropFloat( SENDINFO_STRUCTELEM( m_fog.duration ), 0, SPROP_NOSCALE ),
-END_SEND_TABLE()
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 
 CFogController::CFogController()
 {
@@ -177,13 +155,8 @@ void CFogController::InputSetEndDist(inputdata_t &inputdata)
 
 void CFogController::InputSetMaxDensity( inputdata_t &inputdata )
 {
-<<<<<<< HEAD
 	m_fog.maxdensity = inputdata.value.Float();
 	UpdateAllPlayers();
-=======
-	m_fog.maxdensity = 1.0f;
-	//m_fog.maxdensity = inputdata.value.Float();
->>>>>>> c7a26e52772fa8cee37a83658449bc3cb4ccfe45
 }
 
 void CFogController::InputTurnOn(inputdata_t &inputdata)
