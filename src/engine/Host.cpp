@@ -711,7 +711,7 @@ void Host_Error (const char *error, ...)
 
 #ifndef SWDS
 	// Reenable screen updates
-	SCR_EndLoadingPlaque ();		
+	SCR_EndLoadingPlaque();		
 #endif
 	ConMsg( "\nHost_Error: %s\n\n", string );
 

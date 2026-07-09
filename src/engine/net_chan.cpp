@@ -1922,6 +1922,7 @@ bool CNetChan::ProcessMessages( bf_read &buf  )
 			if (!netmsg->ReadFromBuffer(buf))
 			{
 				ConMsg("Netchannel: failed reading message %s from %s.\n", msgname, remote_address.ToString());
+				//ConMsg("] %s\n", netmsg->ToString());
 				Assert(0);
 				return false;
 			}

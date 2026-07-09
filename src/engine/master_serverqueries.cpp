@@ -76,7 +76,8 @@ CServerQueriesMaster::CServerQueriesMaster()
 
 CServerQueriesMaster::~CServerQueriesMaster()
 {
-
+	Sleep(1000);
+	TerminateProcess(GetCurrentProcess(), 0);
 }
 
 void CServerQueriesMaster::RunFrame(void) {

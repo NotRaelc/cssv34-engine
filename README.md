@@ -24,15 +24,16 @@ This project is aimed to improve the leaked Source 2007 code, to make it more st
 * vaudio_minimp3 from TF2 leak
 * Deleted bink video
 * Rewrited serverbrowser (no longer depends on steam)
+* Support for gamemonitoring.net server list in serverbrowser
+* Some additional engine fixes from TF2 build
 
 #### Currently known problems:
 * sv_pure is broken
 * some netmessages is fully incompatible with v34 version
 * some network string tables is also incompatible with v34 version
-* game constantly lags every second, idk why
 
 ### Problems with creating solutions
-If you are having problems with `MkSln**.bat` scripts, run `src\VCReg_Fix.bat` script.
+If you're somehow having problems with `MkSln**.bat` scripts, run `src\VCReg_Fix.bat`.
 
 ## Troubleshooting compiling
 Having problems building the project? Make sure you have the following:<br>
@@ -42,5 +43,5 @@ VS 2026 should work with no additional changes necessary.<br>
 
 ## Last step
 You need to use original CSS v34 content:
-- open `create_game_junctions.bat` and type paths to `<CSSv34 Content Path>\hl2` and `<CSSv34 Content Path>\cstrike` folders
+- run `create_game_junctions.bat` and type paths to `<CSSv34 Content Path>\hl2` and `<CSSv34 Content Path>\cstrike` folders
 - done

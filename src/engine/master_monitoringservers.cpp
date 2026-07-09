@@ -140,8 +140,11 @@ char* get_server(uint32 id)
 
 	free(pData);
 
-	Plat_DebugString(jsonBuffer.c_str());
-	Plat_DebugString("\n");
+	extern ConVar developer;
+	if (developer.GetInt() == 2) {
+		Plat_DebugString(jsonBuffer.c_str());
+		Plat_DebugString("\n");
+	}
 
 	return (char*)jsonBuffer.c_str();
 }

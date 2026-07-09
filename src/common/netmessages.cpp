@@ -820,7 +820,7 @@ bool SVC_UpdateStringTable::WriteToBuffer( bf_write &buffer )
 		buffer.WriteWord( m_nChangedEntries );	// more entries changed
 	}
 
-	buffer.WriteUBitLong( m_nLength, 20 );
+	buffer.WriteWord( m_nLength );
 	
 	return buffer.WriteBits( m_DataOut.GetData(), m_nLength );
 }
@@ -840,8 +840,10 @@ bool SVC_UpdateStringTable::ReadFromBuffer( bf_read &buffer )
 		m_nChangedEntries = 1;
 	}
 	
-	m_nLength = buffer.ReadUBitLong( 20 );
+	//m_nLength = buffer.ReadUBitLong( 20 );
+	m_nLength = buffer.ReadWord();
 	m_DataIn = buffer;
+
 	return buffer.SeekRelative( m_nLength );
 }
 

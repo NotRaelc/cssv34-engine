@@ -1,4 +1,5 @@
 ﻿#include "tier0/dbg.h"
+#include "convar.h"
 #include "color.h"
 #include "steamCommon.h"
 #include "steam/steamclientpublic.h"
@@ -13,6 +14,9 @@
 static bool g_bSidCfg_FirstStart = true;
 extern int g_iSteamAppID;
 bool esteamation = false;
+
+ConVar gen_cvar("steam_gen", "3", 0, "Sets steam gen (debugging only)");
+ConVar sid_cvar("steam_uid", "0", 0, "Sets custom steam id (debugging only, 0 = use default)");
 
 /*
 * Generate account id using an external ip
@@ -83,6 +87,7 @@ int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 por
 	Ticket = GenerateRevEmu(pData, steamID, gen); // spoof the ticket if SteamUser doesn't exist
 
 	if (gen == 4) {
+		Msg("[SteamIDConfig] Forcing SteamUser to generate steam id for gen 4\n");
 		if (SteamUser())
 			Ticket = SteamUser()->InitiateGameConnection(pData, 2048, sid, CGameID(g_iSteamAppID), ntohl(ip), ntohs(port), secure);
 	}
@@ -91,7 +96,6 @@ int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 por
 	Msg("Created ticked for %s ", GetEmulatorName());
 
 	auto pTicket = (int*)pData;
-	auto pbTicket = (uint8*)pData;
 
 	if (pTicket[0] == 'J')
 		strcpy(Gen, "RevEmu 3 Gen");

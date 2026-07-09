@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+ï»¿//========= Copyright ï¿½ 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -15,7 +15,6 @@
 #include "utlvector.h"
 #include "imovehelper.h"
 
-
 class bf_read;
 class bf_write;
 
@@ -26,7 +25,6 @@ public:
 	float				minheight;
 	float				maxheight;
 };
-
 
 class CUserCmd
 {

@@ -1118,7 +1118,8 @@ CRC32_t SendTable_ComputeCRC()
 	CRC32_Final( &result );
 	*/
 
-	// temporary solution for "Server uses different class tables" disconnection
+	// FIXME: 
+	// temporary solution for "Server uses different class tables" v34 kick
 	CRC32_t result = -1290448708;
 
 	return result;

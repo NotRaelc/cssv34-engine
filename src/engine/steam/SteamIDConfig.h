@@ -2,8 +2,11 @@
 #include "checksum_crc.h"
 #include "strtools.h"
 #include "steam/steamclientpublic.h"
+#include "baseclientstate.h"
 
 extern bool esteamation;
+extern ConVar gen_cvar;
+extern ConVar sid_cvar;
 
 // Special class that generates SteamID from External IP
 class SteamIDConfig {
