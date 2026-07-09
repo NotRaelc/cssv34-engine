@@ -846,7 +846,7 @@ void CMatchmakingBasePanel::OnOpenAchievementsDialog()
 
 	if ( !m_hAchievementsDialog.Get() )
 	{
-		m_hAchievementsDialog = new CAchievementsDialog_XBox( this );
+		m_hAchievementsDialog = 0;//new CAchievementsDialog_XBox( this );
 	}
 	PushDialog( m_hAchievementsDialog );
 }

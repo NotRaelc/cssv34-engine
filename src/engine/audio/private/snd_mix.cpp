@@ -401,6 +401,12 @@ CHANNEL MIXING
 
 void S_FreeChannel(channel_t *ch)
 {
+	if (!ch)
+		return;
+
+	if (!ch->sfx)
+		return;
+
 	// Don't reenter in here (can happen inside voice code).
 	if ( ch->flags.m_bIsFreeingChannel )
 		return;

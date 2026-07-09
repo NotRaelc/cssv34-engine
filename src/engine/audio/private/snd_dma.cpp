@@ -5176,6 +5176,10 @@ int S_StartDynamicSound( StartSoundParams_t& params )
 	{
 		Assert( target_chan->sfx );
 		Assert( target_chan->sfx->pSource );
+		if (!target_chan->sfx)
+			return 0;
+		if (!target_chan->sfx->pSource)
+			return 0;
 
 		float rate = target_chan->sfx->pSource->SampleRate();
 		int delaySamples = (int)( params.delay * rate );
@@ -5187,6 +5191,9 @@ int S_StartDynamicSound( StartSoundParams_t& params )
 		}
 		else
 		{
+			if (!target_chan->sfx->pSource)
+				return 0;
+
 			int skipSamples = -delaySamples;
 			int totalSamples = target_chan->sfx->pSource->SampleCount();
 			if ( target_chan->sfx->pSource->IsLooped() )
@@ -5462,6 +5469,10 @@ int S_StartStaticSound( StartSoundParams_t& params )
 	{
 		Assert( ch->sfx );
 		Assert( ch->sfx->pSource );
+		if (!ch->sfx)
+			return 0;
+		if (!ch->sfx->pSource)
+			return 0;
 		
 		float rate = ch->sfx->pSource->SampleRate();
 
@@ -6046,6 +6057,10 @@ void S_Update( const AudioState_t *pAudioState )
 			ch = list.GetChannel(i);
 			Assert(ch->sfx);
 			Assert(ch->activeIndex > 0);
+			if (!ch->sfx)
+				return;
+			if (ch->activeIndex < 0)
+				return;
 
 			SND_Spatialize(ch);         // respatialize channel
 
