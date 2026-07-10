@@ -1,7 +1,6 @@
 ## CSSv34 Engine
 
 This project is aimed to improve the leaked Source 2007 code, to make it more stable and to make it compatible with v34 servers.
-<br>Warning: Some of the features may fuck up the game<br>
 
 #### Sources:
 * [quiver-engine](https://github.com/quiverteam/engine)
@@ -10,6 +9,8 @@ This project is aimed to improve the leaked Source 2007 code, to make it more st
 * [source-2007](https://github.com/uvbs/source-2007)
 * [nillerusr's source-engine](https://github.com/nillerusr/source-engine)
 * [csgo engine](https://github.com/EpicSentry/HL2-CSGO)
+
+---
 
 #### Features:
 * Recompiled VPC, src from TF2 leak
@@ -27,21 +28,28 @@ This project is aimed to improve the leaked Source 2007 code, to make it more st
 * Support for gamemonitoring.net server list in serverbrowser
 * Some additional engine fixes from TF2 build
 
-#### Currently known problems:
+### Currently known problems:
 * sv_pure is broken
 * some netmessages is fully incompatible with v34 version
-* some network string tables is also incompatible with v34 version
+* most of datatables is incompatible with v34 and requires fixes
 
 ### Problems with creating solutions
 If you're somehow having problems with `MkSln**.bat` scripts, run `src\VCReg_Fix.bat`.
 
-## Troubleshooting compiling
-Having problems building the project? Make sure you have the following:<br>
-- Windows 10 SDK: https://developer.microsoft.com/en-us/windows/downloads<br>
-- MFC for v145 build tools: Available under the "Individual Components" section of the Visual Studio Installer.<br>
-VS 2026 should work with no additional changes necessary.<br>
+---
 
-## Last step
+## License:
+[SOURCE 1 SDK LICENSE](https://github.com/rusherr-c/cssv34-engine/blob/dev/LICENSE)<br>
+[THIRD PARTY LEGAL NOTICES](https://github.com/rusherr-c/cssv34-engine/blob/dev/thirdpartylegalnotices.txt)
+
+## Contributing:
+Please read [CONTRIBUTING.md](https://github.com/rusherr-c/cssv34-engine/blob/dev/CONTRIBUTING.md)
+
+---
+
+## Troubleshooting compiling
+Having issues building the project? Make sure you have read the [CONTRIBUTING.md](https://github.com/rusherr-c/cssv34-engine/blob/dev/CONTRIBUTING.md)
+
+## Using CSS v34 Content
 You need to use original CSS v34 content:
 - run `create_game_junctions.bat` and type paths to `<CSSv34 Content Path>\hl2` and `<CSSv34 Content Path>\cstrike` folders
-- done
