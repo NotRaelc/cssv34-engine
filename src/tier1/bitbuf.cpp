@@ -561,6 +561,16 @@ void bf_read::SetDebugName(const char* pName)
 
 unsigned int bf_read::CheckReadUBitLong(int numbits)
 {
+	Assert(numbits >= 0);
+	Assert(numbits <= 32);
+
+	// UB fix
+	if (numbits <= 0)
+	{
+		SetOverflowFlag();
+		return 0;
+	}
+
 	// Ok, just read bits out.
 	int i, nBitValue;
 	unsigned int r = 0;
@@ -944,7 +954,7 @@ void bf_read::ExciseBits(int startbit, int bitstoremove)
 	int remaining_to_end = m_nDataBits - endbit;
 
 	bf_write temp;
-	temp.StartWriting((void*)m_pData, m_nDataBits << 3, startbit);
+	temp.StartWriting((void*)m_pData, m_nDataBytes, startbit);
 
 	Seek(endbit);
 
