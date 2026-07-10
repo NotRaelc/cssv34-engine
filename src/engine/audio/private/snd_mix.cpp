@@ -460,6 +460,8 @@ void MIX_MixChannelsToPaintbuffer( CChannelList &list, int endtime, int flags, i
 		Assert( ch->sfx );
 		// must never have a 'dry' and 'speaker' set - causes double mixing & double data reading
 		Assert ( !( ch->flags.bdry && ch->flags.bSpeaker ) );	
+		if (!ch->sfx)
+			return;
 
 		// if mixing with SOUND_MIX_DRY flag, ignore (don't even load) all channels not flagged as 'dry'
 		if ( flags == SOUND_MIX_DRY )

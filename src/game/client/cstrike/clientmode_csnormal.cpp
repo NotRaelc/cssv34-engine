@@ -153,6 +153,16 @@ void MsgFunc_KillCam(bf_read &msg)
 	g_nKillCamTarget2	= msg.ReadByte();
 }
 
+void MsgFunc_BarTime(bf_read& msg)
+{
+	// stub...
+}
+
+void MsgFunc_PlayerAnimEvent(bf_read& msg)
+{
+	// stub...
+}
+
 // --------------------------------------------------------------------------------- //
 // CCSModeManager.
 // --------------------------------------------------------------------------------- //
@@ -242,6 +252,8 @@ void ClientModeCSNormal::Init()
 	ListenForGameEvent( "round_end_message" );
 
 	usermessages->HookMessage( "KillCam", MsgFunc_KillCam );
+	usermessages->HookMessage( "BarTime", MsgFunc_BarTime );
+	usermessages->HookMessage( "PlayerAnimEvent", MsgFunc_PlayerAnimEvent );
 }
 
 void ClientModeCSNormal::InitViewport()
