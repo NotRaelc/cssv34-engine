@@ -528,6 +528,9 @@ void CDialogGameInfo::ServerResponded( newgameserver_t &server )
 	if (!server.m_NetAdr.GetPort() || !server.m_NetAdr.GetIPHostByteOrder())
 		return;
 
+	if (*(void**)this == nullptr) 
+		return;
+
 	m_Server = server;
 	if (m_bConnecting)
 	{

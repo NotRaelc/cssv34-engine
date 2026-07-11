@@ -498,16 +498,7 @@ bool CBaseClientState::PrepareSteamConnectResponse( int keySize, const char *enc
 	// now append the steam3 cookie
 	char steam3Cookie[ STEAM_KEYSIZE ];
 	int steam3CookieLen = 0;
-	int gen = 3;
-
-	if (gen_cvar.GetInt() != gen)
-		gen = gen_cvar.GetInt();
-
-	if (sid_cvar.GetInt() != 0)
-	{
-		ConColorMsg(Color(150, 255, 150, 255), "Using custom SteamIDConfig settings: gen=%i, uid=%i\n", gen, sid_cvar.GetInt());
-		*((int*)&cfg) = sid_cvar.GetInt();
-	}
+	int gen = g_bIsESTEAMATiON ? 3 : 4;
 
 	//Msg("Generation = %i\n", generation);
 	steam3CookieLen = cfg.CreateTicket(steam3Cookie, unGSSteamID, checkAdr.GetIPNetworkByteOrder(), checkAdr.GetPort(), bGSSecure, gen);

@@ -268,44 +268,40 @@ static int __cdecl AscendingSortFunc(const void *elem1, const void *elem2)
 	vgui::ListPanelItem *p1, *p2;
 	p1 = s_pCurrentSortingListPanel->GetItemData(itemID1);
 	p2 = s_pCurrentSortingListPanel->GetItemData(itemID2);
-	int result = 0;
-	try {
-		result = s_pSortFunc(s_pCurrentSortingListPanel, *p1, *p2);
+	if (!s_pSortFuncSecondary)
+		return 0;
+
+	int result = s_pSortFunc(s_pCurrentSortingListPanel, *p1, *p2);
+	if (result == 0)
+	{
+		// use the secondary sort functino
+		result = s_pSortFuncSecondary(s_pCurrentSortingListPanel, *p1, *p2);
+
+		if (!s_bSortAscendingSecondary)
+		{
+			result = -result;
+		}
+
 		if (result == 0)
 		{
-			// use the secondary sort functino
-			result = s_pSortFuncSecondary(s_pCurrentSortingListPanel, *p1, *p2);
-
-			if (!s_bSortAscendingSecondary)
+			// sort by the pointers to make sure we get consistent results
+			if (p1 > p2)
 			{
-				result = -result;
+				result = 1;
 			}
-
-			if (result == 0)
+			else
 			{
-				// sort by the pointers to make sure we get consistent results
-				if (p1 > p2)
-				{
-					result = 1;
-				}
-				else
-				{
-					result = -1;
-				}
-			}
-		}
-		else
-		{
-			// flip result if not doing an ascending sort
-			if (!s_bSortAscending)
-			{
-				result = -result;
+				result = -1;
 			}
 		}
 	}
-	catch (...)
+	else
 	{
-		// ...
+		// flip result if not doing an ascending sort
+		if (!s_bSortAscending)
+		{
+			result = -result;
+		}
 	}
 
 	return result;

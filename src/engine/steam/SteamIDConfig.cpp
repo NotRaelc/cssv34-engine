@@ -13,10 +13,16 @@
 
 static bool g_bSidCfg_FirstStart = true;
 extern int g_iSteamAppID;
-bool esteamation = false;
+bool g_bIsESTEAMATiON = true;
 
-ConVar gen_cvar("steam_gen", "3", 0, "Sets steam gen (debugging only)");
-ConVar sid_cvar("steam_uid", "0", 0, "Sets custom steam id (debugging only, 0 = use default)");
+#ifdef DEBUG
+#define SIDCVARS_FLAGS 0
+#else
+#define SIDCVARS_FLAGS FCVAR_DEVELOPMENTONLY
+#endif
+
+ConVar gen_cvar("steam_gen", "0", SIDCVARS_FLAGS, "Sets steam gen (development only, 0 = use default)");
+ConVar sid_cvar("steam_uid", "0", SIDCVARS_FLAGS, "Sets custom steam id (development only, 0 = use default)");
 
 /*
 * Generate account id using an external ip
@@ -82,28 +88,19 @@ SteamIDConfig::~SteamIDConfig() {
 }
 
 int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 port, bool secure, int gen) {
-	char Gen[16];
 
-	Ticket = GenerateRevEmu(pData, steamID, gen); // spoof the ticket if SteamUser doesn't exist
+	if (sid_cvar.GetInt() != 0)
+		steamID == sid_cvar.GetInt();
+
+	Ticket = GenerateRevEmu(pData, steamID, gen_cvar.GetInt() ? gen_cvar.GetInt() : gen); // spoof the ticket
 
 	if (gen == 4) {
-		Msg("[SteamIDConfig] Forcing SteamUser to generate steam id for gen 4\n");
+		Msg("[SteamIDConfig] Forcing RevEmu to generate STEAM_ID for Gen 4\n");
 		if (SteamUser())
 			Ticket = SteamUser()->InitiateGameConnection(pData, 2048, sid, CGameID(g_iSteamAppID), ntohl(ip), ntohs(port), secure);
 	}
 
-	ConColorMsg(Color(100, 255, 100, 255), "[SteamIDConfig] ");
-	Msg("Created ticked for %s ", GetEmulatorName());
-
 	auto pTicket = (int*)pData;
-
-	if (pTicket[0] == 'J')
-		strcpy(Gen, "RevEmu 3 Gen");
-
-	if (pTicket[0] == 'S')
-		strcpy(Gen, "RevEmu 4 Gen");
-
-	Msg("(%s)\n", Gen);
 	
 	ConColorMsg(Color(100, 255, 100, 255), "[SteamIDConfig] ");
 	Msg("SteamID: %i\n", (pTicket[4] >> 1));

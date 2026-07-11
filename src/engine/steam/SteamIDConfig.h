@@ -4,7 +4,7 @@
 #include "steam/steamclientpublic.h"
 #include "baseclientstate.h"
 
-extern bool esteamation;
+extern bool g_bIsESTEAMATiON;
 extern ConVar gen_cvar;
 extern ConVar sid_cvar;
 

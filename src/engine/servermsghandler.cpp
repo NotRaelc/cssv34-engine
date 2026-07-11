@@ -665,7 +665,7 @@ bool CClientState::ProcessUserMessage(SVC_UserMessage *msg)
 	// dispatch message to client.dll
 	if ( !g_ClientDLL->DispatchUserMessage( msg->m_nMsgType, userMsg ) )
 	{
-		ConMsg( "Couldn't dispatch user message (%i)\n", msg->m_nMsgType );
+		//ConMsg( "Couldn't dispatch user message (%i)\n", msg->m_nMsgType );
 		return false;
 	}
 

@@ -73,11 +73,11 @@
 
 #define HEADER_BYTES	9	// 2*4 bytes seqnr, 1 byte flags
 
-// Pad this to next higher 16 byte boundary
+// Pad this to next higher 8 byte boundary
 // This is the largest packet that can come in/out over the wire, before processing the header
 //  bytes will be stripped by the networking channel layer
-//#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 16 ) // 8 insted of 16 in source 2006!!!
-#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 8 )		// ((((96000 + 9)) + ((8) - 1)) / (8))* (8) = 96016
+// ((((96000 + 9)) + ((8) - 1)) / (8))* (8) = 96016
+#define	NET_MAX_MESSAGE	PAD_NUMBER( ( NET_MAX_PAYLOAD + HEADER_BYTES ), 8 )
 
 #define NET_HEADER_FLAG_SPLITPACKET				-2		// -2 in src2006!
 // didnt exist in src2006
