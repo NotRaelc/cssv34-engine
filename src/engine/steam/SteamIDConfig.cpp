@@ -15,11 +15,7 @@ static bool g_bSidCfg_FirstStart = true;
 extern int g_iSteamAppID;
 bool g_bIsESTEAMATiON = true;
 
-#ifdef DEBUG
-#define SIDCVARS_FLAGS 0
-#else
-#define SIDCVARS_FLAGS FCVAR_DEVELOPMENTONLY
-#endif
+#define SIDCVARS_FLAGS 0 //FCVAR_DEVELOPMENTONLY
 
 ConVar gen_cvar("steam_gen", "0", SIDCVARS_FLAGS, "Sets steam gen (development only, 0 = use default)");
 ConVar sid_cvar("steam_uid", "0", SIDCVARS_FLAGS, "Sets custom steam id (development only, 0 = use default)");
@@ -92,6 +88,7 @@ int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 por
 	if (sid_cvar.GetInt() != 0)
 		steamID == sid_cvar.GetInt();
 
+	//ConColorMsg(Color(100, 255, 100, 255), "[SteamIDConfig] Generating for Gen %i", gen_cvar.GetInt() ? gen_cvar.GetInt() : gen);
 	Ticket = GenerateRevEmu(pData, steamID, gen_cvar.GetInt() ? gen_cvar.GetInt() : gen); // spoof the ticket
 
 	if (gen == 4) {
@@ -103,7 +100,7 @@ int SteamIDConfig::CreateTicket(void* pData, CSteamID sid, uint32 ip, uint16 por
 	auto pTicket = (int*)pData;
 	
 	ConColorMsg(Color(100, 255, 100, 255), "[SteamIDConfig] ");
-	Msg("SteamID: %i\n", (pTicket[4] >> 1));
+	Msg("SteamID: %i\n", (pTicket[1]));
 
 	return Ticket;
 }

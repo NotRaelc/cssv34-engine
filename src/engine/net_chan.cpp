@@ -41,8 +41,6 @@ static ConVar net_chokeloopback( "net_chokeloop", "0", 0, "Apply bandwidth choke
 static ConVar net_maxfilesize( "net_maxfilesize", "16", 0, "Maximum allowed file size for uploading in MB", true, 0, true, 64 );
        ConVar net_blocksize("net_maxfragments", "1280", 0, "Max fragment bytes per packet", true, FRAGMENT_SIZE, true, MAX_ROUTABLE_PAYLOAD);
 
-static ConVar net_compresssplits("net_compresssplits", "1", 0, "Compress splitpacket parts before sending"); 
-
 static ConVar net_maxcleartime( "net_maxcleartime", "0", 0, "Max # of seconds we can wait for next packets to be sent based on rate setting (0 == no limit)." );
 
 extern ConVar net_maxroutable;

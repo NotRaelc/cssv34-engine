@@ -18,6 +18,7 @@
 #define NET_COMPRESSION_STACKBUF_SIZE 4096 
 
 static ConVar net_showsplits( "net_showsplits", "0", 0, "Show info about packet splits" );
+static ConVar net_compresssplits( "net_compresssplits", "1", 0, "Compress splitpacket parts before sending" );
 
 static ConVar ipname        ( "ip", "localhost", 0, "Overrides IP for multihomed hosts" );
 static ConVar hostport      ( "hostport", va("%i",PORT_SERVER), 0, "Host game server port" );
@@ -115,12 +116,12 @@ typedef struct
 	int		currentSequence;
 	int		splitCount;
 	int		totalSize;
-	char	buffer[ NET_MAX_MESSAGE ];	// This has to be big enough to hold the largest message
-	
-	// Expected entries, may be wrong
-	int uncompressedSize;
-	int crc32;
-	char compressedData[NET_MAX_MESSAGE - 8];
+
+	// used when buffer is compressed
+	int		uncompressedSize;
+	int		crc32;
+
+	char	buffer[NET_MAX_MESSAGE - 8];
 
 } LONGPACKET;
 
@@ -1031,6 +1032,7 @@ bool NET_LagPacket (bool newdata, netpacket_t * packet)
 // Calculate MAX_SPLITPACKET_SPLITS according to the smallest split size
 #define MAX_SPLITPACKET_SPLITS ( NET_MAX_MESSAGE / SPLIT_SIZE ) // 69
 #define SPLIT_PACKET_STALE_TIME		15.0f
+#define SPLIT_FLAG_COMPRESSED 0x80000000
 
 class CSplitPacketEntry
 {
@@ -1147,6 +1149,7 @@ bool NET_GetLong( const int sock, netpacket_t *packet )
 	int				packetNumber, packetCount, sequenceNumber, offset, size;
 	short			packetID;
 	SPLITPACKET		*pHeader;
+	char			decompressBuffer[NET_MAX_MESSAGE];
 	
 	CSplitPacketEntry *entry = NET_FindOrCreateSplitPacketEntry( sock, &packet->from );
 	Assert( entry );
@@ -1158,6 +1161,13 @@ bool NET_GetLong( const int sock, netpacket_t *packet )
 
 	pHeader = ( SPLITPACKET * )packet->data;
 	sequenceNumber	= pHeader->sequenceNumber;
+	// is this split compressed?
+	bool bCompressed = (sequenceNumber & SPLIT_FLAG_COMPRESSED) != 0;
+	
+
+	if (bCompressed)
+		sequenceNumber &= ~SPLIT_FLAG_COMPRESSED;
+	
 	packetID		= pHeader->packetID;
 	// High byte is packet number
 	packetNumber	= ( packetID >> 8 );	
@@ -1212,45 +1222,65 @@ bool NET_GetLong( const int sock, netpacket_t *packet )
 	memcpy( entry->netsplit.buffer + offset, packet->data + sizeof(SPLITPACKET), size );
 	
 	// Have we received all of the pieces to the packet?
-	if ( entry->netsplit.splitCount <= 0 )
+	if (entry->netsplit.splitCount <= 0)
 	{
 		entry->netsplit.currentSequence = -1;	// Clear packet
-		if ( entry->netsplit.totalSize > sizeof(entry->netsplit.buffer) )
+		if (entry->netsplit.totalSize > sizeof(entry->netsplit.buffer))
 		{
-			Msg("Split packet too large! %d bytes from %s\n", entry->netsplit.totalSize, packet->from.ToString() );
+			Msg("Split packet too large! %d bytes from %s\n", entry->netsplit.totalSize, packet->from.ToString());
 			return false;
 		}
 
-		///
-		////// TODO: add decompression!
-		///
-
-		/*
-		v17 = v13[75];
-		v26 = v13[76];
-		memset(v27, 0, sizeof(v27));
-		v28 = 0;
-		v29 = 0;
-		v24 = v17;
-		v23 = 96016;
-		if (NET_BufferToBufferDecompress(v27, &v23, v13 + 77, v14, 1, 0) || v17 != v23)
+		if (!bCompressed)
 		{
-			v20 = (const char*)sub_20226C10(0);
-			Msg("Error decompressing split packet %d bytes from %s\n", v13[74], v20);
-			return 0;
+			memcpy(packet->data, entry->netsplit.buffer, entry->netsplit.totalSize);
+			packet->size = entry->netsplit.totalSize;
+			packet->wiresize = entry->netsplit.totalSize;
 		}
-		v18 = sub_20103B20(v27, v17);
-		if (v18 != v26)
+		else
 		{
-			v19 = (const char*)sub_20226C10(0);
-			Msg("Error decompressing split packet %d bytes from %s, crc's don't match\n", v13[74], v19);
-			return 0;
-		}
-		*/
+			// First 8 bytes contains real size and CRC32_t
+			int uncompressedSize = entry->netsplit.uncompressedSize;
+			int expectedCRC = entry->netsplit.crc32;
 
-		memcpy( packet->data, entry->netsplit.buffer, entry->netsplit.totalSize );
-		packet->size = entry->netsplit.totalSize;
-		packet->wiresize = entry->netsplit.totalSize;
+			uint32 outSize = NET_MAX_MESSAGE;
+
+			if (!NET_BufferToBufferDecompress(
+				decompressBuffer,
+				&outSize,
+				entry->netsplit.buffer,
+				entry->netsplit.totalSize - 8))
+			{
+				Msg("Error decompressing split packet %d bytes from %s\n", entry->netsplit.totalSize, packet->from.ToString());
+				return false;
+			}
+
+			// check uncompressedSize (CUSTOM)
+			if (outSize != uncompressedSize)
+			{
+				Msg("Error decompressing split packet %d bytes from %s, decompressed size mismatch\n",
+					entry->netsplit.totalSize,
+					packet->from.ToString());
+				return false;
+			}
+
+			CRC32_t crc = CRC32_ProcessSingleBuffer(
+				decompressBuffer,
+				outSize);
+
+			// Check if CRC's are equal
+			if (crc != expectedCRC)
+			{
+				Msg("Error decompressing split packet %d bytes from %s, crc's don't match\n",
+					entry->netsplit.totalSize,
+					packet->from.ToString());
+				return false;
+			}
+
+			memcpy(packet->data, decompressBuffer, outSize);
+			packet->size = outSize;
+			packet->wiresize = outSize;
+		}
 
 		return true;
 	}
@@ -1850,7 +1880,7 @@ struct SendQueue_t
 
 static SendQueue_t g_SendQueue;
 
-int NET_QueuePacketForSend( CNetChan *chan, bool verbose, SOCKET s, const char FAR *buf, int len, const struct sockaddr FAR * to, int tolen, uint32 msecDelay )
+int NET_QueuePacketForSend( CNetChan *chan, SOCKET s, const char FAR *buf, int len, const struct sockaddr FAR * to, int tolen, uint32 msecDelay )
 {
 	// If net_queued_packet_thread was -1 at startup, then we don't even have a thread.
 	if ( net_queued_packet_thread.GetInt() && g_pQueuedPackedSender->IsRunning() )
@@ -1937,101 +1967,130 @@ void NET_SendQueuedPackets()
 
 int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char * buf, int len, const struct sockaddr * to, int tolen, int nMaxRoutableSize )
 {
-	static long gSequenceNumber = 1;
-	
-	if ( len > MAX_ROUTABLE_PACKET )	// Do we need to break this packet up?
-	{
-		// yep
-		char packet[MAX_ROUTABLE_PACKET];
-		int totalSent, ret, size, packetCount, packetNumber;
-		SPLITPACKET *pPacket;
-		int originalSize = len;
+	CNetChan* netchan = dynamic_cast<CNetChan*>(chan);
 
-		gSequenceNumber++;
-		if ( gSequenceNumber < 0 )
+	int compressedSize = len;
+	int nTotalSize = len;
+
+	char *compressedData = new char[len + 8];
+	const char* pData = buf;
+
+	// Not sure if it uses exactly this convar
+	bool bEnableCompression = net_compresssplits.GetBool();
+	bool bCompressed = false;
+
+	// Compress it
+	if (bEnableCompression)
+	{
+		if (NET_BufferToBufferCompress(compressedData + 8, (uint32*)&compressedSize, (char*)buf, len) || compressedSize + 8 < len)
 		{
-			gSequenceNumber = 1;
+			bCompressed = true;
+			nTotalSize = compressedSize + 8;
+
+			// according to ida, i think this is something like that
+			((int*)compressedData)[0] = len;
+			((int*)compressedData)[1] = (int)CRC32_ProcessSingleBuffer(buf, len);;
+
+			pData = compressedData;
+		}
+	}
+
+	// Invalid total size
+	if (nTotalSize <= 0)
+		return 0;
+
+	static long nSequenceNumber = 1;
+	
+	nSequenceNumber++;
+	if (nSequenceNumber < 0)
+	{
+		nSequenceNumber = 1;
+	}
+
+	const char* sendbuf = pData;
+
+	char			packet[MAX_ROUTABLE_PAYLOAD];
+	SPLITPACKET* pPacket = (SPLITPACKET*)packet;
+
+	// Make pPacket data network endian correct
+	pPacket->netID = LittleLong(NET_HEADER_FLAG_SPLITPACKET);
+	pPacket->sequenceNumber = LittleLong(nSequenceNumber);
+
+	// Append compressed flag if compressed
+	if (bCompressed)
+		pPacket->sequenceNumber |= SPLIT_FLAG_COMPRESSED;
+
+	int nPacketCount = (nTotalSize + SPLIT_SIZE - 1) / SPLIT_SIZE;
+
+	int nBytesLeft = nTotalSize;
+	int nPacketNumber = 0;
+	int nTotalSent = 0;
+	bool bFirstSend = true;
+	
+	while (nBytesLeft > 0)
+	{
+		int size = min(SPLIT_SIZE, nBytesLeft);
+
+		pPacket->packetID = LittleShort((short)((nPacketNumber << 8) + nPacketCount));
+
+		Q_memcpy(packet + sizeof(SPLITPACKET), sendbuf + (nPacketNumber * SPLIT_SIZE), size);
+
+		int ret = 0;
+
+#ifndef _LINUX 
+		if (netchan && (!bFirstSend || net_queued_packet_thread.GetInt() == NET_QUEUED_PACKET_THREAD_DEBUG_VALUE))
+		{
+			uint32 delay = (int)(1000.0f * ((float)(nPacketNumber * (nMaxRoutableSize + UDP_HEADER_SIZE)) / (float)netchan->GetDataRate()) + 0.5f);
+			ret = NET_QueuePacketForSend(netchan, s, packet, size + sizeof(SPLITPACKET), to, tolen, delay);
+		}
+		else
+#endif
+		{
+			// Also, we send the first packet no matter what
+			// w/o a netchan, if there are too many splits, its possible the packet can't be delivered.  However, this would only apply to out of band stuff like
+			//  server query packets, which should never require splitting anyway.
+			ret = NET_SendTo(false, s, packet, size + sizeof(SPLITPACKET), to, tolen, -1);
 		}
 
-		pPacket = (SPLITPACKET *)packet;
-		pPacket->netID = LittleLong(NET_HEADER_FLAG_SPLITPACKET);
-		pPacket->sequenceNumber = gSequenceNumber;
-		packetNumber = 0;
-		totalSent = 0;
-		packetCount = (len + SPLIT_SIZE - 1) / SPLIT_SIZE;
+		// First split send
+		bFirstSend = false;
 
-#if defined( _DEBUG )
-		if ( packetCount > 3 )
+		if (ret < 0)
 		{
-			char const *filename = NET_GetDebugFilename( "splitpacket" );
-			if ( filename )
-			{
-				Msg( "Saving split packet of %i bytes and %i packets to file %s\n",
-					len, packetCount, filename );
-	
-				NET_StorePacket( filename, (byte const *)buf, len );
-			}
+			return ret;
+		}
+
+		if (ret >= size)
+		{
+			nTotalSent += size;
+		}
+
+		nBytesLeft -= size;
+		++nPacketNumber;
+
+		// Always spam about split packets in debug
+		if (net_showsplits.GetInt() && net_showsplits.GetInt() != 2)
+		{
+			netadr_t adr;
+
+			adr.SetFromSockadr((struct sockaddr*)to);
+			if (bCompressed)
+				Msg("--> Split packet [compressed] %i/%i, size %i uncompressed %i, dest %s\n",
+					nPacketNumber,
+					nPacketCount,
+					nTotalSize,
+					len,
+					adr.ToString());
 			else
-			{
-				Msg( "Too many files in debug directory, clear out old data!\n" );
-			}
+				Msg("--> Split packet [uncompressed] %i/%i, size %i, dest %s\n",
+					nPacketNumber,
+					nPacketCount,
+					nTotalSize,
+					adr.ToString());
 		}
-#endif
-
-		while ( len > 0 )
-		{
-			size = min( SPLIT_SIZE, len );
-
-			pPacket->packetID = ( packetNumber << 8 ) + packetCount;
-			
-			memcpy( packet + sizeof(SPLITPACKET), buf + (packetNumber * SPLIT_SIZE), size );
-			
-			ret = NET_SendTo( false, s, packet, size + sizeof(SPLITPACKET), to, tolen, -1 );
-			if ( ret < 0 )
-			{
-				return ret;
-			}
-
-			if ( ret >= size )
-			{
-				totalSent += size;
-			}
-	
-			len -= size;
-			packetNumber++;
-
-			// FIXME:  This was 15, but if you have a lot of packets, that will pause the server for a long time
-#ifdef _WIN32
-			Sleep( 1 );
-#elif _LINUX
-			usleep( 1 );
-#endif
-
-			if ( net_showsplits.GetInt() && net_showsplits.GetInt() != 2 )
-			{
-				netadr_t adr;
-
-				adr.SetFromSockadr((struct sockaddr*)to);
-
-				///
-				////// TODO: add compression!
-				///
-				Msg( "--> Split packet [uncompressed] %i/%, size %i, dest %s\n",
-					packetNumber, 
-					packetCount, 
-					originalSize,
-					adr.ToString() );
-			}
-		}
-		
-		return totalSent;
 	}
-	else
-	{
-		int nSend = 0;
-		nSend = NET_SendTo( true, s, buf, len, to, tolen, -1 );
-		return nSend;
-	}
+
+	return nTotalSent;
 }
 
 //-----------------------------------------------------------------------------
@@ -3103,9 +3162,9 @@ bool NET_BufferToBufferCompress(char* dest, unsigned int* destLen, char* source,
 		&outLen,           // in: max size, out: actual size
 		source,            // input buffer
 		sourceLen,         // input size
-		9,                 // blockSize100k (1–9, 9 = max compression)
+		9,                 // blockSize100k (9 = max compression)
 		0,                 // verbosity
-		30                 // workFactor
+		30                 // workFactor (0x1Eu = default)
 	);
 
 	if (ret != BZ_OK)
