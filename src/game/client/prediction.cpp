@@ -1,4 +1,4 @@
-//========= Copyright � 1996-2005, Valve Corporation, All rights reserved. ============//
+﻿//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -19,7 +19,6 @@
 #include "in_buttons.h"
 #include "con_nprint.h"
 #include "hud_pdump.h"
-#include "datacache/imdlcache.h"
 
 #ifdef HL2_CLIENT_DLL
 #include "c_basehlplayer.h"
@@ -34,8 +33,8 @@ IPredictionSystem *IPredictionSystem::g_pPredictionSystems = NULL;
 
 #if !defined( NO_ENTITY_PREDICTION )
 
-ConVar	cl_predictweapons	( "cl_predictweapons","1", FCVAR_USERINFO, "Perform client side prediction of weapon effects." );
-ConVar	cl_lagcompensation	( "cl_lagcompensation","1", FCVAR_USERINFO, "Perform server side lag compensation of weapon firing events." );
+ConVar	cl_predictweapons	( "cl_predictweapons","1", FCVAR_USERINFO | FCVAR_NOT_CONNECTED, "Perform client side prediction of weapon effects." );
+ConVar	cl_lagcompensation	( "cl_lagcompensation","1", FCVAR_USERINFO | FCVAR_NOT_CONNECTED, "Perform server side lag compensation of weapon firing events." );
 ConVar	cl_showerror		( "cl_showerror", "0", 0, "Show prediction errors, 2 for above plus detailed field deltas." );
 
 static ConVar	cl_idealpitchscale	( "cl_idealpitchscale", "0.8", FCVAR_ARCHIVE );
@@ -287,11 +286,6 @@ void CPrediction::OnReceivedUncompressedPacket( void )
 void CPrediction::PreEntityPacketReceived ( int commands_acknowledged, int current_world_update_packet )
 {
 #if !defined( NO_ENTITY_PREDICTION )
-#if defined( _DEBUG )
-	char sz[ 32 ];
-	Q_snprintf( sz, sizeof( sz ), "preentitypacket%d", commands_acknowledged );
-	PREDICTION_TRACKVALUECHANGESCOPE( sz );
-#endif
 	VPROF( "CPrediction::PreEntityPacketReceived" );
 
 	// Cache off incoming packet #
@@ -333,7 +327,6 @@ void CPrediction::PreEntityPacketReceived ( int commands_acknowledged, int curre
 void CPrediction::PostEntityPacketReceived( void )
 {
 #if !defined( NO_ENTITY_PREDICTION )
-	PREDICTION_TRACKVALUECHANGESCOPE( "postentitypacket" );
 	VPROF( "CPrediction::PostEntityPacketReceived" );
 
 	// Don't screw up memory of current player from history buffers if not filling in history buffers
@@ -414,11 +407,6 @@ void CPrediction::PostNetworkDataReceived( int commands_acknowledged )
 	VPROF( "CPrediction::PostNetworkDataReceived" );
 
 	bool error_check = ( commands_acknowledged > 0 ) ? true : false;
-#if defined( _DEBUG )
-	char sz[ 32 ];
-	Q_snprintf( sz, sizeof( sz ), "postnetworkdata%d", commands_acknowledged );
-	PREDICTION_TRACKVALUECHANGESCOPE( sz );
-#endif
 #ifndef _XBOX
 	CPDumpPanel *dump = GetPDumpPanel();
 #endif
@@ -608,7 +596,7 @@ void CPrediction::SetupMove( C_BasePlayer *player, CUserCmd *ucmd, IMoveHelper *
 	
 	move->m_nPlayerHandle = player->GetClientHandle();
 	move->m_vecVelocity		= player->GetAbsVelocity();
-	move->SetAbsOrigin( player->GetNetworkOrigin() );
+	move->m_vecAbsOrigin	= player->GetNetworkOrigin();
 	move->m_vecOldAngles	= move->m_vecAngles;
 	move->m_nOldButtons		= player->m_Local.m_nOldButtons;
 	move->m_flClientMaxSpeed = player->m_flMaxspeed;
@@ -689,7 +677,7 @@ void CPrediction::FinishMove( C_BasePlayer *player, CUserCmd *ucmd, CMoveData *m
 
 	player->m_vecVelocity = move->m_vecVelocity;
 
-	player->m_vecNetworkOrigin = move->GetAbsOrigin();
+	player->m_vecNetworkOrigin = move->m_vecAbsOrigin;
 	
 	player->m_Local.m_nOldButtons = move->m_nButtons;
 
@@ -698,7 +686,7 @@ void CPrediction::FinishMove( C_BasePlayer *player, CUserCmd *ucmd, CMoveData *m
 	
 	m_hLastGround = player->GetGroundEntity();
  
-	player->SetLocalOrigin( move->GetAbsOrigin() );
+	player->SetLocalOrigin( move->m_vecAbsOrigin );
 
 	IClientVehicle *pVehicle = player->GetVehicle();
 	if (pVehicle)
@@ -825,18 +813,12 @@ void CPrediction::RunCommand( C_BasePlayer *player, CUserCmd *ucmd, IMoveHelper 
 {
 #if !defined( NO_ENTITY_PREDICTION )
 	VPROF( "CPrediction::RunCommand" );
-#if defined( _DEBUG )
-	char sz[ 32 ];
-	Q_snprintf( sz, sizeof( sz ), "runcommand%04d", ucmd->command_number );
-	PREDICTION_TRACKVALUECHANGESCOPE( sz );
-#endif
+
 	StartCommand( player, ucmd );
 
 	// Set globals appropriately
 	gpGlobals->curtime		= player->m_nTickBase * TICK_INTERVAL;
 	gpGlobals->frametime	= TICK_INTERVAL;
-
-	g_pGameMovement->StartTrackPredictionErrors( player );
 
 // TODO
 // TODO:  Check for impulse predicted?
@@ -906,7 +888,9 @@ void CPrediction::RunCommand( C_BasePlayer *player, CUserCmd *ucmd, IMoveHelper 
 
 	RunPostThink( player );
 
-	g_pGameMovement->FinishTrackPredictionErrors( player );
+// TODO:  Predict impacts?
+//	// Let server invoke any needed impact functions
+//	moveHelper->ProcessImpacts();
 
 	FinishCommand( player );
 
@@ -932,11 +916,7 @@ void CPrediction::SetIdealPitch ( C_BasePlayer *player, const Vector& origin, co
 
 	if ( player->GetGroundEntity() == NULL )
 		return;
-	
-	// Don't do this on the 360..
-	if ( IsX360() )
-		return;
-
+		
 	AngleVectors( angles, &forward );
 	forward[2] = 0;
 
@@ -1097,7 +1077,6 @@ void CPrediction::RestoreOriginalEntityState( void )
 {
 #if !defined( NO_ENTITY_PREDICTION )
 	VPROF( "CPrediction::RestoreOriginalEntityState" );
-	PREDICTION_TRACKVALUECHANGESCOPE( "restore" );
 
 	Assert( C_BaseEntity::IsAbsRecomputationsEnabled() );
 
@@ -1206,8 +1185,7 @@ void CPrediction::RunSimulation( int current_command, float curtime, CUserCmd *c
 			entity->PhysicsSimulate();
 		}
 
-		// Don't update last networked data here!!!
-		entity->OnLatchInterpolatedVariables( LATCH_SIMULATION_VAR | LATCH_ANIMATION_VAR | INTERPOLATE_OMIT_UPDATE_LAST_NETWORKED );
+		entity->OnLatchInterpolatedVariables( LATCH_SIMULATION_VAR | LATCH_ANIMATION_VAR );
 	}
 
 	// Always reset after running command
@@ -1258,7 +1236,6 @@ void CPrediction::StorePredictionResults( int predicted_frame )
 {
 #if !defined( NO_ENTITY_PREDICTION )
 	VPROF( "CPrediction::StorePredictionResults" );
-	PREDICTION_TRACKVALUECHANGESCOPE( "save" );
 
 	int i;
 	int numpredictables = predictables->GetPredictableCount();
@@ -1294,7 +1271,6 @@ void CPrediction::ShiftIntermediateDataForward( int slots_to_remove, int number_
 {
 #if !defined( NO_ENTITY_PREDICTION )
 	VPROF( "CPrediction::ShiftIntermediateDataForward" );
-	PREDICTION_TRACKVALUECHANGESCOPE( "shift" );
 
 	C_BasePlayer *current = C_BasePlayer::GetLocalPlayer();
 	// No local player object?
@@ -1330,7 +1306,6 @@ void CPrediction::RestoreEntityToPredictedFrame( int predicted_frame )
 {
 #if !defined( NO_ENTITY_PREDICTION )
 	VPROF( "CPrediction::RestoreEntityToPredictedFrame" );
-	PREDICTION_TRACKVALUECHANGESCOPE( "restoretopred" );
 
 	C_BasePlayer *current = C_BasePlayer::GetLocalPlayer();
 	// No local player object?
@@ -1768,7 +1743,10 @@ void CPrediction::SetViewAngles( QAngle& ang )
 	if ( !player )
 		return;
 
-	player->SetViewAngles( ang );
+	player->SetLocalAngles( ang );
+	// player->SetLocalViewAngles( ang );
+	player->m_angNetworkAngles = ang;
+
 	player->m_iv_angRotation.Reset();
 }
 
@@ -1789,18 +1767,6 @@ void CPrediction::GetLocalViewAngles( QAngle& ang )
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Purpose: 
-// Input  : ang - 
-//-----------------------------------------------------------------------------
-void CPrediction::SetLocalViewAngles( QAngle& ang )
-{
-	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
-	if ( !player )
-		return;
-
-	player->SetLocalViewAngles( ang );
-}
 
 #if !defined( NO_ENTITY_PREDICTION )
 //-----------------------------------------------------------------------------
@@ -1816,6 +1782,20 @@ int CPrediction::GetIncomingPacketNumber( void ) const
 
 //-----------------------------------------------------------------------------
 // Purpose: 
+// Input  : ang - 
+//-----------------------------------------------------------------------------
+void CPrediction::SetLocalViewAngles( QAngle& ang )
+{
+	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+	if ( !player )
+		return;
+
+	player->SetLocalViewAngles( ang );
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: 
 // Output : Returns true on success, false on failure.
 //-----------------------------------------------------------------------------
 bool CPrediction::InPrediction( void ) const
@@ -1825,4 +1805,14 @@ bool CPrediction::InPrediction( void ) const
 #else
 	return false;
 #endif
+}
+	
+// The engine needs to be able to access a few predicted values
+int CPrediction::GetWaterLevel( void )
+{
+	C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+	if ( !player )
+		return 0;
+
+	return player->m_nWaterLevel;
 }

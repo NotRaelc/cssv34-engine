@@ -2011,6 +2011,12 @@ void MIX_BuildChannelList( CChannelList &list )
 	for ( int i = list.Count(); --i >= 0; )
 	{
 		channel_t *ch = list.GetChannel(i);
+		Assert(ch);
+		Assert(ch->pMixer);
+
+		if (!ch || !ch->pMixer)
+			return;
+
 		bool bRemove = false;
 		// Certain async loaded sounds lazily load into memory in the background, use this to determine
 		//  if the sound is ready for mixing

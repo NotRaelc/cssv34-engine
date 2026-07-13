@@ -7695,17 +7695,11 @@ void SendProxy_CropFlagsToPlayerFlagBitsLength( const SendProp *pProp, const voi
 		SendPropEHandle		( SENDINFO( m_hLastWeapon ) ),
 		SendPropEHandle		( SENDINFO( m_hGroundEntity ), SPROP_CHANGES_OFTEN ),
 
+		SendPropFloat		( SENDINFO_VECTORELEM(m_vecVelocity, 0), 20, SPROP_CHANGES_OFTEN, -2048.0f, 2048.0f  ),
+ 		SendPropFloat		( SENDINFO_VECTORELEM(m_vecVelocity, 1), 20, SPROP_CHANGES_OFTEN, -2048.0f, 2048.0f  ),
+ 		SendPropFloat		( SENDINFO_VECTORELEM(m_vecVelocity, 2), 16, SPROP_CHANGES_OFTEN, -2048.0f, 2048.0f  ),
 
-#define VEL_CLAMPING1 4096.0f	// Must be n^2
-		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 0), 20, SPROP_CHANGES_OFTEN, -VEL_CLAMPING1, VEL_CLAMPING1),
-		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 1), 20, SPROP_CHANGES_OFTEN, -VEL_CLAMPING1, VEL_CLAMPING1),
-		SendPropFloat(SENDINFO_VECTORELEM(m_vecVelocity, 2), 16, SPROP_CHANGES_OFTEN, -VEL_CLAMPING1/2, VEL_CLAMPING1/2),
-
-#if PREDICTION_ERROR_CHECK_LEVEL > 1 
-		SendPropVector		( SENDINFO( m_vecBaseVelocity ), -1, SPROP_COORD ),
-#else
 		SendPropVector		( SENDINFO( m_vecBaseVelocity ), 20, 0, -1000, 1000 ),
-#endif
 
 		SendPropEHandle		( SENDINFO( m_hConstraintEntity)),
 		SendPropVector		( SENDINFO( m_vecConstraintCenter), 0, SPROP_NOSCALE ),

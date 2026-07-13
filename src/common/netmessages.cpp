@@ -968,8 +968,7 @@ bool SVC_Sounds::ReadFromBuffer( bf_read &buffer )
 	if ( m_bReliableSound )
 	{
 		m_nNumSounds = 1;
-		m_nLength = buffer.ReadUBitLong( 8 );
-
+		m_nLength = buffer.ReadUBitLong(8);
 	}
 	else
 	{
@@ -978,6 +977,7 @@ bool SVC_Sounds::ReadFromBuffer( bf_read &buffer )
 	}
 		
 	m_DataIn = buffer;
+
 	return buffer.SeekRelative( m_nLength );
 }
 

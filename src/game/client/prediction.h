@@ -64,7 +64,8 @@ public:
 		return m_flIdealPitch;
 	}
 
-	// The engine needs to be able to access a few predicted values
+		// The engine needs to be able to access a few predicted values
+	virtual int		GetWaterLevel( void );
 	virtual void	GetViewOrigin( Vector& org );
 	virtual void	SetViewOrigin( Vector& org );
 	virtual void	GetViewAngles( QAngle& ang );
@@ -145,7 +146,7 @@ private:
 	float			m_flIdealPitch;
 
 };
- 
+
 extern CPrediction *prediction;
 
 #endif // PREDICTION_H

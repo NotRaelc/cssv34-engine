@@ -1251,14 +1251,14 @@ bool NET_GetLong( const int sock, netpacket_t *packet )
 				entry->netsplit.buffer,
 				entry->netsplit.totalSize - 8))
 			{
-				Msg("Error decompressing split packet %d bytes from %s\n", entry->netsplit.totalSize, packet->from.ToString());
+				Warning("Error decompressing split packet %d bytes from %s\n", entry->netsplit.totalSize, packet->from.ToString());
 				return false;
 			}
 
 			// check uncompressedSize (CUSTOM)
 			if (outSize != uncompressedSize)
 			{
-				Msg("Error decompressing split packet %d bytes from %s, decompressed size mismatch\n",
+				Warning("Error decompressing split packet %d bytes from %s, decompressed size mismatch\n",
 					entry->netsplit.totalSize,
 					packet->from.ToString());
 				return false;
@@ -1271,7 +1271,7 @@ bool NET_GetLong( const int sock, netpacket_t *packet )
 			// Check if CRC's are equal
 			if (crc != expectedCRC)
 			{
-				Msg("Error decompressing split packet %d bytes from %s, crc's don't match\n",
+				Warning("Error decompressing split packet %d bytes from %s, crc's don't match\n",
 					entry->netsplit.totalSize,
 					packet->from.ToString());
 				return false;
@@ -1965,14 +1965,15 @@ void NET_SendQueuedPackets()
 //	char *__cdecl NET_SendLong(int a1, int a2, SOCKET s, char *a4, unsigned int a5, struct sockaddr *to, int tolen)
 //-----------------------------------------------------------------------------
 
-int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char * buf, int len, const struct sockaddr * to, int tolen, int nMaxRoutableSize )
+int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char * buf, int len, const struct sockaddr * to, int tolen )
 {
 	CNetChan* netchan = dynamic_cast<CNetChan*>(chan);
 
 	int compressedSize = len;
 	int nTotalSize = len;
 
-	char *compressedData = new char[len + 8];
+	//char *compressedData = new char[len + 8];
+	char* compressedData = (char*)alloca(len + 11);
 	const char* pData = buf;
 
 	// Not sure if it uses exactly this convar
@@ -2009,7 +2010,7 @@ int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char * buf, int l
 
 	const char* sendbuf = pData;
 
-	char			packet[MAX_ROUTABLE_PAYLOAD];
+	char			packet[MAX_ROUTABLE_PACKET];
 	SPLITPACKET* pPacket = (SPLITPACKET*)packet;
 
 	// Make pPacket data network endian correct
@@ -2040,7 +2041,8 @@ int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char * buf, int l
 #ifndef _LINUX 
 		if (netchan && (!bFirstSend || net_queued_packet_thread.GetInt() == NET_QUEUED_PACKET_THREAD_DEBUG_VALUE))
 		{
-			uint32 delay = (int)(1000.0f * ((float)(nPacketNumber * (nMaxRoutableSize + UDP_HEADER_SIZE)) / (float)netchan->GetDataRate()) + 0.5f);
+			// crappy ahh delay calculation
+			uint32 delay = (int)(1000.0f * ((float)(nPacketNumber * (MAX_ROUTABLE_PACKET + UDP_HEADER_SIZE)) / (float)netchan->GetDataRate()) + 0.5f);
 			ret = NET_QueuePacketForSend(netchan, s, packet, size + sizeof(SPLITPACKET), to, tolen, delay);
 		}
 		else
@@ -2244,7 +2246,7 @@ int NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const uns
 	else
 	{
 		// split packet into smaller pieces
-		ret = NET_SendLong( chan, sock, net_socket, (const char *)data, length, &addr, sizeof(addr), nMaxRoutable );
+		ret = NET_SendLong( chan, sock, net_socket, (const char *)data, length, &addr, sizeof(addr) );
 	}
 	
 	if (ret == -1)
@@ -3175,6 +3177,8 @@ bool NET_BufferToBufferCompress(char* dest, unsigned int* destLen, char* source,
 			Q_memcpy(dest, source, sourceLen);
 			*destLen = sourceLen;
 		}
+
+		DevMsg("BZ2_bzBuffToBuffCompress error code = %i\n", ret);
 		return false;
 	}
 
@@ -3211,6 +3215,7 @@ bool NET_BufferToBufferDecompress(char* dest, unsigned int* destLen, char* sourc
 
 	if (ret != BZ_OK)
 	{
+		DevMsg("BZ2_bzBuffToBuffDecompress error code = %i\n", ret);
 		return false;
 	}
 
