@@ -2243,7 +2243,7 @@ bool CBasePlayer::StartObserverMode(int mode)
 
 bool CBasePlayer::SetObserverMode(int mode )
 {
-	if ( mode < OBS_MODE_NONE || mode >= NUM_OBSERVER_MODES )
+	if ( mode < OBS_MODE_NONE || mode > OBS_MODE_ROAMING )
 		return false;
 
 
@@ -2626,10 +2626,7 @@ bool CBasePlayer::IsValidObserverTarget(CBaseEntity * target)
 		switch ( mp_forcecamera.GetInt() )	
 		{
 			case OBS_ALLOW_ALL	    :	break;
-			case OBS_ALLOW_TEAM     :
-			case OBS_ALLOW_TEAM_ALL :	if ( GetTeamNumber() != target->GetTeamNumber() )
-											return false;
-										break;
+			case OBS_ALLOW_TEAM     :	break;
 			case OBS_ALLOW_NONE     :	return false;
 		}
 	}
@@ -6209,12 +6206,6 @@ bool CBasePlayer::ClientCommand( const CCommand &args )
 	{
 		int mode;
 
-		if ( GetObserverMode() == OBS_MODE_FREEZECAM )
-		{
-			AttemptToExitFreezeCam();
-			return true;
-		}
-
 		// not allowed to change spectator modes when mp_fadetoblack is being used
 		if ( mp_fadetoblack.GetBool() )
 		{
@@ -6275,10 +6266,6 @@ bool CBasePlayer::ClientCommand( const CCommand &args )
 				SetObserverTarget( target );
 			}
 		}
-		else if ( GetObserverMode() == OBS_MODE_FREEZECAM )
-		{
-			AttemptToExitFreezeCam();
-		}
 		
 		return true;
 	}
@@ -6292,10 +6279,6 @@ bool CBasePlayer::ClientCommand( const CCommand &args )
 			{
 				SetObserverTarget( target );
 			}
-		}
-		else if ( GetObserverMode() == OBS_MODE_FREEZECAM )
-		{
-			AttemptToExitFreezeCam();
 		}
 		
 		return true;
