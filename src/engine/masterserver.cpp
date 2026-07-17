@@ -46,8 +46,8 @@ const int g_iMasterServersVDF_Maximum = 4;
 
 static char g_MasterServers[][64] =
 {
-	"194.87.101.97:27011",
-	"80.78.244.170:27011"
+	"78.154.103.37:10232", // nttnmDev 
+	"80.78.244.170:27011"  // doesnt respond most of the time
 };
 
 #ifdef DEDICATED
@@ -451,22 +451,22 @@ void CMaster::ProcessConnectionlessPacket(netpacket_t*packet )
 				unsigned short index = m_serverAddresses.Find(adr);
 				if (index != m_serverAddresses.InvalidIndex())
 				{
-					ip = msg.ReadLong();
-					port = msg.ReadShort();
+					ip = htonl(msg.ReadLong());
+					port = htons(msg.ReadShort());
 					continue;
 				}
 
 				m_serverAddresses.Insert(adr, false);
 				RequestServerInfo(adr);
 
-				ip = msg.ReadLong();
-				port = msg.ReadShort();
+				ip = htonl(msg.ReadLong());
+				port = htons(msg.ReadShort());
+
+				if (m_lastServerAdr.GetIPHostByteOrder() == 0 || m_lastServerAdr.GetPort() == 0)
+					m_lastServerAdr.SetIPAndPort(ip, port);
 			}
 
-			if (m_lastServerAdr.GetIPHostByteOrder() == 0 || m_lastServerAdr.GetPort() == 0)
-				m_lastServerAdr.SetIPAndPort(ip, port);
-
-			RequestInternetServerList(m_szGameDir, m_serverListResponse);
+			//RequestInternetServerList(m_szGameDir, m_serverListResponse);
 
 			break;
 		}
@@ -980,7 +980,7 @@ DWORD WINAPI CMaster::MasterServersVDFLoading_Thread(LPVOID param)
 {
 	CMaster* pThis = (CMaster*)param;
 
-	// Æä¸ì filesystem
+	// waiting for filesystem
 	while (!g_pFullFileSystem)
 	{
 		Sleep(100);
