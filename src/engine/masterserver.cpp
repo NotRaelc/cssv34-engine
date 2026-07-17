@@ -801,7 +801,7 @@ void CMaster::UseDefault ( void )
 	for( int i = 0; i < ARRAYSIZE(g_MasterServers);i++ )
 	{
 		// Convert to netadr_t
-		adr = g_MasterServers[i];
+		adr.SetFromString(g_MasterServers[i]);
 		// Add to master list
 		AddServer( &adr );
 	}
@@ -979,7 +979,7 @@ DWORD WINAPI CMaster::MasterServersVDFLoading_Thread(LPVOID param)
 {
 	CMaster* pThis = (CMaster*)param;
 
-	// Æä¸ì filesystem
+	// Ã†Ã¤Â¸Ã¬ filesystem
 	while (!g_pFullFileSystem)
 	{
 		Sleep(100);
@@ -1069,7 +1069,7 @@ void CMaster::Shutdown(void)
 // ServersInfo
 void CMaster::RequestInternetServerList(const char *gamedir, IServerListResponse *response)
 {
-#if 0
+#if 1
 	if (!m_lastServerAdr.IsValid())
 		m_lastServerAdr.SetIPAndPort(0, 0);
 
