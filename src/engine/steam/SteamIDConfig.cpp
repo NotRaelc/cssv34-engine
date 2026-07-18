@@ -24,17 +24,28 @@ ConVar steam_special("steam_special", "0", SIDCVARS_FLAGS, "Special number");
 ConVar steam_new("steam_new", "0", SIDCVARS_FLAGS, "Indicates to use new steam id instance or not");
 
 /*
-* Generate account id using an external ip
+* Get account id
 * 
 * @output       Account ID as an integer.
 */
 int get_accountid()
 {
-	int Ip = GetExternalIPLong();
-	int result = Ip >> 1;
+	// Using SteamEmu type generation
 
-	if (result < 0)
-		result *= -1;
+	unsigned long result = 0;
+
+	GetVolumeInformationA(
+		"C:\\",
+		nullptr,
+		0,
+		&result,
+		nullptr,
+		nullptr,
+		nullptr,
+		0
+	);
+
+	result = (result ^ 0xC9710266) & 0x7FFFFFFF;
 
 	return result;
 }
@@ -44,10 +55,7 @@ SteamIDConfig::SteamIDConfig() : steamID(0) {
 	if (g_bSidCfg_FirstStart) {
 		srand((unsigned)_time64(0));
 		
-		//if (!SteamUser())
-			steamID = get_accountid();
-		//else
-		//	steamID = SteamUser()->GetSteamID().GetAccountID() / 2;
+		steamID = get_accountid();
 
 		g_bSidCfg_FirstStart = false;
 
