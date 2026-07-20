@@ -1596,7 +1596,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 
 	if ( m_StreamReliable.IsOverflowed() )
 	{
-		ConMsg ("%s:send reliable stream overflow\n" ,remote_address.ToString());
+		ConMsg ("%s:send reliable stream overflow\n" ,remote_address.ToString(0));
 		return 0;
 	}
 	else if ( m_StreamReliable.GetNumBitsWritten() > 0 )
@@ -1621,14 +1621,14 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	send.WriteByte ( 0 ); // write correct flags value later
 
 	// Note, this only matters on the PC
-	int nCheckSumStart = send.GetNumBytesWritten();
+	// int nCheckSumStart = send.GetNumBytesWritten();
 
 	send.WriteByte ( m_nInReliableState );
 
 	if ( m_nChokedPackets > 0 )
 	{
 		flags |= PACKET_FLAG_CHOKED;
-		send.WriteByte ( m_nChokedPackets & 0xFF );	// send number of choked packets
+		send.WriteByte(m_nChokedPackets & 0xFF);	// send number of choked packets
 	}
 
 	if ( SendSubChannelData( send ) )
@@ -1677,20 +1677,20 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	while ( send.GetNumBytesWritten() < nMinRoutablePayload )		
 	{
 		// Go ahead and pad some bits as long as needed
-		send.WriteUBitLong( net_NOP, NETMSG_TYPE_BITS );
+		send.WriteUBitLong( net_NOP, NETMSG_TYPE_BITS, 1 );
 	}
 
 	// Make sure we have enough bits to read a final net_NOP opcode before compressing 
 	int nRemainingBits = send.GetNumBitsWritten() % 8;
 	if ( nRemainingBits > 0 &&  nRemainingBits <= (8-NETMSG_TYPE_BITS) )
 	{
-		send.WriteUBitLong( net_NOP, NETMSG_TYPE_BITS );
+		send.WriteUBitLong( net_NOP, NETMSG_TYPE_BITS, 1 );
 	}
 
 	// write correct flags value and the checksum
 	flagsPos.WriteByte( flags ); 
 
-	int	bytesSent = NET_SendPacket(this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten());
+	NET_SendPacket(this, m_Socket, remote_address, send.GetData(), send.GetNumBytesWritten());
 
 	if ( net_showudp.GetInt() && net_showudp.GetInt() != 2 )
 	{
@@ -1704,7 +1704,7 @@ int CNetChan::SendDatagram(bf_write *datagram)
 	}
 
 	// update stats
-	int nTotalSize = bytesSent + UDP_HEADER_SIZE;
+	int nTotalSize = send.GetNumBytesWritten() + UDP_HEADER_SIZE;
 
 	FlowNewPacket( FLOW_OUTGOING, m_nOutSequenceNr, m_nInSequenceNr, m_nChokedPackets, 0, nTotalSize );
 

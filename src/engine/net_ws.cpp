@@ -766,7 +766,7 @@ LOOPBACK BUFFERS FOR LOCAL PLAYER
 */
 
 
-void NET_SendLoopPacket (int sock, int length, const unsigned char *data, const netadr_t &to)
+void NET_SendLoopPacket (int sock, int length, const unsigned char *data)
 {
 	loopback_t	*loop;
 
@@ -2099,95 +2099,79 @@ int NET_SendLong( INetChannel *chan, int sock, SOCKET s, const char * buf, int l
 // Output : void NET_SendPacket
 //-----------------------------------------------------------------------------
 
-int NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const unsigned char *data, int length )
+void NET_SendPacket ( INetChannel *chan, int sock,  const netadr_t &to, const unsigned char *data, int length )
 {
-	int		ret;
 	struct sockaddr	addr;
 	int		net_socket;
 
 	if ( net_showudp.GetInt() && (*(unsigned int*)data == CONNECTIONLESS_HEADER) )
 	{
-		Assert( !bUseCompression );
 		Msg("UDP -> %s: sz=%i OOB '%c'\n", to.ToString(), length, data[4] );
 	}
 
 	if ( !NET_IsMultiplayer() )	// Just !NET_IsMultiplayer
 	{
-		Assert( !pVoicePayload );
-
-		NET_SendLoopPacket (sock, length, data, to);
-		return length;
+		NET_SendLoopPacket (sock, length, data);
+		return;
 	}
 
-	if ( to.type == NA_BROADCAST )
+	if ( to.type == NA_BROADCAST || to.type == NA_IP)
 	{
 		net_socket = net_sockets[sock].hUDP;
-		ret = 16 * sock;
-		if (!net_socket)
-			return length;
-	}
-	else if ( to.type == NA_IP )
-	{
-		net_socket = net_sockets[sock].hUDP;
-		ret = (int)net_sockets.Base(); // thats strange
-		if (!net_socket)
-			return length;
 	}
 	else
 	{
 		DevMsg("NET_SendPacket: bad address type (%i)\n", to.type );
-		return length;
+		return;
 	}
 
 	if ( (droppackets.GetInt() < 0)  && sock == NS_CLIENT )
 	{
 		droppackets.SetValue( droppackets.GetInt() + 1 );
-		return length;
+		return;
 	}
 
 	if ( fakeloss.GetFloat() > 0.0f )
 	{
 		// simulate sending this packet
 		if (RandomInt(0,100) <= (int)fakeloss.GetFloat())
-			return length;
+			return;
 	}
 
 	to.ToSockadr ( &addr );
+
+	int nSend;
 
 	// Do we need to break this packet up?
 	if ( length <= MAX_ROUTABLE_PACKET && 
 		!(net_queued_packet_thread.GetInt() == NET_QUEUED_PACKET_THREAD_DEBUG_VALUE && chan ) )	
 	{
 		// simple case, small packet, just send it
-		ret = NET_SendTo( true, net_socket, (const char *)data, length, &addr, sizeof(addr) );
+		nSend = NET_SendTo( true, net_socket, (const char *)data, length, &addr, sizeof(addr) );
 	}
 	else
 	{
 		// split packet into smaller pieces
-		ret = NET_SendLong( chan, sock, net_socket, (const char *)data, length, &addr, sizeof(addr) );
+		nSend = NET_SendLong( chan, sock, net_socket, (const char *)data, length, &addr, sizeof(addr) );
 	}
 	
-	if (ret == -1)
+	if (nSend == -1)
 	{
 		NET_GetLastError();
 		
 		// wouldblock is silent
 		if ( net_error == WSAEWOULDBLOCK )
-			return 0;
+			return;
 
 		if ( net_error == WSAECONNRESET )
-			return 0;
+			return;
 
 		// some PPP links dont allow broadcasts
 		if ( ( net_error == WSAEADDRNOTAVAIL) && ( to.type == NA_BROADCAST ) )
-			return 0;
+			return;
 
-		ConDMsg ("NET_SendPacket Warning: %s : %s\n", NET_ErrorString(net_error), to.ToString() );
-		ret = length;
+		ConDMsg ("NET_SendPacket Warning: %s : %s\n", NET_ErrorString(net_error), to.ToString(0) );
 	}
-	
-
-	return ret;
 }
 
 void NET_OutOfBandPrintf(int sock, const netadr_t &adr, const char *format, ...)
