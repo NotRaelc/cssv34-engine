@@ -51,7 +51,7 @@ extern int  NET_SendStream( int nSock, const char * buf, int len, int flags );
 extern int  NET_ReceiveStream( int nSock, char * buf, int len, int flags );
 
 // If the network connection hasn't been active in this many seconds, display some warning text.
-#define CONNECTION_PROBLEM_TIME		4.0f	// assume network problem after this time
+#define CONNECTION_PROBLEM_TIME		15.0f	// assume network problem after this time
 
 #define BYTES2FRAGMENTS(i) ((i+FRAGMENT_SIZE-1)/FRAGMENT_SIZE)
 
@@ -339,8 +339,7 @@ unsigned int CNetChan::RequestFile(const char *filename	)
 
 void CNetChan::RequestFile_OLD(const char *filename, unsigned int transferID)
 {
-	// Actually there was Error, but I just leave it like this.
-	RequestFile(filename);
+	Error("Called RequestFile_OLD");
 }
 
 void CNetChan::DenyFile(const char *filename, unsigned int transferID)
@@ -361,7 +360,19 @@ bool CNetChan::SendFile(const char *filename, unsigned int transferID)
 	// add file to waiting list
 	if ( remote_address.GetType() == NA_NULL )
 		return true;
-
+#if 0 // Useful disassembly checks
+	if ( !filename )
+		return false;
+#if 0	// Useless disassembly cycle
+	for (char i = *filename; i; i = *++filename)
+	{
+		if (i != '\\' && i != '/')
+			break;
+	}
+#endif
+	if ( !IsSafeFileToDownload( filename ))
+		return false;
+#endif
 	if ( !CreateFragmentsFromFile( filename, FRAG_FILE_STREAM, transferID	) )
 	{
 		DenyFile( filename, transferID ); // send host a deny message
@@ -757,7 +768,7 @@ CNetChan::CanPacket
 Returns true if the bandwidth choke isn't active
 ================
 */
-bool CNetChan::CanPacket () const
+bool CNetChan::CanPacket () const	// Unused
 {
 	// Never choke loopback packets.
 	if ( !net_chokeloopback.GetInt() && remote_address.IsLoopback() )
@@ -1320,7 +1331,7 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 
 	if ( !bSingleBlock )
 	{
-		startFragment = buf.ReadUBitLong( MAX_FILE_SIZE_BITS-FRAGMENT_BITS ); // 16 MB max
+		startFragment = buf.ReadUBitLong( MAX_FILE_SIZE_BITS-FRAGMENT_BITS ); // 18 MB max
 		numFragments = buf.ReadUBitLong( 3 );  // 8 fragments per packet max
 		offset = startFragment * FRAGMENT_SIZE;
 		length = numFragments * FRAGMENT_SIZE;
@@ -1410,37 +1421,25 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 	}
 
 	Assert ( (offset + length) <= data->bytes );
-#if 1
-	// Disassembler recovery 
-	if (length && (offset + length) <= data->bytes)
-	{
-		buf.ReadBytes(data->buffer + offset, length);
-		data->ackedFragments += numFragments;
 
-		if (net_showfragments.GetBool())
-			ConMsg("Received fragments: start %i, num %i\n",
-				startFragment, numFragments);
-
-		return true;
-	}
-	else
+	// Disassembler recovery
+	Assert((offset + length) <= data->bytes);
+	if (length == 0 || (offset + length) > data->bytes)
 	{
 		delete[] data->buffer;
 		data->buffer = NULL;
 		ConDMsg("Malformed fragment ofs %i len %d, buffer size %d from %s\n",
-			offset, length,
-			PAD_NUMBER(data->bytes, 4),
-			remote_address.ToString());
+			offset, length, PAD_NUMBER(data->bytes, 4), remote_address.ToString());
 		return false;
 	}
-#else
-	buf.ReadBytes( data->buffer + offset, length ); // read data
 
-	data->ackedFragments+= numFragments;
+	buf.ReadBytes(data->buffer + offset, length);
 
-	if ( net_showfragments.GetBool() )
-		ConMsg("Received fragments: start %i, num %i\n", startFragment, numFragments );
-#endif
+	data->ackedFragments += numFragments;
+
+	if (net_showfragments.GetBool())
+		ConMsg("Received fragments: start %i, num %i\n", startFragment, numFragments);
+
 	return true;
 }
 
@@ -2852,7 +2851,7 @@ void CNetChan::DecrementQueuedPackets()
 		m_nQueuedPackets = 0;
 }
 
-bool CNetChan::HasQueuedPackets() const
+bool CNetChan::HasQueuedPackets() const	// was inlined
 {
 	return m_nQueuedPackets > 0;
 }

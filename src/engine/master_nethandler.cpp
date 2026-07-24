@@ -143,6 +143,7 @@ void CMasterNETHandler::RunFrame(CMasterNETHandler* This) {
 	char buffer[2048];
 
 	while (This->workerRunning) {
+		Sleep(1);	// FIXME: Not a proper solution to fps jittering
 		sockaddr_in sender{};
 		int senderSize = sizeof(sender);
 
